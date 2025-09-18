@@ -43,6 +43,7 @@ const ProjectDetailsPage = () => {
     demoUrl?: string;
     slidesUrl?: string;
     techStack?: string | string[];
+    categories?: string[];
     milestones?: ApiMilestone[];
     bountyPrize?: ApiBounty[];
     donationAddress?: string;
@@ -62,6 +63,14 @@ const ProjectDetailsPage = () => {
   const [registerSig, setRegisterSig] = useState('');
   const [teamEditing, setTeamEditing] = useState(false);
   const [teamDraft, setTeamDraft] = useState<ApiTeamMember[]>([]);
+  const ALLOWED_CATEGORIES = [
+    "Gaming",
+    "DeFi",
+    "NFT",
+    "Developer Tools",
+    "Social",
+    "Other",
+  ];
   // Add state for modal and form fields
   const [deliverableModalOpen, setDeliverableModalOpen] = useState(false);
   const [milestoneName, setMilestoneName] = useState("");
@@ -97,9 +106,10 @@ const ProjectDetailsPage = () => {
           setNotFound(true);
         }
       } catch (error) {
+        const err = error as Error;
         toast({
           title: "Error",
-          description: "Failed to load project details. Please try again.",
+          description: err?.message || "Failed to load project details. Please try again.",
           variant: "destructive",
         });
       } finally {
@@ -119,6 +129,7 @@ const ProjectDetailsPage = () => {
       demoUrl: project.demoUrl,
       slidesUrl: project.slidesUrl,
       techStack: project.techStack,
+      categories: project.categories || [],
       milestones: project.milestones ? [...project.milestones] : [],
     });
     setEditMode('edit');
@@ -173,11 +184,40 @@ const ProjectDetailsPage = () => {
     }
   };
 
-  // Save edits (mock)
-  const saveEdit = () => {
-    setProject((prev: ApiProject | null) => (prev ? { ...prev, ...editFields } as ApiProject : prev));
-    setEditMode(false);
-    toast({ title: 'Project updated (mock)', description: 'Your changes have been saved locally.' });
+  // Save edits (persist categories; update UI on success only)
+  const saveEdit = async () => {
+    try {
+      if (project && Array.isArray(editFields.categories)) {
+        // Sign SIWS and persist categories via PATCH (protected route)
+        await web3Enable('Hackathonia');
+        const accounts = await web3Accounts();
+        const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+        if (!account) throw new Error('No wallet found');
+        const siws = new SiwsMessage({
+          domain: window.location.hostname,
+          uri: window.location.origin,
+          address: account.address,
+          nonce: Math.random().toString(36).slice(2),
+          statement: 'Submit milestone deliverables for Hackathonia',
+        });
+        const injector = await web3FromSource(account.meta.source);
+        const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+        const messageStr = typeof signed.message === 'string' && signed.message
+          ? signed.message
+          : (siws as unknown as { toString: () => string }).toString();
+        const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+        await api.updateProjectCategories(project.id, editFields.categories as string[], authHeader);
+      }
+
+      // Update local UI after successful server update
+      setProject((prev: ApiProject | null) => (prev ? { ...prev, ...editFields } as ApiProject : prev));
+      setEditMode(false);
+      toast({ title: 'Project updated', description: 'Changes have been saved.' });
+    } catch (e) {
+      const err = e as Error;
+      toast({ title: 'Save failed', description: err?.message || String(e), variant: 'destructive' });
+    }
   };
 
   // Wallet connect logic
@@ -344,8 +384,8 @@ const ProjectDetailsPage = () => {
             ) : (
               <Button size="sm" onClick={connectWallet}>Connect Wallet</Button>
             )}
-            {connectedAddress && connectedAddress === project.donationAddress && !editMode && (
-              <Button size="sm" variant="outline" onClick={startEdit}>Edit</Button>
+            {!editMode && (
+              <Button size="sm" variant="outline" onClick={startEdit}>Update Project Information</Button>
             )}
           </div>
           <div className="max-w-4xl mx-auto space-y-8">
@@ -373,12 +413,31 @@ const ProjectDetailsPage = () => {
                 {/* Add vertical space below the label and before the heading */}
                 {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0)) && <div className="h-8 sm:h-10" />}
                 {/* Project Title */}
-                <CardTitle className="text-xl sm:text-2xl mb-2">{project.projectName}</CardTitle>
+                {editMode === 'edit' ? (
+                  <input
+                    className="w-full border rounded px-2 py-1 text-base mb-2 bg-background text-white"
+                    value={String(editFields.projectName || '')}
+                    onChange={(e) => setEditFields((prev) => ({ ...prev, projectName: e.target.value }))}
+                    placeholder="Project Name"
+                  />
+                ) : (
+                  <CardTitle className="text-xl sm:text-2xl mb-2">{project.projectName}</CardTitle>
+                )}
                 {/* Team Name(s) below title */}
                 <span className="block text-sm text-white mb-2">
                   Team: {Array.isArray(project.teamMembers) && project.teamMembers.length > 0 ? project.teamMembers.map((m: ApiTeamMember) => m?.name).filter(Boolean).join(', ') : (project.teamLead || '')}
                 </span>
-                <p className="text-sm sm:text-base text-muted-foreground mb-2">{project.description}</p>
+                {editMode === 'edit' ? (
+                  <textarea
+                    className="w-full border rounded px-2 py-1 text-sm sm:text-base mb-2 bg-background text-white"
+                    rows={4}
+                    value={String(editFields.description || '')}
+                    onChange={(e) => setEditFields((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Project Description"
+                  />
+                ) : (
+                  <p className="text-sm sm:text-base text-muted-foreground mb-2">{project.description}</p>
+                )}
                 {/* Tech stack badges with improved spacing */}
                 {project.techStack && (
                   <div className="flex flex-wrap gap-3 mb-4">
@@ -420,6 +479,58 @@ const ProjectDetailsPage = () => {
                     </Button>
                   )}
                 </div>
+                {editMode === 'edit' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                    <input
+                      className="border rounded px-2 py-1 text-xs bg-background text-white"
+                      placeholder="Source Code URL"
+                      value={String(editFields.projectRepo || '')}
+                      onChange={(e) => setEditFields((prev) => ({ ...prev, projectRepo: e.target.value }))}
+                    />
+                    <input
+                      className="border rounded px-2 py-1 text-xs bg-background text-white"
+                      placeholder="Live Demo URL"
+                      value={String(editFields.demoUrl || '')}
+                      onChange={(e) => setEditFields((prev) => ({ ...prev, demoUrl: e.target.value }))}
+                    />
+                    <input
+                      className="border rounded px-2 py-1 text-xs bg-background text-white"
+                      placeholder="Slides URL"
+                      value={String(editFields.slidesUrl || '')}
+                      onChange={(e) => setEditFields((prev) => ({ ...prev, slidesUrl: e.target.value }))}
+                    />
+                  </div>
+                )}
+                {editMode === 'edit' && (
+                  <div className="mt-4 space-y-2">
+                    <h4 className="text-sm font-semibold text-white">Categories</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {ALLOWED_CATEGORIES.map((cat) => {
+                        const active = (editFields.categories as string[] | undefined)?.includes(cat);
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            className={`px-2 py-1 text-xs rounded border ${active ? 'bg-primary text-white border-primary' : 'bg-transparent text-white border-white/20'}`}
+                            onClick={() => {
+                              setEditFields((prev) => {
+                                const current = new Set<string>(Array.isArray(prev.categories) ? prev.categories as string[] : []);
+                                if (current.has(cat)) current.delete(cat); else current.add(cat);
+                                return { ...prev, categories: Array.from(current) };
+                              });
+                            }}
+                          >
+                            {cat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button size="sm" variant="default" onClick={saveEdit}>Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditMode(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
               </CardHeader>
             </Card>
 
@@ -429,7 +540,7 @@ const ProjectDetailsPage = () => {
               <div className="flex items-center justify-center gap-8 mb-6 mt-2 px-4">
                 {/* Event Start */}
                 <div className="flex flex-col items-center">
-                  <button className={`rounded-full p-2 ${eventStarted ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
+                  <button className={`rounded-full p-2 ${eventStarted ? 'bg-white text-black' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
                   <span className="text-xs mt-2">{project.eventStartedAt || 'Event Start'}</span>
                 </div>
                 <div className="h-1 w-12 bg-muted rounded" />
@@ -441,13 +552,13 @@ const ProjectDetailsPage = () => {
                 <div className="h-1 w-12 bg-muted rounded" />
                 {/* Milestone Delivered */}
                 <div className="flex flex-col items-center">
-                  <button className={`rounded-full p-2 ${milestoneDelivered ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
+                  <button className={`rounded-full p-2 ${milestoneDelivered ? 'bg-white text-black' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
                   <span className="text-xs mt-2">Milestone Delivered</span>
                 </div>
               </div>
               {/* Team Members section */}
               <div className="mb-6">
-                <h4 className="font-semibold text-base mb-2 text-green-400">Team Members</h4>
+                <h4 className="font-semibold text-base mb-2 text-white">Team Members</h4>
                 {!teamEditing ? (
                   <div className="space-y-1">
                     {(project.teamMembers || []).map((m, i) => (
@@ -476,19 +587,55 @@ const ProjectDetailsPage = () => {
               </div>
               {/* Create Team Multisig section */}
               <div className="mb-6">
-                <h4 className="font-semibold text-base mb-2 text-green-400">Create Team Multisig</h4>
+                <h4 className="font-semibold text-base mb-2 text-white">Create Team Multisig</h4>
                 <span className="text-gray-400 text-sm">Coming soon</span>
               </div>
               {/* Milestone work in progress section */}
-              <h3 className="font-semibold mb-2 text-base text-green-400">Milestone work in progress</h3>
+              <h3 className="font-semibold mb-2 text-base text-white">Milestone work in progress</h3>
               {project.milestones && project.milestones.length > 0 ? (
-                <div className="mb-4">
-                  <ul className="list-disc pl-6 space-y-1">
-                    {project.milestones.map((m: ApiMilestone, i: number) => (
-                      <li key={i} className="text-white text-xs sm:text-sm">{typeof m === 'string' ? m : (m?.description || '')}</li>
-                    ))}
-                  </ul>
-                </div>
+                (() => {
+                  // Normalize text and collect bullets. Handle literal "\\n" and the first non-dash line.
+                  const bulletItems: string[] = [];
+                  (project.milestones || []).forEach((m: ApiMilestone) => {
+                    const raw = typeof m === 'string' ? m : (m?.description || '');
+                    const normalized = (raw || '').replace(/\\n/g, '\n');
+                    const lines = normalized.split('\n').map((l) => l.trim()).filter(Boolean);
+                    let encounteredDash = false;
+                    lines.forEach((line, idx) => {
+                      if (line.startsWith('- ')) {
+                        encounteredDash = true;
+                        bulletItems.push(line.slice(2));
+                      } else {
+                        // If this is the first line and subsequent lines include dashes, include it as a bullet too
+                        // or if no dash has been encountered yet but this looks like a deliverable style line
+                        if (idx === 0) {
+                          bulletItems.push(line);
+                        }
+                      }
+                    });
+                  });
+                  if (bulletItems.length > 0) {
+                    return (
+                      <div className="mb-4">
+                        <ul className="list-disc pl-6 space-y-1">
+                          {bulletItems.map((item: string, idx: number) => (
+                            <li key={idx} className="text-white text-xs sm:text-sm">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  }
+                  // Fallback: render raw milestone lines
+                  return (
+                    <div className="mb-4">
+                      <ul className="list-disc pl-6 space-y-1">
+                        {project.milestones.map((m: ApiMilestone, i: number) => (
+                          <li key={i} className="text-white text-xs sm:text-sm">{typeof m === 'string' ? m : (m?.description || '')}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="mb-4 text-white text-xs sm:text-sm">No milestones confirmed.</div>
               )}
@@ -563,7 +710,7 @@ const ProjectDetailsPage = () => {
             {formError && <div className="text-red-500 text-sm mt-2">{formError}</div>}
           </div>
           <DialogFooter>
-            <Button onClick={handleDeliverableSubmit} disabled={formLoading} className="bg-green-500 text-white hover:bg-green-600 px-6 py-2 rounded">
+            <Button onClick={handleDeliverableSubmit} disabled={formLoading} className="bg-white text-black hover:bg-gray-200 px-6 py-2 rounded">
               {formLoading ? "Submitting..." : "Submit"}
             </Button>
           </DialogFooter>

@@ -36,18 +36,19 @@ export default function Header() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-2">
-          {[
-            { to: "/", label: "Home" },
-            { to: "/projects", label: "Active Projects", icon: FolderOpen },
-            { to: "/past-projects", label: "Past Projects", icon: History },
-            // { to: "/submission", label: "Submit", icon: PlusCircle },
-            { to: "/admin", label: "Admin", icon: Shield },
-          ].map(({ to, label, icon: Icon }) => (
+                      {[
+              { to: "/", label: "Home" },
+              { to: "/projects", label: "Active Projects", icon: FolderOpen },
+              { to: "/past-projects", label: "Past Projects", icon: History },
+              // { to: "/submission", label: "Submit", icon: PlusCircle },
+              // { to: "/admin", label: "Admin", icon: Shield },
+            ].map(({ to, label, icon: Icon }) => (
             <Button
               key={to} 
               variant={isActive(to) ? "default" : "ghost"}
               size="sm"
               asChild
+              className={isActive(to) ? "bg-atariGreen text-black hover:bg-atariGreen/90" : ""}
             >
               <Link to={to} className="flex items-center space-x-2">
                 {Icon && <Icon className="h-4 w-4" />}
@@ -82,7 +83,7 @@ export default function Header() {
               { to: "/past-projects", label: "Past Projects", icon: History },
               { to: "/projects", label: "Active Projects", icon: FolderOpen },
               // { to: "/submission", label: "Submit", icon: PlusCircle },
-              { to: "/admin", label: "Admin", icon: Shield },
+              // { to: "/admin", label: "Admin", icon: Shield },
             ].map(({ to, label, icon: Icon }) => (
               <Button
                 key={to}
@@ -90,6 +91,7 @@ export default function Header() {
                 size="sm"
                 asChild
                 onClick={() => setMobileMenuOpen(false)}
+                className={isActive(to) ? "bg-atariGreen text-black hover:bg-atariGreen/90" : ""}
               >
                 <Link to={to} className="flex items-center space-x-1">
                   <Icon className="h-4 w-4" />

@@ -112,23 +112,47 @@ type ApiProject = {
   donationAddress?: string;
   bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
   techStack?: string[];
+  categories?: string[];
+  hackathon?: { id: string; name: string; endDate: string };
 };
 
 const PastProjectsPage = () => {
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState("synergy-2025");
+  const [selectedHackathon, setSelectedHackathon] = useState<string>("all");
   const [videoProject, setVideoProject] = useState<ApiProject | null>(null);
   const [loading, setLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [projects, setProjects] = useState<ApiProject[]>([]);
+  const [hackathons, setHackathons] = useState<{ id: string; name: string }[]>([]);
 
+  // Load hackathon list once
+  useEffect(() => {
+    const loadHackathons = async () => {
+      try {
+        const response = await api.getProjects({ limit: 2000, sortBy: "updatedAt", sortOrder: "desc" });
+        const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
+        const unique = new Map<string, string>();
+        for (const p of apiProjects) {
+          if (p.hackathon?.id) unique.set(p.hackathon.id, p.hackathon.name || p.hackathon.id);
+        }
+        setHackathons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })));
+      } catch (e) {
+        // ignore errors when building hackathon list
+      }
+    };
+    loadHackathons();
+  }, []);
+
+  // Load projects when selected hackathon changes
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const hackathonId = selectedEvent === "symmetry-2024" ? "symmetry-2024" : "synergy-2025";
-        const response = await api.getProjects({ hackathonId, limit: 1000, sortBy: "updatedAt", sortOrder: "desc" });
+        const params = selectedHackathon === 'all'
+          ? { limit: 1000, sortBy: "updatedAt", sortOrder: "desc" }
+          : { hackathonId: selectedHackathon, limit: 1000, sortBy: "updatedAt", sortOrder: "desc" };
+        const response = await api.getProjects(params as { hackathonId?: string; limit: number; sortBy: string; sortOrder: 'asc' | 'desc' });
         const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
         setProjects(apiProjects);
       } catch (e) {
@@ -139,7 +163,7 @@ const PastProjectsPage = () => {
       }
     };
     load();
-  }, [selectedEvent]);
+  }, [selectedHackathon]);
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -157,19 +181,10 @@ const PastProjectsPage = () => {
         for (const filter of activeFilters) {
           if (filter === "Winners") {
             let isWinner = false;
-            if (selectedEvent === "symmetry-2024") {
-              const winnerProjects = [
-                "anytype - nft gating",
-                "delegit",
-                "empathy technologies",
-                "hypertents",
-                "papi actions",
-                "propcorn",
-                "ChainView",
-              ];
-              isWinner = winnerProjects.some((winner) =>
-                project.projectName.toLowerCase().includes(winner.toLowerCase())
-              );
+            const isSymmetry2024 = project.hackathon?.id === 'symmetry-2024';
+            if (isSymmetry2024) {
+              const winnerProjects = ["anytype - nft gating","delegit","empathy technologies","hypertents","papi actions","propcorn","ChainView"]; 
+              isWinner = winnerProjects.some((winner) => project.projectName.toLowerCase().includes(winner.toLowerCase()));
             } else {
               isWinner = Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0;
             }
@@ -179,10 +194,10 @@ const PastProjectsPage = () => {
               break;
             }
           }
-          // Check techStack
-          const cats = extractCategories(
-            Array.isArray(project.techStack) ? project.techStack.join(", ") : (project.techStack as unknown as string) || ""
-          );
+          // Categories: prefer explicit categories; fallback to derived from techStack
+          const cats = Array.isArray(project.categories) && project.categories.length > 0
+            ? project.categories
+            : extractCategories(Array.isArray(project.techStack) ? project.techStack.join(", ") : (project.techStack as unknown as string) || "");
           if (cats.includes(filter)) {
             matchesFilter = true;
             break;
@@ -191,7 +206,7 @@ const PastProjectsPage = () => {
       }
       return matchesSearch && matchesFilter;
     });
-  }, [projects, search, activeFilters, selectedEvent]);
+  }, [projects, search, activeFilters]);
 
   // Skeleton bubbles for loading state
   const skeletons = Array.from({ length: 6 });
@@ -209,9 +224,20 @@ const PastProjectsPage = () => {
           </Button>
         </div>
         <h1 className="text-4xl font-bold mb-2">Past Projects</h1>
-        <p className="text-muted-foreground">
-          Browse {filteredProjects.length} projects from {selectedEvent === "symmetry-2024" ? "Blockspace Symmetry 2024" : "Blockspace Synergy 2025"}
-        </p>
+        <div className="flex items-center gap-2 mb-2">
+          <label className="text-sm text-muted-foreground">Hackathon:</label>
+          <select
+            className="border rounded px-2 py-1 text-sm bg-background text-white"
+            value={selectedHackathon}
+            onChange={(e) => setSelectedHackathon(e.target.value)}
+          >
+            <option value="all">All</option>
+            {hackathons.map((h) => (
+              <option key={h.id} value={h.id}>{h.name || h.id}</option>
+            ))}
+          </select>
+          <span className="text-sm text-muted-foreground">({filteredProjects.length} projects)</span>
+        </div>
       </div>
       {/* Two-column layout */}
       <div className="flex flex-col md:flex-row gap-8">
@@ -231,8 +257,6 @@ const PastProjectsPage = () => {
             allCategories={ALL_CATEGORIES}
             activeCount={activeFilters.length}
             onClear={() => setActiveFilters([])}
-            selectedEvent={selectedEvent}
-            setSelectedEvent={setSelectedEvent}
           />
         )}
         {/* Bubble Gallery */}

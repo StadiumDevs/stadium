@@ -1,4 +1,5 @@
 import projectService from '../services/project.service.js';
+import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
 
 class ProjectController {
     async getProjectById(req, res) {
@@ -59,6 +60,20 @@ class ProjectController {
                 const invalid = updateData.teamMembers.some(m => !m || typeof m !== 'object' || typeof (m.name || '') !== 'string');
                 if (invalid) {
                     return res.status(422).json({ status: "error", message: "Each team member must be an object with at least a name string." });
+                }
+            }
+
+            if (Object.prototype.hasOwnProperty.call(updateData, 'categories')) {
+                if (!Array.isArray(updateData.categories)) {
+                    return res.status(422).json({ status: "error", message: "categories must be an array" });
+                }
+                const bad = updateData.categories.filter(c => !ALLOWED_CATEGORIES.includes(String(c)));
+                if (bad.length > 0) {
+                    return res.status(422).json({ status: "error", message: `Invalid categories: ${bad.join(', ')}` });
+                }
+                // Prevent user from setting 'Winners' directly; backend will enforce derivation
+                if (updateData.categories.includes('Winners')) {
+                    return res.status(422).json({ status: "error", message: "'Winners' category is managed automatically and cannot be set manually." });
                 }
             }
 

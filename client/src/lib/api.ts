@@ -1,5 +1,36 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:2000/api";
 
+class ApiError extends Error {
+  status: number;
+  code?: string;
+  details?: unknown;
+
+  constructor(message: string, status: number, code?: string, details?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+const mapStatusToMessage = (status: number) => {
+  switch (status) {
+    case 400:
+      return "Your request looks invalid. Please check and try again.";
+    case 401:
+      return "Please sign in to continue.";
+    case 403:
+      return "You are not permitted to change this project.";
+    case 404:
+      return "We couldn't find what you're looking for.";
+    case 500:
+      return "Something went wrong on our side. Please try again later.";
+    default:
+      return "An unexpected error occurred. Please try again.";
+  }
+};
+
 const request = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
 
@@ -12,9 +43,12 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
   const response = await fetch(url, config);
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    const friendly = mapStatusToMessage(response.status);
+    throw new ApiError(friendly, response.status);
   }
 
+  // Some endpoints may return 204 No Content
+  if (response.status === 204) return null;
   return response.json();
 };
 
@@ -61,4 +95,13 @@ export const api = {
       headers: { "x-siws-auth": authHeader },
       body: JSON.stringify({ teamMembers }),
     }),
+
+  updateProjectCategories: (projectId: string, categories: string[], authHeader: string) =>
+    request(`/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ categories }),
+    }),
 };
+
+export { ApiError };

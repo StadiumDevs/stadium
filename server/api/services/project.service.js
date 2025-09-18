@@ -66,6 +66,20 @@ class ProjectService {
     }
 
     async updateProject(projectId, updateData) {
+        // Enforce 'Winners' category based on bountyPrize
+        if (Object.prototype.hasOwnProperty.call(updateData, 'categories')) {
+            try {
+                const existing = await projectRepository.getProjectById(projectId);
+                const hasWon = Array.isArray(existing?.bountyPrize) && existing.bountyPrize.length > 0;
+                let categories = Array.isArray(updateData.categories) ? updateData.categories.slice() : [];
+                // Remove Winners if present; re-add if eligible
+                categories = categories.filter(c => c !== 'Winners');
+                if (hasWon) categories.push('Winners');
+                updateData.categories = categories;
+            } catch (e) {
+                // If lookup fails, ignore enforcement and proceed
+            }
+        }
         return await projectRepository.updateProject(projectId, updateData);
     }
 }

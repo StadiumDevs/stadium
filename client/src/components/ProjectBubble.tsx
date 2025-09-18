@@ -80,7 +80,16 @@ export const ProjectBubble: React.FC<ProjectBubbleProps> = ({ project, onPlayDem
       </div>
       {/* Hover overlay */}
       <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-        <Button onClick={() => onPlayDemo(project)} size="lg" className="text-lg">
+        <Button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onPlayDemo(project);
+          }}
+          size="lg"
+          className="text-lg"
+        >
           ▶️ Learn More
         </Button>
       </div>

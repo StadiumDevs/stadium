@@ -20,6 +20,7 @@ const ProjectSchema = new mongoose.Schema({
   demoUrl: { type: String },
   slidesUrl: { type: String },
   techStack: { type: [String], required: true },
+  categories: { type: [String], default: [] },
   milestones: [{
     description: { type: String, required: true },
     // currator on chain metadata

@@ -16,17 +16,27 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Project } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { DemoVideoModal } from "@/components/DemoVideoModal";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "@/lib/api";
 import { getProjectUrl } from "@/lib/projectUtils";
 
+type CarouselProject = {
+  id: string;
+  projectName: string;
+  description: string;
+  teamLead: string;
+  techStack: string;
+  winner: string;
+  demoUrl?: string;
+  slidesUrl?: string;
+};
+
 const HomePage = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<CarouselProject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [videoProject, setVideoProject] = useState<any | null>(null);
+  const [videoProject, setVideoProject] = useState<CarouselProject | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const { toast } = useToast();
   const [dragStartX, setDragStartX] = useState<number | null>(null);
@@ -34,22 +44,42 @@ const HomePage = () => {
   useEffect(() => {
     const loadProjects = async () => {
       try {
-        // Use API to fetch projects with proper IDs instead of static JSON
-        const response = await api.getProjects({ 
-          hackathonId: 'synergy-2025',
-          limit: 100 // Get enough projects to find winners
+        // Fetch winners for Synergy 2025 directly from API
+        const response = await api.getProjects({
+          hackathonId: "synergy-2025",
+          winnersOnly: true,
+          sortBy: "updatedAt",
+          sortOrder: "desc",
+          limit: 1000,
         });
-        
-        // Extract projects from the API response structure
-        const apiProjects = response.data || [];
-        console.log('Loaded projects from API:', apiProjects.length);
-        
-        setProjects(apiProjects);
+        const apiProjects = Array.isArray(response?.data) ? response.data : [];
+        const mapped: CarouselProject[] = apiProjects.map((p: {
+          id: string;
+          projectName: string;
+          description: string;
+          teamMembers?: Array<{ name?: string }>;
+          demoUrl?: string;
+          slidesUrl?: string;
+          techStack?: string | string[];
+          bountyPrize?: Array<{ name?: string; amount?: number; hackathonWonAtId?: string }>;
+        }) => ({
+          id: p.id,
+          projectName: p.projectName,
+          description: p.description,
+          teamLead: p.teamMembers?.[0]?.name || "",
+          demoUrl: p.demoUrl || "",
+          slidesUrl: p.slidesUrl || "",
+          // Keep as a string tag for UI; prefer first item or joined list
+          techStack: Array.isArray(p.techStack) ? p.techStack.join(", ") : (p.techStack || ""),
+          // Winner display text preserved from bountyPrize[0].name if present
+          winner: Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0 ? (p.bountyPrize[0]?.name || "") : "",
+        }));
+        setProjects(mapped);
       } catch (error) {
-        console.error('Failed to load projects from API:', error);
+        const err = error as Error;
         toast({
           title: "Error",
-          description: "Failed to load projects. Please try again.",
+          description: err?.message || "Failed to load projects. Please try again.",
           variant: "destructive",
         });
       } finally {
@@ -61,19 +91,15 @@ const HomePage = () => {
 
   const totalProjects = projects.length;
   const totalRewards = 40;
-  const totalTeams = new Set(projects.map((p: any) => p.teamLead)).size;
-  
-  // Filter for winning projects based on bountyPrize (API response structure)
-  const winningProjects = projects.filter((p: any) => 
-    p.bountyPrize && Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0
-  ).slice(0, 9);
+  const totalTeams = new Set(projects.map((p) => p.teamLead)).size;
+  const winningProjects = projects.filter((p) => p.winner && p.winner !== "").slice(0, 9);
 
   // Carousel navigation
   const prevCard = () => setCarouselIndex((i) => (i - 1 + winningProjects.length) % winningProjects.length);
   const nextCard = () => setCarouselIndex((i) => (i + 1) % winningProjects.length);
 
   // Drag/swipe logic
-  const handleDragEnd = (event: any, info: any) => {
+  const handleDragEnd = (_event: unknown, info: { offset: { x: number } }) => {
     if (info.offset.x < -80) {
       nextCard();
     } else if (info.offset.x > 80) {
@@ -104,8 +130,18 @@ const HomePage = () => {
       </div>
       {/* Stats Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 text-lg font-mono">
-        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide mt-2 block" style={{ textShadow: '0 2px 8px #8888' }}>
-          A Blockspace Builder's project progress and showcase portal.
+        <span className="w-full text-center font-pressStart text-lg sm:text-xl text-white tracking-wide mt-2 block">
+          The ultimate hacker's project progress and showcase portal.
+        </span>
+      </div>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 text-lg font-mono">
+        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide mt-2 block">
+          👉 Upcoming event: <a href="https://luma.com/sub0hack" target="_blank" rel="noopener noreferrer" className="text-white hover:text-purple-400 underline">sub0 hack 2025</a>
+        </span>
+      </div>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 text-lg font-mono">
+        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide mt-2 block">
+          Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
         </span>
       </div>
 
@@ -126,7 +162,7 @@ const HomePage = () => {
               {/* Carousel Cards */}
               {[-1, 0, 1].map((offset) => {
                 const idx = (carouselIndex + offset + winningProjects.length) % winningProjects.length;
-                const project = winningProjects[idx] as any;
+                const project = winningProjects[idx] as CarouselProject;
                 let scale = 1, opacity = 1, zIndex = 10, translateX = 0, rotateY = 0, blur = "";
                 if (offset === 0) {
                   scale = 1;
@@ -141,14 +177,14 @@ const HomePage = () => {
                   zIndex = 20;
                   translateX = -180; // Reduced for mobile
                   rotateY = 20;
-                  blur = "blur-sm";
+                  blur = "";
                 } else if (offset === 1) {
                   scale = 0.85;
                   opacity = 0.6;
                   zIndex = 20;
                   translateX = 180; // Reduced for mobile
                   rotateY = -20;
-                  blur = "blur-sm";
+                  blur = "";
                 }
                 return (
                   <motion.div
@@ -192,7 +228,7 @@ const HomePage = () => {
                                     .join(' ')
                                 : 'Winner'}
                             </Badge>
-                            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-300 border-blue-500/30">
+                            <Badge variant="outline" className="text-xs bg-purple-400/10 text-purple-200 border-purple-400/30">
                               Blockspace Synergy 2025
                             </Badge>
                           </div>
@@ -226,12 +262,12 @@ const HomePage = () => {
                             <Play className="h-4 w-4 mr-2" />
                             <span>View Demo</span>
                           </Button>
-                                                                                <Button asChild size="sm" variant="outline" className="w-full md:flex-1 text-muted-foreground hover:text-primary bg-gray-100/10 border-gray-300/30">
-                             <Link to={getProjectUrl(project)} className="flex items-center justify-center space-x-2">
-                               <span>Project Page</span>
-                               <ChevronRight className="h-4 w-4" />
-                             </Link>
-                           </Button>
+                          <Button asChild size="sm" variant="outline" className="w-full md:flex-1 text-muted-foreground hover:text-primary bg-gray-100/10 border-gray-300/30">
+                            <Link to={getProjectUrl(project)} className="flex items-center justify-center space-x-2">
+                              <span>Project Page</span>
+                              <ChevronRight className="h-4 w-4" />
+                            </Link>
+                          </Button>
                         </div>
                       </CardFooter>
                     </Card>
@@ -266,7 +302,7 @@ const HomePage = () => {
       </div>
       {/* View All Projects Button */}
       <div className="flex justify-center mt-8">
-        <Button asChild size="lg" className="hover:bg-accent hover:text-accent-foreground transition-colors">
+        <Button asChild size="lg" className="bg-atariGreen text-black hover:bg-atariGreen/90 transition-colors font-semibold">
           <Link to="/past-projects" className="flex items-center space-x-2">
             <span>View All Past Projects</span>
             <ChevronRight className="h-4 w-4" />

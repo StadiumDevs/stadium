@@ -98,9 +98,10 @@ const ProjectsPage = () => {
       } catch (error) {
         console.error("[ProjectsPage] failed to load API projects:", error);
         setProjects([]);
+        const err = error as Error;
         toast({
           title: "Error",
-          description: "Failed to load latest projects from server.",
+          description: err?.message || "Failed to load latest projects from server.",
           variant: "destructive",
         });
       } finally {
@@ -162,10 +163,10 @@ const ProjectsPage = () => {
             <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">No Projects Yet</h3>
             <p className="text-muted-foreground mb-4">
-              Be the first to submit your innovative project to the hackathon!
+              Be the first to submit your hackathon project to the Stadium!
             </p>
             <Button asChild>
-              <Link to="/submission">Submit Your Milestone</Link>
+              <Link to="/submission">Submit Your Project</Link>
             </Button>
           </CardContent>
         </Card>
@@ -215,12 +216,6 @@ const ProjectsPage = () => {
                         </CardHeader>
                         <CardContent className="pt-0 pb-2">
                           <div className="space-y-2">
-                            <div className="flex items-center text-xs text-muted-foreground">
-                              <Users className="h-3 w-3 mr-1" />
-                              <span className="text-xs">
-                                {project.teamLead}
-                              </span>
-                            </div>
                             <div className="flex flex-wrap gap-1">
                               {/* Remove Badge from here if present */}
                             </div>
@@ -318,7 +313,7 @@ const ProjectsPage = () => {
                         <CardHeader className="pb-3">
                           <div className="flex items-start justify-between">
                             <Badge
-                              className="bg-blue-500/20 text-blue-300 border-blue-500/30"
+                              className="bg-purple-400/20 text-purple-200 border-purple-400/30"
                               variant="secondary"
                             >
                               Pending
@@ -330,12 +325,7 @@ const ProjectsPage = () => {
                         </CardHeader>
 
                         <CardContent className="pt-0 pb-3">
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Users className="h-4 w-4 mr-2" />
-                            <span className="text-xs">
-                              {project.teamLead}
-                            </span>
-                          </div>
+                          {/* Team name removed */}
                         </CardContent>
 
                         <CardFooter className="pt-0">
@@ -354,9 +344,9 @@ const ProjectsPage = () => {
                 ) : (
                   <Card className="text-center py-8 col-span-full">
                     <CardContent>
-                      <Clock className="h-12 w-12 text-green-500 bg-green-500/10 rounded-full mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2 text-green-500">No Pending Projects</h3>
-                      <p className="text-green-500">
+                      <Clock className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2 text-white">No Pending Projects</h3>
+                      <p className="text-white">
                         No projects are currently pending milestone delivery.
                       </p>
                     </CardContent>
@@ -400,12 +390,7 @@ const ProjectsPage = () => {
                         </CardHeader>
 
                         <CardContent className="pt-0 pb-3">
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Users className="h-4 w-4 mr-2" />
-                            <span className="text-xs">
-                              {project.teamLead}
-                            </span>
-                          </div>
+                          {/* Team name removed */}
                         </CardContent>
 
                         <CardFooter className="pt-0">
@@ -424,9 +409,9 @@ const ProjectsPage = () => {
                 ) : (
                   <Card className="text-center py-8 col-span-full">
                     <CardContent>
-                      <AlertCircle className="h-12 w-12 text-green-500 bg-green-500/10 rounded-full mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2 text-green-500">No Projects Under Review</h3>
-                      <p className="text-green-500">
+                      <AlertCircle className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2 text-white">No Projects Under Review</h3>
+                      <p className="text-white">
                         No projects are currently under review.
                       </p>
                     </CardContent>

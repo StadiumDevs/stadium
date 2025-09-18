@@ -50,7 +50,8 @@ Content-Type: application/json
   "teamMembers": [
     { "name": "Test User" },
     { "name": "New Developer", "walletAddress": "0x123..." }
-  ]
+  ],
+  "categories": ["Developer Tools", "DeFi"]
 }
 
 

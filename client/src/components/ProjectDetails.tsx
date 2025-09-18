@@ -52,9 +52,10 @@ const ProjectDetails = () => {
           setNotFound(true);
         }
       } catch (error) {
+        const err = error as Error;
         toast({
           title: "Error",
-          description: "Failed to load project details. Please try again.",
+          description: err?.message || "Failed to load project details. Please try again.",
           variant: "destructive",
         });
       } finally {

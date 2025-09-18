@@ -17,8 +17,6 @@ interface FilterSidebarProps {
   allCategories: string[];
   activeCount: number;
   onClear: () => void;
-  selectedEvent: string;
-  setSelectedEvent: (event: string) => void;
 }
 
 const categoryIcons: Record<string, string> = {
@@ -39,8 +37,6 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
   allCategories,
   activeCount,
   onClear,
-  selectedEvent,
-  setSelectedEvent,
 }) => {
   const handleToggle = (cat: string) => {
     setActiveFilters(
@@ -52,17 +48,6 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
   return (
     <aside className="w-[250px] min-w-[250px] max-w-[250px] h-full rounded-3xl p-6 backdrop-blur-md bg-white/10 border border-white/20 flex flex-col gap-6">
       <div>
-        <div className="mb-4">
-          <Select value={selectedEvent} onValueChange={setSelectedEvent}>
-            <SelectTrigger className="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 transition-colors">
-              <SelectValue placeholder="Select Event" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="symmetry-2024">Blockspace Symmetry 2024</SelectItem>
-              <SelectItem value="synergy-2025">Blockspace Synergy 2025</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
         <Input
           placeholder="Search projects..."
           value={search}

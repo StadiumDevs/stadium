@@ -71,7 +71,7 @@ export default {
     				border: 'hsl(var(--sidebar-border))',
     				ring: 'hsl(var(--sidebar-ring))'
     			},
-    			atariGreen: '#6CFFB7', // softer green
+    			atariGreen: '#79F942', // new green color
     			atariBlue: '#3EC6FF', // modern accent
     			atariPurple: '#6C3483',
     			atariBlack: '#0A0A0A',
