@@ -163,10 +163,10 @@ const ProjectsPage = () => {
             <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">No Projects Yet</h3>
             <p className="text-muted-foreground mb-4">
-              Be the first to submit your innovative project to the hackathon!
+              Be the first to submit your hackathon project to the Stadium!
             </p>
             <Button asChild>
-              <Link to="/submission">Submit Your Milestone</Link>
+              <Link to="/submission">Submit Your Project</Link>
             </Button>
           </CardContent>
         </Card>
