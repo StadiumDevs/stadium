@@ -129,18 +129,14 @@ const HomePage = () => {
         </h1>
       </div>
       {/* Stats Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 text-lg font-mono">
-        <span className="w-full text-center font-pressStart text-lg sm:text-xl text-white tracking-wide mt-2 block">
+      <div className="flex flex-col items-center justify-center gap-2 mb-12 text-lg font-mono">
+        <span className="w-full text-center font-pressStart text-lg sm:text-xl text-white tracking-wide block">
           The ultimate hacker's project progress and showcase portal.
         </span>
-      </div>
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 text-lg font-mono">
-        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide mt-2 block">
+        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide block">
           👉 Upcoming event: <a href="https://luma.com/sub0hack" target="_blank" rel="noopener noreferrer" className="text-white hover:text-purple-400 underline">sub0 hack 2025</a>
         </span>
-      </div>
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 text-lg font-mono">
-        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide mt-2 block">
+        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide block">
           Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
         </span>
       </div>
@@ -172,18 +168,18 @@ const HomePage = () => {
                   rotateY = 0;
                   blur = "";
                 } else if (offset === -1) {
-                  scale = 0.85;
-                  opacity = 0.6;
+                  scale = 0.95;
+                  opacity = 0.4;
                   zIndex = 20;
-                  translateX = -180; // Reduced for mobile
-                  rotateY = 20;
+                  translateX = -120; // Reduced for mobile
+                  rotateY = 5;
                   blur = "";
                 } else if (offset === 1) {
-                  scale = 0.85;
-                  opacity = 0.6;
+                  scale = 0.95;
+                  opacity = 0.4;
                   zIndex = 20;
-                  translateX = 180; // Reduced for mobile
-                  rotateY = -20;
+                  translateX = 120; // Reduced for mobile
+                  rotateY = -5;
                   blur = "";
                 }
                 return (
@@ -199,7 +195,7 @@ const HomePage = () => {
                     }}
                     exit={{ opacity: 0, scale: 0.8, x: 0 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className={`absolute w-full max-w-sm md:max-w-lg ${blur} ${offset === 0 ? "shadow-2xl border-2 border-purple-500/50" : ""}`}
+                    className={`absolute w-full max-w-xs sm:max-w-md md:max-w-xl ${blur} ${offset === 0 ? "shadow-2xl border-2 border-purple-500/50 bg-black/20 backdrop-blur-sm" : ""}`}
                     style={{ perspective: 1000, pointerEvents: offset === 0 ? "auto" : "none" }}
                     drag={offset === 0 ? "x" : false}
                     dragConstraints={{ left: 0, right: 0 }}
@@ -207,7 +203,7 @@ const HomePage = () => {
                     onDragEnd={offset === 0 ? handleDragEnd : undefined}
                   >
                     <Card
-                      className={`group transition-all duration-300 animate-fade-in ${offset === 0 ? 'hover:shadow-2xl hover:scale-105 animate-float' : ''}`}
+                      className={`group transition-all duration-300 animate-fade-in border-purple-400 ${offset === 0 ? 'hover:shadow-2xl hover:scale-105 animate-float bg-gray-900/50' : 'text-white bg-gray-800/10'}`}
                       style={offset === 0 ? { animation: 'float 6s ease-in-out infinite' } : {}}
                     >
                       <CardHeader className="pb-3">
