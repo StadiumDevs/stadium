@@ -16,7 +16,7 @@
     --foreground: 95 95% 62%; /* new green #79F942 */
     --primary: 95 95% 62%; /* new green */
     --primary-foreground: 0 0% 0%;
-    --secondary: 288 82% 89%; /* blue accent #3EC6FF */
+    --secondary: 288 82% 89%; /* purple accent #A855F7 */
     --secondary-foreground: 0 0% 0%;
     --accent: 270 60% 60%; /* purple */
     --accent-foreground: 0 0% 0%;
@@ -58,15 +58,13 @@
   h1, h2 {
     font-family: 'Press Start 2P', 'IBM Plex Mono', monospace;
     color: #fff;
-    text-shadow: 0 0 4px #fff, 0 0 2px #3EC6FF;
     letter-spacing: 0.08em;
     font-size: 2rem;
     line-height: 2.2rem;
   }
   h3, h4, h5, h6 {
     font-family: 'IBM Plex Mono', monospace;
-    color: #3EC6FF;
-    text-shadow: 0 0 4px #79F942, 0 0 2px #3EC6FF;
+    color: #A855F7;
     letter-spacing: 0.08em;
   }
   code, pre {
@@ -79,9 +77,9 @@
   .project-card {
     background: #222;
     color: #fff;
-    border: 1.5px solid #3EC6FF;
+    border: 1.5px solid #A855F7;
     border-radius: 0.375rem;
-    box-shadow: 0 0 8px 2px #79F94233, 0 0 2px 1px #3EC6FF22;
+    box-shadow: 0 0 8px 2px #79F94233, 0 0 2px 1px #A855F722;
     padding: 1.2em 1.5em;
     margin-bottom: 1.2em;
   }

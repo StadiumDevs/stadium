@@ -190,10 +190,10 @@ export const DemoVideoModal: React.FC<DemoVideoModalProps> = ({ open, onClose, p
                 </Badge>
               )}
               {milestoneStatus === "completed" && (
-                <Badge variant="secondary" className="px-2 py-1 bg-green-500/20 text-green-300 border-green-500/30 text-xs">☑️ Completed Milestones</Badge>
+                <Badge variant="secondary" className="px-2 py-1 bg-white/20 text-white border-white/30 text-xs">☑️ Completed Milestones</Badge>
               )}
               {milestoneStatus === "pending" && (
-                <Badge variant="secondary" className="px-2 py-1 bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs">⏳ Milestones Pending</Badge>
+                <Badge variant="secondary" className="px-2 py-1 bg-purple-400/20 text-purple-200 border-purple-400/30 text-xs">⏳ Milestones Pending</Badge>
               )}
             </div>
           </div>

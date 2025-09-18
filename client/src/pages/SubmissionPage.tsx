@@ -150,15 +150,14 @@ const SubmissionPage = () => {
   return (
     <div className="container py-8 max-w-4xl">
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-4">Milestone submission</h1>
+        <h1 className="text-4xl font-bold mb-4">Project submission</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Milestone Submission Form</CardTitle>
+          <CardTitle>Project Submission Form</CardTitle>
           <CardDescription>
-            Please fill out all required fields to submit your milestone updates for
-            review.
+            Please fill out all required fields to submit your project with the milestones you plan on completing for review.
           </CardDescription>
         </CardHeader>
         <CardContent>

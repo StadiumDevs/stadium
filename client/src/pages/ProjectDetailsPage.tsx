@@ -540,7 +540,7 @@ const ProjectDetailsPage = () => {
               <div className="flex items-center justify-center gap-8 mb-6 mt-2 px-4">
                 {/* Event Start */}
                 <div className="flex flex-col items-center">
-                  <button className={`rounded-full p-2 ${eventStarted ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
+                  <button className={`rounded-full p-2 ${eventStarted ? 'bg-white text-black' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
                   <span className="text-xs mt-2">{project.eventStartedAt || 'Event Start'}</span>
                 </div>
                 <div className="h-1 w-12 bg-muted rounded" />
@@ -552,13 +552,13 @@ const ProjectDetailsPage = () => {
                 <div className="h-1 w-12 bg-muted rounded" />
                 {/* Milestone Delivered */}
                 <div className="flex flex-col items-center">
-                  <button className={`rounded-full p-2 ${milestoneDelivered ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
+                  <button className={`rounded-full p-2 ${milestoneDelivered ? 'bg-white text-black' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
                   <span className="text-xs mt-2">Milestone Delivered</span>
                 </div>
               </div>
               {/* Team Members section */}
               <div className="mb-6">
-                <h4 className="font-semibold text-base mb-2 text-green-400">Team Members</h4>
+                <h4 className="font-semibold text-base mb-2 text-white">Team Members</h4>
                 {!teamEditing ? (
                   <div className="space-y-1">
                     {(project.teamMembers || []).map((m, i) => (
@@ -587,11 +587,11 @@ const ProjectDetailsPage = () => {
               </div>
               {/* Create Team Multisig section */}
               <div className="mb-6">
-                <h4 className="font-semibold text-base mb-2 text-green-400">Create Team Multisig</h4>
+                <h4 className="font-semibold text-base mb-2 text-white">Create Team Multisig</h4>
                 <span className="text-gray-400 text-sm">Coming soon</span>
               </div>
               {/* Milestone work in progress section */}
-              <h3 className="font-semibold mb-2 text-base text-green-400">Milestone work in progress</h3>
+              <h3 className="font-semibold mb-2 text-base text-white">Milestone work in progress</h3>
               {project.milestones && project.milestones.length > 0 ? (
                 (() => {
                   // Normalize text and collect bullets. Handle literal "\\n" and the first non-dash line.
@@ -710,7 +710,7 @@ const ProjectDetailsPage = () => {
             {formError && <div className="text-red-500 text-sm mt-2">{formError}</div>}
           </div>
           <DialogFooter>
-            <Button onClick={handleDeliverableSubmit} disabled={formLoading} className="bg-green-500 text-white hover:bg-green-600 px-6 py-2 rounded">
+            <Button onClick={handleDeliverableSubmit} disabled={formLoading} className="bg-white text-black hover:bg-gray-200 px-6 py-2 rounded">
               {formLoading ? "Submitting..." : "Submit"}
             </Button>
           </DialogFooter>

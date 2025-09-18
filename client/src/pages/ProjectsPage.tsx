@@ -313,7 +313,7 @@ const ProjectsPage = () => {
                         <CardHeader className="pb-3">
                           <div className="flex items-start justify-between">
                             <Badge
-                              className="bg-blue-500/20 text-blue-300 border-blue-500/30"
+                              className="bg-purple-400/20 text-purple-200 border-purple-400/30"
                               variant="secondary"
                             >
                               Pending
@@ -344,9 +344,9 @@ const ProjectsPage = () => {
                 ) : (
                   <Card className="text-center py-8 col-span-full">
                     <CardContent>
-                      <Clock className="h-12 w-12 text-green-500 bg-green-500/10 rounded-full mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2 text-green-500">No Pending Projects</h3>
-                      <p className="text-green-500">
+                      <Clock className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2 text-white">No Pending Projects</h3>
+                      <p className="text-white">
                         No projects are currently pending milestone delivery.
                       </p>
                     </CardContent>
@@ -409,9 +409,9 @@ const ProjectsPage = () => {
                 ) : (
                   <Card className="text-center py-8 col-span-full">
                     <CardContent>
-                      <AlertCircle className="h-12 w-12 text-green-500 bg-green-500/10 rounded-full mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2 text-green-500">No Projects Under Review</h3>
-                      <p className="text-green-500">
+                      <AlertCircle className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2 text-white">No Projects Under Review</h3>
+                      <p className="text-white">
                         No projects are currently under review.
                       </p>
                     </CardContent>
