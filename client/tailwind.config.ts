@@ -71,34 +71,35 @@ export default {
     				border: 'hsl(var(--sidebar-border))',
     				ring: 'hsl(var(--sidebar-ring))'
     			},
-    			atariGreen: '#79F942', // new green color
+    			atariGreen: '#9333EA', // purple (replaced from green)
     			atariBlue: '#3EC6FF', // modern accent
     			atariPurple: '#6C3483',
     			atariBlack: '#0A0A0A',
     			atariGray: '#222',
     		},
-    		fontFamily: {
-    			atari: [
-    				'IBM Plex Mono',
-    				'Menlo',
-    				'Monaco',
-    				'Consolas',
-    				'monospace',
-    			],
-    		},
+		fontFamily: {
+			sans: ['Inter', 'system-ui', 'sans-serif'],
+			mono: ['Space Mono', 'JetBrains Mono', 'monospace'],
+			heading: ['Space Mono', 'monospace'],
+			atari: [
+				'IBM Plex Mono',
+				'Menlo',
+				'Monaco',
+				'Consolas',
+				'monospace',
+			],
+		},
     		boxShadow: {
     			primary: 'var(--shadow-primary)',
     			glow: 'var(--shadow-glow)',
     			elegant: 'var(--shadow-elegant)',
-    			crt: '0 0 8px 2px #6CFFB7, 0 0 2px 1px #3EC6FF',
+    			crt: '0 0 8px 2px #C084FC, 0 0 2px 1px #9333EA',
     		},
-    		borderRadius: {
-    			lg: 'var(--radius)',
-    			md: 'calc(var(--radius) - 2px)',
-    			sm: 'calc(var(--radius) - 4px)',
-    			none: '0', // blocky corners
-    			md: '0.375rem', // allow some modern rounding
-    		},
+		borderRadius: {
+			lg: 'var(--radius)',
+			md: 'calc(var(--radius) - 2px)',
+			sm: 'calc(var(--radius) - 4px)',
+		},
     		keyframes: {
     			'accordion-down': {
     				from: {

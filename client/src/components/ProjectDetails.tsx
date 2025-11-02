@@ -71,7 +71,7 @@ const ProjectDetails = () => {
       case "winner":
         return "bg-gradient-accent text-accent-foreground";
       case "approved":
-        return "bg-success text-success-foreground";
+        return "bg-primary text-primary-foreground";
       case "reviewing":
         return "bg-warning text-warning-foreground";
       case "pending":
@@ -228,7 +228,7 @@ const ProjectDetails = () => {
                 <ul className="space-y-2">
                   {project.deliverables.map((deliverable, index) => (
                     <li key={index} className="flex items-start space-x-2">
-                      <CheckCircle className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+                      <CheckCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                       <span className="text-muted-foreground">
                         {deliverable}
                       </span>

@@ -48,7 +48,7 @@ export default function Header() {
               variant={isActive(to) ? "default" : "ghost"}
               size="sm"
               asChild
-              className={isActive(to) ? "bg-atariGreen text-black hover:bg-atariGreen/90" : ""}
+              className={isActive(to) ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
             >
               <Link to={to} className="flex items-center space-x-2">
                 {Icon && <Icon className="h-4 w-4" />}
@@ -91,7 +91,7 @@ export default function Header() {
                 size="sm"
                 asChild
                 onClick={() => setMobileMenuOpen(false)}
-                className={isActive(to) ? "bg-atariGreen text-black hover:bg-atariGreen/90" : ""}
+                className={isActive(to) ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
               >
                 <Link to={to} className="flex items-center space-x-1">
                   <Icon className="h-4 w-4" />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Navigation } from "@/components/Navigation";
 import {
   Eye,
   Trophy,
@@ -389,7 +390,7 @@ const AdminPage = () => {
         <Card className="max-w-md mx-auto text-center py-12">
           <CardContent>
             <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Admin Access Required</h1>
+            <h1 className="font-heading text-2xl font-bold mb-2">Admin Access Required</h1>
             <p className="text-muted-foreground mb-6">
               Connect your admin wallet to access the management panel.
             </p>
@@ -436,11 +437,14 @@ const AdminPage = () => {
 
   if (loading) {
     return (
-      <div className="container py-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-lg">Loading admin panel...</span>
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="container py-8 pt-32">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex items-center space-x-2">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-lg">Loading admin panel...</span>
+            </div>
           </div>
         </div>
       </div>
@@ -448,11 +452,13 @@ const AdminPage = () => {
   }
 
   return (
-    <div className="container py-8">
+    <div className="min-h-screen">
+      <Navigation />
+      <div className="container py-8 pt-24">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-4xl font-bold mb-2">Admin Panel</h1>
+          <h1 className="font-heading text-4xl font-bold mb-2">Admin Panel</h1>
           <p className="text-xl text-muted-foreground">
             Manage hackathon projects and payouts
           </p>
@@ -487,7 +493,7 @@ const AdminPage = () => {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-success">
+            <div className="text-2xl font-bold text-primary">
               {projects.filter((p) => p.status === "winner").length}
             </div>
             <div className="text-sm text-muted-foreground">Winners</div>
@@ -603,6 +609,7 @@ const AdminPage = () => {
         onClose={() => setShowPayoutModal(false)}
         project={selectedProject}
       />
+      </div>
     </div>
   );
 };

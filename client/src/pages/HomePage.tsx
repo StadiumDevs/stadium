@@ -1,45 +1,45 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import {
-  ChevronRight,
-  Loader2,
-  Play,
-  ArrowLeft,
-  ArrowRight,
-} from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { DemoVideoModal } from "@/components/DemoVideoModal";
-import { motion, AnimatePresence } from "framer-motion";
+import { Navigation } from "@/components/Navigation";
+import { ProjectCarousel } from "@/components/ProjectCarousel";
+import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
+import { EmptyState } from "@/components/EmptyState";
+import { Trophy } from "lucide-react";
 import { getProjectUrl } from "@/lib/projectUtils";
+
+// Lazy load ProjectDetailModal
+const ProjectDetailModal = lazy(() => import("@/components/ProjectDetailModal").then(module => ({ default: module.ProjectDetailModal })));
 
 type CarouselProject = {
   id: string;
-  projectName: string;
+  title: string;
+  author: string;
   description: string;
-  teamLead: string;
-  techStack: string;
-  winner: string;
+  track: string;
+  isWinner: boolean;
   demoUrl?: string;
-  slidesUrl?: string;
+  projectUrl?: string;
+  githubUrl?: string;
+  longDescription?: string;
 };
 
 const HomePage = () => {
   const [projects, setProjects] = useState<CarouselProject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [videoProject, setVideoProject] = useState<CarouselProject | null>(null);
-  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [selectedProject, setSelectedProject] = useState<CarouselProject | null>(null);
   const { toast } = useToast();
-  const [dragStartX, setDragStartX] = useState<number | null>(null);
+
+  const handleProjectClick = useCallback((project: CarouselProject) => {
+    setSelectedProject(project);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setSelectedProject(null);
+  }, []);
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -60,19 +60,20 @@ const HomePage = () => {
           teamMembers?: Array<{ name?: string }>;
           demoUrl?: string;
           slidesUrl?: string;
-          techStack?: string | string[];
+          projectRepo?: string;
+          donationAddress?: string;
           bountyPrize?: Array<{ name?: string; amount?: number; hackathonWonAtId?: string }>;
         }) => ({
           id: p.id,
-          projectName: p.projectName,
+          title: p.projectName,
+          author: p.teamMembers?.[0]?.name || "",
           description: p.description,
-          teamLead: p.teamMembers?.[0]?.name || "",
+          track: p.bountyPrize?.[0]?.name || "Winner",
+          isWinner: Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0,
           demoUrl: p.demoUrl || "",
-          slidesUrl: p.slidesUrl || "",
-          // Keep as a string tag for UI; prefer first item or joined list
-          techStack: Array.isArray(p.techStack) ? p.techStack.join(", ") : (p.techStack || ""),
-          // Winner display text preserved from bountyPrize[0].name if present
-          winner: Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0 ? (p.bountyPrize[0]?.name || "") : "",
+          projectUrl: p.donationAddress ? `/projects/${p.id}` : undefined,
+          githubUrl: p.projectRepo,
+          longDescription: p.description,
         }));
         setProjects(mapped);
       } catch (error) {
@@ -89,31 +90,30 @@ const HomePage = () => {
     loadProjects();
   }, [toast]);
 
-  const totalProjects = projects.length;
-  const totalRewards = 40;
-  const totalTeams = new Set(projects.map((p) => p.teamLead)).size;
-  const winningProjects = projects.filter((p) => p.winner && p.winner !== "").slice(0, 9);
-
-  // Carousel navigation
-  const prevCard = () => setCarouselIndex((i) => (i - 1 + winningProjects.length) % winningProjects.length);
-  const nextCard = () => setCarouselIndex((i) => (i + 1) % winningProjects.length);
-
-  // Drag/swipe logic
-  const handleDragEnd = (_event: unknown, info: { offset: { x: number } }) => {
-    if (info.offset.x < -80) {
-      nextCard();
-    } else if (info.offset.x > 80) {
-      prevCard();
-    }
-  };
-
   if (loading) {
     return (
-      <div className="container py-12">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-lg">Loading projects...</span>
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="container mx-auto px-4 pt-32 pb-16">
+          <div className="space-y-16">
+            {/* Hero Skeleton */}
+            <div className="max-w-4xl mx-auto text-center space-y-6">
+              <div className="h-16 bg-muted animate-pulse rounded-md w-3/4 mx-auto" />
+              <div className="h-6 bg-muted animate-pulse rounded-md w-1/2 mx-auto" />
+            </div>
+            
+            {/* Featured Winners Skeleton */}
+            <section>
+              <div className="mb-8">
+                <div className="h-8 bg-muted animate-pulse rounded-md w-64 mb-2" />
+                <div className="h-5 bg-muted animate-pulse rounded-md w-96" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <ProjectCardSkeleton key={idx} />
+                ))}
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -121,192 +121,85 @@ const HomePage = () => {
   }
 
   return (
-    <div className="container py-8">
-      {/* Hero Section */}
-      <div className="text-center mb-10">
-        <h1 className="text-2xl sm:text-4xl md:text-6xl font-bold mb-4 break-words whitespace-pre-line leading-tight">
-          Blockspace Stadium
-        </h1>
-      </div>
-      {/* Stats Bar */}
-      <div className="flex flex-col items-center justify-center gap-2 mb-12 text-lg font-mono">
-        <span className="w-full text-center font-pressStart text-lg sm:text-xl text-white tracking-wide block">
-          The ultimate hacker's project progress and showcase portal.
-        </span>
-        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide block">
-          👉 Upcoming event: <a href="https://luma.com/sub0hack" target="_blank" rel="noopener noreferrer" className="text-white hover:text-purple-400 underline">sub0 hack 2025</a>
-        </span>
-        <span className="w-full text-center font-pressStart text-base sm:text-lg text-gray-300 tracking-wide block">
-          Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
-        </span>
-      </div>
+    <div className="min-h-screen animate-fade-in">
+      <Navigation />
 
-      {/* Winning Projects Carousel */}
-      <div className="mb-8 flex flex-col items-center">
-        {winningProjects.length === 0 ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <h3 className="text-xl font-semibold mb-2">No Winning Projects Yet</h3>
-              <p className="text-muted-foreground mb-4">
-                Winning projects will be displayed here as they are selected.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="relative w-full flex items-center justify-center min-h-[420px] md:min-h-[520px]">
-            <div className="flex items-center justify-center w-full relative" style={{ minHeight: '400px' }}>
-              {/* Carousel Cards */}
-              {[-1, 0, 1].map((offset) => {
-                const idx = (carouselIndex + offset + winningProjects.length) % winningProjects.length;
-                const project = winningProjects[idx] as CarouselProject;
-                let scale = 1, opacity = 1, zIndex = 10, translateX = 0, rotateY = 0, blur = "";
-                if (offset === 0) {
-                  scale = 1;
-                  opacity = 1;
-                  zIndex = 30;
-                  translateX = 0;
-                  rotateY = 0;
-                  blur = "";
-                } else if (offset === -1) {
-                  scale = 0.95;
-                  opacity = 0.4;
-                  zIndex = 20;
-                  translateX = -120; // Reduced for mobile
-                  rotateY = 5;
-                  blur = "";
-                } else if (offset === 1) {
-                  scale = 0.95;
-                  opacity = 0.4;
-                  zIndex = 20;
-                  translateX = 120; // Reduced for mobile
-                  rotateY = -5;
-                  blur = "";
-                }
-                return (
-                  <motion.div
-                    key={project.projectName + offset}
-                    initial={{ opacity: 0, scale: 0.8, x: 0 }}
-                    animate={{
-                      opacity,
-                      scale,
-                      x: translateX,
-                      zIndex,
-                      rotateY,
-                    }}
-                    exit={{ opacity: 0, scale: 0.8, x: 0 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className={`absolute w-full max-w-xs sm:max-w-md md:max-w-xl ${blur} ${offset === 0 ? "shadow-2xl border-2 border-purple-500/50 bg-black/20 backdrop-blur-sm" : ""}`}
-                    style={{ perspective: 1000, pointerEvents: offset === 0 ? "auto" : "none" }}
-                    drag={offset === 0 ? "x" : false}
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.2}
-                    onDragEnd={offset === 0 ? handleDragEnd : undefined}
-                  >
-                    <Card
-                      className={`group transition-all duration-300 animate-fade-in border-purple-400 ${offset === 0 ? 'hover:shadow-2xl hover:scale-105 animate-float bg-gray-900/50' : 'text-white bg-gray-800/10'}`}
-                      style={offset === 0 ? { animation: 'float 6s ease-in-out infinite' } : {}}
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex flex-col gap-1">
-                            <Badge 
-                              className={`${
-                                project.bountyPrize?.[0]?.name?.toLowerCase().includes('kusama') 
-                                  ? 'bg-purple-600/20 text-purple-300 border-purple-600/30' 
-                                  : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                              }`} 
-                              variant="secondary"
-                            >
-                              🏆 {project.bountyPrize?.[0]?.name
-                                ? project.bountyPrize[0].name
-                                    .split(' ')
-                                    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                                    .join(' ')
-                                : 'Winner'}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs bg-purple-400/10 text-purple-200 border-purple-400/30">
-                              Blockspace Synergy 2025
-                            </Badge>
-                          </div>
-                        </div>
-                        <CardTitle className="capitalize group-hover:text-primary transition-colors text-lg">
-                          {project.projectName}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-0 pb-4">
-                        <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
-                          {project.description}
-                        </p>
-                      </CardContent>
-                      <CardContent className="pt-0 pb-4">
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {project.techStack && project.techStack !== "" && (
-                            <Badge variant="outline" className="text-xs">
-                              {project.techStack}
-                            </Badge>
-                          )}
-                        </div>
-                      </CardContent>
-                      <CardFooter className="pt-0">
-                        <div className="flex flex-col md:flex-row gap-2 w-full">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="w-full md:flex-1 text-muted-foreground hover:text-primary bg-gray-100/10 border-gray-300/30"
-                            onClick={() => setVideoProject(project)}
-                          >
-                            <Play className="h-4 w-4 mr-2" />
-                            <span>View Demo</span>
-                          </Button>
-                          <Button asChild size="sm" variant="outline" className="w-full md:flex-1 text-muted-foreground hover:text-primary bg-gray-100/10 border-gray-300/30">
-                            <Link to={getProjectUrl(project)} className="flex items-center justify-center space-x-2">
-                              <span>Project Page</span>
-                              <ChevronRight className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        </div>
-                      </CardFooter>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-              {/* Left Arrow (flush with card) */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-20"
-                onClick={prevCard}
-                disabled={winningProjects.length < 2}
-                aria-label="Previous project"
-              >
-                <ArrowLeft className="h-8 w-8 text-muted-foreground" />
-              </Button>
-              {/* Right Arrow (flush with card) */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-20"
-                onClick={nextCard}
-                disabled={winningProjects.length < 2}
-                aria-label="Next project"
-              >
-                <ArrowRight className="h-8 w-8 text-muted-foreground" />
-              </Button>
-            </div>
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 md:px-8 pt-32 pb-16">
+        <div className="max-w-4xl mx-auto text-center space-y-6">
+          <h1 className="font-heading text-3xl md:text-5xl lg:text-7xl font-bold">
+            Blockspace Stadium
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            The ultimate hacker's project progress and showcase portal.
+          </p>
+          <div className="space-y-2">
+            <p className="text-accent flex items-center justify-center gap-2">
+              👍 Upcoming event:{" "}
+              <span className="font-semibold underline">sub0_hack_2025</span>
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
+            </p>
           </div>
+        </div>
+      </section>
+
+      {/* Featured Winners Carousel */}
+      <section className="container mx-auto px-4 pb-16">
+        <div className="mb-8">
+          <h2 className="font-heading text-3xl font-bold mb-2">
+            🏆 Featured Winners
+          </h2>
+          <p className="text-muted-foreground">
+            Congratulations to our recent hackathon winners!
+          </p>
+        </div>
+
+                {projects.length === 0 ? (
+                  <EmptyState
+                    title="No Winning Projects Yet"
+                    description="Winning projects will be displayed here as they are selected."
+                    icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
+                  />
+                ) : (
+          <ProjectCarousel
+            projects={projects}
+            onProjectClick={handleProjectClick}
+          />
         )}
-      </div>
-      {/* View All Projects Button */}
-      <div className="flex justify-center mt-8">
-        <Button asChild size="lg" className="bg-atariGreen text-black hover:bg-atariGreen/90 transition-colors font-semibold">
-          <Link to="/past-projects" className="flex items-center space-x-2">
-            <span>View All Past Projects</span>
-            <ChevronRight className="h-4 w-4" />
+      </section>
+
+      {/* CTA Section */}
+      <section className="container mx-auto px-4 pb-16 text-center">
+        <Button size="lg" className="gap-2" asChild>
+          <Link to="/past-projects">
+            View All Past Projects
+            <ArrowRight className="w-5 h-5" />
           </Link>
         </Button>
-      </div>
-      {/* Video Modal */}
-      <DemoVideoModal open={!!videoProject} onClose={() => setVideoProject(null)} project={videoProject} />
+      </section>
+
+      {/* Project Detail Modal */}
+      {selectedProject && (
+        <Suspense fallback={null}>
+          <ProjectDetailModal
+            open={!!selectedProject}
+            onOpenChange={(open) => !open && handleCloseModal()}
+            project={{
+              title: selectedProject.title,
+              author: selectedProject.author,
+              description: selectedProject.description,
+              longDescription: selectedProject.longDescription,
+              track: selectedProject.track,
+              isWinner: selectedProject.isWinner,
+              demoUrl: selectedProject.demoUrl,
+              githubUrl: selectedProject.githubUrl,
+              projectUrl: selectedProject.projectUrl,
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

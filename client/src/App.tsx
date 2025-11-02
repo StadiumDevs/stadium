@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
 import ProjectsPage from "./pages/ProjectsPage";
@@ -13,6 +14,7 @@ import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 import PastProjects from "./pages/PastProjects";
+import WinnersPage from "./pages/WinnersPage";
 
 const queryClient = new QueryClient();
 
@@ -39,26 +41,29 @@ const App = () => {
     }
   }, []);
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<HomePage />} />
-              <Route path="past-projects" element={<PastProjects />} />
-              <Route path="projects" element={<ProjectsPage />} />
-              <Route path="project-page" element={<ProjectPage />} />
-              <Route path="submission" element={<SubmissionPage />} />
-              <Route path="admin" element={<AdminPage />} />
-            </Route>
-            <Route path="projects/:id" element={<ProjectDetailsPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<HomePage />} />
+                <Route path="past-projects" element={<PastProjects />} />
+                <Route path="projects" element={<ProjectsPage />} />
+                <Route path="project-page" element={<ProjectPage />} />
+                <Route path="submission" element={<SubmissionPage />} />
+                <Route path="admin" element={<AdminPage />} />
+              </Route>
+              <Route path="projects/:id" element={<ProjectDetailsPage />} />
+              <Route path="winners/:hackathon" element={<WinnersPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 

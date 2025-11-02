@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
 import { SiwsMessage } from '@talismn/siws';
 import { generateSiwsStatement } from '@/lib/siwsUtils';
-import Header from "@/components/Header";
+import { Navigation } from "@/components/Navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const ProjectDetailsPage = () => {
@@ -338,7 +338,7 @@ const ProjectDetailsPage = () => {
         <Card className="text-center py-12">
           <CardContent>
             <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Project Not Found</h1>
+            <h1 className="font-heading text-2xl font-bold mb-2">Project Not Found</h1>
             <p className="text-muted-foreground mb-4">
               The project you're looking for doesn't exist or has been removed.
             </p>
@@ -364,7 +364,7 @@ const ProjectDetailsPage = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation Header */}
-      <Header />
+      <Navigation />
       {/* Main Content */}
       <main className="flex-1">
         <div className="container py-8 px-2 sm:px-4">
@@ -421,7 +421,7 @@ const ProjectDetailsPage = () => {
                     placeholder="Project Name"
                   />
                 ) : (
-                  <CardTitle className="text-xl sm:text-2xl mb-2">{project.projectName}</CardTitle>
+                  <CardTitle className="font-heading text-xl sm:text-2xl mb-2">{project.projectName}</CardTitle>
                 )}
                 {/* Team Name(s) below title */}
                 <span className="block text-sm text-white mb-2">
@@ -503,7 +503,7 @@ const ProjectDetailsPage = () => {
                 )}
                 {editMode === 'edit' && (
                   <div className="mt-4 space-y-2">
-                    <h4 className="text-sm font-semibold text-white">Categories</h4>
+                    <h4 className="font-heading text-sm font-semibold text-white">Categories</h4>
                     <div className="flex flex-wrap gap-2">
                       {ALLOWED_CATEGORIES.map((cat) => {
                         const active = (editFields.categories as string[] | undefined)?.includes(cat);
@@ -558,7 +558,7 @@ const ProjectDetailsPage = () => {
               </div>
               {/* Team Members section */}
               <div className="mb-6">
-                <h4 className="font-semibold text-base mb-2 text-white">Team Members</h4>
+                <h4 className="font-heading font-semibold text-base mb-2 text-white">Team Members</h4>
                 {!teamEditing ? (
                   <div className="space-y-1">
                     {(project.teamMembers || []).map((m, i) => (
@@ -587,11 +587,11 @@ const ProjectDetailsPage = () => {
               </div>
               {/* Create Team Multisig section */}
               <div className="mb-6">
-                <h4 className="font-semibold text-base mb-2 text-white">Create Team Multisig</h4>
+                <h4 className="font-heading font-semibold text-base mb-2 text-white">Create Team Multisig</h4>
                 <span className="text-gray-400 text-sm">Coming soon</span>
               </div>
               {/* Milestone work in progress section */}
-              <h3 className="font-semibold mb-2 text-base text-white">Milestone work in progress</h3>
+              <h3 className="font-heading font-semibold mb-2 text-base text-white">Milestone work in progress</h3>
               {project.milestones && project.milestones.length > 0 ? (
                 (() => {
                   // Normalize text and collect bullets. Handle literal "\\n" and the first non-dash line.

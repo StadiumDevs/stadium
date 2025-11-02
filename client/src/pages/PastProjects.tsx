@@ -1,105 +1,19 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, lazy, Suspense, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FilterSidebar } from "@/components/FilterSidebar";
-import { ProjectBubble } from "@/components/ProjectBubble";
-import { DemoVideoModal } from "@/components/DemoVideoModal";
-import { AnimatePresence, motion } from "framer-motion";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Navigation } from "@/components/Navigation";
+import { SearchBar } from "@/components/SearchBar";
+import { ProjectCard } from "@/components/ProjectCard";
+import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
+import { NoProjectsFound } from "@/components/EmptyState";
 import { api } from "@/lib/api";
+import { getProjectUrl } from "@/lib/projectUtils";
 
-const CATEGORY_MAP: Record<string, string> = {
-  // Symmetry 2024 categories
-  "Rust": "Developer Tools",
-  "wasm": "Developer Tools",
-  "typescript": "Developer Tools",
-  "TS": "Developer Tools",
-  "react": "Developer Tools",
-  "NEXT": "Developer Tools",
-  "Next.js": "Developer Tools",
-  "NextJS": "Developer Tools",
-  "Golang": "Developer Tools",
-  "Python": "Developer Tools",
-  "deno": "Developer Tools",
-  "Solidity": "DeFi",
-  "EVM": "DeFi",
-  "Polkadot": "DeFi",
-  "Cairo": "DeFi",
-  "NFT": "NFT",
-  "Figma": "NFT",
-  "JavaScript": "Developer Tools",
-  "JS": "Developer Tools",
-  "Jetson Nano": "Gaming",
-  "Substrate": "Developer Tools",
-  "GraphViz": "Developer Tools",
-  "Mongo": "Developer Tools",
-  "mongoDB": "Developer Tools",
-  "Flutter": "Developer Tools",
-  "React Native": "Developer Tools",
-  "Wagmi": "DeFi",
-  "Viem": "DeFi",
-  "Sepolia": "DeFi",
-  "Blink": "DeFi",
-  "Phantom Wallet": "DeFi",
-  "Solana": "DeFi",
-  "Web3.js": "DeFi",
-  "Livepeer": "Social",
-  "Langchain": "Developer Tools",
-  "CSS": "Developer Tools",
-  "HTML": "Developer Tools",
-  "Gaming": "Gaming",
-  "Social": "Social",
-  "F#": "Developer Tools",
-  "Flask": "Developer Tools",
-  "ethers.js": "DeFi",
-  "Ollama": "Developer Tools",
-  "EVM Pallet": "DeFi",
-  "dephy messaging layer": "Developer Tools",
-  "DePHY ID": "Developer Tools",
-  "Structured Causal Models": "Developer Tools",
-  "Rootstock": "DeFi",
-  "Cere Network": "DeFi",
-  "Goldsky Subgraph": "Developer Tools",
-  "SQL": "Developer Tools",
-  "Nextjs": "Developer Tools",
-  "Papi": "Developer Tools",
-  "DotConnect": "Developer Tools",
-  // Synergy 2025 categories
-  "Kusama": "DeFi", 
-  "ink!": "Developer Tools",
-  "Other": "Other",
-};
-
-const ALL_CATEGORIES = [
-  "Gaming",
-  "DeFi",
-  "NFT",
-  "Developer Tools",
-  "Social",
-  "Other",
-  "Winners",
-];
-
-function extractCategories(techStack: string): string[] {
-  return techStack
-    .split(",")
-    .map((t) => t.trim())
-    .filter((t) => t && t.toLowerCase() !== "nan")
-    .map((t) => {
-      // Try exact match first
-      if (CATEGORY_MAP[t]) {
-        return CATEGORY_MAP[t];
-      }
-      // Try case-insensitive match
-      const lowerT = t.toLowerCase();
-      for (const [key, value] of Object.entries(CATEGORY_MAP)) {
-        if (key.toLowerCase() === lowerT) {
-          return value;
-        }
-      }
-      return t;
-    });
-}
+// Lazy load heavy components
+const FilterSidebar = lazy(() => import("@/components/FilterSidebar").then(module => ({ default: module.FilterSidebar })));
+const ProjectDetailModal = lazy(() => import("@/components/ProjectDetailModal").then(module => ({ default: module.ProjectDetailModal })));
 
 type ApiProject = {
   id: string;
@@ -116,15 +30,38 @@ type ApiProject = {
   hackathon?: { id: string; name: string; endDate: string };
 };
 
+type ProjectCardData = {
+  id: string;
+  title: string;
+  author: string;
+  description: string;
+  track: string;
+  isWinner: boolean;
+  demoUrl?: string;
+  githubUrl?: string;
+  projectUrl?: string;
+};
+
+// Map filter IDs to category names
+const FILTER_TO_CATEGORY: Record<string, string> = {
+  "gaming": "Gaming",
+  "defi": "DeFi",
+  "nft": "NFT",
+  "developer-tools": "Developer Tools",
+  "social": "Social",
+  "other": "Other",
+};
+
 const PastProjectsPage = () => {
-  const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [showWinnersOnly, setShowWinnersOnly] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectCardData | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedHackathon, setSelectedHackathon] = useState<string>("all");
-  const [videoProject, setVideoProject] = useState<ApiProject | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [hackathons, setHackathons] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Load hackathon list once
   useEffect(() => {
@@ -134,11 +71,13 @@ const PastProjectsPage = () => {
         const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
         const unique = new Map<string, string>();
         for (const p of apiProjects) {
-          if (p.hackathon?.id) unique.set(p.hackathon.id, p.hackathon.name || p.hackathon.id);
+          if (p.hackathon?.id) {
+            unique.set(p.hackathon.id, p.hackathon.name || p.hackathon.id);
+          }
         }
         setHackathons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })));
       } catch (e) {
-        // ignore errors when building hackathon list
+        console.error("Failed to load hackathons:", e);
       }
     };
     loadHackathons();
@@ -149,10 +88,10 @@ const PastProjectsPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const params = selectedHackathon === 'all'
-          ? { limit: 1000, sortBy: "updatedAt", sortOrder: "desc" }
-          : { hackathonId: selectedHackathon, limit: 1000, sortBy: "updatedAt", sortOrder: "desc" };
-        const response = await api.getProjects(params as { hackathonId?: string; limit: number; sortBy: string; sortOrder: 'asc' | 'desc' });
+        const params = selectedHackathon === "all"
+          ? { limit: 1000, sortBy: "updatedAt", sortOrder: "desc" as const }
+          : { hackathonId: selectedHackathon, limit: 1000, sortBy: "updatedAt", sortOrder: "desc" as const };
+        const response = await api.getProjects(params);
         const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
         setProjects(apiProjects);
       } catch (e) {
@@ -165,145 +104,221 @@ const PastProjectsPage = () => {
     load();
   }, [selectedHackathon]);
 
+  // Convert API project to ProjectCard format
+  const convertToProjectCard = (project: ApiProject): ProjectCardData => {
+    const track = project.bountyPrize?.[0]?.name || 
+                 (project.techStack?.[0] || "Other");
+    const isWinner = Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0;
+
+    return {
+      id: project.id,
+      title: project.projectName,
+      author: project.teamMembers?.[0]?.name || "",
+      description: project.description,
+      track: track,
+      isWinner: isWinner,
+      demoUrl: project.demoUrl,
+      githubUrl: project.projectRepo,
+      projectUrl: project.id ? `/projects/${project.id}` : undefined,
+    };
+  };
+
+  // Filter projects
   const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
-      // Search
-      const matchesSearch =
-        !search ||
-        project.projectName.toLowerCase().includes(search.toLowerCase()) ||
-        (project.teamMembers?.[0]?.name || "").toLowerCase().includes(search.toLowerCase()) ||
-        project.description.toLowerCase().includes(search.toLowerCase());
+    let filtered = projects;
 
-      // Filters
-      let matchesFilter = true;
-      if (activeFilters.length > 0) {
-        matchesFilter = false;
-        for (const filter of activeFilters) {
-          if (filter === "Winners") {
-            let isWinner = false;
-            const isSymmetry2024 = project.hackathon?.id === 'symmetry-2024';
-            if (isSymmetry2024) {
-              const winnerProjects = ["anytype - nft gating","delegit","empathy technologies","hypertents","papi actions","propcorn","ChainView"]; 
-              isWinner = winnerProjects.some((winner) => project.projectName.toLowerCase().includes(winner.toLowerCase()));
-            } else {
-              isWinner = Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0;
-            }
+    // Filter by hackathon (already handled by API, but keep for consistency)
+    if (selectedHackathon !== "all") {
+      filtered = filtered.filter((p) => p.hackathon?.id === selectedHackathon);
+    }
 
-            if (isWinner) {
-              matchesFilter = true;
-              break;
-            }
-          }
-          // Categories: prefer explicit categories; fallback to derived from techStack
-          const cats = Array.isArray(project.categories) && project.categories.length > 0
-            ? project.categories
-            : extractCategories(Array.isArray(project.techStack) ? project.techStack.join(", ") : (project.techStack as unknown as string) || "");
-          if (cats.includes(filter)) {
-            matchesFilter = true;
-            break;
-          }
-        }
-      }
-      return matchesSearch && matchesFilter;
-    });
-  }, [projects, search, activeFilters]);
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((project) =>
+        project.projectName.toLowerCase().includes(query) ||
+        project.description.toLowerCase().includes(query) ||
+        project.teamMembers?.[0]?.name?.toLowerCase().includes(query)
+      );
+    }
 
-  // Skeleton bubbles for loading state
-  const skeletons = Array.from({ length: 6 });
+    // Filter by winners
+    if (showWinnersOnly) {
+      filtered = filtered.filter((project) =>
+        Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0
+      );
+    }
+
+    // Filter by category
+    if (activeFilters.length > 0) {
+      filtered = filtered.filter((project) => {
+        // Get project categories (from API or derive from techStack)
+        const projectCategories = project.categories || [];
+        
+        // Check if any active filter matches project categories
+        return activeFilters.some((filterId) => {
+          const categoryName = FILTER_TO_CATEGORY[filterId];
+          if (!categoryName) return false;
+          
+          // Check if project has this category
+          return projectCategories.some(
+            (cat) => cat.toLowerCase() === categoryName.toLowerCase()
+          );
+        });
+      });
+    }
+
+    return filtered.map(convertToProjectCard);
+  }, [projects, searchQuery, showWinnersOnly, activeFilters, selectedHackathon]);
+
+  const handleFilterChange = useCallback((filterId: string) => {
+    setActiveFilters((prev) =>
+      prev.includes(filterId)
+        ? prev.filter((id) => id !== filterId)
+        : [...prev, filterId]
+    );
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setActiveFilters([]);
+    setShowWinnersOnly(false);
+    setSearchQuery("");
+  }, []); // Note: setSearchQuery is stable from useState
+
+  const handleWinnersOnlyChange = useCallback((value: boolean) => {
+    setShowWinnersOnly(value);
+  }, []);
+
+  const handleProjectClick = useCallback((project: ProjectCardData) => {
+    setSelectedProject(project);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setSelectedProject(null);
+  }, []);
 
   return (
-    <div className="container py-8">
-      {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center space-x-2 mb-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/" className="flex items-center space-x-2">
-              <ChevronLeft className="h-4 w-4" />
-              <span>Go Back Home</span>
+    <div className="min-h-screen animate-fade-in">
+      <Navigation />
+
+      <div className="container mx-auto px-4 pt-24 pb-16">
+        {/* Page Header */}
+        <div className="mb-8">
+          <Button variant="ghost" size="sm" className="mb-4 -ml-2" asChild>
+            <Link to="/">
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Go Back Home
             </Link>
           </Button>
-        </div>
-        <h1 className="text-4xl font-bold mb-2">Past Projects</h1>
-        <div className="flex items-center gap-2 mb-2">
-          <label className="text-sm text-muted-foreground">Hackathon:</label>
-          <select
-            className="border rounded px-2 py-1 text-sm bg-background text-white"
-            value={selectedHackathon}
-            onChange={(e) => setSelectedHackathon(e.target.value)}
-          >
-            <option value="all">All</option>
-            {hackathons.map((h) => (
-              <option key={h.id} value={h.id}>{h.name || h.id}</option>
-            ))}
-          </select>
-          <span className="text-sm text-muted-foreground">({filteredProjects.length} projects)</span>
-        </div>
-      </div>
-      {/* Two-column layout */}
-      <div className="flex flex-col md:flex-row gap-8">
-        {/* Mobile filter toggle button */}
-        <div className="md:hidden mb-4">
-          <Button size="sm" variant="outline" onClick={() => setFilterOpen((v) => !v)}>
-            {filterOpen ? "Hide Filters" : "Show Filters"}
-          </Button>
-        </div>
-        {/* Sidebar, collapsible on mobile */}
-        {(filterOpen || window.innerWidth >= 768) && (
-          <FilterSidebar
-            search={search}
-            setSearch={setSearch}
-            activeFilters={activeFilters}
-            setActiveFilters={setActiveFilters}
-            allCategories={ALL_CATEGORIES}
-            activeCount={activeFilters.length}
-            onClear={() => setActiveFilters([])}
-          />
-        )}
-        {/* Bubble Gallery */}
-        <div className="flex-1 bubble-grid">
-          {loading ? (
-            skeletons.map((_, idx) => (
-              <div
-                key={idx}
-                className="project-bubble bg-gradient-to-br from-primary/10 to-accent/10 animate-pulse"
-                style={{ minHeight: 220 + (idx % 3) * 40 }}
-              />
-            ))
-          ) : (
-            <AnimatePresence>
-              {filteredProjects.length === 0 ? (
-                <motion.div
-                  className="col-span-full text-center text-muted-foreground py-12"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  No projects found.
-                </motion.div>
-              ) : (
-                filteredProjects.map((project, idx) => (
-                  <motion.div
-                    key={project.projectName + idx}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.3, delay: idx * 0.04 }}
-                    style={{ "--index": idx } as React.CSSProperties }
-                  >
-                    <ProjectBubble
-                      project={project}
-                      onPlayDemo={setVideoProject}
+
+          <h1 className="font-heading text-4xl md:text-5xl font-bold mb-4">
+            Past Projects
+          </h1>
+
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <SearchBar
+              onSearchChange={setSearchQuery}
+              onHackathonChange={setSelectedHackathon}
+              hackathons={hackathons}
+              projectCount={filteredProjects.length}
+              selectedHackathon={selectedHackathon}
+            />
+            
+            {/* Mobile Filters Button */}
+            <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="lg:hidden gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                <SheetHeader>
+                  <SheetTitle className="font-heading">Filters</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6">
+                  <Suspense fallback={<div className="text-muted-foreground">Loading filters...</div>}>
+                    <FilterSidebar
+                      activeFilters={activeFilters}
+                      onFilterChange={handleFilterChange}
+                      onClearFilters={handleClearFilters}
+                      showWinnersOnly={showWinnersOnly}
+                      onWinnersOnlyChange={handleWinnersOnlyChange}
+                      className=""
                     />
-                  </motion.div>
-                ))
-              )}
-            </AnimatePresence>
-          )}
+                  </Suspense>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex gap-8">
+          {/* Sidebar - hidden on mobile/tablet, visible on desktop */}
+          <aside className="hidden lg:block w-72 flex-shrink-0">
+            <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+              <FilterSidebar
+                activeFilters={activeFilters}
+                onFilterChange={handleFilterChange}
+                onClearFilters={handleClearFilters}
+                showWinnersOnly={showWinnersOnly}
+                onWinnersOnlyChange={handleWinnersOnlyChange}
+              />
+            </Suspense>
+          </aside>
+
+          {/* Projects Grid */}
+          <main className="flex-1">
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {Array.from({ length: 9 }).map((_, idx) => (
+                  <ProjectCardSkeleton key={idx} />
+                ))}
+              </div>
+            ) : filteredProjects.length === 0 ? (
+              <NoProjectsFound onClearFilters={handleClearFilters} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    title={project.title}
+                    author={project.author}
+                    description={project.description}
+                    track={project.track}
+                    isWinner={project.isWinner}
+                    demoUrl={project.demoUrl}
+                    githubUrl={project.githubUrl}
+                    projectUrl={project.projectUrl}
+                    onClick={() => handleProjectClick(project)}
+                  />
+                ))}
+              </div>
+            )}
+          </main>
         </div>
       </div>
-      {/* Video Modal */}
-      <DemoVideoModal open={!!videoProject} onClose={() => setVideoProject(null)} project={videoProject} />
+
+      {/* Project Detail Modal */}
+      {selectedProject && (
+        <Suspense fallback={null}>
+          <ProjectDetailModal
+            open={!!selectedProject}
+            onOpenChange={(open) => !open && handleCloseModal()}
+            project={{
+              title: selectedProject.title,
+              author: selectedProject.author,
+              description: selectedProject.description,
+              track: selectedProject.track,
+              isWinner: selectedProject.isWinner,
+              demoUrl: selectedProject.demoUrl,
+              githubUrl: selectedProject.githubUrl,
+              projectUrl: selectedProject.projectUrl,
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

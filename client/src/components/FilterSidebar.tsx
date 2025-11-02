@@ -1,87 +1,109 @@
-import React from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { Gamepad2, Coins, Image, Wrench, Users, Layers, Trophy } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-interface FilterSidebarProps {
-  search: string;
-  setSearch: (s: string) => void;
-  activeFilters: string[];
-  setActiveFilters: (f: string[]) => void;
-  allCategories: string[];
-  activeCount: number;
-  onClear: () => void;
+interface FilterOption {
+  id: string
+  label: string
+  icon: React.ReactNode
+  count?: number
 }
 
-const categoryIcons: Record<string, string> = {
-  "Gaming": "🎮",
-  "DeFi": "💰",
-  "NFT": "🎨",
-  "Developer Tools": "🛠️",
-  "Social": "🌐",
-  "Other": "🔧",
-  "Winners": "🏆",
-};
+const filterCategories = {
+  categories: [
+    { id: "gaming", label: "Gaming", icon: <Gamepad2 className="w-4 h-4" /> },
+    { id: "defi", label: "DeFi", icon: <Coins className="w-4 h-4" /> },
+    { id: "nft", label: "NFT", icon: <Image className="w-4 h-4" /> },
+    { id: "developer-tools", label: "Developer Tools", icon: <Wrench className="w-4 h-4" /> },
+    { id: "social", label: "Social", icon: <Users className="w-4 h-4" /> },
+    { id: "other", label: "Other", icon: <Layers className="w-4 h-4" /> },
+  ],
+}
 
-export const FilterSidebar: React.FC<FilterSidebarProps> = ({
-  search,
-  setSearch,
+interface FilterSidebarProps {
+  activeFilters: string[]
+  onFilterChange: (filterId: string) => void
+  onClearFilters: () => void
+  showWinnersOnly: boolean
+  onWinnersOnlyChange: (value: boolean) => void
+  className?: string
+}
+
+export function FilterSidebar({
   activeFilters,
-  setActiveFilters,
-  allCategories,
-  activeCount,
-  onClear,
-}) => {
-  const handleToggle = (cat: string) => {
-    setActiveFilters(
-      activeFilters.includes(cat)
-        ? activeFilters.filter((c) => c !== cat)
-        : [...activeFilters, cat]
-    );
-  };
+  onFilterChange,
+  onClearFilters,
+  showWinnersOnly,
+  onWinnersOnlyChange,
+  className,
+}: FilterSidebarProps) {
   return (
-    <aside className="w-[250px] min-w-[250px] max-w-[250px] h-full rounded-3xl p-6 backdrop-blur-md bg-white/10 border border-white/20 flex flex-col gap-6">
-      <div>
-        <Input
-          placeholder="Search projects..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="mb-4"
-        />
-        <div className="flex flex-wrap gap-2 mb-2">
-          {allCategories.map((cat) => (
-            <Button
-              key={cat}
-              type="button"
-              variant={activeFilters.includes(cat) ? "default" : "outline"}
-              className="rounded-full px-3 py-1 text-sm flex items-center gap-1"
-              onClick={() => handleToggle(cat)}
-            >
-              <span>{categoryIcons[cat] || ""}</span>
-              {cat}
-            </Button>
-          ))}
+    <Card className={className || "sticky top-20"}>
+      <CardHeader>
+        <CardTitle className="font-heading text-base">Filters</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Winners Filter */}
+        <div>
+          <h4 className="text-sm font-semibold mb-2 uppercase tracking-wide text-muted-foreground">
+            Special
+          </h4>
+          <Button
+            variant={showWinnersOnly ? "default" : "outline"}
+            className={cn(
+              "w-full justify-start transition-all duration-200",
+              showWinnersOnly && "bg-yellow-500/10 border-yellow-500 text-yellow-500 hover:bg-yellow-500/20"
+            )}
+            onClick={() => onWinnersOnlyChange(!showWinnersOnly)}
+          >
+            <Trophy className={cn(
+              "w-4 h-4 mr-2 transition-all duration-200",
+              showWinnersOnly && "animate-pulse"
+            )} />
+            Winners
+          </Button>
         </div>
-        {activeCount > 0 && (
-          <span className="inline-block bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs font-bold mb-2">
-            {activeCount} active
-          </span>
+
+        <Separator />
+
+        {/* Category Filters */}
+        <div>
+          <h4 className="text-sm font-semibold mb-2 uppercase tracking-wide text-muted-foreground">
+            Categories
+          </h4>
+          <div className="space-y-1">
+            {filterCategories.categories.map((filter) => (
+              <Button
+                key={filter.id}
+                variant={activeFilters.includes(filter.id) ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start transition-all duration-200",
+                  activeFilters.includes(filter.id) && "bg-primary/10 text-accent"
+                )}
+                onClick={() => onFilterChange(filter.id)}
+              >
+                {filter.icon}
+                <span className="ml-2">{filter.label}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Clear Filters */}
+        {(activeFilters.length > 0 || showWinnersOnly) && (
+          <Button
+            variant="outline"
+            className="w-full border-primary text-accent hover:bg-primary/10"
+            onClick={onClearFilters}
+          >
+            Clear filters
+          </Button>
         )}
-      </div>
-      <div className="mt-auto text-right">
-        <button
-          className="text-xs underline text-muted-foreground hover:text-primary"
-          onClick={onClear}
-        >
-          Clear filters
-        </button>
-      </div>
-    </aside>
-  );
-}; 
+      </CardContent>
+    </Card>
+  )
+}

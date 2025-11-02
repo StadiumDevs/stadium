@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { Navigation } from "@/components/Navigation";
+import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
+import { EmptyState } from "@/components/EmptyState";
 import {
   Github,
   Globe,
@@ -127,11 +130,17 @@ const ProjectsPage = () => {
 
   if (loading) {
     return (
-      <div className="container py-12">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-lg">Loading projects...</span>
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="container py-8 pt-24">
+          <div className="mb-8">
+            <div className="h-10 bg-muted animate-pulse rounded-md w-64 mb-4" />
+            <div className="h-6 bg-muted animate-pulse rounded-md w-96" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <ProjectCardSkeleton key={idx} />
+            ))}
           </div>
         </div>
       </div>
@@ -139,8 +148,10 @@ const ProjectsPage = () => {
   }
 
   return (
-    <div className="container py-8">
-      {/* Page Header */}
+    <div className="min-h-screen animate-fade-in">
+      <Navigation />
+      <div className="container py-8 pt-24">
+        {/* Page Header */}
       <div className="mb-8">
         <div className="flex items-center space-x-2 mb-4">
           <Button variant="ghost" size="sm" asChild>
@@ -150,7 +161,7 @@ const ProjectsPage = () => {
             </Link>
           </Button>
         </div>
-        <h1 className="text-4xl font-bold mb-2">Synergy 2025 Winners</h1>
+        <h1 className="font-heading text-4xl font-bold mb-2">Synergy 2025 Winners</h1>
         <p className="text-muted-foreground">
           Congratulations to the winners of the Blockspace Synergy Hackathon 2025!
         </p>
@@ -158,25 +169,20 @@ const ProjectsPage = () => {
 
       {/* Projects Grid */}
       {projects.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No Projects Yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Be the first to submit your hackathon project to the Stadium!
-            </p>
-            <Button asChild>
-              <Link to="/submission">Submit Your Project</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No Projects Yet"
+          description="Be the first to submit your hackathon project to the Stadium!"
+          actionLabel="Submit Your Project"
+          onAction={() => window.location.href = "/submission"}
+          icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
+        />
       ) : (
         <>
           {/* HARDCODED: Demo layout showing one project for each status type */}
           <div className="space-y-8">
             {/* Winners Section */}
             <div>
-              <h2 className="text-2xl font-bold mb-4 text-black flex items-center">
+              <h2 className="font-heading text-2xl font-bold mb-4 text-black flex items-center">
                 <Trophy className="h-6 w-6 mr-2 text-yellow-500" />
                 Winners
               </h2>
@@ -277,22 +283,20 @@ const ProjectsPage = () => {
                     ));
                   })()
                 ) : (
-                  <Card className="text-center py-8 col-span-full">
-                    <CardContent>
-                      <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">No Winners Yet</h3>
-                      <p className="text-muted-foreground">
-                        No projects have been selected as winners yet.
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <div className="col-span-full">
+                    <EmptyState
+                      title="No Winners Yet"
+                      description="No projects have been selected as winners yet."
+                      icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
+                    />
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Pending Milestone Delivery Section */}
             <div>
-              <h2 className="text-2xl font-bold mb-4 text-black flex items-center">
+              <h2 className="font-heading text-2xl font-bold mb-4 text-black flex items-center">
                 <Clock className="h-6 w-6 mr-2 text-gray-500" />
                 Pending Milestone Delivery
               </h2>
@@ -345,7 +349,7 @@ const ProjectsPage = () => {
                   <Card className="text-center py-8 col-span-full">
                     <CardContent>
                       <Clock className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2 text-white">No Pending Projects</h3>
+                      <h3 className="font-heading text-lg font-semibold mb-2 text-white">No Pending Projects</h3>
                       <p className="text-white">
                         No projects are currently pending milestone delivery.
                       </p>
@@ -357,7 +361,7 @@ const ProjectsPage = () => {
 
             {/* Under Review Section */}
             <div>
-              <h2 className="text-2xl font-bold mb-4 text-black flex items-center">
+              <h2 className="font-heading text-2xl font-bold mb-4 text-black flex items-center">
                 <AlertCircle className="h-6 w-6 mr-2 text-gray-500" />
                 Under Review
               </h2>
@@ -410,7 +414,7 @@ const ProjectsPage = () => {
                   <Card className="text-center py-8 col-span-full">
                     <CardContent>
                       <AlertCircle className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2 text-white">No Projects Under Review</h3>
+                      <h3 className="font-heading text-lg font-semibold mb-2 text-white">No Projects Under Review</h3>
                       <p className="text-white">
                         No projects are currently under review.
                       </p>
@@ -470,6 +474,7 @@ const ProjectsPage = () => {
           )}
         </>
       )}
+      </div>
     </div>
   );
 };

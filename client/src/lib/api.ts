@@ -1,5 +1,8 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:2000/api";
 
+// TEMPORARY: Mock mode flag - set to true when server is down
+const USE_MOCK_DATA = true; // Set to false when server is back up
+
 class ApiError extends Error {
   status: number;
   code?: string;
@@ -71,7 +74,34 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getProjects: (params?: GetProjectsParams) => {
+  getProjects: async (params?: GetProjectsParams) => {
+    // TEMPORARY: Return mock data when server is down
+    if (USE_MOCK_DATA) {
+      const { getMockWinnersResponse } = await import("./mockWinners");
+      const mockResponse = getMockWinnersResponse();
+      
+      // Filter by hackathonId if specified
+      if (params?.hackathonId) {
+        mockResponse.data = mockResponse.data.filter(
+          (p) => p.hackathon?.id === params.hackathonId
+        );
+        mockResponse.meta.total = mockResponse.data.length;
+        mockResponse.meta.count = mockResponse.data.length;
+      }
+      
+      // Filter winners only if specified
+      if (params?.winnersOnly) {
+        mockResponse.data = mockResponse.data.filter(
+          (p) => p.bountyPrize && p.bountyPrize.length > 0
+        );
+        mockResponse.meta.total = mockResponse.data.length;
+        mockResponse.meta.count = mockResponse.data.length;
+      }
+      
+      console.log("🔧 Using mock data (server is down)");
+      return Promise.resolve(mockResponse);
+    }
+    
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set("page", params.page.toString());
     if (params?.limit) searchParams.set("limit", params.limit.toString());
@@ -87,7 +117,26 @@ export const api = {
     return request(`/projects${queryString ? `?${queryString}` : ""}`);
   },
 
-  getProject: (id: string) => request(`/projects/${id}`),
+  getProject: async (id: string) => {
+    // TEMPORARY: Return mock data when server is down
+    if (USE_MOCK_DATA) {
+      const { mockWinningProjects } = await import("./mockWinners");
+      const mockProject = mockWinningProjects.find((p) => p.id === id);
+      
+      if (mockProject) {
+        console.log("🔧 Using mock data for project:", id);
+        return Promise.resolve({
+          status: "success",
+          data: mockProject
+        });
+      }
+      
+      // If project not found in mock data, return 404-like response
+      throw new ApiError("Project not found", 404);
+    }
+    
+    return request(`/projects/${id}`);
+  },
 
   updateProjectTeam: (projectId: string, teamMembers: Array<{ name: string; walletAddress?: string; customUrl?: string }>, authHeader: string) =>
     request(`/projects/${projectId}/team`, {
