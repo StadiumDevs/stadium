@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
@@ -24,17 +24,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { getProjectUrl } from "@/lib/projectUtils";
+import { getProjectUrl, getCurrentProgramWeek } from "@/lib/projectUtils";
 
 type ApiProject = {
   id: string;
@@ -46,6 +38,7 @@ type ApiProject = {
   slidesUrl?: string;
   donationAddress?: string;
   bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
+  m2Status?: 'building' | 'under_review' | 'completed';
 };
 
 type LegacyProject = {
@@ -58,14 +51,12 @@ type LegacyProject = {
   slidesUrl?: string;
   donationAddress?: string;
   winner?: string;
+  m2Status?: 'building' | 'under_review' | 'completed';
 };
-
-const PROJECTS_PER_PAGE = 9;
 
 const ProjectsPage = () => {
   const [projects, setProjects] = useState<LegacyProject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
 
@@ -95,6 +86,7 @@ const ProjectsPage = () => {
           donationAddress: p.donationAddress || "",
           // Winner string preserved from migration in bountyPrize[0].name
           winner: p.bountyPrize?.[0]?.name || "",
+          m2Status: p.m2Status || 'building',
         }));
 
         setProjects(mapped);
@@ -115,18 +107,27 @@ const ProjectsPage = () => {
     loadProjects();
   }, [toast]);
 
+  // Filter projects by M2 status using useMemo for performance
+  const buildingProjects = useMemo(() => {
+    return projects.filter(p => {
+      const status = p.m2Status?.toLowerCase();
+      return status === 'building' || status === 'in_progress' || status === undefined;
+    });
+  }, [projects]);
 
+  const underReviewProjects = useMemo(() => {
+    return projects.filter(p => {
+      const status = p.m2Status?.toLowerCase();
+      return status === 'under_review' || status === 'reviewing';
+    });
+  }, [projects]);
 
-  // Pagination logic
-  const totalPages = Math.ceil(projects.length / PROJECTS_PER_PAGE);
-  const startIndex = (currentPage - 1) * PROJECTS_PER_PAGE;
-  const endIndex = startIndex + PROJECTS_PER_PAGE;
-  const currentProjects = projects.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const completedProjects = useMemo(() => {
+    return projects.filter(p => {
+      const status = p.m2Status?.toLowerCase();
+      return status === 'completed' || status === 'approved';
+    });
+  }, [projects]);
 
   if (loading) {
     return (
@@ -147,333 +148,197 @@ const ProjectsPage = () => {
     );
   }
 
+  const currentWeek = getCurrentProgramWeek();
+
   return (
     <div className="min-h-screen animate-fade-in">
       <Navigation />
-      <div className="container py-8 pt-24">
-        {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center space-x-2 mb-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/" className="flex items-center space-x-2">
-              <ChevronLeft className="h-4 w-4" />
-              <span>Go Back Home</span>
-            </Link>
-          </Button>
+      
+      {/* M2 Accelerator Header Section */}
+      <div className="container mx-auto px-4 pt-24 pb-6">
+        <div className="glass-panel rounded-lg border-subtle p-6 md:p-8 mb-8">
+          <div className="flex flex-col md:flex-row justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="font-heading text-4xl font-bold mb-2">M2 Accelerator - sub0 2025</h1>
+              <p className="text-muted-foreground mb-2">
+                4 teams building · 6-week program · $16k total prizes
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Current: {currentWeek.weekLabel}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 md:items-end">
+              <Link 
+                to="/m2-program-guide" 
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline"
+              >
+                View M2 Program Guide
+              </Link>
+              <Link 
+                to="/mentor-resources" 
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline"
+              >
+                Mentor Resources
+              </Link>
+            </div>
+          </div>
         </div>
-        <h1 className="font-heading text-4xl font-bold mb-2">Synergy 2025 Winners</h1>
-        <p className="text-muted-foreground">
-          Congratulations to the winners of the Blockspace Synergy Hackathon 2025!
-        </p>
       </div>
 
-      {/* Projects Grid */}
-      {projects.length === 0 ? (
-        <EmptyState
-          title="No Projects Yet"
-          description="Be the first to submit your hackathon project to the Stadium!"
-          actionLabel="Submit Your Project"
-          onAction={() => window.location.href = "/submission"}
-          icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
-        />
-      ) : (
-        <>
-          {/* HARDCODED: Demo layout showing one project for each status type */}
-          <div className="space-y-8">
-            {/* Winners Section */}
-            <div>
-              <h2 className="font-heading text-2xl font-bold mb-4 text-black flex items-center">
-                <Trophy className="h-6 w-6 mr-2 text-yellow-500" />
-                Winners
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {currentProjects.length > 0 ? (
-                  (() => {
-                    // Separate Polkadot and Kusama winners
-                    const polkadotWinners = currentProjects.filter((project: LegacyProject) => 
-                      project.winner?.toLowerCase().includes('polkadot')
-                    );
-                    const kusamaWinners = currentProjects.filter((project: LegacyProject) => 
-                      project.winner?.toLowerCase().includes('kusama')
-                    );
-                    
-                    // Combine: Polkadot first, then Kusama
-                    const sortedProjects = [...polkadotWinners, ...kusamaWinners];
-                    
-                    return sortedProjects.map((project: LegacyProject, index: number) => (
-                      <Card
-                        key={project.projectName}
-                        className="group hover:shadow-primary transition-all duration-300 animate-fade-in flex flex-col justify-between"
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                        <CardHeader className="pb-2">
-                          <div className="flex items-start justify-between">
-                            <div className="flex flex-col gap-1">
-                              {/* Remove Badge from here */}
-                            </div>
-                            <Trophy className="h-4 w-4 text-yellow-500" />
-                          </div>
-                          <CardTitle className="group-hover:text-primary transition-colors text-sm">
-                            {project.projectName}
-                          </CardTitle>
-                          <CardDescription className="line-clamp-6 project-card-info text-xs">
-                            {project.description}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="pt-0 pb-2">
-                          <div className="space-y-2">
-                            <div className="flex flex-wrap gap-1">
-                              {/* Remove Badge from here if present */}
-                            </div>
-                          </div>
-                        </CardContent>
-                        <CardFooter className="pt-0 pb-2 flex items-end mt-auto">
-                          {/* Winner Badge at bottom left */}
-                          <Badge
-                            className={
-                              project.winner?.toLowerCase().includes('kusama')
-                                ? 'bg-purple-600/20 text-purple-300 border-purple-600/30'
-                                : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                            }
-                            variant="secondary"
-                          >
-                            🏆 {project.winner
-                              ? project.winner
-                                  .split(' ')
-                                  .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                                  .join(' ')
-                              : ''}
-                          </Badge>
-                          <div className="flex-1" />
-                          <Button asChild size="sm" className="text-[10px] px-2 py-1">
-                            <Link
-                              to={getProjectUrl(project)}
-                              className="flex items-center space-x-1"
-                            >
-                              <span>Details</span>
-                              <ChevronRight className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                          {project.githubRepo && (
-                            <Button size="icon" variant="outline" asChild className="h-6 w-6 p-0 min-w-0 ml-1">
-                              <a
-                                href={project.githubRepo}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="View on GitHub"
-                              >
-                                <Github className="h-3 w-3" />
-                              </a>
-                            </Button>
-                          )}
-                          {(project.demoUrl || project.slidesUrl) && (
-                            <Button size="icon" variant="outline" asChild className="h-6 w-6 p-0 min-w-0 ml-1">
-                              <a
-                                href={project.demoUrl || project.slidesUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="View Demo"
-                              >
-                                <Globe className="h-3 w-3" />
-                              </a>
-                            </Button>
-                          )}
-                        </CardFooter>
-                      </Card>
-                    ));
-                  })()
-                ) : (
-                  <div className="col-span-full">
-                    <EmptyState
-                      title="No Winners Yet"
-                      description="No projects have been selected as winners yet."
-                      icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
-                    />
-                  </div>
-                )}
-              </div>
+      <div className="container px-4 pb-16">
+        {/* M2 Program Sections */}
+        <div className="space-y-12">
+          {/* Section 1: Building */}
+          <section className="mb-12">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="font-heading text-2xl font-bold">🏗️ BUILDING (Weeks 1-4)</h2>
+              <Badge variant="outline" className="bg-primary/10 border-primary text-accent">
+                {buildingProjects.length} team{buildingProjects.length !== 1 ? 's' : ''}
+              </Badge>
             </div>
-
-            {/* Pending Milestone Delivery Section */}
-            <div>
-              <h2 className="font-heading text-2xl font-bold mb-4 text-black flex items-center">
-                <Clock className="h-6 w-6 mr-2 text-gray-500" />
-                Pending Milestone Delivery
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                {currentProjects
-                  .filter((project: LegacyProject) => !project.winner || project.winner === "")
-                  .slice(0, 3)
-                  .length > 0 ? (
-                  currentProjects
-                    .filter((project: LegacyProject) => !project.winner || project.winner === "")
-                    .slice(0, 3)
-                    .map((project: LegacyProject, index: number) => (
-                      <Card
-                        key={project.projectName}
-                        className="group hover:shadow-primary transition-all duration-300 animate-fade-in"
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between">
-                            <Badge
-                              className="bg-purple-400/20 text-purple-200 border-purple-400/30"
-                              variant="secondary"
-                            >
-                              Pending
-                            </Badge>
-                          </div>
-                          <CardTitle className="group-hover:text-primary transition-colors text-lg">
-                            {project.projectName}
-                          </CardTitle>
-                        </CardHeader>
-
-                        <CardContent className="pt-0 pb-3">
-                          {/* Team name removed */}
-                        </CardContent>
-
-                        <CardFooter className="pt-0">
-                          <Button asChild size="sm" variant="outline" className="w-full text-xs">
-                            <Link
-                              to={getProjectUrl(project)}
-                              className="flex items-center justify-center space-x-1"
-                            >
-                              <span>Project Details</span>
-                              <ChevronRight className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    ))
-                ) : (
-                  <Card className="text-center py-8 col-span-full">
-                    <CardContent>
-                      <Clock className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
-                      <h3 className="font-heading text-lg font-semibold mb-2 text-white">No Pending Projects</h3>
-                      <p className="text-white">
-                        No projects are currently pending milestone delivery.
-                      </p>
-                    </CardContent>
+            <p className="text-muted-foreground mb-6">
+              Teams are working on their Milestone 2
+            </p>
+            {buildingProjects.length === 0 ? (
+              <EmptyState
+                title="All teams are in final review phase"
+                description="All teams have completed their Milestone 2 and moved to review."
+                icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {buildingProjects.map((project: LegacyProject) => (
+                  <Card
+                    key={project.id || project.projectName}
+                    className="group hover:shadow-primary transition-all duration-300 animate-fade-in"
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="group-hover:text-primary transition-colors text-lg">
+                        {project.projectName}
+                      </CardTitle>
+                      <CardDescription className="line-clamp-3">
+                        {project.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardFooter className="pt-0">
+                      <Button asChild size="sm" variant="outline" className="w-full">
+                        <Link to={getProjectUrl(project)}>
+                          Project Details
+                          <ChevronRight className="h-3 w-3 ml-2" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
                   </Card>
-                )}
+                ))}
               </div>
+            )}
+          </section>
+
+          {/* Section 2: Under Review */}
+          <section className="mb-12">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="font-heading text-2xl font-bold">⏳ UNDER REVIEW (Weeks 5-6)</h2>
+              <Badge variant="outline" className="bg-orange-500/10 border-orange-500 text-orange-300">
+                {underReviewProjects.length} team{underReviewProjects.length !== 1 ? 's' : ''}
+              </Badge>
             </div>
-
-            {/* Under Review Section */}
-            <div>
-              <h2 className="font-heading text-2xl font-bold mb-4 text-black flex items-center">
-                <AlertCircle className="h-6 w-6 mr-2 text-gray-500" />
-                Under Review
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                {currentProjects
-                  .filter((project: LegacyProject) => !project.winner || project.winner === "")
-                  .slice(3, 6)
-                  .length > 0 ? (
-                  currentProjects
-                    .filter((project: LegacyProject) => !project.winner || project.winner === "")
-                    .slice(3, 6)
-                    .map((project: LegacyProject, index: number) => (
-                      <Card
-                        key={project.projectName}
-                        className="group hover:shadow-primary transition-all duration-300 animate-fade-in"
-                        style={{ animationDelay: `${index * 100}ms` }}
-                      >
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between">
-                            <Badge
-                              className="bg-orange-500/20 text-orange-300 border-orange-500/30"
-                              variant="secondary"
-                            >
-                              Under Review
-                            </Badge>
-                          </div>
-                          <CardTitle className="group-hover:text-primary transition-colors text-lg">
-                            {project.projectName}
-                          </CardTitle>
-                        </CardHeader>
-
-                        <CardContent className="pt-0 pb-3">
-                          {/* Team name removed */}
-                        </CardContent>
-
-                        <CardFooter className="pt-0">
-                          <Button asChild size="sm" variant="outline" className="w-full text-xs">
-                            <Link
-                              to={getProjectUrl(project)}
-                              className="flex items-center justify-center space-x-1"
-                            >
-                              <span>Project Details</span>
-                              <ChevronRight className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    ))
-                ) : (
-                  <Card className="text-center py-8 col-span-full">
-                    <CardContent>
-                      <AlertCircle className="h-12 w-12 text-white bg-white/10 rounded-full mx-auto mb-4" />
-                      <h3 className="font-heading text-lg font-semibold mb-2 text-white">No Projects Under Review</h3>
-                      <p className="text-white">
-                        No projects are currently under review.
-                      </p>
-                    </CardContent>
+            <p className="text-muted-foreground mb-6">
+              Teams submitted final M2, awaiting approval
+            </p>
+            {underReviewProjects.length === 0 ? (
+              <EmptyState
+                title="No teams under review yet"
+                description="Teams will appear here when they submit their final M2 in Weeks 5-6."
+                icon={<Clock className="h-12 w-12 text-muted-foreground mx-auto" />}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {underReviewProjects.map((project: LegacyProject) => (
+                  <Card
+                    key={project.id || project.projectName}
+                    className="group hover:shadow-primary transition-all duration-300 animate-fade-in"
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="group-hover:text-primary transition-colors text-lg">
+                        {project.projectName}
+                      </CardTitle>
+                      <CardDescription className="line-clamp-3">
+                        {project.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardFooter className="pt-0">
+                      <Button asChild size="sm" variant="outline" className="w-full">
+                        <Link to={getProjectUrl(project)}>
+                          Project Details
+                          <ChevronRight className="h-3 w-3 ml-2" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
                   </Card>
-                )}
+                ))}
               </div>
+            )}
+          </section>
+
+          {/* Section 3: M2 Graduates */}
+          <section className="mb-12">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="font-heading text-2xl font-bold">✅ M2 GRADUATES</h2>
+              <Badge variant="outline" className="bg-yellow-500/10 border-yellow-500 text-yellow-300">
+                {completedProjects.length} team{completedProjects.length !== 1 ? 's' : ''}
+              </Badge>
             </div>
+            <p className="text-muted-foreground mb-6">
+              Congratulations to teams who completed the M2 program!
+            </p>
+            {completedProjects.length === 0 ? (
+              <EmptyState
+                title="No graduates yet"
+                description="Completed teams will appear here after final approval and payment."
+                icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
+              />
+            ) : (
+              <div className="bg-gradient-to-r from-purple-900/20 to-yellow-900/20 border-l-4 border-l-yellow-500 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {completedProjects.map((project: LegacyProject) => (
+                    <Card
+                      key={project.id || project.projectName}
+                      className="group hover:shadow-primary transition-all duration-300 animate-fade-in"
+                    >
+                      <CardHeader className="pb-3">
+                        <CardTitle className="group-hover:text-primary transition-colors text-lg">
+                          {project.projectName}
+                        </CardTitle>
+                        <CardDescription className="line-clamp-3">
+                          {project.description}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardFooter className="pt-0">
+                        <Button asChild size="sm" variant="outline" className="w-full">
+                          <Link to={getProjectUrl(project)}>
+                            Project Details
+                            <ChevronRight className="h-3 w-3 ml-2" />
+                          </Link>
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
 
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <Pagination className="mt-8">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() =>
-                      handlePageChange(Math.max(1, currentPage - 1))
-                    }
-                    className={
-                      currentPage === 1
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <PaginationItem key={page}>
-                      <PaginationLink
-                        onClick={() => handlePageChange(page)}
-                        isActive={currentPage === page}
-                        className="cursor-pointer"
-                      >
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  )
-                )}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() =>
-                      handlePageChange(Math.min(totalPages, currentPage + 1))
-                    }
-                    className={
-                      currentPage === totalPages
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
-        </>
-      )}
+        {/* Fallback: Show empty state if no projects at all */}
+        {projects.length === 0 && !loading ? (
+          <EmptyState
+            title="No Projects Yet"
+            description="Be the first to submit your hackathon project to the Stadium!"
+            actionLabel="Submit Your Project"
+            onAction={() => window.location.href = "/submission"}
+            icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ export type MockApiProject = {
   techStack?: string[];
   categories?: string[];
   hackathon?: { id: string; name: string; endDate: string };
+  m2Status?: 'building' | 'under_review' | 'completed';
 };
 
 export const mockWinningProjects: MockApiProject[] = [
@@ -41,7 +42,8 @@ export const mockWinningProjects: MockApiProject[] = [
       id: "synergy-2025",
       name: "Blockspace Synergy 2025",
       endDate: "2025-02-01"
-    }
+    },
+    m2Status: 'building'
   },
   {
     id: "mock-winner-2",
@@ -65,7 +67,8 @@ export const mockWinningProjects: MockApiProject[] = [
       id: "synergy-2025",
       name: "Blockspace Synergy 2025",
       endDate: "2025-02-01"
-    }
+    },
+    m2Status: 'under_review'
   },
   {
     id: "mock-winner-3",
@@ -89,7 +92,8 @@ export const mockWinningProjects: MockApiProject[] = [
       id: "synergy-2025",
       name: "Blockspace Synergy 2025",
       endDate: "2025-02-01"
-    }
+    },
+    m2Status: 'completed'
   }
 ];
 
