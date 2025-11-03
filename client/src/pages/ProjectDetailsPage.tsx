@@ -18,6 +18,11 @@ import {
   Linkedin,
   Calendar,
   Users,
+  AlertTriangle,
+  Upload,
+  DollarSign,
+  Target,
+  Sparkles,
 } from "lucide-react";
 import {
   Card,
@@ -38,6 +43,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { getCurrentProgramWeek } from "@/lib/projectUtils";
 import { FinalSubmissionModal, SubmissionData } from "@/components/FinalSubmissionModal";
 import { UpdateTeamModal, TeamMember } from "@/components/UpdateTeamModal";
+import { M2AgreementModal, M2AgreementData } from "@/components/M2AgreementModal";
 import { ShareProjectModal } from "@/components/ShareProjectModal";
 
 const ProjectDetailsPage = () => {
@@ -79,6 +85,18 @@ const ProjectDetailsPage = () => {
       submittedDate: string;
     };
     completionDate?: string;
+    m2Agreement?: {
+      mentorName: string;
+      agreedDate: string;
+      agreedFeatures: string[];
+      documentation?: string[];
+      successCriteria?: string;
+    };
+    changesRequested?: {
+      feedback: string;
+      requestedBy: string;
+      requestedDate: string;
+    };
   };
 
   const [project, setProject] = useState<ApiProject | null>(null);
@@ -111,6 +129,7 @@ const ProjectDetailsPage = () => {
   const [finalSubmissionModalOpen, setFinalSubmissionModalOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [m2AgreementModalOpen, setM2AgreementModalOpen] = useState(false);
 
   // Format date utility
   const formatDate = (dateString?: string | Date) => {
@@ -404,10 +423,8 @@ const ProjectDetailsPage = () => {
     }
   };
 
-  // Demo status booleans (replace with real logic as needed)
-  const eventStarted = true;
-  const bountyPaid = false;
-  const milestoneDelivered = false;
+  // Helper variables for M2 submission
+  const connectedWallet = connectedAddress;
 
   // Add handler for adding/removing deliverables
   const addDeliverable = () => setDeliverables([...deliverables, ""]);
@@ -491,6 +508,73 @@ const ProjectDetailsPage = () => {
       toast({
         title: "Update Failed",
         description: error?.message || "Failed to update team. Please try again.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
+  // Handle M2 Agreement submission
+  const handleM2AgreementSubmit = async (data: M2AgreementData) => {
+    if (!project || !connectedAddress) {
+      toast({
+        title: "Error",
+        description: "Please connect your wallet first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Hackathonia');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error("No wallet found");
+      
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'submit-deliverable',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Submit M2 agreement
+      await api.submitM2Agreement(project.id, {
+        mentorName: data.mentorName,
+        agreedDate: new Date().toISOString(),
+        agreedFeatures: data.coreFeatures,
+        documentation: data.documentation,
+        successCriteria: data.successCriteria,
+      }, authHeader);
+      
+      // Refresh project data
+      const response = await api.getProject(project.id);
+      const projectData = response?.data || response;
+      if (projectData) {
+        setProject(projectData);
+      }
+      
+      toast({
+        title: "Success!",
+        description: "M2 Agreement submitted successfully!",
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: "Submission Failed",
+        description: error?.message || "Failed to submit M2 Agreement. Please try again.",
         variant: "destructive",
       });
       throw err;
@@ -658,20 +742,8 @@ const ProjectDetailsPage = () => {
       {/* Navigation Header */}
       <Navigation />
       {/* Main Content */}
-      <main className="flex-1">
-        <div className="container mx-auto px-4 py-4">
-          {/* Breadcrumb Navigation */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/projects')}
-            className="mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
-            Back to M2 Program
-          </Button>
-        </div>
-        <div className="container py-8 px-2 sm:px-4">
+      <main className="flex-1 pt-16">
+        <div className="container py-8 px-4 sm:px-6">
           {/* Wallet connection and address */}
           <div className="space-y-4 mb-6">
             {!connectedAddress && (
@@ -696,6 +768,17 @@ const ProjectDetailsPage = () => {
                 )}
               </div>
             )}
+            
+            {/* Back Button - Positioned below Connect Wallet */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/projects')}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              Back to M2 Program
+            </Button>
           </div>
           <div className="max-w-4xl mx-auto space-y-8">
             {/* Success Banner for Completed Projects */}
@@ -921,27 +1004,6 @@ const ProjectDetailsPage = () => {
               </CardHeader>
             </Card>
 
-            {/* Demo Section */}
-            {project.demoUrl && (
-              <div className="glass-panel rounded-lg p-6 mb-6">
-                <h2 className="text-2xl font-heading mb-4">🎬 Demo</h2>
-                
-                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                  {getVideoEmbed(project.demoUrl)}
-                </div>
-                
-                <a 
-                  href={project.demoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline mt-2 inline-flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                  Open in new tab
-                </a>
-              </div>
-            )}
-
             {/* M2 Program Progress Section */}
             {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
               <div className="glass-panel rounded-lg p-6 mb-6">
@@ -996,73 +1058,327 @@ const ProjectDetailsPage = () => {
               </div>
             )}
 
+            {/* M2 Agreement Section */}
+            {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
+              <>
+                {project.m2Agreement ? (
+                  <div className="glass-panel rounded-lg p-6 mb-6">
+                    <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
+                      📋 Milestone 2 Agreement
+                    </h2>
+                    
+                    <div className="bg-muted/30 rounded-lg p-4 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">
+                          Agreed with mentor: @{project.m2Agreement.mentorName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(project.m2Agreement.agreedDate).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {/* Core Features */}
+                      <div>
+                        <h3 className="font-medium mb-2 flex items-center gap-2">
+                          <Target className="w-4 h-4" aria-hidden="true" />
+                          Core Features (must complete 80%+)
+                        </h3>
+                        <ul className="space-y-1 ml-6">
+                          {project.m2Agreement.agreedFeatures.map((feature, index) => (
+                            <li key={index} className="text-sm text-muted-foreground list-disc">
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      {/* Documentation Required */}
+                      {project.m2Agreement.documentation && project.m2Agreement.documentation.length > 0 && (
+                        <div>
+                          <h3 className="font-medium mb-2 flex items-center gap-2">
+                            <FileText className="w-4 h-4" aria-hidden="true" />
+                            Documentation Required
+                          </h3>
+                          <ul className="space-y-1 ml-6">
+                            {project.m2Agreement.documentation.map((doc, index) => (
+                              <li key={index} className="text-sm text-muted-foreground list-disc">
+                                {doc}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Success Criteria */}
+                      {project.m2Agreement.successCriteria && (
+                        <div>
+                          <h3 className="font-medium mb-2 flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                            Success Criteria
+                          </h3>
+                          <p className="text-sm text-muted-foreground ml-6">
+                            {project.m2Agreement.successCriteria}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t border-subtle">
+                      <p className="text-xs text-muted-foreground">
+                        This is your agreed scope from the Week 1 mentor call. 
+                        Use this as your guide for the next 6 weeks.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="glass-panel rounded-lg p-6 mb-6">
+                    <h2 className="text-2xl font-heading mb-4">📋 Milestone 2 Agreement</h2>
+                    {project.m2Status === 'building' ? (
+                      <div className="space-y-4">
+                        <div className="text-center py-6 bg-muted/20 rounded-lg">
+                          <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Upload your M2 Agreement to document what you'll deliver for Milestone 2
+                          </p>
+                          <p className="text-xs text-muted-foreground mb-4">
+                            This should be filled out after your Week 1 mentor call to align on deliverables
+                          </p>
+                          {!connectedWallet ? (
+                            <div className="text-center py-4">
+                              <p className="text-sm text-muted-foreground mb-4">
+                                Connect your wallet to upload your M2 Agreement
+                              </p>
+                              <Button onClick={connectWallet}>
+                                Connect Wallet
+                              </Button>
+                            </div>
+                          ) : !isTeamMember ? (
+                            <div className="text-center py-4">
+                              <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" aria-hidden="true" />
+                              <p className="text-sm text-yellow-500">
+                                Only team members can upload M2 Agreements
+                              </p>
+                            </div>
+                          ) : (
+                            <Button 
+                              onClick={() => setM2AgreementModalOpen(true)}
+                              size="lg"
+                              className="w-full md:w-auto"
+                            >
+                              <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
+                              Upload M2 Agreement
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 bg-muted/20 rounded-lg">
+                        <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Your M2 Agreement will appear here after your Week 1 mentor call
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Expected: Week 1 (Nov 25 - Dec 1)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Milestone 2 Submission Section */}
             {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
               <div className="glass-panel rounded-lg p-6 mb-6">
-                <h2 className="text-2xl font-heading mb-4">🚀 Milestone 2 Submission</h2>
+                <h2 className="text-2xl font-heading mb-6 flex items-center gap-2">
+                  🚀 Milestone 2 Submission
+                </h2>
                 
-                {project.finalSubmission ? (
-                  <div className="space-y-4">
-                    {/* Status header */}
-                    <div className="flex items-center gap-2 mb-4">
-                      {project.m2Status === 'under_review' && (
-                        <>
-                          <Clock className="w-5 h-5 text-yellow-500" aria-hidden="true" />
-                          <span className="font-medium text-lg">⏳ Under Review</span>
-                        </>
-                      )}
-                      {project.m2Status === 'completed' && (
-                        <>
-                          <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
-                          <span className="font-medium text-lg text-green-500">✅ M2 COMPLETED</span>
-                        </>
+                {/* STATUS: Not yet submitted or Changes Requested */}
+                {(!project.finalSubmission || project.changesRequested) && (
+                  <div className="space-y-6">
+                    {/* If changes were requested, show what needs fixing */}
+                    {project.changesRequested && (
+                      <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/30 mb-4">
+                        <div className="flex items-center gap-3 mb-3">
+                          <AlertTriangle className="w-5 h-5 text-yellow-500" aria-hidden="true" />
+                          <span className="font-medium text-lg">Changes Requested</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Your mentor or WebZero admin has requested the following changes:
+                        </p>
+                        <div className="bg-muted/30 rounded p-3">
+                          <p className="text-sm whitespace-pre-wrap">{project.changesRequested.feedback}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Requested by {project.changesRequested.requestedBy} on{' '}
+                          {new Date(project.changesRequested.requestedDate).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Status indicator */}
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500" aria-hidden="true" />
+                        <span className="font-medium">
+                          Status: {project.changesRequested ? 'Resubmission Required' : 'Not yet submitted'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {project.changesRequested 
+                          ? 'Please address the requested changes and resubmit'
+                          : 'Available for submission starting Week 5 (Dec 23, 2025)'
+                        }
+                      </p>
+                    </div>
+                    
+                    {/* What to submit */}
+                    <div>
+                      <h3 className="font-medium mb-3">What you'll need to submit:</h3>
+                      <ul className="space-y-2 text-sm text-muted-foreground">
+                        <li className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-500" aria-hidden="true" />
+                          <span>GitHub repository with your final code</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-500" aria-hidden="true" />
+                          <span>Demo video (2-3 minutes) showing your working product</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-500" aria-hidden="true" />
+                          <span>Documentation (README, setup guide, or docs site)</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-500" aria-hidden="true" />
+                          <span>Brief summary of what you built and completed</span>
+                        </li>
+                      </ul>
+                    </div>
+                    
+                    {/* Submission button with gating logic */}
+                    <div>
+                      {!connectedWallet ? (
+                        <div className="text-center py-6 bg-muted/20 rounded-lg">
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Connect your wallet to submit M2 deliverables
+                          </p>
+                          <Button onClick={connectWallet}>
+                            Connect Wallet
+                          </Button>
+                        </div>
+                      ) : !isTeamMember ? (
+                        <div className="text-center py-6 bg-yellow-500/10 rounded-lg border border-yellow-500/30">
+                          <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" aria-hidden="true" />
+                          <p className="text-sm text-yellow-500">
+                            Only team members can submit M2 deliverables
+                          </p>
+                        </div>
+                      ) : !isSubmissionWeek ? (
+                        <Button 
+                          disabled 
+                          className="w-full"
+                        >
+                          <Clock className="w-4 h-4 mr-2" aria-hidden="true" />
+                          Available Week 5+ (Dec 23, 2025)
+                        </Button>
+                      ) : (
+                        <Button 
+                          className="w-full"
+                          size="lg"
+                          onClick={() => setFinalSubmissionModalOpen(true)}
+                        >
+                          <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
+                          {project.changesRequested ? 'Resubmit M2 Deliverables' : 'Submit M2 Deliverables'}
+                        </Button>
                       )}
                     </div>
                     
-                    <div className="text-sm text-muted-foreground">
-                      Submitted: {new Date(project.finalSubmission.submittedDate).toLocaleDateString('en-US', { 
-                        month: 'long', 
-                        day: 'numeric', 
-                        year: 'numeric' 
-                      })}
+                    {/* Help text */}
+                    <p className="text-xs text-muted-foreground text-center pt-4 border-t border-subtle">
+                      Need help? Contact your mentor in Telegram
+                    </p>
+                  </div>
+                )}
+                
+                {/* STATUS: Under Review */}
+                {project.finalSubmission && project.m2Status === 'under_review' && (
+                  <div className="space-y-6">
+                    {/* Status indicator */}
+                    <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/30">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Clock className="w-5 h-5 text-yellow-500" aria-hidden="true" />
+                        <span className="font-medium text-lg">Under Review</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Submitted on {new Date(project.finalSubmission.submittedDate).toLocaleDateString('en-US', { 
+                          month: 'long', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        })}
+                      </p>
                     </div>
                     
-                    {/* Deliverables - clickable links */}
-                    <div className="space-y-3 bg-muted/30 rounded-lg p-4">
-                      <h3 className="font-medium">Deliverables:</h3>
-                      
-                      <a 
-                        href={project.finalSubmission.repoUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-primary hover:underline"
-                      >
-                        <Github className="w-4 h-4" aria-hidden="true" />
-                        GitHub Repository →
-                      </a>
-                      
-                      <a 
-                        href={project.finalSubmission.demoUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-primary hover:underline"
-                      >
-                        <Video className="w-4 h-4" aria-hidden="true" />
-                        Demo Video →
-                      </a>
-                      
-                      <a 
-                        href={project.finalSubmission.docsUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-primary hover:underline"
-                      >
-                        <FileText className="w-4 h-4" aria-hidden="true" />
-                        Documentation →
-                      </a>
+                    {/* Submitted deliverables */}
+                    <div>
+                      <h3 className="font-medium mb-3">Your Submission:</h3>
+                      <div className="space-y-2">
+                        <a 
+                          href={project.finalSubmission.repoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <Github className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">GitHub Repository</div>
+                            <div className="text-xs text-muted-foreground">View source code</div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        </a>
+                        
+                        <a 
+                          href={project.finalSubmission.demoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <Video className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Demo Video</div>
+                            <div className="text-xs text-muted-foreground">Watch the demo</div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        </a>
+                        
+                        <a 
+                          href={project.finalSubmission.docsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <FileText className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Documentation</div>
+                            <div className="text-xs text-muted-foreground">View docs</div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        </a>
+                      </div>
                       
                       {project.finalSubmission.summary && (
-                        <div className="pt-2 border-t border-subtle">
+                        <div className="mt-4 p-4 bg-muted/20 rounded-lg">
+                          <h4 className="text-sm font-medium mb-2">Summary:</h4>
                           <p className="text-sm text-muted-foreground">
                             {project.finalSubmission.summary}
                           </p>
@@ -1070,109 +1386,204 @@ const ProjectDetailsPage = () => {
                       )}
                     </div>
                     
-                    {/* Review status for under_review */}
-                    {project.m2Status === 'under_review' && (
-                      <div className="space-y-2 bg-muted/30 rounded-lg p-4">
-                        <h3 className="font-medium mb-3">Review Status:</h3>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Clock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                          <span>Mentor Review: Pending</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Clock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-                          <span>WebZero Review: Pending</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground pt-2">
-                          Contact your mentor in Telegram if you have questions.
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Completion status for completed */}
-                    {project.m2Status === 'completed' && (
-                      <div className="space-y-4">
-                        <div className="space-y-2 bg-green-500/10 rounded-lg p-4 border border-green-500/30">
-                          <div className="flex items-center gap-2 text-green-500">
-                            <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                            <span className="text-sm">Mentor Approved</span>
+                    {/* Review progress */}
+                    <div>
+                      <h3 className="font-medium mb-3">Review Progress:</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-lg">
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                            <Clock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                           </div>
-                          <div className="flex items-center gap-2 text-green-500">
-                            <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                            <span className="text-sm">WebZero Approved</span>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Mentor Review</div>
+                            <div className="text-xs text-muted-foreground">Pending</div>
                           </div>
                         </div>
                         
-                        <div className="bg-green-500/10 border border-green-500 rounded-lg p-4">
-                          <div className="font-medium mb-2">💰 Payment: $4,000 USDC Total Paid</div>
-                          <ul className="text-sm space-y-1">
-                            <li>• Milestone 1: $2,000 (Nov 17, 2025)</li>
-                            <li>• Milestone 2: $2,000 ({project.completionDate ? new Date(project.completionDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Processing'})</li>
-                          </ul>
-                        </div>
-                        
-                        <div className="text-center pt-4 text-lg">
-                          🎉 Congratulations on completing the M2 program!
+                        <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-lg">
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                            <Clock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">WebZero Review</div>
+                            <div className="text-xs text-muted-foreground">Waiting for mentor approval</div>
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ) : !project.finalSubmission && project.m2Status !== 'under_review' && project.m2Status !== 'completed' ? (
-                  <div className="space-y-4">
-                    <div className="text-muted-foreground">
-                      Status: Not yet submitted<br />
-                      Available: Week 5+ (Dec 23)
                     </div>
-                    <p className="text-sm mb-4">
-                      When ready, submit your final M2 deliverables here.
-                    </p>
                     
-                    {!connectedAddress ? (
-                      <p className="text-sm text-muted-foreground">
-                        Connect your wallet with a team member address to submit.
-                      </p>
-                    ) : !isTeamMember ? (
-                      <p className="text-sm text-yellow-500">
-                        Only team members can submit M2 deliverables.
-                      </p>
-                    ) : !isSubmissionWeek ? (
-                      <Button disabled variant="outline">
-                        Available Week 5+ (Dec 23)
-                      </Button>
-                    ) : (
-                      <Button 
-                        onClick={() => setFinalSubmissionModalOpen(true)}
-                        variant="default"
-                      >
-                        Upload or update deliverables
-                      </Button>
-                    )}
+                    {/* Help text */}
+                    <p className="text-xs text-muted-foreground text-center pt-4 border-t border-subtle">
+                      Questions about your review? Contact your mentor in Telegram
+                    </p>
                   </div>
-                ) : null}
+                )}
+                
+                {/* STATUS: Completed */}
+                {project.m2Status === 'completed' && (
+                  <div className="space-y-6">
+                    {/* Success banner */}
+                    <div className="bg-gradient-to-r from-green-900/20 to-yellow-900/20 rounded-lg p-6 border border-green-500/30">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                          <CheckCircle className="w-6 h-6 text-green-500" aria-hidden="true" />
+                        </div>
+                        <div>
+                          <div className="text-xl font-heading text-green-500">M2 Completed!</div>
+                          <div className="text-sm text-muted-foreground">
+                            {project.completionDate && 
+                              `Approved on ${new Date(project.completionDate).toLocaleDateString('en-US', { 
+                                month: 'long', 
+                                day: 'numeric', 
+                                year: 'numeric' 
+                              })}`
+                            }
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Congratulations on completing the 6-week M2 Accelerator program! 🎉
+                      </p>
+                    </div>
+                    
+                    {/* Final deliverables */}
+                    <div>
+                      <h3 className="font-medium mb-3">Final Deliverables:</h3>
+                      <div className="space-y-2">
+                        <a 
+                          href={project.finalSubmission?.repoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <Github className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">GitHub Repository</div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        </a>
+                        
+                        <a 
+                          href={project.finalSubmission?.demoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <Video className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Demo Video</div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        </a>
+                        
+                        <a 
+                          href={project.finalSubmission?.docsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <FileText className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Documentation</div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        </a>
+                      </div>
+                    </div>
+                    
+                    {/* Approvals */}
+                    <div>
+                      <h3 className="font-medium mb-3">Approvals:</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3 p-3 bg-green-500/10 rounded-lg border border-green-500/30">
+                          <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
+                          <span className="text-sm font-medium text-green-500">Mentor Approved</span>
+                        </div>
+                        <div className="flex items-center gap-3 p-3 bg-green-500/10 rounded-lg border border-green-500/30">
+                          <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
+                          <span className="text-sm font-medium text-green-500">WebZero Approved</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Payment info */}
+                    <div className="bg-gradient-to-r from-primary/10 to-yellow-500/10 rounded-lg p-4 border border-primary/30">
+                      <div className="flex items-center gap-2 mb-3">
+                        <DollarSign className="w-5 h-5 text-yellow-500" aria-hidden="true" />
+                        <span className="font-medium">Payment Details</span>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Milestone 1 (Hackathon Winner):</span>
+                          <span className="font-medium">$2,000 USDC</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Milestone 2 (Program Completion):</span>
+                          <span className="font-medium">$2,000 USDC</span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-subtle">
+                          <span className="font-medium">Total Paid:</span>
+                          <span className="font-bold text-green-500">$4,000 USDC</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* What's Next section */}
+                    <div className="mt-6 pt-6 border-t border-subtle">
+                      <h3 className="font-medium mb-4 flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-yellow-500" aria-hidden="true" />
+                        What's Next?
+                      </h3>
+                      
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <a
+                          href="https://grants.web3.foundation/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors group"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Target className="w-5 h-5 text-primary" aria-hidden="true" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium mb-1 group-hover:text-primary transition-colors">
+                              Apply for Grants
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              W3F Grants Program for continued funding
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
+                        </a>
+                        
+                        <a
+                          href={`https://twitter.com/intent/tweet?text=Just%20completed%20the%20M2%20Accelerator%20at%20sub0!%20${encodeURIComponent(project.projectName || '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors group"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Share2 className="w-5 h-5 text-primary" aria-hidden="true" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium mb-1 group-hover:text-primary transition-colors">
+                              Share Your Success
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Tell the world about your achievement
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Timeline and Milestone Card (normal width, below) */}
+            {/* Team Members Card */}
             <Card className="w-full max-w-full sm:max-w-4xl p-2 sm:p-4 relative">
-              {/* Timeline graphic at the top */}
-              <div className="flex items-center justify-center gap-8 mb-6 mt-2 px-4">
-                {/* Event Start */}
-                <div className="flex flex-col items-center">
-                  <button className={`rounded-full p-2 ${eventStarted ? 'bg-white text-black' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
-                  <span className="text-xs mt-2">{project.eventStartedAt || 'Event Start'}</span>
-                </div>
-                <div className="h-1 w-12 bg-muted rounded" />
-                {/* Bounty Payout */}
-                <div className="flex flex-col items-center">
-                  <button className="rounded-full p-2 bg-yellow-400 text-black border-2 border-yellow-500 shadow"> <CheckCircle className="h-6 w-6" /> </button>
-                  <span className="text-xs mt-2 text-yellow-600 font-semibold">Bounty Payout</span>
-                </div>
-                <div className="h-1 w-12 bg-muted rounded" />
-                {/* Milestone Delivered */}
-                <div className="flex flex-col items-center">
-                  <button className={`rounded-full p-2 ${milestoneDelivered ? 'bg-white text-black' : 'bg-muted text-muted-foreground'}`}> <CheckCircle className="h-6 w-6" /> </button>
-                  <span className="text-xs mt-2">Milestone Delivered</span>
-                </div>
-              </div>
               {/* Team Members section */}
               <div className="glass-panel rounded-lg p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1288,65 +1699,6 @@ const ProjectDetailsPage = () => {
                   </div>
                 )}
               </div>
-              {/* Create Team Multisig section */}
-              <div className="mb-6">
-                <h4 className="font-heading font-semibold text-base mb-2 text-white">Create Team Multisig</h4>
-                <span className="text-gray-400 text-sm">Coming soon</span>
-              </div>
-              {/* Milestone work in progress section */}
-              <h3 className="font-heading font-semibold mb-2 text-base text-white">Milestone work in progress</h3>
-              {project.milestones && project.milestones.length > 0 ? (
-                (() => {
-                  // Normalize text and collect bullets. Handle literal "\\n" and the first non-dash line.
-                  const bulletItems: string[] = [];
-                  (project.milestones || []).forEach((m: ApiMilestone) => {
-                    const raw = typeof m === 'string' ? m : (m?.description || '');
-                    const normalized = (raw || '').replace(/\\n/g, '\n');
-                    const lines = normalized.split('\n').map((l) => l.trim()).filter(Boolean);
-                    let encounteredDash = false;
-                    lines.forEach((line, idx) => {
-                      if (line.startsWith('- ')) {
-                        encounteredDash = true;
-                        bulletItems.push(line.slice(2));
-                      } else {
-                        // If this is the first line and subsequent lines include dashes, include it as a bullet too
-                        // or if no dash has been encountered yet but this looks like a deliverable style line
-                        if (idx === 0) {
-                          bulletItems.push(line);
-                        }
-                      }
-                    });
-                  });
-                  if (bulletItems.length > 0) {
-                    return (
-                      <div className="mb-4">
-                        <ul className="list-disc pl-6 space-y-1">
-                          {bulletItems.map((item: string, idx: number) => (
-                            <li key={idx} className="text-white text-xs sm:text-sm">{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  }
-                  // Fallback: render raw milestone lines
-                  return (
-                    <div className="mb-4">
-                      <ul className="list-disc pl-6 space-y-1">
-                        {project.milestones.map((m: ApiMilestone, i: number) => (
-                          <li key={i} className="text-white text-xs sm:text-sm">{typeof m === 'string' ? m : (m?.description || '')}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                })()
-              ) : (
-                <div className="mb-4 text-white text-xs sm:text-sm">No milestones confirmed.</div>
-              )}
-              <div className="flex justify-center mt-4">
-                <Button size="sm" variant="outline" className="bg-yellow-200/80 text-yellow-900 font-semibold px-6 py-2 rounded shadow hover:bg-yellow-300 transition-colors" onClick={() => setDeliverableModalOpen(true)}>
-                  Upload or update deliverables
-                </Button>
-              </div>
             </Card>
           </div>
         </div>
@@ -1443,21 +1795,31 @@ const ProjectDetailsPage = () => {
       
       {/* Update Team Modal */}
       {project && (
-        <UpdateTeamModal
-          open={teamModalOpen}
-          onOpenChange={setTeamModalOpen}
-          projectId={project.id}
-          initialMembers={(project.teamMembers || []).map(m => ({
-            name: m.name,
-            wallet: m.walletAddress || '',
-            role: m.role,
-            twitter: m.twitter,
-            github: m.github,
-            linkedin: m.linkedin,
-          }))}
-          initialPayoutAddress={project.donationAddress || ''}
-          onSubmit={handleTeamUpdate}
-        />
+        <>
+          <UpdateTeamModal
+            open={teamModalOpen}
+            onOpenChange={setTeamModalOpen}
+            projectId={project.id}
+            initialMembers={(project.teamMembers || []).map(m => ({
+              name: m.name,
+              wallet: m.walletAddress || '',
+              role: m.role,
+              twitter: m.twitter,
+              github: m.github,
+              linkedin: m.linkedin,
+            }))}
+            initialPayoutAddress={project.donationAddress || ''}
+            onSubmit={handleTeamUpdate}
+          />
+          
+          <M2AgreementModal
+            open={m2AgreementModalOpen}
+            onOpenChange={setM2AgreementModalOpen}
+            projectId={project.id}
+            projectTitle={project.projectName || ''}
+            onSubmit={handleM2AgreementSubmit}
+          />
+        </>
       )}
     </div>
   );

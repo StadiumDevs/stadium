@@ -283,6 +283,48 @@ export const api = {
       }),
     }),
 
+  submitM2Agreement: async (projectId: string, agreement: {
+    mentorName: string;
+    agreedDate: string;
+    agreedFeatures: string[];
+    documentation?: string[];
+    successCriteria?: string;
+  }, authHeader?: string) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Submitting M2 Agreement for project', projectId, agreement);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].m2Agreement = agreement;
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      // Also try to get from mock data and update in-memory
+      const { mockWinningProjects } = await import("./mockWinners");
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject) {
+        (mockProject as any).m2Agreement = agreement;
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/projects/${projectId}/m2-agreement`, {
+      method: 'POST',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(agreement)
+    });
+  },
+
   updateProjectStatus: async (projectId: string, status: 'building' | 'under_review' | 'completed', authHeader?: string) => {
     if (USE_MOCK_DATA) {
       console.log(`Mock: Updating project ${projectId} status to ${status}`)

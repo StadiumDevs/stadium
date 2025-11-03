@@ -323,12 +323,12 @@ const ProjectsPage = () => {
         <div className="glass-panel rounded-lg border-subtle p-6 md:p-8 mb-6">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div className="flex-1">
-              <h1 className="font-heading text-4xl font-bold mb-2">M2 Accelerator - sub0 2025</h1>
+              <h1 className="font-heading text-4xl font-bold mb-2">M2 Accelerator Program</h1>
               <p className="text-muted-foreground mb-2">
-                4 teams building · 6-week program · $16k total prizes
+                An overview of all projects in the M2 Accelerator Program.
               </p>
               <p className="text-sm text-muted-foreground">
-                Current: {currentWeek.weekLabel}
+                Teams admitted to the program must confirm their milestone 2 plans. Once confirmed, each team is assigned specific mentors according to the support they need.
               </p>
             </div>
             <div className="flex flex-col gap-2 md:items-end">

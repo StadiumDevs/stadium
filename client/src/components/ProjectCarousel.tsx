@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Trophy, ExternalLink } from "lucide-react"
+import { Trophy, ExternalLink, CheckCircle } from "lucide-react"
 
 interface Project {
   id: string
@@ -21,6 +21,7 @@ interface Project {
   isWinner: boolean
   demoUrl?: string
   projectUrl?: string
+  m2Status?: 'building' | 'under_review' | 'completed'
 }
 
 interface ProjectCarouselProps {
@@ -69,13 +70,26 @@ function ProjectCarouselComponent({ projects, onProjectClick }: ProjectCarouselP
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
-                    <Badge
-                      variant="outline"
-                      className="mb-2 bg-yellow-500/10 border-yellow-500 text-yellow-500"
-                    >
-                      <Trophy className="w-3 h-3 mr-1" aria-hidden="true" />
-                      Winner
-                    </Badge>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {project.isWinner && (
+                        <Badge
+                          variant="outline"
+                          className="bg-yellow-500/10 border-yellow-500 text-yellow-500"
+                        >
+                          <Trophy className="w-3 h-3 mr-1" aria-hidden="true" />
+                          Winner
+                        </Badge>
+                      )}
+                      {project.m2Status === 'completed' && (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-500/20 text-green-500 border-green-500/30"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" aria-hidden="true" />
+                          M2 Complete
+                        </Badge>
+                      )}
+                    </div>
                     <h3 className="font-heading text-lg font-bold line-clamp-1">{project.title}</h3>
                   </div>
                 </div>

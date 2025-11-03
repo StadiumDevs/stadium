@@ -17,6 +17,25 @@ export type MockApiProject = {
   categories?: string[];
   hackathon?: { id: string; name: string; endDate: string };
   m2Status?: 'building' | 'under_review' | 'completed';
+  finalSubmission?: {
+    repoUrl: string;
+    demoUrl: string;
+    docsUrl: string;
+    summary: string;
+    submittedDate: string;
+  };
+  m2Agreement?: {
+    mentorName: string;
+    agreedDate: string;
+    agreedFeatures: string[];
+    documentation?: string[];
+    successCriteria?: string;
+  };
+  changesRequested?: {
+    feedback: string;
+    requestedBy: string;
+    requestedDate: string;
+  };
 };
 
 export const mockWinningProjects: MockApiProject[] = [
@@ -46,7 +65,26 @@ export const mockWinningProjects: MockApiProject[] = [
       name: "Blockspace Synergy 2025",
       endDate: "2025-02-01"
     },
-    m2Status: 'building'
+    m2Status: 'building',
+    m2Agreement: {
+      mentorName: "PolkadotExpert",
+      agreedDate: "2025-11-25T14:00:00Z",
+      agreedFeatures: [
+        "Multi-DEX aggregation engine with route optimization - Support routing through at least 3 different DEXs with automatic selection of best rates",
+        "Real-time price comparison across 5+ DEXs - Display live price feeds with update intervals < 5 seconds",
+        "User-friendly swap interface with slippage protection - Allow users to set custom slippage tolerance up to 5% with warnings",
+        "Portfolio tracking for swapped assets - Track transaction history and current balances for all swapped tokens",
+        "Gas optimization for batch transactions - Implement multi-hop routing to minimize transaction costs"
+      ],
+      documentation: [
+        "README with setup instructions",
+        "Architecture overview explaining how it works",
+        "API documentation for integration",
+        "Smart contract audit report",
+        "User guide with screenshots"
+      ],
+      successCriteria: "DEX aggregator must successfully route transactions through at least 3 different DEXs with <2% slippage, support 10+ major tokens (DOT, USDC, USDT, etc.), and have 99.9% uptime for price feeds. All swaps must complete within 30 seconds and show clear transaction status to users."
+    }
   },
   {
     id: "mock-winner-2",
@@ -71,7 +109,33 @@ export const mockWinningProjects: MockApiProject[] = [
       name: "Blockspace Synergy 2025",
       endDate: "2025-02-01"
     },
-    m2Status: 'under_review'
+    m2Status: 'under_review',
+    m2Agreement: {
+      mentorName: "InkMaster",
+      agreedDate: "2025-11-26T10:00:00Z",
+      agreedFeatures: [
+        "Creature minting system with rarity distribution - Support minting with randomized stats (HP, Attack, Defense, Speed) and 5 rarity tiers",
+        "Training and leveling mechanics - Allow users to train creatures to increase stats, with a maximum level of 50",
+        "PvP battle system with turn-based combat - Implement battle mechanics where creatures fight using their stats and special abilities",
+        "NFT marketplace integration - Enable trading of creatures on secondary markets with royalty support",
+        "Reward system for battles - Distribute rewards (tokens or items) to winners based on battle outcomes"
+      ],
+      documentation: [
+        "README with setup instructions",
+        "Architecture overview explaining how it works",
+        "Smart contract documentation with ink! code examples",
+        "Game mechanics guide explaining battle system",
+        "Frontend integration guide for developers"
+      ],
+      successCriteria: "Game must support minting of at least 10 different creature types, enable PvP battles with working turn-based combat, have a functional training system that increases creature stats, and maintain a battle-tested user base of 100+ active players. All smart contracts must be deployed and audited."
+    },
+    finalSubmission: {
+      repoUrl: "https://github.com/monsters-ink/monsters-ink-game",
+      demoUrl: "https://www.youtube.com/watch?v=monsters-ink-demo",
+      docsUrl: "https://docs.monstersink.io",
+      summary: "Monsters Ink! is now a fully functional NFT battle game with creature minting, training mechanics, and PvP battles. All smart contracts are deployed on testnet, the frontend is live, and we've completed comprehensive testing. The game supports 10+ creature types with unique abilities and has been battle-tested by 100+ users.",
+      submittedDate: "2025-12-23T10:30:00Z"
+    }
   },
   {
     id: "mock-winner-3",
