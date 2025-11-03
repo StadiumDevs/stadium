@@ -3,6 +3,40 @@
  */
 
 /**
+ * TypeScript types for M2 program weeks
+ */
+export interface M2Week {
+  week: number
+  start: string
+  end: string
+  label: string
+}
+
+export interface ProgramWeek {
+  weekNumber: number
+  weekLabel: string
+  dateRange: string
+}
+
+/**
+ * M2 Program constants
+ */
+export const M2_PROGRAM_START = new Date('2025-11-17')
+
+/**
+ * Week boundaries for M2 program
+ */
+export const M2_WEEKS: M2Week[] = [
+  { week: 0, start: '2025-11-17', end: '2025-11-24', label: 'Nov 17-24' },
+  { week: 1, start: '2025-11-25', end: '2025-12-01', label: 'Nov 25-Dec 1' },
+  { week: 2, start: '2025-12-02', end: '2025-12-08', label: 'Dec 2-8' },
+  { week: 3, start: '2025-12-09', end: '2025-12-15', label: 'Dec 9-15' },
+  { week: 4, start: '2025-12-16', end: '2025-12-22', label: 'Dec 16-22' },
+  { week: 5, start: '2025-12-23', end: '2025-12-29', label: 'Dec 23-29' },
+  { week: 6, start: '2025-12-30', end: '2026-01-05', label: 'Dec 30-Jan 5' },
+]
+
+/**
  * Generate a consistent project ID from project data
  * This creates a URL-friendly slug from the project name and team lead
  */
@@ -60,53 +94,52 @@ export function getProjectUrl(project: {
 }
 
 /**
- * Calculate the current program week based on start date
- * Start date: November 17, 2025
- * Returns week number and label with date range
+ * Get current M2 program week
+ * @returns { weekNumber: number, weekLabel: string, dateRange: string }
  */
-export function getCurrentProgramWeek(): { weekNumber: number; weekLabel: string; dateRange: string } {
-  const programStartDate = new Date('2025-11-17');
+export function getCurrentProgramWeek(): ProgramWeek {
   const today = new Date();
+  const currentWeek = M2_WEEKS.find(w => {
+    const start = new Date(w.start);
+    const end = new Date(w.end);
+    return today >= start && today <= end;
+  });
   
-  // Calculate difference in days
-  const diffTime = today.getTime() - programStartDate.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
-  // Calculate current week (week 1 starts on Nov 17)
-  const weekNumber = Math.floor(diffDays / 7) + 1;
-  
-  // Ensure week is at least 1
-  const currentWeek = Math.max(1, weekNumber);
-  
-  // Calculate the start date of the current week
-  const weekStartDate = new Date(programStartDate);
-  weekStartDate.setDate(weekStartDate.getDate() + (currentWeek - 1) * 7);
-  
-  // Calculate the end date of the current week
-  const weekEndDate = new Date(weekStartDate);
-  weekEndDate.setDate(weekEndDate.getDate() + 6);
-  
-  // Format dates for week label (e.g., "Dec 9-15, 2025")
-  const startMonth = weekStartDate.toLocaleString('default', { month: 'short' });
-  const startDay = weekStartDate.getDate();
-  const endDay = weekEndDate.getDate();
-  const year = weekStartDate.getFullYear();
-  
-  // If same month, use format: "Dec 9-15, 2025"
-  // If different months, use: "Nov 30-Dec 6, 2025"
-  let dateRange: string;
-  if (weekStartDate.getMonth() === weekEndDate.getMonth()) {
-    dateRange = `${startMonth} ${startDay}-${endDay}, ${year}`;
-  } else {
-    const endMonth = weekEndDate.toLocaleString('default', { month: 'short' });
-    dateRange = `${startMonth} ${startDay}-${endMonth} ${endDay}, ${year}`;
+  if (!currentWeek) {
+    // After program ends
+    return { 
+      weekNumber: 6, 
+      weekLabel: 'Program Ended', 
+      dateRange: M2_WEEKS[6].label 
+    };
   }
   
-  const weekLabel = `Week ${currentWeek} (${dateRange})`;
-  
   return {
-    weekNumber: currentWeek,
-    weekLabel,
-    dateRange,
+    weekNumber: currentWeek.week,
+    weekLabel: `Week ${currentWeek.week} (${currentWeek.label})`,
+    dateRange: currentWeek.label
   };
+}
+
+/**
+ * Calculate which week a project is in based on last update
+ * @param lastUpdateDate - Date of last update
+ * @returns Week number (1-6)
+ */
+export function getProjectWeek(lastUpdateDate: Date): number {
+  const daysSinceStart = Math.floor(
+    (lastUpdateDate.getTime() - M2_PROGRAM_START.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  const weekNumber = Math.floor(daysSinceStart / 7) + 1;
+  return Math.min(Math.max(weekNumber, 1), 6);
+}
+
+/**
+ * Get days since last update
+ * @param lastUpdateDate - Date of last update
+ * @returns Number of days
+ */
+export function getDaysSinceUpdate(lastUpdateDate: Date): number {
+  const today = new Date();
+  return Math.floor((today.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24));
 }

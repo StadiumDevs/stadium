@@ -5,6 +5,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 /* JetBrains Mono for code (weights: 400, 500, 600) */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Righteous for hero title - edgy, italic, graffiti style */
+@import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
+/* Orbitron for display title - bold, angular, tech-forward */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap');
 
 /* Legacy fonts */
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
@@ -21,6 +25,9 @@
 
 @layer base {
   :root {
+    /* Font Variables */
+    --font-display: 'Orbitron', 'system-ui', 'sans-serif';
+    
     /* Background Colors */
     --background: 240 10% 4%;        /* #0A0A0A - Main background */
     --foreground: 0 0% 100%;         /* #FFFFFF - Primary text */
@@ -139,6 +146,29 @@
   
   .glass-panel {
     @apply bg-popover/60 backdrop-blur-xl border-border/50;
+  }
+  
+  /* Hero title with Orbitron font - bold, angular, tech-forward */
+  .hero-title {
+    font-family: var(--font-display);
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    text-shadow: 
+      0 0 20px hsl(var(--primary) / 0.5),
+      0 0 40px hsl(var(--primary) / 0.3),
+      0 0 60px hsl(var(--primary) / 0.2);
+  }
+  
+  /* Alternative: More subtle glow effect */
+  .hero-title-subtle {
+    font-family: var(--font-display);
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    text-shadow: 
+      0 0 10px hsl(var(--primary) / 0.4),
+      0 0 20px hsl(var(--primary) / 0.2);
   }
 }
 

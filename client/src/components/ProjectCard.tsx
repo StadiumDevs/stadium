@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { ExternalLink, Github, Trophy, User } from "lucide-react"
+import { ExternalLink, Github, Trophy, Eye } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ProjectCardProps {
@@ -19,8 +19,7 @@ interface ProjectCardProps {
   onClick?: () => void
   m2Status?: 'building' | 'under_review' | 'completed'
   m2Week?: number
-  lastUpdateDays?: number
-  mentorName?: string
+  showM2Progress?: boolean
   submittedDate?: string
   completionDate?: string
 }
@@ -38,40 +37,10 @@ function ProjectCardComponent({
   onClick,
   m2Status,
   m2Week,
-  lastUpdateDays,
-  mentorName,
+  showM2Progress = false,
   submittedDate,
   completionDate,
 }: ProjectCardProps) {
-  // Calculate status badge for building projects
-  const getStatusBadge = () => {
-    if (m2Status !== 'building' || lastUpdateDays === undefined) return null
-    
-    let statusText = ''
-    let statusClass = ''
-    let emoji = ''
-    
-    if (lastUpdateDays <= 3) {
-      statusText = 'On Track'
-      statusClass = 'bg-green-500/20 text-green-500 border-green-500/30'
-      emoji = '🟢'
-    } else if (lastUpdateDays <= 7) {
-      statusText = 'Attention Needed'
-      statusClass = 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
-      emoji = '🟡'
-    } else {
-      statusText = 'At Risk'
-      statusClass = 'bg-red-500/20 text-red-500 border-red-500/30'
-      emoji = '🔴'
-    }
-    
-    return (
-      <Badge variant="outline" className={cn("mb-2", statusClass)}>
-        {emoji} {statusText}
-      </Badge>
-    )
-  }
-
   // Calculate progress percentage
   const progressPercentage = m2Week && m2Week > 0 ? Math.min((m2Week / 6) * 100, 100) : 0
 
@@ -113,11 +82,28 @@ function ProjectCardComponent({
       )}
 
       <CardHeader className="pb-3">
+        {/* M2 Status Badge - shown after winner badge when showM2Progress is true */}
+        {showM2Progress && m2Status && (
+          <div className="mb-3">
+            {m2Status === 'building' && (
+              <Badge variant="secondary" className="bg-blue-500/20 text-blue-500 border-blue-500/30">
+                Week {m2Week || 'X'}/6 · Building
+              </Badge>
+            )}
+            {m2Status === 'under_review' && (
+              <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">
+                Under Review
+              </Badge>
+            )}
+            {m2Status === 'completed' && (
+              <Badge variant="secondary" className="bg-green-500/20 text-green-500 border-green-500/30">
+                ✅ M2 Complete
+              </Badge>
+            )}
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
-            {/* Status badge for building projects */}
-            {m2Status === 'building' && getStatusBadge()}
-            
             <h3 className="font-heading text-xl font-bold text-foreground mb-1 line-clamp-1">
               {title}
             </h3>
@@ -140,11 +126,6 @@ function ProjectCardComponent({
               </span>
             </div>
             <Progress value={progressPercentage} className="h-2" />
-            {lastUpdateDays !== undefined && (
-              <p className="text-xs text-muted-foreground">
-                Last update: {lastUpdateDays} {lastUpdateDays === 1 ? 'day' : 'days'} ago
-              </p>
-            )}
           </div>
         )}
 
@@ -159,11 +140,6 @@ function ProjectCardComponent({
                 Submitted: {formatDate(submittedDate)}
               </p>
             )}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Mentor ✅</span>
-              <span>|</span>
-              <span>WebZero ⏳</span>
-            </div>
           </div>
         )}
 
@@ -183,42 +159,47 @@ function ProjectCardComponent({
             </p>
           </div>
         )}
-
-        {/* Mentor Info (Building/Under Review) */}
-        {(m2Status === 'building' || m2Status === 'under_review') && mentorName && (
-          <div className="flex items-center gap-2 pt-2 border-t border-subtle">
-            <User className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <p className="text-sm text-muted-foreground">
-              Mentor: @{mentorName}
-            </p>
-          </div>
-        )}
       </CardContent>
 
-      <CardFooter className="pt-3 border-t border-subtle flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-        <Badge
-          variant="outline"
-          className="bg-primary/10 border-primary text-accent"
-        >
-          {track}
-        </Badge>
+      <CardFooter className="pt-3 border-t border-subtle flex flex-col gap-3">
+        <div className="flex items-center justify-between w-full">
+          <Badge
+            variant="outline"
+            className="bg-primary/10 border-primary text-accent"
+          >
+            {track}
+          </Badge>
 
-        <div className="flex gap-2 flex-shrink-0">
-          {demoUrl && (
-            <ProjectCardActionButton
-              title={title}
-              url={demoUrl}
-              type="demo"
-            />
-          )}
-          {githubUrl && (
-            <ProjectCardActionButton
-              title={title}
-              url={githubUrl}
-              type="github"
-            />
-          )}
+          <div className="flex gap-2 flex-shrink-0">
+            {demoUrl && (
+              <ProjectCardActionButton
+                title={title}
+                url={demoUrl}
+                type="demo"
+              />
+            )}
+            {githubUrl && (
+              <ProjectCardActionButton
+                title={title}
+                url={githubUrl}
+                type="github"
+              />
+            )}
+          </div>
         </div>
+
+        {projectUrl && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onClick}
+            className="w-full"
+            aria-label={`View project details for ${title}`}
+          >
+            <Eye className="h-4 w-4 mr-2" aria-hidden="true" />
+            View Project
+          </Button>
+        )}
       </CardFooter>
     </Card>
   )
@@ -277,8 +258,7 @@ export const ProjectCard = memo(ProjectCardComponent, (prevProps, nextProps) => 
     prevProps.onClick === nextProps.onClick &&
     prevProps.m2Status === nextProps.m2Status &&
     prevProps.m2Week === nextProps.m2Week &&
-    prevProps.lastUpdateDays === nextProps.lastUpdateDays &&
-    prevProps.mentorName === nextProps.mentorName &&
+    prevProps.showM2Progress === nextProps.showM2Progress &&
     prevProps.submittedDate === nextProps.submittedDate &&
     prevProps.completionDate === nextProps.completionDate
   )

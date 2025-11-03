@@ -151,6 +151,105 @@ export const api = {
       headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
       body: JSON.stringify({ categories }),
     }),
+
+  submitForReview: async (projectId: string, submissionData: {
+    finalRepoUrl: string;
+    finalDemoUrl?: string;
+    finalSlidesUrl?: string;
+    summary: string;
+    deliverables: string[];
+    technicalDetails: string;
+    testingInstructions?: string;
+    notes?: string;
+  }, authHeader: string) =>
+    request(`/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        m2Status: 'under_review',
+        projectRepo: submissionData.finalRepoUrl,
+        demoUrl: submissionData.finalDemoUrl,
+        slidesUrl: submissionData.finalSlidesUrl,
+        description: submissionData.summary,
+        milestones: [
+          ...submissionData.deliverables,
+          `Technical Details: ${submissionData.technicalDetails}`,
+          ...(submissionData.testingInstructions ? [`Testing Instructions: ${submissionData.testingInstructions}`] : []),
+          ...(submissionData.notes ? [`Notes: ${submissionData.notes}`] : []),
+        ],
+      }),
+    }),
+
+  updateTeam: async (projectId: string, data: {
+    members: Array<{ name: string; wallet: string }>;
+    payoutAddress: string;
+  }, authHeader: string) =>
+    request(`/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        teamMembers: data.members.map(m => ({
+          name: m.name.trim(),
+          walletAddress: m.wallet.trim() || undefined,
+        })),
+        donationAddress: data.payoutAddress.trim(),
+      }),
+    }),
+
+  webzeroApprove: async (projectId: string, authHeader?: string) =>
+    request(`/projects/${projectId}/approve`, {
+      method: "POST",
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        m2Status: 'completed',
+        webzeroApproved: true,
+        webzeroApprovalDate: new Date().toISOString(),
+      }),
+    }),
+
+  requestChanges: async (projectId: string, feedback: string, authHeader?: string) =>
+    request(`/projects/${projectId}/request-changes`, {
+      method: "POST",
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        feedback,
+        requestedChangesDate: new Date().toISOString(),
+      }),
+    }),
+
+  updateProjectStatus: async (projectId: string, status: 'building' | 'under_review' | 'completed', authHeader?: string) => {
+    if (USE_MOCK_DATA) {
+      console.log(`Mock: Updating project ${projectId} status to ${status}`)
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // In mock mode, update localStorage
+      const stored = localStorage.getItem('projects')
+      if (stored) {
+        const projects = JSON.parse(stored)
+        const index = projects.findIndex((p: any) => p.id === projectId)
+        if (index !== -1) {
+          projects[index].m2Status = status
+          if (status === 'completed') {
+            projects[index].completionDate = new Date().toISOString()
+          }
+          localStorage.setItem('projects', JSON.stringify(projects))
+        }
+      }
+      
+      return { success: true }
+    }
+    
+    // Real API call
+    return request(`/projects/${projectId}`, {
+      method: "PATCH",
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        m2Status: status,
+      }),
+    })
+  },
 };
 
 export { ApiError };

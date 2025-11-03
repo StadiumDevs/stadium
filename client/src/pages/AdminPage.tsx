@@ -9,6 +9,7 @@ import {
   LogOut,
   Wallet,
   AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import {
   Card,
@@ -48,8 +49,10 @@ import {
 import { adminApi, projectApi } from "@/lib/mockApi";
 import { Project, Payout } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
-
-const ADMIN_ADDRESS = "5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF";
+import { EmptyState } from "@/components/EmptyState";
+import { api } from "@/lib/api";
+import { useMemo } from "react";
+import { isAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
 
 const formatAddress = (address = "") =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -155,6 +158,22 @@ const PayoutModal = ({
   );
 };
 
+type M2Project = Project & {
+  m2Status?: 'building' | 'under_review' | 'completed';
+  finalSubmission?: {
+    repoUrl: string;
+    demoUrl: string;
+    docsUrl: string;
+    summary: string;
+    submittedDate: string;
+  };
+  mentorApproval?: {
+    approved: boolean;
+    approvedDate?: string;
+  };
+  author?: string;
+};
+
 const AdminPage = () => {
   const [walletState, setWalletState] = useState({
     isExtensionAvailable: false,
@@ -167,7 +186,7 @@ const AdminPage = () => {
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<M2Project[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -181,7 +200,7 @@ const AdminPage = () => {
     const sessionAccount = sessionStorage.getItem("admin_session_account");
     if (sessionAccount) {
       const account = JSON.parse(sessionAccount);
-      if (account.address === ADMIN_ADDRESS) {
+      if (isAdmin(account.address)) {
         setWalletState((prev) => ({
           ...prev,
           selectedAccount: account,
@@ -250,14 +269,23 @@ const AdminPage = () => {
       if (!allAccounts.length)
         throw new Error("No accounts found in extension.");
 
+      // Debug: Log available accounts
+      console.log('[AdminPage] Available accounts:', allAccounts.map(a => ({
+        name: a.meta.name,
+        address: a.address
+      })));
+
       // Check if admin account is available
       const adminAccount = allAccounts.find(
-        (account) => account.address === ADMIN_ADDRESS
+        (account) => isAdmin(account.address)
       );
 
       if (!adminAccount) {
+        const availableAddresses = allAccounts.map(a => a.address).join(', ');
+        console.error('[AdminPage] No admin account found. Available addresses:', availableAddresses);
+        console.error('[AdminPage] Admin addresses from env:', ADMIN_ADDRESSES);
         throw new Error(
-          "Admin account not found. Please ensure you have the correct admin account in your wallet."
+          `Admin account not found. Please ensure you have the correct admin account in your wallet.\n\nYour wallet addresses: ${allAccounts.map(a => a.address).join(', ')}\n\nExpected admin addresses: ${ADMIN_ADDRESSES.join(', ')}\n\nAdd one of your addresses to the VITE_ADMIN_ADDRESSES in .env file and restart the dev server.`
         );
       }
 
@@ -281,7 +309,7 @@ const AdminPage = () => {
 
   const selectAccount = async (account) => {
     try {
-      if (account.address !== ADMIN_ADDRESS) {
+      if (!isAdmin(account.address)) {
         throw new Error(
           "Unauthorized: Only admin account can access this panel."
         );
@@ -376,12 +404,135 @@ const AdminPage = () => {
     sessionStorage.removeItem("admin_session_account");
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+  // Filter projects under review for M2
+  const projectsUnderReview = useMemo(() => {
+    return projects.filter((p) => p.m2Status === 'under_review') as M2Project[];
+  }, [projects]);
+
+  // Filter M2 projects (winners or projects with M2 status)
+  const m2Projects = useMemo(() => 
+    projects.filter(p => p.isWinner || p.m2Status) as M2Project[],
+    [projects]
+  );
+
+  // Handle M2 approval
+  const handleApproveM2 = async (projectId: string) => {
+    if (!confirm('This will mark M2 as complete and initiate $2,000 payment. Continue?')) {
+      return;
+    }
+
+    try {
+      await api.webzeroApprove(projectId);
+      
+      // Update local state
+      setProjects((prev) =>
+        prev.map((p) => 
+          p.id === projectId 
+            ? { ...p, m2Status: 'completed' as const }
+            : p
+        )
+      );
+
+      toast({
+        title: "M2 Approved!",
+        description: "Payment will be processed.",
+      });
+      
+      loadData();
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: "Failed to approve M2",
+        description: err?.message || "Failed to approve M2. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle request changes
+  const handleRequestChanges = async (projectId: string) => {
+    const feedback = prompt('What changes are needed?');
+    if (!feedback) return;
+
+    try {
+      await api.requestChanges(projectId, feedback);
+      
+      toast({
+        title: "Changes Requested",
+        description: "Team will be notified in Telegram.",
+      });
+      
+      loadData();
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: "Failed to request changes",
+        description: err?.message || "Failed to request changes. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle M2 status change
+  const handleM2StatusChange = async (projectId: string, newStatus: 'building' | 'under_review' | 'completed') => {
+    const statusLabels = {
+      building: 'Building',
+      under_review: 'Under Review',
+      completed: 'Completed (ready for payment)'
+    };
+    
+    if (!confirm(`Change project status to ${statusLabels[newStatus]}?`)) {
+      return;
+    }
+    
+    try {
+      await api.updateProjectStatus(projectId, newStatus);
+      
+      toast({
+        title: 'Status Updated',
+        description: `Status updated to ${statusLabels[newStatus]}`,
+      });
+      
+      // Refresh projects list
+      await loadData();
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: 'Failed to update status',
+        description: err?.message || 'An error occurred',
+        variant: 'destructive',
+      });
+      console.error(error);
+    }
+  };
+
+  // Get M2 status badge
+  const getM2StatusBadge = (project: M2Project) => {
+    if (!project.m2Status) return null;
+    
+    switch (project.m2Status) {
+      case 'building':
+        return <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">Building</Badge>;
+      case 'under_review':
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/30">Under Review</Badge>;
+      case 'completed':
+        return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30">Completed</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return dateString;
+    }
   };
 
   if (!isAuthenticated) {
@@ -475,6 +626,199 @@ const AdminPage = () => {
         </div>
       </div>
 
+      {/* M2 Reviews Section */}
+      <div className="glass-panel rounded-lg p-6 mb-6">
+        <h2 className="text-2xl font-heading mb-4">M2 Pending Reviews</h2>
+        
+        {projectsUnderReview.length === 0 ? (
+          <EmptyState
+            title="No projects pending review"
+            description="All M2 submissions have been reviewed or no projects are currently under review."
+          />
+        ) : (
+          <div className="space-y-4">
+            {projectsUnderReview.map((project) => (
+              <div key={project.id} className="border border-subtle rounded-lg p-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="font-medium text-lg font-heading">{project.projectTitle}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      By {project.author || 'Unknown'} · Submitted {formatDate(project.finalSubmission?.submittedDate || project.submittedAt)}
+                    </p>
+                  </div>
+                  <Badge variant={project.mentorApproval?.approved ? "default" : "secondary"}>
+                    Mentor: {project.mentorApproval?.approved ? '✅ Approved' : '⏳ Pending'}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-2 mb-4">
+                  <h4 className="text-sm font-medium font-heading">Deliverables:</h4>
+                  <div className="flex gap-4 text-sm flex-wrap">
+                    {project.finalSubmission?.repoUrl && (
+                      <a 
+                        href={project.finalSubmission.repoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        GitHub →
+                      </a>
+                    )}
+                    {project.finalSubmission?.demoUrl && (
+                      <a 
+                        href={project.finalSubmission.demoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Demo →
+                      </a>
+                    )}
+                    {project.finalSubmission?.docsUrl && (
+                      <a 
+                        href={project.finalSubmission.docsUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Docs →
+                      </a>
+                    )}
+                    {!project.finalSubmission && project.gitLink && (
+                      <a 
+                        href={project.gitLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        GitHub →
+                      </a>
+                    )}
+                    {!project.finalSubmission && project.demoLink && (
+                      <a 
+                        href={project.demoLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Demo →
+                      </a>
+                    )}
+                  </div>
+                </div>
+                
+                {project.finalSubmission?.summary && (
+                  <p className="text-sm mb-4">{project.finalSubmission.summary}</p>
+                )}
+                
+                <div className="flex gap-2 flex-wrap">
+                  <Button 
+                    onClick={() => handleApproveM2(project.id)}
+                    disabled={!project.mentorApproval?.approved}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" aria-hidden="true" />
+                    Approve & Process Payment
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => handleRequestChanges(project.id)}
+                  >
+                    Request Changes
+                  </Button>
+                </div>
+                
+                {!project.mentorApproval?.approved && (
+                  <p className="text-xs text-yellow-500 mt-2">
+                    ⚠️ Waiting for mentor approval before WebZero review
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* M2 Program Management */}
+      <div className="glass-panel rounded-lg p-6 mb-6">
+        <h2 className="text-2xl font-heading mb-4">M2 Program Management</h2>
+        
+        {m2Projects.length === 0 ? (
+          <p className="text-muted-foreground">No projects in M2 program yet</p>
+        ) : (
+          <div className="space-y-4">
+            {m2Projects.map((project) => (
+              <div key={project.id} className="border border-subtle rounded-lg p-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-lg font-heading">{project.projectTitle || project.title}</h3>
+                    <p className="text-sm text-muted-foreground">By {project.author || 'Unknown'}</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    {/* Current Status Badge */}
+                    <Badge variant={
+                      project.m2Status === 'completed' ? 'default' :
+                      project.m2Status === 'under_review' ? 'secondary' :
+                      'outline'
+                    }>
+                      {project.m2Status === 'building' && '🏗️ Building'}
+                      {project.m2Status === 'under_review' && '⏳ Under Review'}
+                      {project.m2Status === 'completed' && '✅ Completed'}
+                      {!project.m2Status && '🏗️ Building'}
+                    </Badge>
+                    
+                    {/* Status Change Dropdown */}
+                    <Select 
+                      value={project.m2Status || 'building'} 
+                      onValueChange={(status) => handleM2StatusChange(project.id, status as 'building' | 'under_review' | 'completed')}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Change status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="building">🏗️ Building</SelectItem>
+                        <SelectItem value="under_review">⏳ Under Review</SelectItem>
+                        <SelectItem value="completed">✅ Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                {/* Show final submission details if exists */}
+                {project.finalSubmission && (
+                  <div className="space-y-2 mb-4 bg-muted/50 rounded p-3">
+                    <h4 className="text-sm font-medium">Final Submission:</h4>
+                    <div className="flex gap-4 text-sm flex-wrap">
+                      {project.finalSubmission.repoUrl && (
+                        <a href={project.finalSubmission.repoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          GitHub →
+                        </a>
+                      )}
+                      {project.finalSubmission.demoUrl && (
+                        <a href={project.finalSubmission.demoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          Demo →
+                        </a>
+                      )}
+                      {project.finalSubmission.docsUrl && (
+                        <a href={project.finalSubmission.docsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          Docs →
+                        </a>
+                      )}
+                    </div>
+                    {project.finalSubmission.summary && (
+                      <p className="text-xs text-muted-foreground mt-2">{project.finalSubmission.summary}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Submitted: {formatDate(project.finalSubmission.submittedDate)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
@@ -525,6 +869,7 @@ const AdminPage = () => {
                   <TableHead>Project Title</TableHead>
                   <TableHead>Team Address</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>M2 Status</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -557,6 +902,9 @@ const AdminPage = () => {
                           <SelectItem value="rejected">Rejected</SelectItem>
                         </SelectContent>
                       </Select>
+                    </TableCell>
+                    <TableCell>
+                      {getM2StatusBadge(project as M2Project) || <span className="text-muted-foreground text-sm">N/A</span>}
                     </TableCell>
                     <TableCell>{formatDate(project.submittedAt)}</TableCell>
                     <TableCell>

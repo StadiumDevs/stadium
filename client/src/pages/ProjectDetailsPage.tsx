@@ -11,6 +11,8 @@ import {
   CheckCircle,
   FileText,
   Circle,
+  Clock,
+  Video,
 } from "lucide-react";
 import {
   Card,
@@ -20,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
@@ -27,6 +30,9 @@ import { SiwsMessage } from '@talismn/siws';
 import { generateSiwsStatement } from '@/lib/siwsUtils';
 import { Navigation } from "@/components/Navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { getCurrentProgramWeek } from "@/lib/projectUtils";
+import { FinalSubmissionModal, SubmissionData } from "@/components/FinalSubmissionModal";
+import { UpdateTeamModal, TeamMember } from "@/components/UpdateTeamModal";
 
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -49,6 +55,7 @@ const ProjectDetailsPage = () => {
     donationAddress?: string;
     winner?: string; // legacy
     eventStartedAt?: string;
+    m2Status?: 'building' | 'under_review' | 'completed';
   };
 
   const [project, setProject] = useState<ApiProject | null>(null);
@@ -78,6 +85,20 @@ const ProjectDetailsPage = () => {
   const [deliverables, setDeliverables] = useState<string[]>([""]);
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+  const [finalSubmissionModalOpen, setFinalSubmissionModalOpen] = useState(false);
+  const [finalSubmission, setFinalSubmission] = useState<any>(null);
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+
+  // Format date utility
+  const formatDate = (dateString?: string | Date) => {
+    if (!dateString) return '';
+    try {
+      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return typeof dateString === 'string' ? dateString : '';
+    }
+  };
 
   // Talisman Connect
   // const { selectedAccount, connect, disconnect, accounts } = useWallets(); // Removed
@@ -270,6 +291,146 @@ const ProjectDetailsPage = () => {
   const addDeliverable = () => setDeliverables([...deliverables, ""]);
   const removeDeliverable = (idx: number) => setDeliverables(deliverables.filter((_, i) => i !== idx));
   const updateDeliverable = (idx: number, value: string) => setDeliverables(deliverables.map((d, i) => i === idx ? value : d));
+
+  // Check if user is team member
+  const isTeamMember = project && connectedAddress && Array.isArray(project.teamMembers)
+    ? project.teamMembers.some(
+        (member) => member.walletAddress?.toLowerCase() === connectedAddress.toLowerCase()
+      )
+    : false;
+
+  // Get current week for M2 submission availability
+  const currentWeekData = getCurrentProgramWeek();
+  const currentWeek = currentWeekData.weekNumber;
+
+  // Handle team update
+  const handleTeamUpdate = async (data: { members: TeamMember[]; payoutAddress: string }) => {
+    if (!project || !connectedAddress) {
+      toast({
+        title: "Error",
+        description: "Please connect your wallet first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Hackathonia');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error("No wallet found");
+      
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'update-team',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Update team
+      await api.updateTeam(project.id, data, authHeader);
+      
+      // Update local project state
+      setProject((prev: ApiProject | null) => (prev ? {
+        ...prev,
+        teamMembers: data.members.map(m => ({
+          name: m.name.trim(),
+          walletAddress: m.wallet.trim() || undefined,
+        })),
+        donationAddress: data.payoutAddress.trim(),
+      } as ApiProject : prev));
+      
+      toast({
+        title: "Success!",
+        description: "Team updated successfully.",
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Failed to update team. Please try again.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
+  // Handle final M2 submission
+  const handleFinalSubmission = async (data: SubmissionData) => {
+    if (!project || !connectedAddress) {
+      toast({
+        title: "Error",
+        description: "Please connect your wallet first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Hackathonia');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error("No wallet found");
+      
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'submit-m2-for-review',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Submit for review
+      await api.submitForReview(project.id, data, authHeader);
+      
+      // Update local project state
+      setProject((prev: ApiProject | null) => (prev ? {
+        ...prev,
+        m2Status: 'under_review',
+        projectRepo: data.finalRepoUrl,
+        demoUrl: data.finalDemoUrl,
+        slidesUrl: data.finalSlidesUrl,
+      } as ApiProject : prev));
+      
+      setFinalSubmission(data);
+      
+      toast({
+        title: "Success!",
+        description: "Your M2 submission has been submitted for review.",
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: "Submission Failed",
+        description: error?.message || "Failed to submit M2 deliverables. Please try again.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
 
   // Handler for form submit
   const handleDeliverableSubmit = async () => {
@@ -534,6 +695,318 @@ const ProjectDetailsPage = () => {
               </CardHeader>
             </Card>
 
+            {/* M2 Program Progress Section */}
+            {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
+              <div className="glass-panel rounded-lg p-6 mb-6">
+                <h2 className="text-2xl font-heading mb-4">📊 M2 Program Progress</h2>
+                
+                {(() => {
+                  const currentWeekData = getCurrentProgramWeek();
+                  const currentWeek = currentWeekData.weekNumber;
+                  const m2Status = project.m2Status || 'building';
+                  
+                  // Calculate status badge
+                  let statusBadge = null;
+                  if (m2Status === 'building') {
+                    statusBadge = (
+                      <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/30">
+                        🟢 Building M2
+                      </Badge>
+                    );
+                  } else if (m2Status === 'under_review') {
+                    statusBadge = (
+                      <Badge variant="outline" className="bg-blue-500/20 text-blue-500 border-blue-500/30">
+                        ⏳ Under Review
+                      </Badge>
+                    );
+                  } else if (m2Status === 'completed') {
+                    statusBadge = (
+                      <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">
+                        ✅ Completed
+                      </Badge>
+                    );
+                  }
+                  
+                  return (
+                    <>
+                      <div className="mb-4">
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Week {currentWeek} of 6 · {m2Status === 'building' ? 'Building' : m2Status === 'under_review' ? 'Under Review' : 'Completed'}
+                        </div>
+                        <Progress value={(currentWeek / 6) * 100} className="h-2" />
+                      </div>
+                      
+                      <div className="text-sm mb-4">
+                        Status: {statusBadge}
+                      </div>
+                      
+                      <div className="text-sm text-muted-foreground mt-4">
+                        Need help? Contact your mentor in Telegram
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Milestone 2 Submission Section */}
+            {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
+              <div className="glass-panel rounded-lg p-6 mb-6">
+                <h2 className="text-2xl font-heading mb-4">🚀 Milestone 2 Submission</h2>
+                
+                {!finalSubmission && project.m2Status !== 'under_review' && project.m2Status !== 'completed' ? (
+                  <>
+                    <div className="text-muted-foreground mb-4">
+                      Status: Not yet submitted<br />
+                      Available: Week 5+ (Dec 23)
+                    </div>
+                    <p className="text-sm mb-4">
+                      When ready, submit your final M2 deliverables here.
+                    </p>
+                    {isTeamMember && currentWeek >= 5 && (
+                      <Button onClick={() => setFinalSubmissionModalOpen(true)}>
+                        Submit M2 Deliverables
+                      </Button>
+                    )}
+                    {!isTeamMember && (
+                      <p className="text-sm text-muted-foreground italic">
+                        Connect your wallet with a team member address to submit.
+                      </p>
+                    )}
+                    {isTeamMember && currentWeek < 5 && (
+                      <p className="text-sm text-muted-foreground italic">
+                        M2 submission will be available starting Week 5 (Dec 23).
+                      </p>
+                    )}
+                  </>
+                ) : project.m2Status === 'under_review' ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <Clock className="w-5 h-5" aria-hidden="true" />
+                      <span className="font-medium">Under Review</span>
+                    </div>
+                    {finalSubmission?.submittedDate && (
+                      <div className="text-sm text-muted-foreground mb-4">
+                        Submitted: {formatDate(finalSubmission.submittedDate)}
+                      </div>
+                    )}
+                    {!finalSubmission?.submittedDate && project.eventStartedAt && (
+                      <div className="text-sm text-muted-foreground mb-4">
+                        Submitted: {formatDate(new Date().toISOString())}
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2 mb-4">
+                      <h3 className="font-medium font-heading">Deliverables:</h3>
+                      {finalSubmission?.finalRepoUrl && (
+                        <a 
+                          href={finalSubmission.finalRepoUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <Github className="w-4 h-4" aria-hidden="true" />
+                          GitHub Repository →
+                        </a>
+                      )}
+                      {(finalSubmission?.finalDemoUrl || project.demoUrl) && (
+                        <a 
+                          href={finalSubmission?.finalDemoUrl || project.demoUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <Video className="w-4 h-4" aria-hidden="true" />
+                          Demo Video →
+                        </a>
+                      )}
+                      {(finalSubmission?.finalSlidesUrl || project.slidesUrl) && (
+                        <a 
+                          href={finalSubmission?.finalSlidesUrl || project.slidesUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <FileText className="w-4 h-4" aria-hidden="true" />
+                          Documentation →
+                        </a>
+                      )}
+                      {!finalSubmission && (
+                        <>
+                          {project.projectRepo && (
+                            <a 
+                              href={project.projectRepo} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-primary hover:underline"
+                            >
+                              <Github className="w-4 h-4" aria-hidden="true" />
+                              GitHub Repository →
+                            </a>
+                          )}
+                          {project.demoUrl && (
+                            <a 
+                              href={project.demoUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-primary hover:underline"
+                            >
+                              <Video className="w-4 h-4" aria-hidden="true" />
+                              Demo Video →
+                            </a>
+                          )}
+                          {project.slidesUrl && (
+                            <a 
+                              href={project.slidesUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-primary hover:underline"
+                            >
+                              <FileText className="w-4 h-4" aria-hidden="true" />
+                              Documentation →
+                            </a>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h3 className="font-medium font-heading">Review Status:</h3>
+                      {(() => {
+                        // Mock review status - would come from API in production
+                        const mentorApproved = project.m2Status === 'completed';
+                        const webzeroApproved = project.m2Status === 'completed';
+                        
+                        return (
+                          <>
+                            <div className="flex items-center gap-2">
+                              {mentorApproved ? (
+                                <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
+                              ) : (
+                                <Clock className="w-4 h-4" aria-hidden="true" />
+                              )}
+                              <span>Mentor Review: {mentorApproved ? 'Approved' : 'Pending'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {webzeroApproved ? (
+                                <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
+                              ) : (
+                                <Clock className="w-4 h-4" aria-hidden="true" />
+                              )}
+                              <span>WebZero Review: {webzeroApproved ? 'Approved' : 'Pending'}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    
+                    <div className="text-sm text-muted-foreground mt-4">
+                      Contact your mentor in Telegram if you have questions.
+                    </div>
+                  </div>
+                ) : project.m2Status === 'completed' ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
+                      <span className="font-medium text-green-500">M2 COMPLETED</span>
+                    </div>
+                    {(() => {
+                      // Mock completion date - would come from API in production
+                      const completionDate = project.eventStartedAt || new Date().toISOString();
+                      return (
+                        <div className="text-sm text-muted-foreground mb-4">
+                          Completed: {formatDate(completionDate)}
+                        </div>
+                      );
+                    })()}
+                    
+                    <div className="space-y-2 mb-4">
+                      <h3 className="font-medium font-heading">Deliverables:</h3>
+                      {(finalSubmission?.finalRepoUrl || project.projectRepo) && (
+                        <a 
+                          href={finalSubmission?.finalRepoUrl || project.projectRepo} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <Github className="w-4 h-4" aria-hidden="true" />
+                          GitHub Repository →
+                        </a>
+                      )}
+                      {(finalSubmission?.finalDemoUrl || project.demoUrl) && (
+                        <a 
+                          href={finalSubmission?.finalDemoUrl || project.demoUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <Video className="w-4 h-4" aria-hidden="true" />
+                          Demo Video →
+                        </a>
+                      )}
+                      {(finalSubmission?.finalSlidesUrl || project.slidesUrl) && (
+                        <a 
+                          href={finalSubmission?.finalSlidesUrl || project.slidesUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <FileText className="w-4 h-4" aria-hidden="true" />
+                          Documentation →
+                        </a>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2 mb-4">
+                      {(() => {
+                        // Mock approval dates - would come from API in production
+                        const mentorApprovalDate = project.eventStartedAt || new Date().toISOString();
+                        const webzeroApprovalDate = project.eventStartedAt || new Date().toISOString();
+                        const m2PaymentDate = project.eventStartedAt || new Date().toISOString();
+                        
+                        return (
+                          <>
+                            <div className="flex items-center gap-2 text-green-500">
+                              <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                              <span>Mentor Approved ({formatDate(mentorApprovalDate)})</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-green-500">
+                              <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                              <span>WebZero Approved ({formatDate(webzeroApprovalDate)})</span>
+                            </div>
+                            
+                            <div className="bg-green-500/10 border border-green-500 rounded-lg p-4 mt-4">
+                              <div className="font-medium mb-2">💰 Payment: $4,000 USDC Total Paid</div>
+                              <ul className="text-sm space-y-1">
+                                <li>• Milestone 1: $2,000 (Nov 17, 2025)</li>
+                                <li>• Milestone 2: $2,000 ({formatDate(m2PaymentDate)})</li>
+                              </ul>
+                            </div>
+                            
+                            <div className="text-center mt-4 text-lg">
+                              🎉 Congratulations on completing the M2 program!
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                ) : finalSubmission ? (
+                  <div className="space-y-2">
+                    <div className="text-sm text-muted-foreground">
+                      Status: Submitted
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <p><strong>Repository:</strong> {finalSubmission.finalRepoUrl}</p>
+                      {finalSubmission.finalDemoUrl && <p><strong>Demo:</strong> {finalSubmission.finalDemoUrl}</p>}
+                      {finalSubmission.finalSlidesUrl && <p><strong>Slides:</strong> {finalSubmission.finalSlidesUrl}</p>}
+                      <p><strong>Summary:</strong> {finalSubmission.summary}</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             {/* Timeline and Milestone Card (normal width, below) */}
             <Card className="w-full max-w-full sm:max-w-4xl p-2 sm:p-4 relative">
               {/* Timeline graphic at the top */}
@@ -564,7 +1037,19 @@ const ProjectDetailsPage = () => {
                     {(project.teamMembers || []).map((m, i) => (
                       <div key={i} className="text-xs text-white">{m.name}{m.walletAddress ? ` — ${m.walletAddress}` : ''}</div>
                     ))}
-                    <Button size="sm" variant="default" className="text-xs px-3 py-1 mt-2" onClick={startTeamEdit}>Edit Team</Button>
+                    {project.donationAddress && (
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Payout Address: {project.donationAddress}
+                      </div>
+                    )}
+                    <div className="flex gap-2 mt-2">
+                      <Button size="sm" variant="default" className="text-xs px-3 py-1" onClick={startTeamEdit}>Edit Team</Button>
+                      {isTeamMember && (
+                        <Button size="sm" variant="outline" className="text-xs px-3 py-1" onClick={() => setTeamModalOpen(true)}>
+                          Update Team
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -716,6 +1201,27 @@ const ProjectDetailsPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Final Submission Modal */}
+      <FinalSubmissionModal
+        open={finalSubmissionModalOpen}
+        onOpenChange={setFinalSubmissionModalOpen}
+        onSubmit={handleFinalSubmission}
+      />
+      
+      {/* Update Team Modal */}
+      {project && (
+        <UpdateTeamModal
+          open={teamModalOpen}
+          onOpenChange={setTeamModalOpen}
+          initialMembers={(project.teamMembers || []).map(m => ({
+            name: m.name,
+            wallet: m.walletAddress || '',
+          }))}
+          initialPayoutAddress={project.donationAddress || ''}
+          onSubmit={handleTeamUpdate}
+        />
+      )}
     </div>
   );
 };

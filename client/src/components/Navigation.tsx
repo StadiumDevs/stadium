@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Folder, Clock, Home, Menu } from "lucide-react"
+import { Wrench, Clock, Home, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -11,8 +11,8 @@ export function Navigation() {
 
   const navItems = [
     { href: "/", label: "Home", icon: Home },
-    { href: "/projects", label: "Active Projects", icon: Folder },
     { href: "/past-projects", label: "Past Projects", icon: Clock },
+    { href: "/projects", label: "M2 Program", icon: Wrench },
   ]
 
   return (

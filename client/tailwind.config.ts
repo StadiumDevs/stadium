@@ -81,6 +81,9 @@ export default {
 			sans: ['Inter', 'system-ui', 'sans-serif'],
 			mono: ['Space Mono', 'JetBrains Mono', 'monospace'],
 			heading: ['Space Mono', 'monospace'],
+			display: ['var(--font-display)', 'Orbitron', 'system-ui', 'sans-serif'],
+			hero: ['Righteous', 'cursive'],
+			righteous: ['Righteous', 'cursive'],
 			atari: [
 				'IBM Plex Mono',
 				'Menlo',
