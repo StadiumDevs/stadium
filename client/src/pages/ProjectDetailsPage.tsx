@@ -1059,138 +1059,140 @@ const ProjectDetailsPage = () => {
             )}
 
             {/* M2 Agreement Section */}
-            {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
-              <>
-                {project.m2Agreement ? (
-                  <div className="glass-panel rounded-lg p-6 mb-6">
-                    <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
-                      📋 Milestone 2 Agreement
-                    </h2>
-                    
-                    <div className="bg-muted/30 rounded-lg p-4 mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">
-                          Agreed with mentor: @{project.m2Agreement.mentorName}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(project.m2Agreement.agreedDate).toLocaleDateString('en-US', {
-                            month: 'long',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </span>
-                      </div>
+            {project.m2Agreement ? (
+              <div className="glass-panel rounded-lg p-6 mb-6">
+                <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
+                  📋 Milestone 2 Agreement
+                </h2>
+                
+                <div className="bg-muted/30 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Agreed with mentor: <span className="font-medium text-foreground">@{project.m2Agreement.mentorName}</span>
+                    </span>
+                    <span className="text-muted-foreground">
+                      {new Date(project.m2Agreement.agreedDate).toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {/* Core Features */}
+                  <div>
+                    <h3 className="font-medium mb-3 flex items-center gap-2">
+                      <Target className="w-4 h-4" aria-hidden="true" />
+                      Core Features (must complete 80%+)
+                    </h3>
+                    <ul className="space-y-2">
+                      {project.m2Agreement.agreedFeatures.map((feature, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" aria-hidden="true" />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  {/* Documentation Required */}
+                  {project.m2Agreement.documentation && project.m2Agreement.documentation.length > 0 && (
+                    <div>
+                      <h3 className="font-medium mb-3 flex items-center gap-2">
+                        <FileText className="w-4 h-4" aria-hidden="true" />
+                        Documentation Required
+                      </h3>
+                      <ul className="space-y-2">
+                        {project.m2Agreement.documentation.map((doc, index) => (
+                          <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" aria-hidden="true" />
+                            <span>{doc}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    
-                    <div className="space-y-4">
-                      {/* Core Features */}
-                      <div>
-                        <h3 className="font-medium mb-2 flex items-center gap-2">
-                          <Target className="w-4 h-4" aria-hidden="true" />
-                          Core Features (must complete 80%+)
-                        </h3>
-                        <ul className="space-y-1 ml-6">
-                          {project.m2Agreement.agreedFeatures.map((feature, index) => (
-                            <li key={index} className="text-sm text-muted-foreground list-disc">
-                              {feature}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      
-                      {/* Documentation Required */}
-                      {project.m2Agreement.documentation && project.m2Agreement.documentation.length > 0 && (
-                        <div>
-                          <h3 className="font-medium mb-2 flex items-center gap-2">
-                            <FileText className="w-4 h-4" aria-hidden="true" />
-                            Documentation Required
-                          </h3>
-                          <ul className="space-y-1 ml-6">
-                            {project.m2Agreement.documentation.map((doc, index) => (
-                              <li key={index} className="text-sm text-muted-foreground list-disc">
-                                {doc}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      
-                      {/* Success Criteria */}
-                      {project.m2Agreement.successCriteria && (
-                        <div>
-                          <h3 className="font-medium mb-2 flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                            Success Criteria
-                          </h3>
-                          <p className="text-sm text-muted-foreground ml-6">
-                            {project.m2Agreement.successCriteria}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-subtle">
-                      <p className="text-xs text-muted-foreground">
-                        This is your agreed scope from the Week 1 mentor call. 
-                        Use this as your guide for the next 6 weeks.
+                  )}
+                  
+                  {/* Success Criteria */}
+                  {project.m2Agreement.successCriteria && (
+                    <div>
+                      <h3 className="font-medium mb-3 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                        Success Criteria
+                      </h3>
+                      <p className="text-sm text-muted-foreground pl-6">
+                        {project.m2Agreement.successCriteria}
                       </p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="glass-panel rounded-lg p-6 mb-6">
-                    <h2 className="text-2xl font-heading mb-4">📋 Milestone 2 Agreement</h2>
-                    {project.m2Status === 'building' ? (
-                      <div className="space-y-4">
-                        <div className="text-center py-6 bg-muted/20 rounded-lg">
-                          <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Upload your M2 Agreement to document what you'll deliver for Milestone 2
-                          </p>
-                          <p className="text-xs text-muted-foreground mb-4">
-                            This should be filled out after your Week 1 mentor call to align on deliverables
-                          </p>
-                          {!connectedWallet ? (
-                            <div className="text-center py-4">
-                              <p className="text-sm text-muted-foreground mb-4">
-                                Connect your wallet to upload your M2 Agreement
-                              </p>
-                              <Button onClick={connectWallet}>
-                                Connect Wallet
-                              </Button>
-                            </div>
-                          ) : !isTeamMember ? (
-                            <div className="text-center py-4">
-                              <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" aria-hidden="true" />
-                              <p className="text-sm text-yellow-500">
-                                Only team members can upload M2 Agreements
-                              </p>
-                            </div>
-                          ) : (
-                            <Button 
-                              onClick={() => setM2AgreementModalOpen(true)}
-                              size="lg"
-                              className="w-full md:w-auto"
-                            >
-                              <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
-                              Upload M2 Agreement
+                  )}
+                </div>
+                
+                <div className="mt-4 pt-4 border-t border-subtle">
+                  <p className="text-xs text-muted-foreground">
+                    💡 Use this as your guide for the next 6 weeks. Questions? Ask your mentor in Telegram.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              // Placeholder when no agreement exists yet (Week 0)
+              (project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
+                <div className="glass-panel rounded-lg p-6 mb-6">
+                  <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
+                    📋 Milestone 2 Agreement
+                  </h2>
+                  {project.m2Status === 'building' ? (
+                    <div className="space-y-4">
+                      <div className="text-center py-6 bg-muted/20 rounded-lg">
+                        <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Upload your M2 Agreement to document what you'll deliver for Milestone 2
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-4">
+                          This should be filled out after your Week 1 mentor call to align on deliverables
+                        </p>
+                        {!connectedWallet ? (
+                          <div className="text-center py-4">
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Connect your wallet to upload your M2 Agreement
+                            </p>
+                            <Button onClick={connectWallet}>
+                              Connect Wallet
                             </Button>
-                          )}
-                        </div>
+                          </div>
+                        ) : !isTeamMember ? (
+                          <div className="text-center py-4">
+                            <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" aria-hidden="true" />
+                            <p className="text-sm text-yellow-500">
+                              Only team members can upload M2 Agreements
+                            </p>
+                          </div>
+                        ) : (
+                          <Button 
+                            onClick={() => setM2AgreementModalOpen(true)}
+                            size="lg"
+                            className="w-full md:w-auto"
+                          >
+                            <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
+                            Upload M2 Agreement
+                          </Button>
+                        )}
                       </div>
-                    ) : (
-                      <div className="text-center py-8 bg-muted/20 rounded-lg">
-                        <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Your M2 Agreement will appear here after your Week 1 mentor call
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Expected: Week 1 (Nov 25 - Dec 1)
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-muted/20 rounded-lg border border-dashed border-subtle">
+                      <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+                      <p className="text-sm font-medium mb-2">
+                        Your M2 Agreement will appear here after your Week 1 mentor call
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Expected: Week 1 (Nov 25 - Dec 1, 2025)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )
             )}
 
             {/* Milestone 2 Submission Section */}
