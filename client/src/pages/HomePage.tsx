@@ -244,22 +244,36 @@ const HomePage = () => {
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 md:px-8 pt-32 pb-16">
-        <div className="max-w-4xl mx-auto text-center space-y-6">
+        <div className="max-w-4xl mx-auto text-center space-y-4">
           <h1 className="font-display hero-title text-7xl md:text-8xl lg:text-9xl font-black uppercase tracking-tight">
             Stadium.
           </h1>
           <p className="text-xl text-muted-foreground">
-            The ultimate hacker's project progress and showcase portal.
+            The ultimate project progress and showcase portal for hackathon projects going places.
           </p>
-          <div className="space-y-2">
-            <p className="text-accent flex items-center justify-center gap-2">
-              👍 Upcoming event:{" "}
-              <span className="font-semibold underline">sub0_hack_2025</span>
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
-            </p>
+          
+          {/* Upcoming Event - Prominent */}
+          <div className="flex items-center justify-center">
+            <div className="inline-flex items-center gap-2 px-6 py-3 bg-primary/10 border border-primary rounded-full">
+              <span>👍</span>
+              <span className="text-accent">
+                Upcoming event:{" "}
+                <a 
+                  href="https://luma.com/sub0hack"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold underline hover:text-accent cursor-pointer transition-colors"
+                >
+                  sub0_hack_2025
+                </a>
+              </span>
+            </div>
           </div>
+          
+          {/* Past Events - Subtle */}
+          <p className="text-sm text-muted-foreground/70">
+            Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
+          </p>
         </div>
       </section>
 
