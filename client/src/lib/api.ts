@@ -201,7 +201,14 @@ export const api = {
   },
 
   updateTeam: async (projectId: string, data: {
-    members: Array<{ name: string; wallet: string }>;
+    members: Array<{ 
+      name: string; 
+      wallet: string;
+      role?: string;
+      twitter?: string;
+      github?: string;
+      linkedin?: string;
+    }>;
     payoutAddress: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
@@ -219,6 +226,10 @@ export const api = {
           projects[index].teamMembers = data.members.map(m => ({
             name: m.name.trim(),
             walletAddress: m.wallet.trim() || undefined,
+            role: m.role?.trim() || undefined,
+            twitter: m.twitter?.trim() || undefined,
+            github: m.github?.trim() || undefined,
+            linkedin: m.linkedin?.trim() || undefined,
           }));
           projects[index].donationAddress = data.payoutAddress.trim();
           localStorage.setItem('projects', JSON.stringify(projects));
@@ -232,6 +243,10 @@ export const api = {
         (mockProject as any).teamMembers = data.members.map(m => ({
           name: m.name.trim(),
           walletAddress: m.wallet.trim() || undefined,
+          role: m.role?.trim() || undefined,
+          twitter: m.twitter?.trim() || undefined,
+          github: m.github?.trim() || undefined,
+          linkedin: m.linkedin?.trim() || undefined,
         }));
         (mockProject as any).donationAddress = data.payoutAddress.trim();
       }

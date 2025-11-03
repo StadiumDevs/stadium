@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ExternalLink,
@@ -14,6 +14,10 @@ import {
   Clock,
   Video,
   Share2,
+  Twitter,
+  Linkedin,
+  Calendar,
+  Users,
 } from "lucide-react";
 import {
   Card,
@@ -38,7 +42,16 @@ import { ShareProjectModal } from "@/components/ShareProjectModal";
 
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
-  type ApiTeamMember = { name: string; customUrl?: string; walletAddress?: string };
+  const navigate = useNavigate();
+  type ApiTeamMember = { 
+    name: string; 
+    customUrl?: string; 
+    walletAddress?: string;
+    role?: string;
+    twitter?: string;
+    github?: string;
+    linkedin?: string;
+  };
   type ApiMilestone = string | { description?: string };
   type ApiBounty = { name: string; amount: number; hackathonWonAtId: string };
   type ApiProject = {
@@ -461,6 +474,10 @@ const ProjectDetailsPage = () => {
         teamMembers: data.members.map(m => ({
           name: m.name.trim(),
           walletAddress: m.wallet.trim() || undefined,
+          role: m.role?.trim() || undefined,
+          twitter: m.twitter?.trim() || undefined,
+          github: m.github?.trim() || undefined,
+          linkedin: m.linkedin?.trim() || undefined,
         })),
         donationAddress: data.payoutAddress.trim(),
       } as ApiProject : prev));
@@ -642,16 +659,19 @@ const ProjectDetailsPage = () => {
       <Navigation />
       {/* Main Content */}
       <main className="flex-1">
+        <div className="container mx-auto px-4 py-4">
+          {/* Breadcrumb Navigation */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/projects')}
+            className="mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
+            Back to M2 Program
+          </Button>
+        </div>
         <div className="container py-8 px-2 sm:px-4">
-          {/* Back Button */}
-          <div className="mb-6">
-            <Button variant="ghost" asChild>
-              <Link to="/" className="flex items-center space-x-2">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Go Back Home</span>
-              </Link>
-            </Button>
-          </div>
           {/* Wallet connection and address */}
           <div className="space-y-4 mb-6">
             {!connectedAddress && (
@@ -678,6 +698,21 @@ const ProjectDetailsPage = () => {
             )}
           </div>
           <div className="max-w-4xl mx-auto space-y-8">
+            {/* Success Banner for Completed Projects */}
+            {project.m2Status === 'completed' && (
+              <div className="bg-gradient-to-r from-green-900/20 to-yellow-900/20 border border-green-500/30 rounded-lg p-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-6 h-6 text-green-500" aria-hidden="true" />
+                  <div>
+                    <h3 className="font-medium text-green-500">M2 Graduate</h3>
+                    <p className="text-sm text-muted-foreground">
+                      This team successfully completed the 6-week M2 Accelerator program
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Top Project Card (wider) */}
             <Card className="w-full max-w-full sm:max-w-4xl p-2 sm:p-4">
               <CardHeader className="pb-2 relative">
@@ -712,6 +747,45 @@ const ProjectDetailsPage = () => {
                 ) : (
                   <CardTitle className="font-heading text-xl sm:text-2xl mb-2">{project.projectName}</CardTitle>
                 )}
+                
+                {/* Project Metadata */}
+                <div className="flex flex-wrap gap-4 mb-6 text-sm text-muted-foreground">
+                  {/* Hackathon */}
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4" aria-hidden="true" />
+                    <span>sub0 2025 Hackathon</span>
+                  </div>
+                  
+                  {/* Submitted date */}
+                  {project.finalSubmission?.submittedDate && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" aria-hidden="true" />
+                      <span>Submitted {new Date(project.finalSubmission.submittedDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                    </div>
+                  )}
+                  
+                  {/* Team size */}
+                  {project.teamMembers && project.teamMembers.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4" aria-hidden="true" />
+                      <span>{project.teamMembers.length} team member{project.teamMembers.length !== 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  
+                  {/* Track badge */}
+                  {project.categories && project.categories.length > 0 && (
+                    <Badge variant="outline" className="bg-primary/10 border-primary">
+                      {project.categories[0]}
+                    </Badge>
+                  )}
+                  
+                  {/* Winner badge */}
+                  {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0)) && (
+                    <Badge className="bg-yellow-500 text-black">
+                      🏆 Winner
+                    </Badge>
+                  )}
+                </div>
                 {/* Team Name(s) below title */}
                 <span className="block text-sm text-white mb-2">
                   Team: {Array.isArray(project.teamMembers) && project.teamMembers.length > 0 ? project.teamMembers.map((m: ApiTeamMember) => m?.name).filter(Boolean).join(', ') : (project.teamLead || '')}
@@ -1100,31 +1174,101 @@ const ProjectDetailsPage = () => {
                 </div>
               </div>
               {/* Team Members section */}
-              <div className="mb-6">
-                <h4 className="font-heading font-semibold text-base mb-2 text-white">Team Members</h4>
+              <div className="glass-panel rounded-lg p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-heading">👥 Team</h2>
+                  {isTeamMember && (
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTeamModalOpen(true)}
+                    >
+                      Edit Team
+                    </Button>
+                  )}
+                </div>
+                
                 {!teamEditing ? (
-                  <div className="space-y-1">
-                    {(project.teamMembers || []).map((m, i) => (
-                      <div key={i} className="text-xs text-white">{m.name}{m.walletAddress ? ` — ${m.walletAddress}` : ''}</div>
-                    ))}
-                    {project.donationAddress && (
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Payout Address: {project.donationAddress}
+                  <>
+                    {(project.teamMembers || []).length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(project.teamMembers || []).map((member, index) => (
+                          <div 
+                            key={index}
+                            className="border border-subtle rounded-lg p-4 bg-muted/30"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h3 className="font-medium text-lg mb-1">{member.name}</h3>
+                                <p className="text-xs text-muted-foreground font-mono mb-3">
+                                  {member.walletAddress ? 
+                                    `${member.walletAddress.slice(0, 6)}...${member.walletAddress.slice(-4)}` : 
+                                    'No wallet connected'
+                                  }
+                                </p>
+                                
+                                {/* Optional social links */}
+                                {(member.twitter || member.github || member.linkedin) && (
+                                  <div className="flex gap-2">
+                                    {member.twitter && (
+                                      <a 
+                                        href={`https://twitter.com/${member.twitter.replace('@', '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-muted-foreground hover:text-primary transition-colors"
+                                        aria-label={`${member.name}'s Twitter`}
+                                      >
+                                        <Twitter className="w-4 h-4" aria-hidden="true" />
+                                      </a>
+                                    )}
+                                    {member.github && (
+                                      <a 
+                                        href={`https://github.com/${member.github}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-muted-foreground hover:text-primary transition-colors"
+                                        aria-label={`${member.name}'s GitHub`}
+                                      >
+                                        <Github className="w-4 h-4" aria-hidden="true" />
+                                      </a>
+                                    )}
+                                    {member.linkedin && (
+                                      <a 
+                                        href={member.linkedin.startsWith('http') ? member.linkedin : `https://linkedin.com/in/${member.linkedin}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-muted-foreground hover:text-primary transition-colors"
+                                        aria-label={`${member.name}'s LinkedIn`}
+                                      >
+                                        <Linkedin className="w-4 h-4" aria-hidden="true" />
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Optional role badge */}
+                              {member.role && (
+                                <Badge variant="secondary" className="text-xs ml-2">
+                                  {member.role}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No team members listed</p>
+                    )}
+                    
+                    {/* Payout address - shown only to team members */}
+                    {isTeamMember && project.donationAddress && (
+                      <div className="mt-4 pt-4 border-t border-subtle">
+                        <p className="text-sm text-muted-foreground mb-1">Payout Address:</p>
+                        <p className="text-sm font-mono">{project.donationAddress}</p>
                       </div>
                     )}
-                    {isTeamMember && (
-                      <div className="flex gap-2 mt-2">
-                        <Button 
-                          variant="default"
-                          size="sm"
-                          className="text-xs px-3 py-1"
-                          onClick={() => setTeamModalOpen(true)}
-                        >
-                          Edit Team
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  </>
                 ) : (
                   <div className="space-y-2">
                     {teamDraft.map((m, i) => (
@@ -1306,6 +1450,10 @@ const ProjectDetailsPage = () => {
           initialMembers={(project.teamMembers || []).map(m => ({
             name: m.name,
             wallet: m.walletAddress || '',
+            role: m.role,
+            twitter: m.twitter,
+            github: m.github,
+            linkedin: m.linkedin,
           }))}
           initialPayoutAddress={project.donationAddress || ''}
           onSubmit={handleTeamUpdate}

@@ -9,6 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 export interface TeamMember {
   name: string;
   wallet: string;
+  role?: string;
+  twitter?: string;
+  github?: string;
+  linkedin?: string;
 }
 
 interface UpdateTeamModalProps {
@@ -57,7 +61,7 @@ export function UpdateTeamModal({
     setMembers(members.filter((_, i) => i !== index));
   };
 
-  const handleMemberChange = (index: number, field: 'name' | 'wallet', value: string) => {
+  const handleMemberChange = (index: number, field: 'name' | 'wallet' | 'role' | 'twitter' | 'github' | 'linkedin', value: string) => {
     const updated = [...members];
     updated[index][field] = value;
     setMembers(updated);
@@ -66,12 +70,12 @@ export function UpdateTeamModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate all members have both name and wallet
-    const hasEmpty = members.some(m => !m.name.trim() || !m.wallet.trim());
-    if (hasEmpty) {
+    // Validate all members have a name
+    const hasEmptyName = members.some(m => !m.name.trim());
+    if (hasEmptyName) {
       toast({
         title: "Error",
-        description: "All team members must have a name and wallet address",
+        description: "All team members must have a name",
         variant: "destructive",
       });
       return;
@@ -117,39 +121,89 @@ export function UpdateTeamModal({
           {/* Team Members Section */}
           <div>
             <h3 className="font-medium mb-3">Team Members</h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {members.map((member, index) => (
-                <div key={index} className="flex gap-2">
-                  <div className="flex-1">
-                    <Input 
-                      placeholder="Name" 
-                      value={member.name}
-                      onChange={(e) => handleMemberChange(index, 'name', e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                    />
+                <div key={index} className="border border-subtle rounded-lg p-4 bg-muted/30 space-y-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Label htmlFor={`name-${index}`}>Name *</Label>
+                      <Input 
+                        id={`name-${index}`}
+                        placeholder="Name" 
+                        value={member.name}
+                        onChange={(e) => handleMemberChange(index, 'name', e.target.value)}
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Label htmlFor={`wallet-${index}`}>Wallet Address</Label>
+                      <Input 
+                        id={`wallet-${index}`}
+                        placeholder="0x... (optional)" 
+                        value={member.wallet}
+                        onChange={(e) => handleMemberChange(index, 'wallet', e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    {members.length > 1 && (
+                      <Button 
+                        type="button"
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleRemoveMember(index)}
+                        aria-label="Remove team member"
+                        disabled={isSubmitting}
+                        className="mt-6"
+                      >
+                        <X className="w-4 h-4" aria-hidden="true" />
+                      </Button>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <Input 
-                      placeholder="0x..." 
-                      value={member.wallet}
-                      onChange={(e) => handleMemberChange(index, 'wallet', e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                    />
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Label htmlFor={`role-${index}`}>Role (optional)</Label>
+                      <Input 
+                        id={`role-${index}`}
+                        placeholder="e.g., Developer, Designer" 
+                        value={member.role || ''}
+                        onChange={(e) => handleMemberChange(index, 'role', e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
                   </div>
-                  {members.length > 1 && (
-                    <Button 
-                      type="button"
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => handleRemoveMember(index)}
-                      aria-label="Remove team member"
-                      disabled={isSubmitting}
-                    >
-                      <X className="w-4 h-4" aria-hidden="true" />
-                    </Button>
-                  )}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label htmlFor={`twitter-${index}`}>Twitter (optional)</Label>
+                      <Input 
+                        id={`twitter-${index}`}
+                        placeholder="@username" 
+                        value={member.twitter || ''}
+                        onChange={(e) => handleMemberChange(index, 'twitter', e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`github-${index}`}>GitHub (optional)</Label>
+                      <Input 
+                        id={`github-${index}`}
+                        placeholder="username" 
+                        value={member.github || ''}
+                        onChange={(e) => handleMemberChange(index, 'github', e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`linkedin-${index}`}>LinkedIn (optional)</Label>
+                      <Input 
+                        id={`linkedin-${index}`}
+                        placeholder="username or URL" 
+                        value={member.linkedin || ''}
+                        onChange={(e) => handleMemberChange(index, 'linkedin', e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
