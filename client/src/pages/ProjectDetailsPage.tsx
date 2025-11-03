@@ -13,6 +13,7 @@ import {
   Circle,
   Clock,
   Video,
+  Share2,
 } from "lucide-react";
 import {
   Card,
@@ -33,6 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { getCurrentProgramWeek } from "@/lib/projectUtils";
 import { FinalSubmissionModal, SubmissionData } from "@/components/FinalSubmissionModal";
 import { UpdateTeamModal, TeamMember } from "@/components/UpdateTeamModal";
+import { ShareProjectModal } from "@/components/ShareProjectModal";
 
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -95,6 +97,7 @@ const ProjectDetailsPage = () => {
   const [formLoading, setFormLoading] = useState(false);
   const [finalSubmissionModalOpen, setFinalSubmissionModalOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Format date utility
   const formatDate = (dateString?: string | Date) => {
@@ -105,6 +108,105 @@ const ProjectDetailsPage = () => {
     } catch {
       return typeof dateString === 'string' ? dateString : '';
     }
+  };
+
+  // Extract YouTube video ID from URL
+  const extractYoutubeId = (url: string): string | null => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/,
+      /youtube\.com\/embed\/([^&\n?#]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) return match[1];
+    }
+    
+    return null;
+  };
+
+  // Get tech icon emoji
+  const getTechIcon = (tech: string) => {
+    const techLower = tech.toLowerCase();
+    
+    // Common blockchain/web3 tech
+    if (techLower.includes('substrate')) return '⛓️';
+    if (techLower.includes('polkadot')) return '🔴';
+    if (techLower.includes('kusama')) return '🐦';
+    if (techLower.includes('solidity')) return '💎';
+    if (techLower.includes('rust')) return '🦀';
+    if (techLower.includes('ink')) return '🖋️';
+    
+    // Frontend
+    if (techLower.includes('react')) return '⚛️';
+    if (techLower.includes('vue')) return '💚';
+    if (techLower.includes('next')) return '▲';
+    if (techLower.includes('typescript')) return '📘';
+    if (techLower.includes('javascript')) return '📜';
+    
+    // Other
+    if (techLower.includes('ipfs')) return '📦';
+    if (techLower.includes('node')) return '🟢';
+    if (techLower.includes('python')) return '🐍';
+    if (techLower.includes('docker')) return '🐳';
+    if (techLower.includes('webassembly') || techLower.includes('wasm')) return '🔷';
+    if (techLower.includes('web3')) return '🌐';
+    if (techLower.includes('xcm')) return '🔗';
+    
+    // Default
+    return '🔧';
+  };
+
+  // Generate video embed component
+  const getVideoEmbed = (url: string) => {
+    // YouTube
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      const videoId = extractYoutubeId(url);
+      if (videoId) {
+        return (
+          <iframe
+            className="w-full h-full"
+            src={`https://www.youtube.com/embed/${videoId}`}
+            title="Demo video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        );
+      }
+    }
+    
+    // Loom
+    if (url.includes('loom.com')) {
+      const loomId = url.split('/').pop()?.split('?')[0];
+      if (loomId) {
+        return (
+          <iframe
+            className="w-full h-full"
+            src={`https://www.loom.com/embed/${loomId}`}
+            title="Demo video"
+            allowFullScreen
+          />
+        );
+      }
+    }
+    
+    // Fallback: just show link
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <Video className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground mb-4">
+            Video preview not available
+          </p>
+          <Button asChild variant="outline">
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-4 h-4 mr-2" aria-hidden="true" />
+              Watch Demo
+            </a>
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   // Talisman Connect
@@ -614,6 +716,17 @@ const ProjectDetailsPage = () => {
                 <span className="block text-sm text-white mb-2">
                   Team: {Array.isArray(project.teamMembers) && project.teamMembers.length > 0 ? project.teamMembers.map((m: ApiTeamMember) => m?.name).filter(Boolean).join(', ') : (project.teamLead || '')}
                 </span>
+                {/* Share Project Button */}
+                <div className="flex items-center gap-2 mb-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowShareModal(true)}
+                  >
+                    <Share2 className="w-4 h-4 mr-2" aria-hidden="true" />
+                    Share Project
+                  </Button>
+                </div>
                 {editMode === 'edit' ? (
                   <textarea
                     className="w-full border rounded px-2 py-1 text-sm sm:text-base mb-2 bg-background text-white"
@@ -625,15 +738,28 @@ const ProjectDetailsPage = () => {
                 ) : (
                   <p className="text-sm sm:text-base text-muted-foreground mb-2">{project.description}</p>
                 )}
-                {/* Tech stack badges with improved spacing */}
+                {/* Tech stack badges with icons */}
                 {project.techStack && (
-                  <div className="flex flex-wrap gap-3 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-6">
                     {Array.isArray(project.techStack) ? (
-                      project.techStack.map((t: string, idx: number) => (
-                        <Badge key={idx} variant="outline" className="text-xs">{t}</Badge>
+                      project.techStack.map((tech: string, idx: number) => (
+                        <Badge 
+                          key={idx}
+                          variant="outline"
+                          className="bg-primary/5 border-primary/20 text-foreground px-3 py-1"
+                        >
+                          {getTechIcon(tech)}
+                          <span className="ml-2">{tech}</span>
+                        </Badge>
                       ))
                     ) : (
-                      <Badge variant="outline" className="text-xs">{project.techStack}</Badge>
+                      <Badge 
+                        variant="outline"
+                        className="bg-primary/5 border-primary/20 text-foreground px-3 py-1"
+                      >
+                        {getTechIcon(project.techStack)}
+                        <span className="ml-2">{project.techStack}</span>
+                      </Badge>
                     )}
                   </div>
                 )}
@@ -720,6 +846,27 @@ const ProjectDetailsPage = () => {
                 )}
               </CardHeader>
             </Card>
+
+            {/* Demo Section */}
+            {project.demoUrl && (
+              <div className="glass-panel rounded-lg p-6 mb-6">
+                <h2 className="text-2xl font-heading mb-4">🎬 Demo</h2>
+                
+                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                  {getVideoEmbed(project.demoUrl)}
+                </div>
+                
+                <a 
+                  href={project.demoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline mt-2 inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                  Open in new tab
+                </a>
+              </div>
+            )}
 
             {/* M2 Program Progress Section */}
             {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
@@ -1137,6 +1284,16 @@ const ProjectDetailsPage = () => {
           projectId={project.id}
           projectTitle={project.projectName}
           onSubmit={handleM2Submit}
+        />
+      )}
+      
+      {/* Share Project Modal */}
+      {project && (
+        <ShareProjectModal
+          open={showShareModal}
+          onOpenChange={setShowShareModal}
+          projectTitle={project.projectName}
+          projectUrl={`/projects/${project.id}`}
         />
       )}
       
