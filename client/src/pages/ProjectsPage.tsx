@@ -323,7 +323,7 @@ const ProjectsPage = () => {
         <div className="glass-panel rounded-lg border-subtle p-6 md:p-8 mb-6">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div className="flex-1">
-              <h1 className="font-heading text-4xl font-bold mb-2">M2 Accelerator Program</h1>
+              <h1 className="font-display text-4xl font-bold mb-2">M2 Accelerator Program</h1>
               <p className="text-muted-foreground mb-2">
                 An overview of all projects in the M2 Accelerator Program.
               </p>
