@@ -7,7 +7,7 @@ export type MockApiProject = {
   id: string;
   projectName: string;
   description: string;
-  teamMembers?: { name: string }[];
+  teamMembers?: { name: string; walletAddress?: string }[];
   projectRepo?: string;
   demoUrl?: string;
   slidesUrl?: string;
@@ -24,7 +24,10 @@ export const mockWinningProjects: MockApiProject[] = [
     id: "mock-winner-1",
     projectName: "Polkadot DEX Aggregator",
     description: "A revolutionary decentralized exchange aggregator that connects multiple DEXs across the Polkadot ecosystem, providing users with the best swap rates and lowest slippage. Built with Substrate and features advanced liquidity routing algorithms.",
-    teamMembers: [{ name: "Alice Developer" }],
+    teamMembers: [
+      { name: "Alice Developer", walletAddress: "5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF" },
+      { name: "Bob Team Member" }
+    ],
     projectRepo: "https://github.com/example/polkadot-dex-aggregator",
     demoUrl: "https://demo.example.com/polkadot-dex",
     slidesUrl: "https://slides.example.com/polkadot-dex",

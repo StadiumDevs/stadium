@@ -149,7 +149,7 @@ const HomePage = () => {
       <section className="container mx-auto px-4 pb-16">
         <div className="mb-8">
           <h2 className="font-heading text-3xl font-bold mb-2">
-            🏆 Featured Winners
+            Featured Projects
           </h2>
           <p className="text-muted-foreground">
             Congratulations to our recent hackathon winners!

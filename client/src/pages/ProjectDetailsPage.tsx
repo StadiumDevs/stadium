@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -56,6 +56,14 @@ const ProjectDetailsPage = () => {
     winner?: string; // legacy
     eventStartedAt?: string;
     m2Status?: 'building' | 'under_review' | 'completed';
+    finalSubmission?: {
+      repoUrl: string;
+      demoUrl: string;
+      docsUrl: string;
+      summary?: string;
+      submittedDate: string;
+    };
+    completionDate?: string;
   };
 
   const [project, setProject] = useState<ApiProject | null>(null);
@@ -86,7 +94,6 @@ const ProjectDetailsPage = () => {
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
   const [finalSubmissionModalOpen, setFinalSubmissionModalOpen] = useState(false);
-  const [finalSubmission, setFinalSubmission] = useState<any>(null);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
 
   // Format date utility
@@ -292,16 +299,20 @@ const ProjectDetailsPage = () => {
   const removeDeliverable = (idx: number) => setDeliverables(deliverables.filter((_, i) => i !== idx));
   const updateDeliverable = (idx: number, value: string) => setDeliverables(deliverables.map((d, i) => i === idx ? value : d));
 
-  // Check if user is team member
-  const isTeamMember = project && connectedAddress && Array.isArray(project.teamMembers)
-    ? project.teamMembers.some(
-        (member) => member.walletAddress?.toLowerCase() === connectedAddress.toLowerCase()
-      )
-    : false;
+  // Check if connected wallet is a team member
+  const isTeamMember = useMemo(() => {
+    if (!connectedAddress || !project?.teamMembers) return false;
+    
+    return project.teamMembers.some(
+      (member) => member.walletAddress?.toLowerCase() === connectedAddress.toLowerCase()
+    );
+  }, [connectedAddress, project?.teamMembers]);
 
-  // Get current week for M2 submission availability
-  const currentWeekData = getCurrentProgramWeek();
-  const currentWeek = currentWeekData.weekNumber;
+  // Check if it's Week 5+ (submission allowed)
+  const isSubmissionWeek = useMemo(() => {
+    const currentWeekData = getCurrentProgramWeek();
+    return currentWeekData.weekNumber >= 5;
+  }, []);
 
   // Handle team update
   const handleTeamUpdate = async (data: { members: TeamMember[]; payoutAddress: string }) => {
@@ -368,7 +379,7 @@ const ProjectDetailsPage = () => {
   };
 
   // Handle final M2 submission
-  const handleFinalSubmission = async (data: SubmissionData) => {
+  const handleM2Submit = async (data: SubmissionData) => {
     if (!project || !connectedAddress) {
       toast({
         title: "Error",
@@ -391,7 +402,7 @@ const ProjectDetailsPage = () => {
         address: account.address,
         nonce: Math.random().toString(36).slice(2),
         statement: generateSiwsStatement({
-          action: 'submit-m2-for-review',
+          action: 'submit-deliverable',
           projectTitle: project.projectName,
           projectId: project.id
         }),
@@ -403,19 +414,20 @@ const ProjectDetailsPage = () => {
         : (siws as unknown as { toString: () => string }).toString();
       const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
-      // Submit for review
-      await api.submitForReview(project.id, data, authHeader);
+      // Submit for review (API expects simplified format)
+      await api.submitForReview(project.id, {
+        repoUrl: data.repoUrl,
+        demoUrl: data.demoUrl,
+        docsUrl: data.docsUrl,
+        summary: data.summary,
+      }, authHeader);
       
-      // Update local project state
-      setProject((prev: ApiProject | null) => (prev ? {
-        ...prev,
-        m2Status: 'under_review',
-        projectRepo: data.finalRepoUrl,
-        demoUrl: data.finalDemoUrl,
-        slidesUrl: data.finalSlidesUrl,
-      } as ApiProject : prev));
-      
-      setFinalSubmission(data);
+      // Refresh project data
+      const response = await api.getProject(project.id);
+      const projectData = response?.data || response;
+      if (projectData) {
+        setProject(projectData);
+      }
       
       toast({
         title: "Success!",
@@ -539,14 +551,28 @@ const ProjectDetailsPage = () => {
             </Button>
           </div>
           {/* Wallet connection and address */}
-          <div className="flex items-center gap-4 mb-4">
-            {connectedAddress ? (
-              <span className="text-xs font-mono bg-muted px-2 py-1 rounded">Welcome {connectedAddress}, stay ontop of milestone reviews and payouts for your team.</span>
-            ) : (
-              <Button size="sm" onClick={connectWallet}>Connect Wallet</Button>
+          <div className="space-y-4 mb-6">
+            {!connectedAddress && (
+              <Button 
+                variant="default" 
+                size="lg"
+                onClick={connectWallet}
+                className="w-full md:w-auto"
+              >
+                Connect Wallet
+              </Button>
             )}
-            {!editMode && (
-              <Button size="sm" variant="outline" onClick={startEdit}>Update Project Information</Button>
+            {connectedAddress && (
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                  Welcome {connectedAddress.slice(0, 10)}...{connectedAddress.slice(-8)}, stay on top of milestone reviews and payouts for your team.
+                </span>
+                {!editMode && (
+                  <Button size="sm" variant="outline" onClick={startEdit}>
+                    Update Project Information
+                  </Button>
+                )}
+              </div>
             )}
           </div>
           <div className="max-w-4xl mx-auto space-y-8">
@@ -754,254 +780,151 @@ const ProjectDetailsPage = () => {
               <div className="glass-panel rounded-lg p-6 mb-6">
                 <h2 className="text-2xl font-heading mb-4">🚀 Milestone 2 Submission</h2>
                 
-                {!finalSubmission && project.m2Status !== 'under_review' && project.m2Status !== 'completed' ? (
-                  <>
-                    <div className="text-muted-foreground mb-4">
+                {project.finalSubmission ? (
+                  <div className="space-y-4">
+                    {/* Status header */}
+                    <div className="flex items-center gap-2 mb-4">
+                      {project.m2Status === 'under_review' && (
+                        <>
+                          <Clock className="w-5 h-5 text-yellow-500" aria-hidden="true" />
+                          <span className="font-medium text-lg">⏳ Under Review</span>
+                        </>
+                      )}
+                      {project.m2Status === 'completed' && (
+                        <>
+                          <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
+                          <span className="font-medium text-lg text-green-500">✅ M2 COMPLETED</span>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="text-sm text-muted-foreground">
+                      Submitted: {new Date(project.finalSubmission.submittedDate).toLocaleDateString('en-US', { 
+                        month: 'long', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      })}
+                    </div>
+                    
+                    {/* Deliverables - clickable links */}
+                    <div className="space-y-3 bg-muted/30 rounded-lg p-4">
+                      <h3 className="font-medium">Deliverables:</h3>
+                      
+                      <a 
+                        href={project.finalSubmission.repoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-primary hover:underline"
+                      >
+                        <Github className="w-4 h-4" aria-hidden="true" />
+                        GitHub Repository →
+                      </a>
+                      
+                      <a 
+                        href={project.finalSubmission.demoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-primary hover:underline"
+                      >
+                        <Video className="w-4 h-4" aria-hidden="true" />
+                        Demo Video →
+                      </a>
+                      
+                      <a 
+                        href={project.finalSubmission.docsUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-primary hover:underline"
+                      >
+                        <FileText className="w-4 h-4" aria-hidden="true" />
+                        Documentation →
+                      </a>
+                      
+                      {project.finalSubmission.summary && (
+                        <div className="pt-2 border-t border-subtle">
+                          <p className="text-sm text-muted-foreground">
+                            {project.finalSubmission.summary}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Review status for under_review */}
+                    {project.m2Status === 'under_review' && (
+                      <div className="space-y-2 bg-muted/30 rounded-lg p-4">
+                        <h3 className="font-medium mb-3">Review Status:</h3>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                          <span>Mentor Review: Pending</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                          <span>WebZero Review: Pending</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pt-2">
+                          Contact your mentor in Telegram if you have questions.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Completion status for completed */}
+                    {project.m2Status === 'completed' && (
+                      <div className="space-y-4">
+                        <div className="space-y-2 bg-green-500/10 rounded-lg p-4 border border-green-500/30">
+                          <div className="flex items-center gap-2 text-green-500">
+                            <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                            <span className="text-sm">Mentor Approved</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-green-500">
+                            <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                            <span className="text-sm">WebZero Approved</span>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-green-500/10 border border-green-500 rounded-lg p-4">
+                          <div className="font-medium mb-2">💰 Payment: $4,000 USDC Total Paid</div>
+                          <ul className="text-sm space-y-1">
+                            <li>• Milestone 1: $2,000 (Nov 17, 2025)</li>
+                            <li>• Milestone 2: $2,000 ({project.completionDate ? new Date(project.completionDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Processing'})</li>
+                          </ul>
+                        </div>
+                        
+                        <div className="text-center pt-4 text-lg">
+                          🎉 Congratulations on completing the M2 program!
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : !project.finalSubmission && project.m2Status !== 'under_review' && project.m2Status !== 'completed' ? (
+                  <div className="space-y-4">
+                    <div className="text-muted-foreground">
                       Status: Not yet submitted<br />
                       Available: Week 5+ (Dec 23)
                     </div>
                     <p className="text-sm mb-4">
                       When ready, submit your final M2 deliverables here.
                     </p>
-                    {isTeamMember && currentWeek >= 5 && (
-                      <Button onClick={() => setFinalSubmissionModalOpen(true)}>
-                        Submit M2 Deliverables
-                      </Button>
-                    )}
-                    {!isTeamMember && (
-                      <p className="text-sm text-muted-foreground italic">
+                    
+                    {!connectedAddress ? (
+                      <p className="text-sm text-muted-foreground">
                         Connect your wallet with a team member address to submit.
                       </p>
-                    )}
-                    {isTeamMember && currentWeek < 5 && (
-                      <p className="text-sm text-muted-foreground italic">
-                        M2 submission will be available starting Week 5 (Dec 23).
+                    ) : !isTeamMember ? (
+                      <p className="text-sm text-yellow-500">
+                        Only team members can submit M2 deliverables.
                       </p>
+                    ) : !isSubmissionWeek ? (
+                      <Button disabled variant="outline">
+                        Available Week 5+ (Dec 23)
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={() => setFinalSubmissionModalOpen(true)}
+                        variant="default"
+                      >
+                        Upload or update deliverables
+                      </Button>
                     )}
-                  </>
-                ) : project.m2Status === 'under_review' ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <Clock className="w-5 h-5" aria-hidden="true" />
-                      <span className="font-medium">Under Review</span>
-                    </div>
-                    {finalSubmission?.submittedDate && (
-                      <div className="text-sm text-muted-foreground mb-4">
-                        Submitted: {formatDate(finalSubmission.submittedDate)}
-                      </div>
-                    )}
-                    {!finalSubmission?.submittedDate && project.eventStartedAt && (
-                      <div className="text-sm text-muted-foreground mb-4">
-                        Submitted: {formatDate(new Date().toISOString())}
-                      </div>
-                    )}
-                    
-                    <div className="space-y-2 mb-4">
-                      <h3 className="font-medium font-heading">Deliverables:</h3>
-                      {finalSubmission?.finalRepoUrl && (
-                        <a 
-                          href={finalSubmission.finalRepoUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <Github className="w-4 h-4" aria-hidden="true" />
-                          GitHub Repository →
-                        </a>
-                      )}
-                      {(finalSubmission?.finalDemoUrl || project.demoUrl) && (
-                        <a 
-                          href={finalSubmission?.finalDemoUrl || project.demoUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <Video className="w-4 h-4" aria-hidden="true" />
-                          Demo Video →
-                        </a>
-                      )}
-                      {(finalSubmission?.finalSlidesUrl || project.slidesUrl) && (
-                        <a 
-                          href={finalSubmission?.finalSlidesUrl || project.slidesUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <FileText className="w-4 h-4" aria-hidden="true" />
-                          Documentation →
-                        </a>
-                      )}
-                      {!finalSubmission && (
-                        <>
-                          {project.projectRepo && (
-                            <a 
-                              href={project.projectRepo} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-primary hover:underline"
-                            >
-                              <Github className="w-4 h-4" aria-hidden="true" />
-                              GitHub Repository →
-                            </a>
-                          )}
-                          {project.demoUrl && (
-                            <a 
-                              href={project.demoUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-primary hover:underline"
-                            >
-                              <Video className="w-4 h-4" aria-hidden="true" />
-                              Demo Video →
-                            </a>
-                          )}
-                          {project.slidesUrl && (
-                            <a 
-                              href={project.slidesUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-primary hover:underline"
-                            >
-                              <FileText className="w-4 h-4" aria-hidden="true" />
-                              Documentation →
-                            </a>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h3 className="font-medium font-heading">Review Status:</h3>
-                      {(() => {
-                        // Mock review status - would come from API in production
-                        const mentorApproved = project.m2Status === 'completed';
-                        const webzeroApproved = project.m2Status === 'completed';
-                        
-                        return (
-                          <>
-                            <div className="flex items-center gap-2">
-                              {mentorApproved ? (
-                                <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
-                              ) : (
-                                <Clock className="w-4 h-4" aria-hidden="true" />
-                              )}
-                              <span>Mentor Review: {mentorApproved ? 'Approved' : 'Pending'}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {webzeroApproved ? (
-                                <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
-                              ) : (
-                                <Clock className="w-4 h-4" aria-hidden="true" />
-                              )}
-                              <span>WebZero Review: {webzeroApproved ? 'Approved' : 'Pending'}</span>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    
-                    <div className="text-sm text-muted-foreground mt-4">
-                      Contact your mentor in Telegram if you have questions.
-                    </div>
-                  </div>
-                ) : project.m2Status === 'completed' ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
-                      <span className="font-medium text-green-500">M2 COMPLETED</span>
-                    </div>
-                    {(() => {
-                      // Mock completion date - would come from API in production
-                      const completionDate = project.eventStartedAt || new Date().toISOString();
-                      return (
-                        <div className="text-sm text-muted-foreground mb-4">
-                          Completed: {formatDate(completionDate)}
-                        </div>
-                      );
-                    })()}
-                    
-                    <div className="space-y-2 mb-4">
-                      <h3 className="font-medium font-heading">Deliverables:</h3>
-                      {(finalSubmission?.finalRepoUrl || project.projectRepo) && (
-                        <a 
-                          href={finalSubmission?.finalRepoUrl || project.projectRepo} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <Github className="w-4 h-4" aria-hidden="true" />
-                          GitHub Repository →
-                        </a>
-                      )}
-                      {(finalSubmission?.finalDemoUrl || project.demoUrl) && (
-                        <a 
-                          href={finalSubmission?.finalDemoUrl || project.demoUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <Video className="w-4 h-4" aria-hidden="true" />
-                          Demo Video →
-                        </a>
-                      )}
-                      {(finalSubmission?.finalSlidesUrl || project.slidesUrl) && (
-                        <a 
-                          href={finalSubmission?.finalSlidesUrl || project.slidesUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <FileText className="w-4 h-4" aria-hidden="true" />
-                          Documentation →
-                        </a>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2 mb-4">
-                      {(() => {
-                        // Mock approval dates - would come from API in production
-                        const mentorApprovalDate = project.eventStartedAt || new Date().toISOString();
-                        const webzeroApprovalDate = project.eventStartedAt || new Date().toISOString();
-                        const m2PaymentDate = project.eventStartedAt || new Date().toISOString();
-                        
-                        return (
-                          <>
-                            <div className="flex items-center gap-2 text-green-500">
-                              <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                              <span>Mentor Approved ({formatDate(mentorApprovalDate)})</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-green-500">
-                              <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                              <span>WebZero Approved ({formatDate(webzeroApprovalDate)})</span>
-                            </div>
-                            
-                            <div className="bg-green-500/10 border border-green-500 rounded-lg p-4 mt-4">
-                              <div className="font-medium mb-2">💰 Payment: $4,000 USDC Total Paid</div>
-                              <ul className="text-sm space-y-1">
-                                <li>• Milestone 1: $2,000 (Nov 17, 2025)</li>
-                                <li>• Milestone 2: $2,000 ({formatDate(m2PaymentDate)})</li>
-                              </ul>
-                            </div>
-                            
-                            <div className="text-center mt-4 text-lg">
-                              🎉 Congratulations on completing the M2 program!
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ) : finalSubmission ? (
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground">
-                      Status: Submitted
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <p><strong>Repository:</strong> {finalSubmission.finalRepoUrl}</p>
-                      {finalSubmission.finalDemoUrl && <p><strong>Demo:</strong> {finalSubmission.finalDemoUrl}</p>}
-                      {finalSubmission.finalSlidesUrl && <p><strong>Slides:</strong> {finalSubmission.finalSlidesUrl}</p>}
-                      <p><strong>Summary:</strong> {finalSubmission.summary}</p>
-                    </div>
                   </div>
                 ) : null}
               </div>
@@ -1042,14 +965,18 @@ const ProjectDetailsPage = () => {
                         Payout Address: {project.donationAddress}
                       </div>
                     )}
-                    <div className="flex gap-2 mt-2">
-                      <Button size="sm" variant="default" className="text-xs px-3 py-1" onClick={startTeamEdit}>Edit Team</Button>
-                      {isTeamMember && (
-                        <Button size="sm" variant="outline" className="text-xs px-3 py-1" onClick={() => setTeamModalOpen(true)}>
-                          Update Team
+                    {isTeamMember && (
+                      <div className="flex gap-2 mt-2">
+                        <Button 
+                          variant="default"
+                          size="sm"
+                          className="text-xs px-3 py-1"
+                          onClick={() => setTeamModalOpen(true)}
+                        >
+                          Edit Team
                         </Button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1203,17 +1130,22 @@ const ProjectDetailsPage = () => {
       </Dialog>
       
       {/* Final Submission Modal */}
-      <FinalSubmissionModal
-        open={finalSubmissionModalOpen}
-        onOpenChange={setFinalSubmissionModalOpen}
-        onSubmit={handleFinalSubmission}
-      />
+      {project && (
+        <FinalSubmissionModal
+          open={finalSubmissionModalOpen}
+          onOpenChange={setFinalSubmissionModalOpen}
+          projectId={project.id}
+          projectTitle={project.projectName}
+          onSubmit={handleM2Submit}
+        />
+      )}
       
       {/* Update Team Modal */}
       {project && (
         <UpdateTeamModal
           open={teamModalOpen}
           onOpenChange={setTeamModalOpen}
+          projectId={project.id}
           initialMembers={(project.teamMembers || []).map(m => ({
             name: m.name,
             wallet: m.walletAddress || '',

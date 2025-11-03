@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Plus, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
+import { X, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export interface TeamMember {
   name: string;
@@ -14,39 +14,30 @@ export interface TeamMember {
 interface UpdateTeamModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  projectId: string;
   initialMembers: TeamMember[];
   initialPayoutAddress: string;
   onSubmit: (data: { members: TeamMember[]; payoutAddress: string }) => Promise<void>;
 }
 
-// Validate SS58 address (basic validation - accepts addresses starting with 5 or similar)
-const isValidWalletAddress = (address: string): boolean => {
-  if (!address.trim()) return true; // Empty is valid (optional)
-  // Basic SS58 format check (starts with number, length check)
-  // More thorough validation would use a SS58 decoder
-  return address.trim().length >= 20 && address.trim().length <= 100 && /^[1-9A-HJ-NP-Za-km-z]+$/.test(address.trim());
-};
-
-export const UpdateTeamModal = ({ 
-  open, 
-  onOpenChange, 
-  initialMembers, 
-  initialPayoutAddress, 
-  onSubmit 
-}: UpdateTeamModalProps) => {
+export function UpdateTeamModal({
+  open,
+  onOpenChange,
+  projectId,
+  initialMembers,
+  initialPayoutAddress,
+  onSubmit
+}: UpdateTeamModalProps) {
+  const { toast } = useToast();
   const [members, setMembers] = useState<TeamMember[]>(initialMembers);
   const [payoutAddress, setPayoutAddress] = useState(initialPayoutAddress);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset form when modal opens/closes
   useEffect(() => {
     if (open) {
       setMembers(initialMembers.length > 0 ? initialMembers : [{ name: '', wallet: '' }]);
       setPayoutAddress(initialPayoutAddress);
-      setError("");
-      setValidationErrors({});
     }
   }, [open, initialMembers, initialPayoutAddress]);
 
@@ -55,86 +46,63 @@ export const UpdateTeamModal = ({
   };
 
   const handleRemoveMember = (index: number) => {
-    if (members.length > 1) {
-      setMembers(members.filter((_, i) => i !== index));
-      // Clear validation error for removed member
-      const newErrors = { ...validationErrors };
-      delete newErrors[`member-${index}`];
-      delete newErrors[`wallet-${index}`];
-      // Reindex errors
-      const updatedErrors: Record<string, string> = {};
-      Object.keys(newErrors).forEach(key => {
-        if (key.startsWith('member-') || key.startsWith('wallet-')) {
-          const [type, oldIndex] = key.split('-');
-          const oldIdx = parseInt(oldIndex);
-          if (oldIdx < index) {
-            updatedErrors[key] = newErrors[key];
-          } else if (oldIdx > index) {
-            updatedErrors[`${type}-${oldIdx - 1}`] = newErrors[key];
-          }
-        } else {
-          updatedErrors[key] = newErrors[key];
-        }
+    if (members.length <= 1) {
+      toast({
+        title: "Error",
+        description: "Project must have at least one team member",
+        variant: "destructive",
       });
-      setValidationErrors(updatedErrors);
+      return;
     }
+    setMembers(members.filter((_, i) => i !== index));
   };
 
-  const handleMemberChange = (index: number, field: keyof TeamMember, value: string) => {
+  const handleMemberChange = (index: number, field: 'name' | 'wallet', value: string) => {
     const updated = [...members];
     updated[index][field] = value;
     setMembers(updated);
-    
-    // Clear validation error for this field
-    const key = field === 'name' ? `member-${index}` : `wallet-${index}`;
-    const newErrors = { ...validationErrors };
-    delete newErrors[key];
-    setValidationErrors(newErrors);
   };
 
-  const validateForm = (): boolean => {
-    const errors: Record<string, string> = {};
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // Validate members
-    members.forEach((member, index) => {
-      if (!member.name.trim()) {
-        errors[`member-${index}`] = 'Name is required';
-      }
-      if (!isValidWalletAddress(member.wallet)) {
-        errors[`wallet-${index}`] = 'Invalid wallet address format';
-      }
-    });
-    
-    // Validate payout address
-    if (!payoutAddress.trim()) {
-      errors.payoutAddress = 'Payout address is required';
-    } else if (!isValidWalletAddress(payoutAddress)) {
-      errors.payoutAddress = 'Invalid payout address format';
-    }
-    
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    setError("");
-    
-    if (!validateForm()) {
-      setError("Please fix the validation errors before submitting");
+    // Validate all members have both name and wallet
+    const hasEmpty = members.some(m => !m.name.trim() || !m.wallet.trim());
+    if (hasEmpty) {
+      toast({
+        title: "Error",
+        description: "All team members must have a name and wallet address",
+        variant: "destructive",
+      });
       return;
     }
     
-    setLoading(true);
+    // Validate payout address
+    if (!payoutAddress.trim()) {
+      toast({
+        title: "Error",
+        description: "Payout address is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
     try {
-      await onSubmit({ 
-        members: members.filter(m => m.name.trim() || m.wallet.trim()), 
-        payoutAddress: payoutAddress.trim() 
+      await onSubmit({ members, payoutAddress });
+      toast({
+        title: "Success",
+        description: "Team updated successfully!",
       });
       onOpenChange(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update team");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update team",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -142,19 +110,13 @@ export const UpdateTeamModal = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-heading text-2xl">Update Team</DialogTitle>
+          <DialogTitle>Update Team</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-6">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" aria-hidden="true" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Team Members Section */}
           <div>
-            <Label className="font-medium mb-3 block">Team Members</Label>
+            <h3 className="font-medium mb-3">Team Members</h3>
             <div className="space-y-3">
               {members.map((member, index) => (
                 <div key={index} className="flex gap-2">
@@ -163,85 +125,82 @@ export const UpdateTeamModal = ({
                       placeholder="Name" 
                       value={member.name}
                       onChange={(e) => handleMemberChange(index, 'name', e.target.value)}
-                      disabled={loading}
-                      className={validationErrors[`member-${index}`] ? "border-destructive" : ""}
+                      required
+                      disabled={isSubmitting}
                     />
-                    {validationErrors[`member-${index}`] && (
-                      <p className="text-xs text-destructive mt-1">{validationErrors[`member-${index}`]}</p>
-                    )}
                   </div>
                   <div className="flex-1">
                     <Input 
-                      placeholder="SS58 Address (0x... or 5...)" 
+                      placeholder="0x..." 
                       value={member.wallet}
                       onChange={(e) => handleMemberChange(index, 'wallet', e.target.value)}
-                      disabled={loading}
-                      className={validationErrors[`wallet-${index}`] ? "border-destructive" : ""}
+                      required
+                      disabled={isSubmitting}
                     />
-                    {validationErrors[`wallet-${index}`] && (
-                      <p className="text-xs text-destructive mt-1">{validationErrors[`wallet-${index}`]}</p>
-                    )}
                   </div>
                   {members.length > 1 && (
                     <Button 
+                      type="button"
                       variant="ghost" 
                       size="icon"
                       onClick={() => handleRemoveMember(index)}
-                      disabled={loading}
-                      type="button"
+                      aria-label="Remove team member"
+                      disabled={isSubmitting}
                     >
-                      <X className="h-4 w-4" aria-hidden="true" />
+                      <X className="w-4 h-4" aria-hidden="true" />
                     </Button>
                   )}
                 </div>
               ))}
             </div>
             <Button 
+              type="button"
               variant="outline" 
               size="sm" 
               onClick={handleAddMember}
-              className="mt-2"
-              disabled={loading}
-              type="button"
+              className="mt-3"
+              disabled={isSubmitting}
             >
-              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+              <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
               Add Member
             </Button>
           </div>
           
+          {/* Payout Address Section */}
           <div>
-            <Label className="font-medium mb-3 block">Payout Address</Label>
+            <h3 className="font-medium mb-3">Payout Address</h3>
             <Input 
-              placeholder="SS58 Address (0x... or 5...)"
+              placeholder="0x..."
               value={payoutAddress}
-              onChange={(e) => {
-                setPayoutAddress(e.target.value);
-                const newErrors = { ...validationErrors };
-                delete newErrors.payoutAddress;
-                setValidationErrors(newErrors);
-              }}
-              disabled={loading}
-              className={validationErrors.payoutAddress ? "border-destructive" : ""}
+              onChange={(e) => setPayoutAddress(e.target.value)}
+              required
+              disabled={isSubmitting}
             />
-            {validationErrors.payoutAddress && (
-              <p className="text-xs text-destructive mt-1">{validationErrors.payoutAddress}</p>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Wallet address to receive M2 payment
+            <p className="text-xs text-muted-foreground mt-2">
+              Wallet address to receive M2 payment ($2,000 USDC)
             </p>
           </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Saving..." : "Save Changes"}
-          </Button>
-        </DialogFooter>
+          
+          {/* Actions */}
+          <div className="flex gap-2 justify-end pt-4 border-t">
+            <Button 
+              type="button"
+              variant="outline" 
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
-};
+}
 

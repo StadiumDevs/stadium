@@ -152,49 +152,100 @@ export const api = {
       body: JSON.stringify({ categories }),
     }),
 
-  submitForReview: async (projectId: string, submissionData: {
-    finalRepoUrl: string;
-    finalDemoUrl?: string;
-    finalSlidesUrl?: string;
+  submitForReview: async (projectId: string, submission: {
+    repoUrl: string;
+    demoUrl: string;
+    docsUrl: string;
     summary: string;
-    deliverables: string[];
-    technicalDetails: string;
-    testingInstructions?: string;
-    notes?: string;
-  }, authHeader: string) =>
-    request(`/projects/${projectId}`, {
-      method: "PATCH",
-      headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        m2Status: 'under_review',
-        projectRepo: submissionData.finalRepoUrl,
-        demoUrl: submissionData.finalDemoUrl,
-        slidesUrl: submissionData.finalSlidesUrl,
-        description: submissionData.summary,
-        milestones: [
-          ...submissionData.deliverables,
-          `Technical Details: ${submissionData.technicalDetails}`,
-          ...(submissionData.testingInstructions ? [`Testing Instructions: ${submissionData.testingInstructions}`] : []),
-          ...(submissionData.notes ? [`Notes: ${submissionData.notes}`] : []),
-        ],
-      }),
-    }),
+  }, authHeader?: string) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Submitting M2 for project', projectId, submission);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].finalSubmission = {
+            ...submission,
+            submittedDate: new Date().toISOString()
+          };
+          // Note: Status stays "building" until admin changes it to "under_review"
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      // Also try to get from mock data and update in-memory
+      const { mockWinningProjects } = await import("./mockWinners");
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject) {
+        (mockProject as any).finalSubmission = {
+          ...submission,
+          submittedDate: new Date().toISOString()
+        };
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/projects/${projectId}/submit-review`, {
+      method: 'POST',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(submission)
+    });
+  },
 
   updateTeam: async (projectId: string, data: {
     members: Array<{ name: string; wallet: string }>;
     payoutAddress: string;
-  }, authHeader: string) =>
-    request(`/projects/${projectId}`, {
-      method: "PATCH",
-      headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        teamMembers: data.members.map(m => ({
+  }, authHeader?: string) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Updating team for project', projectId, data);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].teamMembers = data.members.map(m => ({
+            name: m.name.trim(),
+            walletAddress: m.wallet.trim() || undefined,
+          }));
+          projects[index].donationAddress = data.payoutAddress.trim();
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      // Also try to get from mock data and update in-memory
+      const { mockWinningProjects } = await import("./mockWinners");
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject) {
+        (mockProject as any).teamMembers = data.members.map(m => ({
           name: m.name.trim(),
           walletAddress: m.wallet.trim() || undefined,
-        })),
-        donationAddress: data.payoutAddress.trim(),
-      }),
-    }),
+        }));
+        (mockProject as any).donationAddress = data.payoutAddress.trim();
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/projects/${projectId}/team`, {
+      method: 'PUT',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+  },
 
   webzeroApprove: async (projectId: string, authHeader?: string) =>
     request(`/projects/${projectId}/approve`, {
