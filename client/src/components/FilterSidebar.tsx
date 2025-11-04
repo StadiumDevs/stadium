@@ -18,7 +18,9 @@ const filterCategories = {
     { id: "nft", label: "NFT", icon: <Image className="w-4 h-4" /> },
     { id: "developer-tools", label: "Developer Tools", icon: <Wrench className="w-4 h-4" /> },
     { id: "social", label: "Social", icon: <Users className="w-4 h-4" /> },
-    { id: "other", label: "Other", icon: <Layers className="w-4 h-4" /> },
+    { id: "ai", label: "AI", icon: <Layers className="w-4 h-4" /> },
+    { id: "arts", label: "Arts", icon: <Layers className="w-4 h-4" /> },
+    { id: "mobile", label: "Mobile", icon: <Layers className="w-4 h-4" /> },
   ],
 }
 

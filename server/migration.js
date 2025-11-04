@@ -6,12 +6,18 @@ import path from "path";
 import crypto from "crypto";
 import csv from "csv-parser";
 
-dotenv.config();
+// Load .env from server directory or root
+const envPath = path.resolve(process.cwd(), "server", ".env");
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config();
+}
 
 const connectToMongo = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ Connected to MongoDB Atlas for migration");
+    console.log("✅ Connected to MongoDB for migration");
   } catch (err) {
     console.error("❌ Mongoose connection failed:", err);
     throw err;
@@ -179,6 +185,7 @@ const migrate = async () => {
           demoUrl: project.demoUrl,
           slidesUrl: project.slidesUrl,
           techStack: techStackArray,
+          categories: project.categories || [],
           milestones: milestoneDescription ? [{
             description: milestoneDescription,
             createdAt: new Date(),

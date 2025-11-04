@@ -153,9 +153,15 @@ const ProjectsPage = () => {
           lastUpdateDays: Math.floor(Math.random() * 14), // 0-13 days
         }));
 
+        console.log("[ProjectsPage] Mapped projects count:", mapped.length);
         setProjects(mapped);
       } catch (error) {
         console.error("[ProjectsPage] failed to load API projects:", error);
+        console.error("[ProjectsPage] Error details:", {
+          message: (error as Error)?.message,
+          stack: (error as Error)?.stack,
+          name: (error as Error)?.name
+        });
         setProjects([]);
         const err = error as Error;
         toast({

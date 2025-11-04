@@ -88,7 +88,7 @@ const HomePage = () => {
           title: p.projectName,
           author: p.teamMembers?.[0]?.name || "",
           description: p.description,
-          track: p.bountyPrize?.[0]?.name || "Winner",
+          track: p.bountyPrize?.[0]?.name || (p.categories?.[0] || "Winner"),
           isWinner: Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0,
           demoUrl: p.demoUrl || "",
           projectUrl: p.donationAddress ? `/projects/${p.id}` : undefined,
@@ -100,8 +100,15 @@ const HomePage = () => {
           technologies: p.techStack,
           submittedDate: p.eventStartedAt || p.submittedDate,
         }));
+        console.log("[HomePage] Mapped projects count:", mapped.length);
         setProjects(mapped);
       } catch (error) {
+        console.error("[HomePage] failed to load API projects:", error);
+        console.error("[HomePage] Error details:", {
+          message: (error as Error)?.message,
+          stack: (error as Error)?.stack,
+          name: (error as Error)?.name
+        });
         const err = error as Error;
         toast({
           title: "Error",
@@ -498,25 +505,6 @@ const HomePage = () => {
                         }
                       </span>
                     </div>
-                    
-                    {project.technologies && project.technologies.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {project.technologies.slice(0, 3).map((tech) => (
-                          <Badge 
-                            key={tech} 
-                            variant="secondary" 
-                            className="text-xs"
-                          >
-                            {tech}
-                          </Badge>
-                        ))}
-                        {project.technologies.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{project.technologies.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
                     
                     {/* Optional: funding status if available */}
                     {project.fundingStatus && (

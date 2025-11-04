@@ -49,7 +49,9 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
   "nft": "NFT",
   "developer-tools": "Developer Tools",
   "social": "Social",
-  "other": "Other",
+  "ai": "AI",
+  "arts": "Arts",
+  "mobile": "Mobile",
 };
 
 const PastProjectsPage = () => {
@@ -107,7 +109,7 @@ const PastProjectsPage = () => {
   // Convert API project to ProjectCard format
   const convertToProjectCard = (project: ApiProject): ProjectCardData => {
     const track = project.bountyPrize?.[0]?.name || 
-                 (project.techStack?.[0] || "Other");
+                 (project.categories?.[0] || "Other");
     const isWinner = Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0;
 
     return {

@@ -92,7 +92,7 @@ const WinnersPage = () => {
         // Convert API projects to ProjectCard format
         const converted: ProjectCardData[] = apiProjects.map((p) => {
           const track = p.bountyPrize?.[0]?.name || 
-                       (p.techStack?.[0] || "Winner");
+                       (p.categories?.[0] || "Winner");
           
           return {
             id: p.id,
