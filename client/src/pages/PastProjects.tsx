@@ -27,7 +27,7 @@ type ApiProject = {
   bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
   techStack?: string[];
   categories?: string[];
-  hackathon?: { id: string; name: string; endDate: string };
+  hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
 };
 
 type ProjectCardData = {
@@ -40,6 +40,7 @@ type ProjectCardData = {
   demoUrl?: string;
   githubUrl?: string;
   projectUrl?: string;
+  eventStartedAt?: string;
 };
 
 // Map filter IDs to category names
@@ -111,6 +112,9 @@ const PastProjectsPage = () => {
     const track = project.bountyPrize?.[0]?.name || 
                  (project.categories?.[0] || "Other");
     const isWinner = Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0;
+    
+    // Get eventStartedAt from hackathon (should always be present)
+    const eventStartedAt = project.hackathon?.eventStartedAt;
 
     return {
       id: project.id,
@@ -122,6 +126,7 @@ const PastProjectsPage = () => {
       demoUrl: project.demoUrl,
       githubUrl: project.projectRepo,
       projectUrl: project.id ? `/projects/${project.id}` : undefined,
+      eventStartedAt: eventStartedAt,
     };
   };
 
@@ -317,6 +322,7 @@ const PastProjectsPage = () => {
               demoUrl: selectedProject.demoUrl,
               githubUrl: selectedProject.githubUrl,
               projectUrl: selectedProject.projectUrl,
+              eventStartedAt: selectedProject.eventStartedAt,
             }}
           />
         </Suspense>

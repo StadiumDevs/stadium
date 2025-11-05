@@ -24,6 +24,7 @@ interface ProjectDetailModalProps {
     demoUrl?: string
     githubUrl?: string
     projectUrl?: string
+    eventStartedAt?: string
   }
 }
 
@@ -67,13 +68,17 @@ export function ProjectDetailModal({
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Track
+              Created At
             </h4>
             <Badge
               variant="outline"
               className="bg-primary/10 border-primary text-accent"
             >
-              {project.track}
+              {project.eventStartedAt === "funkhaus-2024" 
+                ? "Symmetry 2024" 
+                : project.eventStartedAt === "synergy-hack-2024" 
+                ? "Synergy 2024" 
+                : project.eventStartedAt || "Unknown"}
             </Badge>
           </div>
 

@@ -19,7 +19,7 @@ const ProjectSchema = new mongoose.Schema({
     id: { type: String, required: true },
     name: { type: String, required: true },
     endDate: { type: Date, required: true },
-    eventStartedAt: { type: Date }
+    eventStartedAt: { type: String }
   },
   projectRepo: { type: String },
   demoUrl: { type: String },
