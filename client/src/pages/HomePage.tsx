@@ -30,6 +30,7 @@ type CarouselProject = {
   fundingStatus?: string;
   technologies?: string[];
   submittedDate?: string;
+  eventStartedAt?: string;
 };
 
 type FullProject = {
@@ -42,12 +43,14 @@ type FullProject = {
   projectRepo?: string;
   donationAddress?: string;
   bountyPrize?: Array<{ name?: string; amount?: number; hackathonWonAtId?: string }>;
+  categories?: string[];
   m2Status?: 'building' | 'under_review' | 'completed';
   isWinner?: boolean;
   completionDate?: string;
   fundingStatus?: string;
   techStack?: string[];
-  eventStartedAt?: string;
+  hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+  eventStartedAt?: string; // legacy - use hackathon.eventStartedAt instead
   submittedDate?: string;
 };
 
@@ -83,23 +86,29 @@ const HomePage = () => {
         // Store all projects with full data
         setAllProjects(apiProjects as FullProject[]);
         
-        const mapped: CarouselProject[] = apiProjects.map((p: FullProject) => ({
-          id: p.id,
-          title: p.projectName,
-          author: p.teamMembers?.[0]?.name || "",
-          description: p.description,
-          track: p.bountyPrize?.[0]?.name || (p.categories?.[0] || "Winner"),
-          isWinner: Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0,
-          demoUrl: p.demoUrl || "",
-          projectUrl: p.donationAddress ? `/projects/${p.id}` : undefined,
-          githubUrl: p.projectRepo,
-          longDescription: p.description,
-          m2Status: p.m2Status,
-          completionDate: p.completionDate,
-          fundingStatus: p.fundingStatus,
-          technologies: p.techStack,
-          submittedDate: p.eventStartedAt || p.submittedDate,
-        }));
+        const mapped: CarouselProject[] = apiProjects.map((p: FullProject) => {
+          // Extract eventStartedAt from hackathon object (preferred) or legacy field
+          const eventStartedAt = p.hackathon?.eventStartedAt || p.eventStartedAt;
+          
+          return {
+            id: p.id,
+            title: p.projectName,
+            author: p.teamMembers?.[0]?.name || "",
+            description: p.description,
+            track: p.bountyPrize?.[0]?.name || (p.categories?.[0] || "Winner"),
+            isWinner: Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0,
+            demoUrl: p.demoUrl || "",
+            projectUrl: p.donationAddress ? `/projects/${p.id}` : undefined,
+            githubUrl: p.projectRepo,
+            longDescription: p.description,
+            m2Status: p.m2Status,
+            completionDate: p.completionDate,
+            fundingStatus: p.fundingStatus,
+            technologies: p.techStack,
+            submittedDate: p.submittedDate,
+            eventStartedAt: eventStartedAt,
+          };
+        });
         console.log("[HomePage] Mapped projects count:", mapped.length);
         setProjects(mapped);
       } catch (error) {
@@ -410,6 +419,7 @@ const HomePage = () => {
               githubUrl: p.githubUrl,
               longDescription: p.longDescription,
               m2Status: p.m2Status,
+              eventStartedAt: p.eventStartedAt,
             }))}
             onProjectClick={handleProjectClick}
           />
@@ -543,10 +553,10 @@ const HomePage = () => {
           <div>
             <h2 className="text-3xl font-heading mb-2 flex items-center gap-3">
               <Trophy className="w-8 h-8 text-yellow-500" aria-hidden="true" />
-              Recent Winners
+              Past Winners and M2 Graduates
             </h2>
             <p className="text-muted-foreground">
-              Latest projects from our sub0 2025 hackathon
+              Projects who have completed the implementation of their milestone 2 plans.
             </p>
           </div>
           
@@ -562,7 +572,7 @@ const HomePage = () => {
         
         {recentWinners.length === 0 ? (
           <EmptyState
-            title="No Winning Projects Yet"
+            title="Awaiting Winner Announcements"
             description="Winning projects will be displayed here as they are selected."
             icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
           />
@@ -580,6 +590,7 @@ const HomePage = () => {
                 projectUrl: p.projectUrl,
                 githubUrl: p.githubUrl,
                 m2Status: p.m2Status,
+                eventStartedAt: p.eventStartedAt,
               }))}
               onProjectClick={handleProjectClick}
             />
@@ -642,6 +653,7 @@ const HomePage = () => {
               demoUrl: selectedProject.demoUrl,
               githubUrl: selectedProject.githubUrl,
               projectUrl: selectedProject.projectUrl,
+              eventStartedAt: selectedProject.eventStartedAt,
             }}
           />
         </Suspense>
