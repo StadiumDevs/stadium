@@ -10,6 +10,7 @@ import { ProjectCarousel } from "@/components/ProjectCarousel";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { getProjectUrl } from "@/lib/projectUtils";
+import { calculateTotalPaidUSD } from "@/lib/paymentUtils";
 
 // Lazy load ProjectDetailModal
 const ProjectDetailModal = lazy(() => import("@/components/ProjectDetailModal").then(module => ({ default: module.ProjectDetailModal })));
@@ -31,6 +32,12 @@ type CarouselProject = {
   technologies?: string[];
   submittedDate?: string;
   eventStartedAt?: string;
+  totalPaid?: Array<{
+    milestone: 'M1' | 'M2';
+    amount: number;
+    currency: 'USDC' | 'DOT';
+    transactionProof: string;
+  }>;
 };
 
 type FullProject = {
@@ -52,6 +59,12 @@ type FullProject = {
   hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
   eventStartedAt?: string; // legacy - use hackathon.eventStartedAt instead
   submittedDate?: string;
+  totalPaid?: Array<{
+    milestone: 'M1' | 'M2';
+    amount: number;
+    currency: 'USDC' | 'DOT';
+    transactionProof: string;
+  }>;
 };
 
 const HomePage = () => {
@@ -107,6 +120,7 @@ const HomePage = () => {
             technologies: p.techStack,
             submittedDate: p.submittedDate,
             eventStartedAt: eventStartedAt,
+            totalPaid: p.totalPaid,
           };
         });
         console.log("[HomePage] Mapped projects count:", mapped.length);
@@ -136,9 +150,14 @@ const HomePage = () => {
     const graduates = allProjects.filter(p => p.m2Status === 'completed');
     const winners = allProjects.filter(p => p.isWinner || (Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0));
     
+    // Calculate total paid from stored totalPaid values
+    const totalPaid = graduates.reduce((sum, project) => {
+      return sum + calculateTotalPaidUSD(project.totalPaid);
+    }, 0);
+    
     return {
       totalGraduates: graduates.length,
-      totalPaid: graduates.length * 4000, // $4k per graduate
+      totalPaid: totalPaid, // 0 if no data
       completionRate: winners.length > 0 
         ? Math.round((graduates.length / winners.length) * 100)
         : 0
@@ -161,7 +180,8 @@ const HomePage = () => {
         const fullProject = allProjects.find(fp => fp.id === p.id);
         return {
           ...p,
-          completionDate: fullProject?.completionDate
+          completionDate: fullProject?.completionDate,
+          totalPaid: fullProject?.totalPaid
         };
       })
       .sort((a, b) => {
@@ -183,7 +203,8 @@ const HomePage = () => {
           ...p,
           completionDate: fullProject?.completionDate,
           fundingStatus: fullProject?.fundingStatus,
-          technologies: fullProject?.techStack || []
+          technologies: fullProject?.techStack || [],
+          totalPaid: fullProject?.totalPaid
         };
       })
       .sort((a, b) => {
@@ -420,6 +441,7 @@ const HomePage = () => {
               longDescription: p.longDescription,
               m2Status: p.m2Status,
               eventStartedAt: p.eventStartedAt,
+              totalPaid: p.totalPaid,
             }))}
             onProjectClick={handleProjectClick}
           />
@@ -591,6 +613,7 @@ const HomePage = () => {
                 githubUrl: p.githubUrl,
                 m2Status: p.m2Status,
                 eventStartedAt: p.eventStartedAt,
+                totalPaid: p.totalPaid,
               }))}
               onProjectClick={handleProjectClick}
             />

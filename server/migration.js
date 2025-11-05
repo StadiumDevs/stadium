@@ -169,6 +169,12 @@ const migrate = async () => {
           ? project.milestones.map(item => `- ${item}`).join('\\n')
           : project.milestones;
 
+        // Parse completionDate if it's a string
+        let completionDate = null;
+        if (project.completionDate) {
+          completionDate = new Date(project.completionDate);
+        }
+
         return {
           _id: generateProjectId(project.projectName),
           projectName: project.projectName,
@@ -200,6 +206,11 @@ const migrate = async () => {
           donationAddress: project.donationAddress || "",
           projectState: projectState,
           bountiesProcessed: bountiesProcessed,
+          // M2 Accelerator Program fields
+          m2Status: project.m2Status || undefined,
+          completionDate: completionDate || undefined,
+          submittedDate: project.submittedDate ? new Date(project.submittedDate) : undefined,
+          totalPaid: project.totalPaid || undefined,
         };
       });
       allProjectsToInsert.push(...projectsFromHackathon);

@@ -23,6 +23,12 @@ interface Project {
   projectUrl?: string
   m2Status?: 'building' | 'under_review' | 'completed'
   eventStartedAt?: string
+  totalPaid?: Array<{
+    milestone: 'M1' | 'M2';
+    amount: number;
+    currency: 'USDC' | 'DOT';
+    transactionProof: string;
+  }>
 }
 
 interface ProjectCarouselProps {

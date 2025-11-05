@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ExternalLink, Github, Trophy, Eye } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { calculateTotalPaidUSD, getTotalByCurrency } from "@/lib/paymentUtils"
 
 interface ProjectCardProps {
   title: string
@@ -22,6 +23,12 @@ interface ProjectCardProps {
   showM2Progress?: boolean
   submittedDate?: string
   completionDate?: string
+  totalPaid?: Array<{
+    milestone: 'M1' | 'M2';
+    amount: number;
+    currency: 'USDC' | 'DOT';
+    transactionProof: string;
+  }>
 }
 
 function ProjectCardComponent({
@@ -40,6 +47,7 @@ function ProjectCardComponent({
   showM2Progress = false,
   submittedDate,
   completionDate,
+  totalPaid,
 }: ProjectCardProps) {
   // Calculate progress percentage
   const progressPercentage = m2Week && m2Week > 0 ? Math.min((m2Week / 6) * 100, 100) : 0
@@ -154,9 +162,27 @@ function ProjectCardComponent({
                 M2 Completed: {formatDate(completionDate)}
               </p>
             )}
-            <p className="text-sm font-medium text-foreground">
-              💰 $4,000 Total Paid
-            </p>
+            {totalPaid && totalPaid.length > 0 ? (
+              <p className="text-sm font-medium text-foreground">
+                💰 {(() => {
+                  const totalUSD = calculateTotalPaidUSD(totalPaid);
+                  const usdcTotal = getTotalByCurrency(totalPaid, 'USDC');
+                  const dotTotal = getTotalByCurrency(totalPaid, 'DOT');
+                  
+                  if (usdcTotal > 0 && dotTotal === 0) {
+                    return `$${totalUSD.toLocaleString()} Total Paid`;
+                  } else if (dotTotal > 0 && usdcTotal === 0) {
+                    return `~$${totalUSD.toLocaleString()} (${dotTotal.toLocaleString()} DOT) Total Paid`;
+                  } else {
+                    return `$${totalUSD.toLocaleString()} Total Paid`;
+                  }
+                })()}
+              </p>
+            ) : (
+              <p className="text-sm font-medium text-foreground">
+                💰 $0 Total Paid
+              </p>
+            )}
           </div>
         )}
       </CardContent>

@@ -50,6 +50,12 @@ type ApiProject = {
   donationAddress?: string;
   bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
   m2Status?: 'building' | 'under_review' | 'completed';
+  totalPaid?: Array<{
+    milestone: 'M1' | 'M2';
+    amount: number;
+    currency: 'USDC' | 'DOT';
+    transactionProof: string;
+  }>;
 };
 
 type LegacyProject = {
@@ -66,6 +72,12 @@ type LegacyProject = {
   m2Status?: 'building' | 'under_review' | 'completed';
   lastUpdateDays?: number;
   teamMembers?: { name: string; walletAddress?: string }[];
+  totalPaid?: Array<{
+    milestone: 'M1' | 'M2';
+    amount: number;
+    currency: 'USDC' | 'DOT';
+    transactionProof: string;
+  }>;
 };
 
 // StatBadge component
@@ -149,6 +161,7 @@ const ProjectsPage = () => {
           winner: p.bountyPrize?.[0]?.name || "",
           isWinner: !!(p.bountyPrize && p.bountyPrize.length > 0),
           m2Status: p.m2Status || 'building',
+          totalPaid: p.totalPaid,
           // Mock lastUpdateDays for stats calculation (would come from API in production)
           lastUpdateDays: Math.floor(Math.random() * 14), // 0-13 days
         }));
@@ -473,6 +486,7 @@ const ProjectsPage = () => {
                     showM2Progress={true}
                     m2Status="building"
                     m2Week={currentWeek.weekNumber}
+                    totalPaid={project.totalPaid}
                   />
                 ))}
               </div>
@@ -516,6 +530,7 @@ const ProjectsPage = () => {
                     showM2Progress={true}
                     m2Status="under_review"
                     submittedDate={new Date().toISOString()}
+                    totalPaid={project.totalPaid}
                   />
                 ))}
               </div>
@@ -560,6 +575,7 @@ const ProjectsPage = () => {
                     m2Status="completed"
                     className="border-yellow-500/30"
                     completionDate={new Date().toISOString()}
+                    totalPaid={project.totalPaid}
                   />
                 ))}
               </div>

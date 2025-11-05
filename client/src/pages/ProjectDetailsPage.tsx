@@ -41,6 +41,7 @@ import { generateSiwsStatement } from '@/lib/siwsUtils';
 import { Navigation } from "@/components/Navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getCurrentProgramWeek } from "@/lib/projectUtils";
+import { calculateTotalPaidUSD, formatPaymentAmount, getTotalByCurrency } from "@/lib/paymentUtils";
 import { FinalSubmissionModal, SubmissionData } from "@/components/FinalSubmissionModal";
 import { UpdateTeamModal, TeamMember } from "@/components/UpdateTeamModal";
 import { M2AgreementModal, M2AgreementData } from "@/components/M2AgreementModal";
@@ -98,6 +99,12 @@ const ProjectDetailsPage = () => {
       requestedBy: string;
       requestedDate: string;
     };
+    totalPaid?: Array<{
+      milestone: 'M1' | 'M2';
+      amount: number;
+      currency: 'USDC' | 'DOT';
+      transactionProof: string;
+    }>;
   };
 
   const [project, setProject] = useState<ApiProject | null>(null);
@@ -1521,20 +1528,63 @@ const ProjectDetailsPage = () => {
                         <DollarSign className="w-5 h-5 text-yellow-500" aria-hidden="true" />
                         <span className="font-medium">Payment Details</span>
                       </div>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Milestone 1 (Hackathon Winner):</span>
-                          <span className="font-medium">$2,000 USDC</span>
+                      {project.totalPaid && project.totalPaid.length > 0 ? (
+                        <div className="space-y-2 text-sm">
+                          {project.totalPaid.map((payment, index) => (
+                            <div key={index} className="flex justify-between items-center">
+                              <div className="flex flex-col">
+                                <span className="text-muted-foreground">
+                                  {payment.milestone === 'M1' ? 'Milestone 1 (Hackathon Winner)' : 'Milestone 2 (Program Completion)'}:
+                                </span>
+                                {payment.transactionProof && (
+                                  <a
+                                    href={payment.transactionProof}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary hover:underline mt-1"
+                                  >
+                                    View Transaction
+                                  </a>
+                                )}
+                              </div>
+                              <span className="font-medium">{formatPaymentAmount(payment.amount, payment.currency)}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between pt-2 border-t border-subtle">
+                            <span className="font-medium">Total Paid:</span>
+                            <span className="font-bold text-green-500">
+                              {(() => {
+                                const totalUSD = calculateTotalPaidUSD(project.totalPaid);
+                                const usdcTotal = getTotalByCurrency(project.totalPaid, 'USDC');
+                                const dotTotal = getTotalByCurrency(project.totalPaid, 'DOT');
+                                
+                                if (usdcTotal > 0 && dotTotal === 0) {
+                                  return `$${totalUSD.toLocaleString()} USD`;
+                                } else if (dotTotal > 0 && usdcTotal === 0) {
+                                  return `~$${totalUSD.toLocaleString()} (${dotTotal.toLocaleString()} DOT) USD`;
+                                } else {
+                                  return `$${totalUSD.toLocaleString()} USD`;
+                                }
+                              })()}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Milestone 2 (Program Completion):</span>
-                          <span className="font-medium">$2,000 USDC</span>
+                      ) : (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Milestone 1 (Hackathon Winner):</span>
+                            <span className="font-medium">$0 USDC</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Milestone 2 (Program Completion):</span>
+                            <span className="font-medium">$0 USDC</span>
+                          </div>
+                          <div className="flex justify-between pt-2 border-t border-subtle">
+                            <span className="font-medium">Total Paid:</span>
+                            <span className="font-bold text-green-500">$0 USDC</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between pt-2 border-t border-subtle">
-                          <span className="font-medium">Total Paid:</span>
-                          <span className="font-bold text-green-500">$4,000 USDC</span>
-                        </div>
-                      </div>
+                      )}
                     </div>
                     
                     {/* What's Next section */}

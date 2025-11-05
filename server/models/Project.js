@@ -69,7 +69,13 @@ const ProjectSchema = new mongoose.Schema({
     requestedDate: { type: Date }
   },
   completionDate: { type: Date },
-  submittedDate: { type: Date }
+  submittedDate: { type: Date },
+  totalPaid: [{
+    milestone: { type: String, enum: ['M1', 'M2'], required: true },
+    amount: { type: Number, required: true },
+    currency: { type: String, enum: ['USDC', 'DOT'], required: true },
+    transactionProof: { type: String, required: true } // URL to transaction proof
+  }]
 }, { timestamps: true, versionKey: false, toJSON: { virtuals: true, transform: (_doc, ret) => {
   ret.id = ret._id;
   delete ret._id;
