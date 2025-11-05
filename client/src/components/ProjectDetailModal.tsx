@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ExternalLink, Github, Trophy } from "lucide-react"
+import { DemoPlayer } from "@/components/DemoPlayer"
 
 interface ProjectDetailModalProps {
   open: boolean
@@ -45,7 +46,7 @@ export function ProjectDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
@@ -64,8 +65,16 @@ export function ProjectDetailModal({
           </div>
         </DialogHeader>
 
+        {/* Demo Player Section */}
+        {project.demoUrl && project.demoUrl !== "nan" && (
+          <div className="my-4">
+            <DemoPlayer demoUrl={project.demoUrl} title={project.title} />
+          </div>
+        )}
+
         <Separator className="my-4" />
 
+        {/* Project Details */}
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -92,21 +101,11 @@ export function ProjectDetailModal({
             </p>
           </div>
 
-          <Separator />
-
-          <div className="flex gap-3">
-            {project.demoUrl && (
-              <Button
-                className="flex-1"
-                onClick={() => window.open(project.demoUrl, "_blank", "noopener,noreferrer")}
-              >
-                <ExternalLink className="w-4 h-4 mr-2" aria-hidden="true" />
-                View Demo
-              </Button>
-            )}
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-3 pt-4">
             {project.projectUrl && (
               <Button
-                variant="secondary"
+                variant="default"
                 className="flex-1"
                 onClick={handleProjectPageClick}
               >

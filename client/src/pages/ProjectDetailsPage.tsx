@@ -841,7 +841,7 @@ const ProjectDetailsPage = () => {
                       {project.hackathon?.eventStartedAt === "funkhaus-2024" 
                         ? "Symmetry 2024" 
                         : project.hackathon?.eventStartedAt === "synergy-hack-2024" 
-                        ? "Synergy 2024" 
+                        ? "Synergy 2025" 
                         : project.hackathon?.eventStartedAt || project.hackathon?.name || "Hackathon"}
                     </span>
                   </div>
