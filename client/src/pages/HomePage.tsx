@@ -320,44 +320,80 @@ const HomePage = () => {
       <Navigation />
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 md:px-8 pt-32 pb-16">
-        <div className="max-w-4xl mx-auto text-center space-y-4">
-          <h1 className="font-display hero-title text-7xl md:text-8xl lg:text-9xl font-black uppercase tracking-tight">
-            Stadium.
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            The ultimate project progress and showcase portal for hackathon projects going places.
-          </p>
-          
-          {/* Upcoming Event - Prominent */}
-          <div className="flex items-center justify-center">
-            <div className="inline-flex items-center gap-2 px-6 py-3 bg-primary/10 border border-primary rounded-full">
-              <span className="text-accent">
-                Upcoming event:{" "}
-                <a 
-                  href="https://luma.com/sub0hack"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-bold underline hover:text-accent cursor-pointer transition-colors"
-                >
-                  sub0_hack_2025
-                </a>
-              </span>
+      <section className="relative overflow-hidden">
+        {/* Cosmic Background Layer */}
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: 'url(/images/sub0-ba.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.25,
+            filter: 'blur(1px)',
+          }}
+        />
+        
+        {/* Dark Gradient Overlay */}
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/85 via-background/90 to-background" />
+        
+        {/* Radial gradient for depth */}
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_transparent_0%,_hsl(var(--background))_70%)]" />
+        
+        {/* Content */}
+        <div className="relative z-10 container mx-auto px-4 pt-28 pb-16">
+          <div className="max-w-4xl mx-auto text-center space-y-8">
+            <h1 className="font-display hero-title text-7xl md:text-8xl lg:text-9xl mb-6">
+              STADIUM.
+            </h1>
+            
+            <p className="text-xl md:text-2xl text-muted-foreground">
+              The ultimate progress and showcase portal for hackathon projects going places.
+            </p>
+            
+            {/* Upcoming Event - Prominent */}
+            <div className="pt-6">
+              <div className="inline-flex items-center gap-3 px-6 py-3 bg-primary/10 border border-primary rounded-full">
+                <span className="text-base font-medium">
+                  Upcoming event:{" "}
+                  <a 
+                    href="https://luma.com/sub0hack"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-primary hover:text-accent underline underline-offset-4 cursor-pointer transition-colors"
+                  >
+                    sub0_hack_2025
+                  </a>
+                </span>
+              </div>
             </div>
+            
+            {/* Past Events - Subtle */}
+            <p className="text-sm text-muted-foreground/70 pt-4">
+              Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025
+            </p>
           </div>
-          
-          {/* Past Events - Subtle */}
-          <p className="text-sm text-muted-foreground/70">
-            Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
-          </p>
         </div>
       </section>
 
       {/* M2 Graduates Section */}
       {m2Stats.totalGraduates > 0 && (
         <section className="container mx-auto px-4 py-16">
-          <div className="glass-panel rounded-lg p-8 md:p-12 bg-gradient-to-r from-purple-900/20 to-yellow-900/20 border-l-4 border-l-yellow-500">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div className="glass-panel rounded-lg p-8 md:p-12 bg-gradient-to-r from-purple-900/20 to-yellow-900/20 border-l-4 border-l-yellow-500 relative overflow-hidden">
+            {/* Background texture */}
+            <div 
+              className="absolute inset-0 opacity-5"
+              style={{
+                backgroundImage: 'url(/images/sub0-ba.jpg)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            />
+            
+            {/* Gold accent border */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-yellow-500 to-yellow-600 z-10" />
+            
+            {/* Content */}
+            <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center">
               {/* Left: Text content */}
               <div>
                 <div className="flex items-center gap-2 mb-4">

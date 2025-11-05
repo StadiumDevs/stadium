@@ -1018,8 +1018,8 @@ const ProjectDetailsPage = () => {
               </CardHeader>
             </Card>
 
-            {/* M2 Program Progress Section */}
-            {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
+            {/* M2 Program Progress Section - Only for building status */}
+            {project.m2Status === 'building' && (
               <div className="glass-panel rounded-lg p-6 mb-6">
                 <h2 className="text-2xl font-heading mb-4">📊 M2 Program Progress</h2>
                 
@@ -1072,8 +1072,8 @@ const ProjectDetailsPage = () => {
               </div>
             )}
 
-            {/* M2 Agreement Section */}
-            {project.m2Agreement ? (
+            {/* M2 Agreement Section - Only for building status */}
+            {project.m2Status === 'building' && project.m2Agreement ? (
               <div className="glass-panel rounded-lg p-6 mb-6">
                 <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
                   📋 Milestone 2 Agreement
@@ -1150,67 +1150,55 @@ const ProjectDetailsPage = () => {
                 </div>
               </div>
             ) : (
-              // Placeholder when no agreement exists yet (Week 0)
-              (project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
+              // Placeholder when no agreement exists yet - Only for building status
+              project.m2Status === 'building' && (
                 <div className="glass-panel rounded-lg p-6 mb-6">
                   <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
                     📋 Milestone 2 Agreement
                   </h2>
-                  {project.m2Status === 'building' ? (
-                    <div className="space-y-4">
+                  <div className="space-y-4">
                       <div className="text-center py-6 bg-muted/20 rounded-lg">
-                        <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Upload your M2 Agreement to document what you'll deliver for Milestone 2
-                        </p>
-                        <p className="text-xs text-muted-foreground mb-4">
-                          This should be filled out after your Week 1 mentor call to align on deliverables
-                        </p>
-                        {!connectedWallet ? (
-                          <div className="text-center py-4">
-                            <p className="text-sm text-muted-foreground mb-4">
-                              Connect your wallet to upload your M2 Agreement
-                            </p>
-                            <Button onClick={connectWallet}>
-                              Connect Wallet
-                            </Button>
-                          </div>
-                        ) : !isTeamMember ? (
-                          <div className="text-center py-4">
-                            <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" aria-hidden="true" />
-                            <p className="text-sm text-yellow-500">
-                              Only team members can upload M2 Agreements
-                            </p>
-                          </div>
-                        ) : (
-                          <Button 
-                            onClick={() => setM2AgreementModalOpen(true)}
-                            size="lg"
-                            className="w-full md:w-auto"
-                          >
-                            <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
-                            Upload M2 Agreement
+                      <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Upload your M2 Agreement to document what you'll deliver for Milestone 2
+                      </p>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        This should be filled out after your Week 1 mentor call to align on deliverables
+                      </p>
+                      {!connectedWallet ? (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Connect your wallet to upload your M2 Agreement
+                          </p>
+                          <Button onClick={connectWallet}>
+                            Connect Wallet
                           </Button>
-                        )}
-                      </div>
+                        </div>
+                      ) : !isTeamMember ? (
+                        <div className="text-center py-4">
+                          <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" aria-hidden="true" />
+                          <p className="text-sm text-yellow-500">
+                            Only team members can upload M2 Agreements
+                          </p>
+                        </div>
+                      ) : (
+                        <Button 
+                          onClick={() => setM2AgreementModalOpen(true)}
+                          size="lg"
+                          className="w-full md:w-auto"
+                        >
+                          <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
+                          Upload M2 Agreement
+                        </Button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-center py-8 bg-muted/20 rounded-lg border border-dashed border-subtle">
-                      <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
-                      <p className="text-sm font-medium mb-2">
-                        Your M2 Agreement will appear here after your Week 1 mentor call
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Expected: Week 1 (Nov 25 - Dec 1, 2025)
-                      </p>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )
             )}
 
-            {/* Milestone 2 Submission Section */}
-            {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0) || project.m2Status) && (
+            {/* Milestone 2 Submission Section - Only for building or under_review status */}
+            {(project.m2Status === 'building' || project.m2Status === 'under_review') && (
               <div className="glass-panel rounded-lg p-6 mb-6">
                 <h2 className="text-2xl font-heading mb-6 flex items-center gap-2">
                   🚀 Milestone 2 Submission
@@ -1434,12 +1422,18 @@ const ProjectDetailsPage = () => {
                     </p>
                   </div>
                 )}
-                
-                {/* STATUS: Completed */}
-                {project.m2Status === 'completed' && (
-                  <div className="space-y-6">
-                    {/* Success banner */}
-                    <div className="bg-gradient-to-r from-green-900/20 to-yellow-900/20 rounded-lg p-6 border border-green-500/30">
+              </div>
+            )}
+
+            {/* M2 Completed Section - Only for completed status */}
+            {project.m2Status === 'completed' && (
+              <div className="glass-panel rounded-lg p-6 mb-6">
+                <h2 className="text-2xl font-heading mb-6 flex items-center gap-2">
+                  🎓 M2 Program Completion
+                </h2>
+                <div className="space-y-6">
+                  {/* Success banner */}
+                  <div className="bg-gradient-to-r from-green-900/20 to-yellow-900/20 rounded-lg p-6 border border-green-500/30">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
                           <CheckCircle className="w-6 h-6 text-green-500" aria-hidden="true" />
@@ -1629,7 +1623,7 @@ const ProjectDetailsPage = () => {
                               Share Your Success
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Tell the world about your achievement
+                              Tell the world about what you achieved. Someone might want to help take your project further.
                             </div>
                           </div>
                           <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
@@ -1637,8 +1631,7 @@ const ProjectDetailsPage = () => {
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
             )}
 
             {/* Team Members Card */}

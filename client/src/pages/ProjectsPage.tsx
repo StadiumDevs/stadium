@@ -369,7 +369,12 @@ const ProjectsPage = () => {
 
         {/* Program Stats Section */}
         <div className="glass-panel rounded-lg border-subtle p-4 mb-6">
-          <h3 className="text-sm font-medium mb-3 font-heading">📊 Program Stats:</h3>
+          <div className="flex items-center justify-between gap-6 mb-3">
+            <h3 className="text-sm font-medium font-heading">📊 Program Stats:</h3>
+            <div className="text-sm text-muted-foreground text-center max-w-md leading-relaxed ml-auto">
+              <p>Click on any stat badge to filter projects by status. Use the dropdown filters below to view specific teams or change your view. Users who want to update their projects information including status updates must connect their wallets.</p>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-4">
             <StatBadge 
               count={stats.building} 
