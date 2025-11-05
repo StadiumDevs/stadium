@@ -86,9 +86,8 @@ const HomePage = () => {
   useEffect(() => {
     const loadProjects = async () => {
       try {
-        // Fetch winners for Synergy 2025 directly from API
+        // Fetch ALL winners from ALL hackathons to calculate accurate completion rate
         const response = await api.getProjects({
-          hackathonId: "synergy-2025",
           winnersOnly: true,
           sortBy: "updatedAt",
           sortOrder: "desc",
@@ -147,20 +146,27 @@ const HomePage = () => {
 
   // Calculate M2 statistics
   const m2Stats = useMemo(() => {
+    // Total number of projects who completed M2
     const graduates = allProjects.filter(p => p.m2Status === 'completed');
+    // Total number of projects who won (winners are eligible for M2)
     const winners = allProjects.filter(p => p.isWinner || (Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0));
+    // Winners who completed M2 (must be both a winner AND completed M2)
+    const winnersWhoCompletedM2 = winners.filter(p => p.m2Status === 'completed');
     
     // Calculate total paid from stored totalPaid values
     const totalPaid = graduates.reduce((sum, project) => {
       return sum + calculateTotalPaidUSD(project.totalPaid);
     }, 0);
     
+    // Completion rate = (Winners who completed M2 / total winners) * 100
+    const completionRate = winners.length > 0 
+      ? Math.round((winnersWhoCompletedM2.length / winners.length) * 100)
+      : 0;
+    
     return {
       totalGraduates: graduates.length,
       totalPaid: totalPaid, // 0 if no data
-      completionRate: winners.length > 0 
-        ? Math.round((graduates.length / winners.length) * 100)
-        : 0
+      completionRate: completionRate
     };
   }, [allProjects]);
 
@@ -233,6 +239,40 @@ const HomePage = () => {
       .slice(0, 6); // Show 6 most recent
   }, [projects]);
 
+  // Combined list of Past Winners and M2 Graduates (deduplicated)
+  const combinedWinnersAndGraduates = useMemo(() => {
+    // Get all unique projects (winners OR M2 graduates)
+    const uniqueProjects = new Map<string, CarouselProject>();
+    
+    // Add M2 graduates first (they take priority)
+    m2Graduates.forEach(p => {
+      uniqueProjects.set(p.id, {
+        ...p,
+        completionDate: p.completionDate,
+        totalPaid: p.totalPaid,
+      });
+    });
+    
+    // Add winners (only if not already added as M2 graduate)
+    recentWinners.forEach(p => {
+      if (!uniqueProjects.has(p.id)) {
+        uniqueProjects.set(p.id, p);
+      }
+    });
+    
+    // Convert to array and sort: M2 graduates first, then by submission date
+    return Array.from(uniqueProjects.values()).sort((a, b) => {
+      // Prioritize M2 graduates
+      if (a.m2Status === 'completed' && b.m2Status !== 'completed') return -1;
+      if (a.m2Status !== 'completed' && b.m2Status === 'completed') return 1;
+      
+      // Then sort by submission date (newest first)
+      const dateA = new Date(a.submittedDate || a.completionDate || 0).getTime();
+      const dateB = new Date(b.submittedDate || b.completionDate || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [m2Graduates, recentWinners]);
+
   // Calculate hackathon stats
   const hackathonStats = useMemo(() => {
     return {
@@ -292,7 +332,6 @@ const HomePage = () => {
           {/* Upcoming Event - Prominent */}
           <div className="flex items-center justify-center">
             <div className="inline-flex items-center gap-2 px-6 py-3 bg-primary/10 border border-primary rounded-full">
-              <span>👍</span>
               <span className="text-accent">
                 Upcoming event:{" "}
                 <a 
@@ -414,70 +453,6 @@ const HomePage = () => {
         </section>
       )}
 
-      {/* M2 Graduates Carousel */}
-      {m2Graduates.length > 0 ? (
-        <section className="container mx-auto px-4 py-16">
-          <div className="mb-8">
-            <h2 className="text-3xl font-heading mb-2 flex items-center gap-3">
-              <span className="text-4xl">🎓</span>
-              Meet Past M2 Graduates
-            </h2>
-            <p className="text-muted-foreground">
-              Teams that successfully completed the 6-week accelerator program
-            </p>
-          </div>
-          
-          <ProjectCarousel 
-            projects={m2Graduates.map(p => ({
-              id: p.id,
-              title: p.title,
-              author: p.author,
-              description: p.description,
-              track: p.track,
-              isWinner: p.isWinner,
-              demoUrl: p.demoUrl,
-              projectUrl: p.projectUrl,
-              githubUrl: p.githubUrl,
-              longDescription: p.longDescription,
-              m2Status: p.m2Status,
-              eventStartedAt: p.eventStartedAt,
-              totalPaid: p.totalPaid,
-            }))}
-            onProjectClick={handleProjectClick}
-          />
-          
-          <div className="text-center mt-8">
-            <Button 
-              variant="outline" 
-              size="lg"
-              onClick={() => navigate('/projects')}
-            >
-              View All M2 Projects
-              <ArrowRight className="ml-2 w-4 h-4" aria-hidden="true" />
-            </Button>
-          </div>
-        </section>
-      ) : (
-        // Empty state if no graduates yet
-        projects.some(p => p.isWinner) && (
-          <section className="container mx-auto px-4 py-16">
-            <div className="glass-panel rounded-lg p-12 text-center">
-              <div className="text-6xl mb-4" role="img" aria-label="Construction emoji">🚧</div>
-              <h3 className="text-2xl font-heading mb-2">
-                M2 Program In Progress
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                Our first M2 graduates will be featured here in early 2026!<br />
-                4 teams are currently building their milestone 2 projects.
-              </p>
-              <Button onClick={() => navigate('/projects')}>
-                Follow Their Progress
-              </Button>
-            </div>
-          </section>
-        )
-      )}
-
       {/* Success Stories Section */}
       {successStories.length > 0 && (
         <section className="w-full py-16 bg-muted/30">
@@ -578,7 +553,7 @@ const HomePage = () => {
               Past Winners and M2 Graduates
             </h2>
             <p className="text-muted-foreground">
-              Projects who have completed the implementation of their milestone 2 plans.
+              Teams that successfully completed the 6-week accelerator program
             </p>
           </div>
           
@@ -592,7 +567,7 @@ const HomePage = () => {
           </Button>
         </div>
         
-        {recentWinners.length === 0 ? (
+        {combinedWinnersAndGraduates.length === 0 ? (
           <EmptyState
             title="Awaiting Winner Announcements"
             description="Winning projects will be displayed here as they are selected."
@@ -600,8 +575,9 @@ const HomePage = () => {
           />
         ) : (
           <>
+            {/* Combined Past Winners and M2 Graduates Carousel */}
             <ProjectCarousel 
-              projects={recentWinners.map(p => ({
+              projects={combinedWinnersAndGraduates.map(p => ({
                 id: p.id,
                 title: p.title,
                 author: p.author,
@@ -611,6 +587,7 @@ const HomePage = () => {
                 demoUrl: p.demoUrl,
                 projectUrl: p.projectUrl,
                 githubUrl: p.githubUrl,
+                longDescription: p.longDescription,
                 m2Status: p.m2Status,
                 eventStartedAt: p.eventStartedAt,
                 totalPaid: p.totalPaid,

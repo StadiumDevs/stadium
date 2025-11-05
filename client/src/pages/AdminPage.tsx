@@ -175,6 +175,9 @@ type M2Project = Project & {
 };
 
 const AdminPage = () => {
+  // TESTING MODE: Bypass wallet connection check
+  const BYPASS_ADMIN_CHECK = true; // Set to false to re-enable wallet check
+  
   const [walletState, setWalletState] = useState({
     isExtensionAvailable: false,
     isConnected: false,
@@ -185,7 +188,7 @@ const AdminPage = () => {
     injector: null,
   });
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(BYPASS_ADMIN_CHECK);
   const [projects, setProjects] = useState<M2Project[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,7 +196,34 @@ const AdminPage = () => {
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const { toast } = useToast();
 
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [projectsData, payoutsData] = await Promise.all([
+        projectApi.getProjects(),
+        adminApi.getPayouts(),
+      ]);
+      setProjects(projectsData || []);
+      setPayouts(payoutsData || []);
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to load admin data.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
+    // TESTING MODE: Skip wallet check and directly load data
+    if (BYPASS_ADMIN_CHECK) {
+      loadData();
+      return;
+    }
+
     checkExtension();
 
     // Restore session if admin account exists in sessionStorage
@@ -209,12 +239,14 @@ const AdminPage = () => {
         setIsAuthenticated(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !BYPASS_ADMIN_CHECK) {
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, projects]);
 
   const checkExtension = async () => {
@@ -336,26 +368,6 @@ const AdminPage = () => {
         ...prev,
         error: `Authentication failed: ${err.message}`,
       }));
-    }
-  };
-
-  const loadData = async () => {
-    try {
-      const [projectsData, payoutsData] = await Promise.all([
-        projectApi.getProjects(),
-        adminApi.getPayouts(),
-      ]);
-      setProjects(projectsData);
-      setPayouts(payoutsData);
-    } catch (error) {
-      const err = error as Error;
-      toast({
-        title: "Error",
-        description: err?.message || "Failed to load admin data.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
