@@ -170,22 +170,15 @@ function ProjectCardComponent({
             {track}
           </Badge>
 
-          <div className="flex gap-2 flex-shrink-0">
-            {demoUrl && (
-              <ProjectCardActionButton
-                title={title}
-                url={demoUrl}
-                type="demo"
-              />
-            )}
-            {githubUrl && (
+          {githubUrl && (
+            <div className="flex gap-2 flex-shrink-0">
               <ProjectCardActionButton
                 title={title}
                 url={githubUrl}
                 type="github"
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {projectUrl && (

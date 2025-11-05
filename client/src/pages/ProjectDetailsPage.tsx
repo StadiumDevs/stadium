@@ -75,7 +75,8 @@ const ProjectDetailsPage = () => {
     bountyPrize?: ApiBounty[];
     donationAddress?: string;
     winner?: string; // legacy
-    eventStartedAt?: string;
+    hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+    eventStartedAt?: string; // legacy - use hackathon.eventStartedAt instead
     m2Status?: 'building' | 'under_review' | 'completed';
     finalSubmission?: {
       repoUrl: string;
@@ -836,7 +837,13 @@ const ProjectDetailsPage = () => {
                   {/* Hackathon */}
                   <div className="flex items-center gap-2">
                     <Trophy className="w-4 h-4" aria-hidden="true" />
-                    <span>sub0 2025 Hackathon</span>
+                    <span>
+                      {project.hackathon?.eventStartedAt === "funkhaus-2024" 
+                        ? "Symmetry 2024" 
+                        : project.hackathon?.eventStartedAt === "synergy-hack-2024" 
+                        ? "Synergy 2024" 
+                        : project.hackathon?.eventStartedAt || project.hackathon?.name || "Hackathon"}
+                    </span>
                   </div>
                   
                   {/* Submitted date */}

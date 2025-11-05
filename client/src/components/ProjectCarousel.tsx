@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Trophy, ExternalLink, CheckCircle } from "lucide-react"
+import { Trophy, CheckCircle } from "lucide-react"
 
 interface Project {
   id: string
@@ -22,6 +22,7 @@ interface Project {
   demoUrl?: string
   projectUrl?: string
   m2Status?: 'building' | 'under_review' | 'completed'
+  eventStartedAt?: string
 }
 
 interface ProjectCarouselProps {
@@ -104,34 +105,20 @@ function ProjectCarouselComponent({ projects, onProjectClick }: ProjectCarouselP
                 </p>
               </CardContent>
 
-              <CardFooter className="pt-3 border-t border-subtle flex justify-between">
+              <CardFooter className="pt-3 border-t border-subtle flex justify-between items-center">
                 <Badge variant="outline" className="bg-primary/10 border-primary text-accent">
                   {project.track}
                 </Badge>
 
-                <div className="flex gap-2">
-                  {project.demoUrl && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(project.demoUrl, "_blank", "noopener,noreferrer")
-                      }}
-                    >
-                      <ExternalLink className="w-4 h-4 mr-1" aria-hidden="true" />
-                      View Demo
-                    </Button>
-                  )}
-                  {project.projectUrl && (
-                    <Button
-                      size="sm"
-                      onClick={(e) => handleProjectPageClick(e, project.projectUrl!)}
-                    >
-                      Project Page
-                    </Button>
-                  )}
-                </div>
+                {project.projectUrl && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => handleProjectPageClick(e, project.projectUrl!)}
+                  >
+                    View Project
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           </CarouselItem>

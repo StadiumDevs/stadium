@@ -35,6 +35,7 @@ export function ProjectDetailModal({
 }: ProjectDetailModalProps) {
   const navigate = useNavigate()
 
+
   const handleProjectPageClick = () => {
     if (project.projectUrl) {
       onOpenChange(false) // Close the modal first
@@ -77,7 +78,7 @@ export function ProjectDetailModal({
               {project.eventStartedAt === "funkhaus-2024" 
                 ? "Symmetry 2024" 
                 : project.eventStartedAt === "synergy-hack-2024" 
-                ? "Synergy 2024" 
+                ? "Synergy 2025" 
                 : project.eventStartedAt || "Unknown"}
             </Badge>
           </div>
