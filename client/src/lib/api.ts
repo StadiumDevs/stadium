@@ -1,7 +1,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:2000/api";
 
 // TEMPORARY: Mock mode flag - set to true when server is down
-const USE_MOCK_DATA = true; // Set to false when server is back up
+const USE_MOCK_DATA = false; // Set to false when server is back up
 
 class ApiError extends Error {
   status: number;
@@ -114,7 +114,9 @@ export const api = {
     if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
 
     const queryString = searchParams.toString();
-    return request(`/projects${queryString ? `?${queryString}` : ""}`);
+    const result = await request(`/projects${queryString ? `?${queryString}` : ""}`);
+    console.log("[api.getProjects] API response:", result);
+    return result;
   },
 
   getProject: async (id: string) => {
