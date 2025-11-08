@@ -327,6 +327,64 @@ export const api = {
     });
   },
 
+  updateM2Agreement: async (
+    projectId: string,
+    data: {
+      agreedFeatures: string[];
+      documentation: string[];
+      successCriteria: string;
+    },
+    authHeader?: string
+  ) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Updating M2 Agreement for project', projectId, data);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].m2Agreement = {
+            ...projects[index].m2Agreement,
+            agreedFeatures: data.agreedFeatures,
+            documentation: data.documentation,
+            successCriteria: data.successCriteria,
+            lastUpdatedBy: 'team',
+            lastUpdatedDate: new Date().toISOString()
+          };
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      // Also try to get from mock data and update in-memory
+      const { mockWinningProjects } = await import("./mockWinners");
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject && (mockProject as any).m2Agreement) {
+        (mockProject as any).m2Agreement = {
+          ...(mockProject as any).m2Agreement,
+          agreedFeatures: data.agreedFeatures,
+          documentation: data.documentation,
+          successCriteria: data.successCriteria,
+          lastUpdatedBy: 'team',
+          lastUpdatedDate: new Date().toISOString()
+        };
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/projects/${projectId}/m2-agreement`, {
+      method: 'PATCH',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+  },
+
   updateProjectStatus: async (projectId: string, status: 'building' | 'under_review' | 'completed', authHeader?: string) => {
     if (USE_MOCK_DATA) {
       console.log(`Mock: Updating project ${projectId} status to ${status}`)

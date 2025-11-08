@@ -13,5 +13,7 @@ router.post('/', requireAdmin, projectController.createProject);
 router.patch('/:projectId', requireTeamMemberOrAdmin, projectController.updateProject);
 // --- Team management ---
 router.post('/:projectId/team', requireTeamMemberOrAdmin, projectController.replaceTeamMembers);
+// --- M2 Agreement management ---
+router.patch('/:projectId/m2-agreement', requireTeamMemberOrAdmin, projectController.updateM2Agreement);
 
 export default router;

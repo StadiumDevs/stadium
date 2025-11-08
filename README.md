@@ -220,6 +220,16 @@ cd server
 node migration.js  # Automatically clears existing data first
 ```
 
+**Add M2 test projects:**
+```bash
+cd server
+node seed-m2-projects.js
+```
+
+This adds 2 M2 Accelerator projects for testing:
+- **Polkadot Portfolio Tracker** (status: `building`) - Active development
+- **Decentralized Voting DAO** (status: `under_review`) - Submitted for review
+
 ---
 
 ## 🚀 API Endpoints

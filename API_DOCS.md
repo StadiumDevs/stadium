@@ -153,6 +153,115 @@ PATCH http://localhost:2000/api/projects/my-awesome-new-project-a1b2c3
 
 ---
 
+#### `POST /api/projects/:projectId/team`
+
+Replaces the team members array for a project.
+
+-   **Method**: `POST`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Example Body:**
+
+```json
+{
+  "teamMembers": [
+    {
+      "name": "Alice Johnson",
+      "walletAddress": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "role": "Lead Developer",
+      "github": "alicejohnson"
+    },
+    {
+      "name": "Bob Smith",
+      "walletAddress": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+      "role": "Backend Developer"
+    }
+  ]
+}
+```
+
+**Example Request:**
+
+```http
+POST http://localhost:2000/api/projects/my-awesome-new-project-a1b2c3/team
+```
+
+---
+
+#### `PATCH /api/projects/:projectId/m2-agreement`
+
+Updates the M2 Agreement (roadmap) for a project in the M2 Accelerator Program.
+
+-   **Method**: `PATCH`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Notes:**
+- Team members can only edit the M2 Agreement during Weeks 1-4 of the accelerator program (frontend enforces this)
+- Automatically adds `lastUpdatedBy: 'team'` and `lastUpdatedDate` timestamp
+- Preserves existing fields like `agreedDate` and `mentorName`
+
+**Example Body:**
+
+```json
+{
+  "agreedFeatures": [
+    "Multi-chain portfolio aggregation with real-time updates",
+    "Historical performance charts with multiple time ranges",
+    "Transaction history explorer with advanced filtering",
+    "Portfolio analytics dashboard with ROI calculations"
+  ],
+  "documentation": [
+    "Complete README with setup instructions",
+    "API documentation for all endpoints",
+    "Architecture diagram showing system components",
+    "User guide with screenshots"
+  ],
+  "successCriteria": "Application must track assets across 20+ parachains with <5 second latency, support 50+ tokens, handle 1000+ transactions without performance issues, and provide 99%+ accurate portfolio calculations."
+}
+```
+
+**Example Request:**
+
+```http
+PATCH http://localhost:2000/api/projects/polkadot-portfolio-tracker-a1b2c3/m2-agreement
+Content-Type: application/json
+x-siws-auth: <Your-Base64-Signature>
+
+{
+  "agreedFeatures": ["Feature 1", "Feature 2"],
+  "documentation": ["Doc 1", "Doc 2"],
+  "successCriteria": "Success criteria text"
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "polkadot-portfolio-tracker-a1b2c3",
+    "projectName": "Polkadot Portfolio Tracker",
+    "m2Agreement": {
+      "agreedDate": "2025-10-28T10:00:00.000Z",
+      "agreedFeatures": ["Feature 1", "Feature 2"],
+      "documentation": ["Doc 1", "Doc 2"],
+      "successCriteria": "Success criteria text",
+      "lastUpdatedBy": "team",
+      "lastUpdatedDate": "2025-11-08T12:30:00.000Z"
+    }
+  }
+}
+```
+
+---
+
 ### Health Check
 
 #### `GET /api/health`

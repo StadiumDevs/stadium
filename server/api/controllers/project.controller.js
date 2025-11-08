@@ -113,6 +113,51 @@ class ProjectController {
             res.status(500).json({ status: "error", message: "Failed to replace team members" });
         }
     }
+
+    async updateM2Agreement(req, res) {
+        try {
+            const { projectId } = req.params;
+            const { agreedFeatures, documentation, successCriteria } = req.body;
+
+            // Validate required fields
+            if (!agreedFeatures || !Array.isArray(agreedFeatures) || agreedFeatures.length === 0) {
+                return res.status(400).json({ 
+                    status: "error", 
+                    message: "agreedFeatures is required and must be a non-empty array" 
+                });
+            }
+
+            if (!documentation || !Array.isArray(documentation) || documentation.length === 0) {
+                return res.status(400).json({ 
+                    status: "error", 
+                    message: "documentation is required and must be a non-empty array" 
+                });
+            }
+
+            if (!successCriteria || typeof successCriteria !== 'string' || !successCriteria.trim()) {
+                return res.status(400).json({ 
+                    status: "error", 
+                    message: "successCriteria is required and must be a non-empty string" 
+                });
+            }
+
+            const updated = await projectService.updateM2Agreement(projectId, {
+                agreedFeatures,
+                documentation,
+                successCriteria
+            });
+
+            if (!updated) {
+                return res.status(404).json({ status: "error", message: "Project not found" });
+            }
+
+            console.log(`✅ M2 Agreement updated for project ${projectId}`);
+            res.status(200).json({ status: "success", data: updated });
+        } catch (error) {
+            console.error("❌ Error updating M2 agreement:", error);
+            res.status(500).json({ status: "error", message: error.message || "Failed to update M2 agreement" });
+        }
+    }
 }
 
 export default new ProjectController();

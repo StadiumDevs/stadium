@@ -44,7 +44,7 @@ import { getCurrentProgramWeek } from "@/lib/projectUtils";
 import { calculateTotalPaidUSD, formatPaymentAmount, getTotalByCurrency } from "@/lib/paymentUtils";
 import { FinalSubmissionModal, SubmissionData } from "@/components/FinalSubmissionModal";
 import { UpdateTeamModal, TeamMember } from "@/components/UpdateTeamModal";
-import { M2AgreementModal, M2AgreementData } from "@/components/M2AgreementModal";
+import { M2AgreementSection } from "@/components/M2AgreementSection";
 import { ShareProjectModal } from "@/components/ShareProjectModal";
 
 const ProjectDetailsPage = () => {
@@ -137,7 +137,6 @@ const ProjectDetailsPage = () => {
   const [finalSubmissionModalOpen, setFinalSubmissionModalOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [m2AgreementModalOpen, setM2AgreementModalOpen] = useState(false);
 
   // Format date utility
   const formatDate = (dateString?: string | Date) => {
@@ -260,34 +259,36 @@ const ProjectDetailsPage = () => {
   //   }
   // }, [selectedAccount]); // Removed
 
-  useEffect(() => {
-    const loadProject = async () => {
-      if (!id) {
+  // Function to fetch/refetch project data
+  const fetchProject = async () => {
+    if (!id) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await api.getProject(id);
+      const projectData = response?.data || response; // support both {status,data} and raw
+      if (projectData) {
+        setProject(projectData);
+      } else {
         setNotFound(true);
-        setLoading(false);
-        return;
       }
-      try {
-        const response = await api.getProject(id);
-        const projectData = response?.data || response; // support both {status,data} and raw
-        if (projectData) {
-          setProject(projectData);
-        } else {
-          setNotFound(true);
-        }
-      } catch (error) {
-        const err = error as Error;
-        toast({
-          title: "Error",
-          description: err?.message || "Failed to load project details. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadProject();
-  }, [id, toast]);
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to load project details. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProject();
+  }, [id]);
 
   // Start editing
   const startEdit = () => {
@@ -516,73 +517,6 @@ const ProjectDetailsPage = () => {
       toast({
         title: "Update Failed",
         description: error?.message || "Failed to update team. Please try again.",
-        variant: "destructive",
-      });
-      throw err;
-    }
-  };
-
-  // Handle M2 Agreement submission
-  const handleM2AgreementSubmit = async (data: M2AgreementData) => {
-    if (!project || !connectedAddress) {
-      toast({
-        title: "Error",
-        description: "Please connect your wallet first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'submit-deliverable',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
-
-      // Submit M2 agreement
-      await api.submitM2Agreement(project.id, {
-        mentorName: data.mentorName,
-        agreedDate: new Date().toISOString(),
-        agreedFeatures: data.coreFeatures,
-        documentation: data.documentation,
-        successCriteria: data.successCriteria,
-      }, authHeader);
-      
-      // Refresh project data
-      const response = await api.getProject(project.id);
-      const projectData = response?.data || response;
-      if (projectData) {
-        setProject(projectData);
-      }
-      
-      toast({
-        title: "Success!",
-        description: "M2 Agreement submitted successfully!",
-      });
-    } catch (err) {
-      const error = err as Error;
-      toast({
-        title: "Submission Failed",
-        description: error?.message || "Failed to submit M2 Agreement. Please try again.",
         variant: "destructive",
       });
       throw err;
@@ -1073,128 +1007,14 @@ const ProjectDetailsPage = () => {
             )}
 
             {/* M2 Agreement Section - Only for building status */}
-            {project.m2Status === 'building' && project.m2Agreement ? (
-              <div className="glass-panel rounded-lg p-6 mb-6">
-                <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
-                  📋 Milestone 2 Agreement
-                </h2>
-                
-                <div className="bg-muted/30 rounded-lg p-4 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Agreed with mentor: <span className="font-medium text-foreground">@{project.m2Agreement.mentorName}</span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      {new Date(project.m2Agreement.agreedDate).toLocaleDateString('en-US', {
-                        month: 'long',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  {/* Core Features */}
-                  <div>
-                    <h3 className="font-medium mb-3 flex items-center gap-2">
-                      <Target className="w-4 h-4" aria-hidden="true" />
-                      Core Features (must complete 80%+)
-                    </h3>
-                    <ul className="space-y-2">
-                      {project.m2Agreement.agreedFeatures.map((feature, index) => (
-                        <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" aria-hidden="true" />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  {/* Documentation Required */}
-                  {project.m2Agreement.documentation && project.m2Agreement.documentation.length > 0 && (
-                    <div>
-                      <h3 className="font-medium mb-3 flex items-center gap-2">
-                        <FileText className="w-4 h-4" aria-hidden="true" />
-                        Documentation Required
-                      </h3>
-                      <ul className="space-y-2">
-                        {project.m2Agreement.documentation.map((doc, index) => (
-                          <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" aria-hidden="true" />
-                            <span>{doc}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {/* Success Criteria */}
-                  {project.m2Agreement.successCriteria && (
-                    <div>
-                      <h3 className="font-medium mb-3 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                        Success Criteria
-                      </h3>
-                      <p className="text-sm text-muted-foreground pl-6">
-                        {project.m2Agreement.successCriteria}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="mt-4 pt-4 border-t border-subtle">
-                  <p className="text-xs text-muted-foreground">
-                    💡 Use this as your guide for the next 6 weeks. Questions? Ask your mentor in Telegram.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              // Placeholder when no agreement exists yet - Only for building status
-              project.m2Status === 'building' && (
-                <div className="glass-panel rounded-lg p-6 mb-6">
-                  <h2 className="text-2xl font-heading mb-4 flex items-center gap-2">
-                    📋 Milestone 2 Agreement
-                  </h2>
-                  <div className="space-y-4">
-                      <div className="text-center py-6 bg-muted/20 rounded-lg">
-                      <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Upload your M2 Agreement to document what you'll deliver for Milestone 2
-                      </p>
-                      <p className="text-xs text-muted-foreground mb-4">
-                        This should be filled out after your Week 1 mentor call to align on deliverables
-                      </p>
-                      {!connectedWallet ? (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Connect your wallet to upload your M2 Agreement
-                          </p>
-                          <Button onClick={connectWallet}>
-                            Connect Wallet
-                          </Button>
-                        </div>
-                      ) : !isTeamMember ? (
-                        <div className="text-center py-4">
-                          <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-2" aria-hidden="true" />
-                          <p className="text-sm text-yellow-500">
-                            Only team members can upload M2 Agreements
-                          </p>
-                        </div>
-                      ) : (
-                        <Button 
-                          onClick={() => setM2AgreementModalOpen(true)}
-                          size="lg"
-                          className="w-full md:w-auto"
-                        >
-                          <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
-                          Upload M2 Agreement
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
+            {project.m2Status === 'building' && (
+              <M2AgreementSection
+                projectId={project.id}
+                m2Agreement={project.m2Agreement}
+                hackathonEndDate={project.hackathon?.endDate}
+                isTeamMember={isTeamMember}
+                onUpdate={fetchProject}
+              />
             )}
 
             {/* Milestone 2 Submission Section - Only for building or under_review status */}
@@ -1864,13 +1684,6 @@ const ProjectDetailsPage = () => {
             onSubmit={handleTeamUpdate}
           />
           
-          <M2AgreementModal
-            open={m2AgreementModalOpen}
-            onOpenChange={setM2AgreementModalOpen}
-            projectId={project.id}
-            projectTitle={project.projectName || ''}
-            onSubmit={handleM2AgreementSubmit}
-          />
         </>
       )}
     </div>
