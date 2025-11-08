@@ -104,14 +104,23 @@ cd client
 # Install dependencies
 npm install
 
-# Make sure your .env file exists with:
-# VITE_API_BASE_URL=http://localhost:2000/api
+# Create .env file
+cat > .env << 'EOF'
+# API Configuration
+VITE_API_BASE_URL=http://localhost:2000/api
+
+# Admin Wallet Addresses (comma-separated)
+# Add your wallet address(es) that should have admin privileges
+VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
+EOF
 
 # Start the development server
 npm run dev
 ```
 
 Frontend runs on `http://localhost:8080`.
+
+**⚠️ Important:** After creating or modifying `.env`, you **must restart** the dev server for changes to take effect.
 
 ---
 
@@ -187,8 +196,22 @@ DISABLE_SIWS_DOMAIN_CHECK=true
 
 ### Client (.env)
 ```bash
+# API Configuration
 VITE_API_BASE_URL=http://localhost:2000/api
+
+# Admin Wallet Addresses (comma-separated, lowercase)
+# These wallet addresses will have admin privileges to:
+# - Submit M2 deliverables outside submission window
+# - Edit any project's M2 agreement
+# - Approve/reject M2 submissions
+# - Manage team members and payout addresses
+VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
+
+# Example with multiple admins:
+# VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9,5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU
 ```
+
+**Note:** `VITE_ADMIN_ADDRESSES` must match `ADMIN_WALLETS` in the server `.env` for consistency.
 
 ---
 
@@ -312,10 +335,351 @@ lsof -i :8080
 docker compose down
 ```
 
+### Wallet Connected But Submit Button Disabled
+
+**Issue:** "Connect your wallet to submit deliverables" shows even after connecting wallet
+
+**Solution:**
+
+This means the frontend doesn't recognize your wallet as an admin or team member.
+
+1. **Create `client/.env` file** (if it doesn't exist):
+   ```bash
+   cd client
+   cat > .env << 'EOF'
+   VITE_API_BASE_URL=http://localhost:2000/api
+   VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
+   EOF
+   ```
+
+2. **Restart the dev server** (critical!):
+   ```bash
+   # Stop current server (Ctrl+C)
+   npm run dev
+   ```
+
+3. **Hard refresh browser:**
+   - Chrome/Edge: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+   - Firefox: Ctrl+F5 (Windows) or Cmd+Shift+R (Mac)
+
+4. **Verify in browser console:**
+   ```javascript
+   [constants] VITE_ADMIN_ADDRESSES env: 5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
+   [constants] Checking admin access: { isAdmin: true }
+   ```
+
+See [WALLET_CONNECTION_FIX.md](./WALLET_CONNECTION_FIX.md) for detailed troubleshooting.
+
+---
+
+## 🚀 Production Deployment
+
+### Prerequisites
+- Node.js v20+ on production server
+- MongoDB Atlas or self-hosted MongoDB
+- Domain with SSL/TLS certificate
+- Environment variables configured
+
+### Backend (Server) Setup
+
+#### 1. Environment Variables
+
+Create `server/.env` on production server:
+
+```bash
+# MongoDB Connection (use MongoDB Atlas for production)
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/blockspace?retryWrites=true&w=majority
+
+# Server Configuration
+PORT=2000
+NODE_ENV=production
+
+# Admin Wallet Addresses (comma-separated)
+# CRITICAL: Keep these secure and only add trusted addresses
+ADMIN_WALLETS=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9,5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU
+
+# SIWS Authentication (IMPORTANT for security)
+EXPECTED_DOMAIN=stadium.example.com
+DISABLE_SIWS_DOMAIN_CHECK=false  # MUST be false in production!
+
+# Optional: Logging and monitoring
+LOG_LEVEL=info
+```
+
+#### 2. Build and Start
+
+```bash
+cd server
+
+# Install production dependencies only
+npm ci --only=production
+
+# Run database migration (one-time setup)
+node migration.js
+
+# Start with PM2 (recommended)
+npm install -g pm2
+pm2 start server.js --name "stadium-backend"
+pm2 save
+pm2 startup
+
+# Or use systemd service
+sudo systemctl start stadium-backend
+```
+
+#### 3. Database Migration
+
+**First-time setup:**
+```bash
+node migration.js
+node seed-m2-projects.js  # Optional: Add M2 test projects
+```
+
+**⚠️ DO NOT run `update-m2-dates.js` in production!** It's for testing only.
+
+### Frontend (Client) Setup
+
+#### 1. Environment Variables
+
+Create `client/.env.production`:
+
+```bash
+# Production API URL
+VITE_API_BASE_URL=https://api.stadium.example.com/api
+
+# Admin Wallet Addresses (MUST match server ADMIN_WALLETS)
+VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9,5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU
+```
+
+#### 2. Build for Production
+
+```bash
+cd client
+
+# Install dependencies
+npm ci
+
+# Build optimized production bundle
+npm run build
+
+# Output will be in client/dist/
+```
+
+#### 3. Serve with Nginx
+
+**Example Nginx configuration:**
+
+```nginx
+# Frontend
+server {
+    listen 80;
+    listen [::]:80;
+    server_name stadium.example.com;
+    
+    # Redirect to HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name stadium.example.com;
+    
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/stadium.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/stadium.example.com/privkey.pem;
+    
+    # Frontend static files
+    root /var/www/stadium/client/dist;
+    index index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # API proxy
+    location /api {
+        proxy_pass http://localhost:2000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# Backend API (optional separate subdomain)
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name api.stadium.example.com;
+    
+    ssl_certificate /etc/letsencrypt/live/stadium.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/stadium.example.com/privkey.pem;
+    
+    location / {
+        proxy_pass http://localhost:2000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+#### 4. Deploy
+
+```bash
+# Copy build to web server
+scp -r client/dist/* user@server:/var/www/stadium/client/dist/
+
+# Restart Nginx
+sudo systemctl restart nginx
+```
+
+### Database (MongoDB) Setup
+
+#### Option 1: MongoDB Atlas (Recommended)
+
+1. Create account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a new cluster
+3. Add IP whitelist (0.0.0.0/0 for production server)
+4. Create database user with read/write permissions
+5. Get connection string and update `MONGO_URI` in server `.env`
+
+#### Option 2: Self-Hosted MongoDB
+
+```bash
+# Install MongoDB 7.0
+wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | sudo apt-key add -
+echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+sudo apt update
+sudo apt install -y mongodb-org
+
+# Start MongoDB
+sudo systemctl start mongod
+sudo systemctl enable mongod
+
+# Create admin user
+mongosh
+use admin
+db.createUser({
+  user: "admin",
+  pwd: "secure_password_here",
+  roles: ["root"]
+})
+exit
+
+# Update server/.env with connection string
+MONGO_URI=mongodb://admin:secure_password_here@localhost:27017/blockspace?authSource=admin
+```
+
+### Security Checklist
+
+- [ ] `NODE_ENV=production` in server
+- [ ] `DISABLE_SIWS_DOMAIN_CHECK=false` in server
+- [ ] `EXPECTED_DOMAIN` set to actual domain
+- [ ] Strong MongoDB password
+- [ ] Admin wallet addresses kept secure
+- [ ] HTTPS enabled (SSL certificates)
+- [ ] Firewall configured (only ports 80/443 open)
+- [ ] MongoDB not exposed to public internet
+- [ ] Regular backups configured
+- [ ] Error logging set up (Sentry, LogRocket, etc.)
+- [ ] Rate limiting enabled (nginx limit_req or express-rate-limit)
+- [ ] CORS configured for production domain only
+
+### Monitoring
+
+#### PM2 Monitoring
+
+```bash
+# View logs
+pm2 logs stadium-backend
+
+# Monitor CPU/Memory
+pm2 monit
+
+# Restart if needed
+pm2 restart stadium-backend
+```
+
+#### Health Checks
+
+```bash
+# Check backend health
+curl https://api.stadium.example.com/api/health
+
+# Should return:
+# {"status":"OK","message":"Server is running","timestamp":"..."}
+```
+
+### Backup Strategy
+
+#### MongoDB Backup
+
+```bash
+# Daily backup script
+#!/bin/bash
+DATE=$(date +%Y%m%d)
+mongodump --uri="$MONGO_URI" --out=/backups/mongodb-$DATE
+tar -czf /backups/mongodb-$DATE.tar.gz /backups/mongodb-$DATE
+rm -rf /backups/mongodb-$DATE
+
+# Keep only last 7 days
+find /backups -name "mongodb-*.tar.gz" -mtime +7 -delete
+```
+
+Add to crontab:
+```bash
+crontab -e
+# Add: 0 2 * * * /path/to/backup-script.sh
+```
+
+### Updates and Maintenance
+
+#### Updating Server
+
+```bash
+cd server
+git pull
+npm ci --only=production
+pm2 restart stadium-backend
+```
+
+#### Updating Client
+
+```bash
+cd client
+git pull
+npm ci
+npm run build
+# Copy dist/ to web server
+```
+
+#### Database Migrations
+
+If schema changes:
+```bash
+cd server
+node migration.js  # Re-run migration if needed
+# Or create custom migration scripts for schema updates
+```
+
 ---
 
 ## 📚 Additional Documentation
 
+### Setup & Configuration
+- [Wallet Connection Fix](./WALLET_CONNECTION_FIX.md) - Troubleshooting admin wallet connection
+- [M2 Testing Guide](./M2_TESTING_GUIDE.md) - Complete M2 submission testing guide
+- [M2 Date Enforcement](./M2_DATE_ENFORCEMENT.md) - Week-based restrictions and timeline
+
+### API & Development
 - [API Documentation](./API_DOCS.md) - Complete API reference
 - [Data Schema](./DATA_SCHEMA.md) - MongoDB schema and data model
 - [Admin Review Guide](./ADMIN-REVIEW.md) - Code review checklist

@@ -143,3 +143,85 @@ export function getDaysSinceUpdate(lastUpdateDate: Date): number {
   const today = new Date();
   return Math.floor((today.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24));
 }
+
+/**
+ * M2 Timeline data structure
+ */
+export interface M2Timeline {
+  currentWeek: number
+  canSubmit: boolean
+  canEditRoadmap: boolean
+  week5OpenDate: Date
+  deadlineDate: Date
+  daysUntilSubmissionOpens: number
+  daysUntilDeadline: number
+  isPastDeadline: boolean
+}
+
+/**
+ * Calculate M2 program timeline based on hackathon end date
+ * This function is used for dynamic week calculation per project
+ * @param hackathonEndDate - The date when the hackathon ended
+ * @returns M2Timeline object with current week, submission windows, etc.
+ */
+export function calculateM2Timeline(hackathonEndDate: Date | string | undefined): M2Timeline {
+  // Handle case where hackathonEndDate is not set
+  if (!hackathonEndDate) {
+    const now = new Date()
+    const fallbackWeek5 = new Date(now)
+    fallbackWeek5.setDate(fallbackWeek5.getDate() + 28)
+    const fallbackDeadline = new Date(now)
+    fallbackDeadline.setDate(fallbackDeadline.getDate() + 42)
+    
+    return {
+      currentWeek: 1,
+      canSubmit: false,
+      canEditRoadmap: true,
+      week5OpenDate: fallbackWeek5,
+      deadlineDate: fallbackDeadline,
+      daysUntilSubmissionOpens: 28,
+      daysUntilDeadline: 42,
+      isPastDeadline: false,
+    }
+  }
+  
+  const now = new Date()
+  const endDate = new Date(hackathonEndDate)
+  
+  // Calculate days since hackathon ended
+  const daysSinceHackathon = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24))
+  
+  // Calculate current week (Week 1 starts the day after hackathon ends)
+  const currentWeek = Math.floor(daysSinceHackathon / 7) + 1
+  
+  // Week 5 opens 28 days after hackathon (4 weeks * 7 days)
+  const week5OpenDate = new Date(endDate)
+  week5OpenDate.setDate(week5OpenDate.getDate() + 28)
+  
+  // Week 6 ends 42 days after hackathon (6 weeks * 7 days)
+  const deadlineDate = new Date(endDate)
+  deadlineDate.setDate(deadlineDate.getDate() + 42)
+  
+  // Submission window is Weeks 5-6
+  const canSubmit = currentWeek >= 5 && currentWeek <= 6
+  
+  // Roadmap editing is Weeks 1-4
+  const canEditRoadmap = currentWeek >= 1 && currentWeek <= 4
+  
+  // Calculate days until key dates
+  const daysUntilSubmissionOpens = Math.max(0, Math.floor((week5OpenDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  const daysUntilDeadline = Math.max(0, Math.floor((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  
+  const isPastDeadline = currentWeek > 6
+  
+  return {
+    currentWeek: Math.max(1, Math.min(currentWeek, 7)), // Clamp between 1-7
+    canSubmit,
+    canEditRoadmap,
+    week5OpenDate,
+    deadlineDate,
+    daysUntilSubmissionOpens,
+    daysUntilDeadline,
+    isPastDeadline,
+  }
+}

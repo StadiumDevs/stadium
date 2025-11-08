@@ -50,6 +50,9 @@ import { WalletConnectionBanner } from "@/components/WalletConnectionBanner";
 import { TeamPaymentSection } from "@/components/TeamPaymentSection";
 import { EditTeamModal, TeamMember as EditTeamMember } from "@/components/EditTeamModal";
 import { UpdatePayoutModal } from "@/components/UpdatePayoutModal";
+import { M2SubmissionTimeline } from "@/components/M2SubmissionTimeline";
+import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModal";
+import { isAdmin as checkIsAdmin } from "@/lib/constants";
 
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -143,6 +146,7 @@ const ProjectDetailsPage = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [isEditTeamOpen, setIsEditTeamOpen] = useState(false);
   const [isUpdatePayoutOpen, setIsUpdatePayoutOpen] = useState(false);
+  const [isSubmitM2ModalOpen, setIsSubmitM2ModalOpen] = useState(false);
 
   // Format date utility
   const formatDate = (dateString?: string | Date) => {
@@ -455,18 +459,9 @@ const ProjectDetailsPage = () => {
     );
   }, [connectedAddress, project?.teamMembers]);
 
-  // Check if connected wallet is an admin
+  // Check if connected wallet is an admin (use shared constants)
   const isAdmin = useMemo(() => {
-    if (!connectedAddress) return false;
-    
-    // Get admin addresses from environment variable (consistent with AdminPage)
-    const adminAddressesEnv = import.meta.env.VITE_ADMIN_ADDRESSES || '';
-    const adminAddresses = adminAddressesEnv
-      .split(',')
-      .map((addr: string) => addr.trim().toLowerCase())
-      .filter((addr: string) => addr.length > 0);
-    
-    return adminAddresses.includes(connectedAddress.toLowerCase());
+    return checkIsAdmin(connectedAddress);
   }, [connectedAddress]);
 
   // Check if it's Week 5+ (submission allowed)
@@ -704,6 +699,79 @@ const ProjectDetailsPage = () => {
         title: "Update Failed",
         description: error?.message || "Failed to update payout address. Please try again.",
         variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
+  const handleSubmitM2 = async (data: {
+    repoUrl: string;
+    demoUrl: string;
+    docsUrl: string;
+    summary: string;
+  }) => {
+    if (!project || !connectedAddress) {
+      toast({
+        title: 'Error',
+        description: 'Please connect your wallet first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Blockspace Stadium');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error('No wallet found');
+
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'submit-m2',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Call the submit M2 endpoint
+      const response = await fetch(`/api/projects/${project.id}/submit-m2`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-siws-auth': authHeader,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Submission failed');
+      }
+
+      toast({
+        title: 'Success!',
+        description: '🎉 M2 deliverables submitted! WebZero will review within 2-3 days.',
+      });
+
+      // Refetch project to show updated status
+      await fetchProject();
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: 'Submission Failed',
+        description: error?.message || 'Failed to submit deliverables. Please try again.',
+        variant: 'destructive',
       });
       throw err;
     }
@@ -1054,58 +1122,14 @@ const ProjectDetailsPage = () => {
               </CardHeader>
             </Card>
 
-            {/* M2 Program Progress Section - Only for building status */}
-            {project.m2Status === 'building' && (
-              <div className="glass-panel rounded-lg p-6 mb-6">
-                <h2 className="text-2xl font-heading mb-4">📊 M2 Program Progress</h2>
-                
-                {(() => {
-                  const currentWeekData = getCurrentProgramWeek();
-                  const currentWeek = currentWeekData.weekNumber;
-                  const m2Status = project.m2Status || 'building';
-                  
-                  // Calculate status badge
-                  let statusBadge = null;
-                  if (m2Status === 'building') {
-                    statusBadge = (
-                      <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/30">
-                        🟢 Building M2
-                      </Badge>
-                    );
-                  } else if (m2Status === 'under_review') {
-                    statusBadge = (
-                      <Badge variant="outline" className="bg-blue-500/20 text-blue-500 border-blue-500/30">
-                        ⏳ Under Review
-                      </Badge>
-                    );
-                  } else if (m2Status === 'completed') {
-                    statusBadge = (
-                      <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">
-                        ✅ Completed
-                      </Badge>
-                    );
-                  }
-                  
-                  return (
-                    <>
-                      <div className="mb-4">
-                        <div className="text-sm text-muted-foreground mb-2">
-                          Week {currentWeek} of 6 · {m2Status === 'building' ? 'Building' : m2Status === 'under_review' ? 'Under Review' : 'Completed'}
-                        </div>
-                        <Progress value={(currentWeek / 6) * 100} className="h-2" />
-                      </div>
-                      
-                      <div className="text-sm mb-4">
-                        Status: {statusBadge}
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground mt-4">
-                        Need help? Contact your mentor in Telegram
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
+            {/* M2 Submission Timeline - Shows for all M2 statuses */}
+            {(project.m2Status === 'building' || project.m2Status === 'under_review' || project.m2Status === 'completed') && (
+              <M2SubmissionTimeline
+                project={project}
+                isTeamMember={isTeamMember}
+                isAdmin={isAdmin}
+                onSubmit={() => setIsSubmitM2ModalOpen(true)}
+              />
             )}
 
             {/* M2 Agreement Section - Only for building status */}
@@ -1820,6 +1844,14 @@ const ProjectDetailsPage = () => {
             onOpenChange={setIsUpdatePayoutOpen}
             currentAddress={project.donationAddress}
             onSave={handlePayoutUpdate}
+          />
+
+          {/* Submit M2 Deliverables Modal */}
+          <SubmitM2DeliverablesModal
+            open={isSubmitM2ModalOpen}
+            onOpenChange={setIsSubmitM2ModalOpen}
+            project={project}
+            onSubmit={handleSubmitM2}
           />
         </>
       )}
