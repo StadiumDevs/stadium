@@ -124,8 +124,6 @@ const ProjectDetailsPage = () => {
   const [editFields, setEditFields] = useState<Partial<ApiProject>>({});
   const [registerAddress, setRegisterAddress] = useState('');
   const [registerSig, setRegisterSig] = useState('');
-  const [teamEditing, setTeamEditing] = useState(false);
-  const [teamDraft, setTeamDraft] = useState<ApiTeamMember[]>([]);
   const ALLOWED_CATEGORIES = [
     "Gaming",
     "DeFi",
@@ -314,55 +312,6 @@ const ProjectDetailsPage = () => {
       milestones: project.milestones ? [...project.milestones] : [],
     });
     setEditMode('edit');
-  };
-
-  // Team editing helpers
-  const startTeamEdit = () => {
-    setTeamDraft([...(project?.teamMembers || [])]);
-    setTeamEditing(true);
-  };
-  const addTeamMember = () => setTeamDraft((prev) => [...prev, { name: "" }]);
-  const removeTeamMember = (index: number) => setTeamDraft((prev) => prev.filter((_, i) => i !== index));
-  const updateTeamMember = (index: number, field: keyof ApiTeamMember, value: string) => {
-    setTeamDraft((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
-  };
-
-  const submitTeamUpdate = async () => {
-    if (!project) return;
-    try {
-      // Build SIWS header from connectedAddress or prompt flow
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error('No wallet found');
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-team',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
-
-      // Send full replacement of teamMembers
-      const sanitized = teamDraft.map(t => ({ name: t.name, walletAddress: t.walletAddress || "", customUrl: t.customUrl || "" }));
-      const updated = await api.updateProjectTeam(project.id, sanitized, authHeader);
-      const updatedProject = updated?.data || updated;
-      setProject(updatedProject);
-      setTeamEditing(false);
-      toast({ title: 'Team updated', description: 'Team members saved.' });
-    } catch (e) {
-      toast({ title: 'Update failed', description: (e as Error)?.message || String(e), variant: 'destructive' });
-    }
   };
 
   // Save edits (persist categories; update UI on success only)
@@ -1600,124 +1549,6 @@ const ProjectDetailsPage = () => {
                 </div>
             )}
 
-            {/* Team Members Card */}
-            <Card className="w-full max-w-full sm:max-w-4xl p-2 sm:p-4 relative">
-              {/* Team Members section */}
-              <div className="glass-panel rounded-lg p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-heading">👥 Team</h2>
-                  {isTeamMember && (
-                    <Button 
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setTeamModalOpen(true)}
-                    >
-                      Edit Team
-                    </Button>
-                  )}
-                </div>
-                
-                {!teamEditing ? (
-                  <>
-                    {(project.teamMembers || []).length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {(project.teamMembers || []).map((member, index) => (
-                          <div 
-                            key={index}
-                            className="border border-subtle rounded-lg p-4 bg-muted/30"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h3 className="font-medium text-lg mb-1">{member.name}</h3>
-                                <p className="text-xs text-muted-foreground font-mono mb-3">
-                                  {member.walletAddress ? 
-                                    `${member.walletAddress.slice(0, 6)}...${member.walletAddress.slice(-4)}` : 
-                                    'No wallet connected'
-                                  }
-                                </p>
-                                
-                                {/* Optional social links */}
-                                {(member.twitter || member.github || member.linkedin) && (
-                                  <div className="flex gap-2">
-                                    {member.twitter && (
-                                      <a 
-                                        href={`https://twitter.com/${member.twitter.replace('@', '')}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-muted-foreground hover:text-primary transition-colors"
-                                        aria-label={`${member.name}'s Twitter`}
-                                      >
-                                        <Twitter className="w-4 h-4" aria-hidden="true" />
-                                      </a>
-                                    )}
-                                    {member.github && (
-                                      <a 
-                                        href={`https://github.com/${member.github}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-muted-foreground hover:text-primary transition-colors"
-                                        aria-label={`${member.name}'s GitHub`}
-                                      >
-                                        <Github className="w-4 h-4" aria-hidden="true" />
-                                      </a>
-                                    )}
-                                    {member.linkedin && (
-                                      <a 
-                                        href={member.linkedin.startsWith('http') ? member.linkedin : `https://linkedin.com/in/${member.linkedin}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-muted-foreground hover:text-primary transition-colors"
-                                        aria-label={`${member.name}'s LinkedIn`}
-                                      >
-                                        <Linkedin className="w-4 h-4" aria-hidden="true" />
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                              
-                              {/* Optional role badge */}
-                              {member.role && (
-                                <Badge variant="secondary" className="text-xs ml-2">
-                                  {member.role}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No team members listed</p>
-                    )}
-                    
-                    {/* Payout address - shown only to team members */}
-                    {isTeamMember && project.donationAddress && (
-                      <div className="mt-4 pt-4 border-t border-subtle">
-                        <p className="text-sm text-muted-foreground mb-1">Payout Address:</p>
-                        <p className="text-sm font-mono">{project.donationAddress}</p>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="space-y-2">
-                    {teamDraft.map((m, i) => (
-                      <div key={i} className="flex flex-col sm:flex-row gap-2">
-                        <input className="flex-1 border rounded px-2 py-1 text-xs" placeholder="Name" value={m.name} onChange={e => updateTeamMember(i, 'name', e.target.value)} />
-                        <input className="flex-1 border rounded px-2 py-1 text-xs" placeholder="Wallet Address (optional)" value={m.walletAddress || ''} onChange={e => updateTeamMember(i, 'walletAddress', e.target.value)} />
-                        <input className="flex-1 border rounded px-2 py-1 text-xs" placeholder="Custom URL (optional)" value={m.customUrl || ''} onChange={e => updateTeamMember(i, 'customUrl', e.target.value)} />
-                        <Button size="icon" variant="ghost" onClick={() => removeTeamMember(i)}><span className="text-lg">&times;</span></Button>
-                      </div>
-                    ))}
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={addTeamMember}>Add Member</Button>
-                      <Button size="sm" variant="default" onClick={submitTeamUpdate}>Save Team</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setTeamEditing(false)}>Cancel</Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Note: Saving will replace the entire team list.</p>
-                  </div>
-                )}
-              </div>
-            </Card>
           </div>
         </div>
       </main>
