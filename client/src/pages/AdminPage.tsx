@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
 import {
-  Eye,
-  Trophy,
-  DollarSign,
   Shield,
   Loader2,
   LogOut,
@@ -20,7 +17,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -31,147 +27,44 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { adminApi, projectApi } from "@/lib/mockApi";
-import { Project, Payout } from "@/lib/mockData";
+import { Project } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
 import { api } from "@/lib/api";
 import { useMemo } from "react";
 import { isAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
+import { M2ProjectsTable } from "@/components/admin/M2ProjectsTable";
+import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
+import { ConfirmM1PayoutModal } from "@/components/admin/ConfirmM1PayoutModal";
 
 const formatAddress = (address = "") =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
 
-const PayoutModal = ({
-  isOpen,
-  onClose,
-  project,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  project: Project | null;
-}) => {
-  const [amount, setAmount] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const { toast } = useToast();
-
-  const handleCreatePayout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!project) return;
-
-    setIsCreating(true);
-    try {
-      await adminApi.createPayout({
-        projectId: project.id,
-        recipient: project.ss58Address,
-        amount,
-      });
-
-      toast({
-        title: "Payout Created",
-        description: `Payout of ${amount} tokens initiated for ${project.projectTitle}`,
-      });
-
-      onClose();
-      setAmount("");
-    } catch (error) {
-      const err = error as Error;
-      toast({
-        title: "Payout Failed",
-        description: err?.message || "Failed to create payout. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <DollarSign className="h-5 w-5" />
-            <span>Create Payout</span>
-          </DialogTitle>
-          <DialogDescription>
-            Create a payout for {project?.projectTitle}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleCreatePayout}>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="recipient">Recipient Address</Label>
-              <Input
-                id="recipient"
-                value={project?.ss58Address || ""}
-                readOnly
-                className="font-mono text-sm"
-              />
-            </div>
-            <div>
-              <Label htmlFor="amount">Amount (Tokens)</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="10000"
-                required
-                min="1"
-              />
-            </div>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isCreating}>
-              {isCreating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                "Create Payout"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
 type M2Project = Project & {
+  projectName: string;
+  teamMembers?: Array<{
+    name: string;
+    walletAddress?: string;
+    role?: string;
+    twitter?: string;
+    github?: string;
+    linkedin?: string;
+  }>;
   m2Status?: 'building' | 'under_review' | 'completed';
   finalSubmission?: {
     repoUrl: string;
     demoUrl: string;
     docsUrl: string;
-    summary: string;
+    summary?: string;
     submittedDate: string;
   };
-  mentorApproval?: {
-    approved: boolean;
-    approvedDate?: string;
-  };
-  author?: string;
+  submittedDate?: string;
 };
 
 const AdminPage = () => {
@@ -189,24 +82,30 @@ const AdminPage = () => {
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState(BYPASS_ADMIN_CHECK);
-  const [projects, setProjects] = useState<M2Project[]>([]);
-  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProject, setSelectedProject] = useState<any>(null);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [showM1PayoutModal, setShowM1PayoutModal] = useState(false);
+  const [sortBy, setSortBy] = useState<'eventStartedAt' | 'projectName' | 'newest'>('eventStartedAt');
   const { toast } = useToast();
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [projectsData, payoutsData] = await Promise.all([
-        projectApi.getProjects(),
-        adminApi.getPayouts(),
-      ]);
-      setProjects(projectsData || []);
-      setPayouts(payoutsData || []);
+      // Fetch ALL projects from MongoDB via API (no pagination)
+      const response = await api.getProjects({ limit: 1000 });
+      console.log('[AdminPage] API response:', response);
+      
+      // Extract projects from response.data
+      const projectsData = response?.data || [];
+      console.log('[AdminPage] Loaded projects from DB:', projectsData.length, 'projects');
+      console.log('[AdminPage] Sample project:', projectsData[0]);
+      
+      setProjects(projectsData);
     } catch (error) {
       const err = error as Error;
+      console.error('[AdminPage] Failed to load data:', error);
       toast({
         title: "Error",
         description: err?.message || "Failed to load admin data.",
@@ -371,35 +270,115 @@ const AdminPage = () => {
     }
   };
 
-  const handleStatusChange = async (
-    projectId: string,
-    newStatus: Project["status"]
-  ) => {
+  const handlePaymentClick = (project: any) => {
+    // Dollar sign button in table opens M1 payout modal
+    setSelectedProject(project);
+    setShowM1PayoutModal(true);
+  };
+
+  const handleConfirmM1Payout = async (data: any) => {
+    if (!selectedProject) return;
+
     try {
-      const updatedProject = await projectApi.updateProjectStatus(
-        projectId,
-        newStatus
-      );
-      setProjects((prev) =>
-        prev.map((p) => (p.id === projectId ? updatedProject : p))
-      );
+      console.log('[AdminPage] Confirming M1 payout for project:', selectedProject.id);
+      console.log('[AdminPage] M1 payout data:', data);
+
+      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      console.log('[AdminPage] Response status:', response.status);
+
+      const responseText = await response.text();
+      console.log('[AdminPage] Response text:', responseText);
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to confirm M1 payout';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
 
       toast({
-        title: "Status Updated",
-        description: `Project status changed to ${newStatus}`,
+        title: "M1 Payout Confirmed",
+        description: `Payment distributed to ${data.recipients.length} team members`,
       });
-    } catch (error) {
-      const err = error as Error;
+
+      // Reload data
+      await loadData();
+      setShowM1PayoutModal(false);
+    } catch (error: any) {
+      console.error('[AdminPage] M1 payout confirmation error:', error);
       toast({
-        title: "Update Failed",
-        description: err?.message || "Failed to update project status.",
+        title: "Error",
+        description: error.message || 'Failed to confirm M1 payout',
         variant: "destructive",
       });
+      throw error;
     }
   };
 
-  const handleDeclareWinner = async (projectId: string) => {
-    await handleStatusChange(projectId, "winner");
+  const handleConfirmPayment = async (data: any) => {
+    if (!selectedProject) return;
+
+    try {
+      console.log('[AdminPage] Confirming payment for project:', selectedProject.id);
+      console.log('[AdminPage] Payment data:', data);
+
+      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      console.log('[AdminPage] Response status:', response.status);
+      console.log('[AdminPage] Response ok:', response.ok);
+
+      // Try to get response text first
+      const responseText = await response.text();
+      console.log('[AdminPage] Response text:', responseText);
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to confirm payment';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          // If JSON parsing fails, use the text as error message
+          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      toast({
+        title: "Payment Confirmed",
+        description: `${data.milestone} payment recorded successfully`,
+      });
+
+      // Reload data
+      await loadData();
+      setShowPayoutModal(false);
+    } catch (error: any) {
+      console.error('[AdminPage] Payment confirmation error:', error);
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to confirm payment',
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   const handleLogout = () => {
@@ -418,14 +397,40 @@ const AdminPage = () => {
 
   // Filter projects under review for M2
   const projectsUnderReview = useMemo(() => {
-    return projects.filter((p) => p.m2Status === 'under_review') as M2Project[];
+    return projects.filter((p) => p.m2Status === 'under_review');
   }, [projects]);
 
-  // Filter M2 projects (winners or projects with M2 status)
+  // Filter M2 projects
   const m2Projects = useMemo(() => 
-    projects.filter(p => p.isWinner || p.m2Status) as M2Project[],
+    projects.filter(p => p.m2Status),
     [projects]
   );
+
+  // Sort projects based on selected sort option
+  const sortedProjects = useMemo(() => {
+    const projectsCopy = [...projects];
+    
+    switch (sortBy) {
+      case 'eventStartedAt':
+        return projectsCopy.sort((a, b) => {
+          const dateA = a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0;
+          const dateB = b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0;
+          return dateB - dateA; // Newest first
+        });
+      case 'projectName':
+        return projectsCopy.sort((a, b) => 
+          (a.projectName || '').localeCompare(b.projectName || '')
+        );
+      case 'newest':
+        return projectsCopy.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA; // Newest first
+        });
+      default:
+        return projectsCopy;
+    }
+  }, [projects, sortBy]);
 
   // Handle M2 approval
   const handleApproveM2 = async (projectId: string) => {
@@ -461,30 +466,6 @@ const AdminPage = () => {
     }
   };
 
-  // Handle request changes
-  const handleRequestChanges = async (projectId: string) => {
-    const feedback = prompt('What changes are needed?');
-    if (!feedback) return;
-
-    try {
-      await api.requestChanges(projectId, feedback);
-      
-      toast({
-        title: "Changes Requested",
-        description: "Team will be notified in Telegram.",
-      });
-      
-      loadData();
-    } catch (error) {
-      const err = error as Error;
-      toast({
-        title: "Failed to request changes",
-        description: err?.message || "Failed to request changes. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Handle M2 status change
   const handleM2StatusChange = async (projectId: string, newStatus: 'building' | 'under_review' | 'completed') => {
     const statusLabels = {
@@ -515,22 +496,6 @@ const AdminPage = () => {
         variant: 'destructive',
       });
       console.error(error);
-    }
-  };
-
-  // Get M2 status badge
-  const getM2StatusBadge = (project: M2Project) => {
-    if (!project.m2Status) return null;
-    
-    switch (project.m2Status) {
-      case 'building':
-        return <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">Building</Badge>;
-      case 'under_review':
-        return <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/30">Under Review</Badge>;
-      case 'completed':
-        return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30">Completed</Badge>;
-      default:
-        return null;
     }
   };
 
@@ -638,9 +603,9 @@ const AdminPage = () => {
         </div>
       </div>
 
-      {/* M2 Reviews Section */}
+      {/* Pending Review Section */}
       <div className="glass-panel rounded-lg p-6 mb-6">
-        <h2 className="text-2xl font-heading mb-4">M2 Pending Reviews</h2>
+        <h2 className="text-2xl font-heading mb-4">Pending Review</h2>
         
         {projectsUnderReview.length === 0 ? (
           <EmptyState
@@ -653,14 +618,11 @@ const AdminPage = () => {
               <div key={project.id} className="border border-subtle rounded-lg p-4">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="font-medium text-lg font-heading">{project.projectTitle}</h3>
+                    <h3 className="font-medium text-lg font-heading">{project.projectName}</h3>
                     <p className="text-sm text-muted-foreground">
-                      By {project.author || 'Unknown'} · Submitted {formatDate(project.finalSubmission?.submittedDate || project.submittedAt)}
+                      By {project.teamMembers?.[0]?.name || 'Unknown'} · Submitted {formatDate(project.finalSubmission?.submittedDate || project.submittedDate)}
                     </p>
                   </div>
-                  <Badge variant={project.mentorApproval?.approved ? "default" : "secondary"}>
-                    Mentor: {project.mentorApproval?.approved ? '✅ Approved' : '⏳ Pending'}
-                  </Badge>
                 </div>
                 
                 <div className="space-y-2 mb-4">
@@ -725,106 +687,15 @@ const AdminPage = () => {
                 
                 <div className="flex gap-2 flex-wrap">
                   <Button 
-                    onClick={() => handleApproveM2(project.id)}
-                    disabled={!project.mentorApproval?.approved}
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setShowPayoutModal(true);
+                    }}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" aria-hidden="true" />
-                    Approve & Process Payment
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => handleRequestChanges(project.id)}
-                  >
-                    Request Changes
+                    Approve & Process M2 Payment
                   </Button>
                 </div>
-                
-                {!project.mentorApproval?.approved && (
-                  <p className="text-xs text-yellow-500 mt-2">
-                    ⚠️ Waiting for mentor approval before WebZero review
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* M2 Program Management */}
-      <div className="glass-panel rounded-lg p-6 mb-6">
-        <h2 className="text-2xl font-heading mb-4">M2 Program Management</h2>
-        
-        {m2Projects.length === 0 ? (
-          <p className="text-muted-foreground">No projects in M2 program yet</p>
-        ) : (
-          <div className="space-y-4">
-            {m2Projects.map((project) => (
-              <div key={project.id} className="border border-subtle rounded-lg p-4">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-lg font-heading">{project.projectTitle || project.title}</h3>
-                    <p className="text-sm text-muted-foreground">By {project.author || 'Unknown'}</p>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    {/* Current Status Badge */}
-                    <Badge variant={
-                      project.m2Status === 'completed' ? 'default' :
-                      project.m2Status === 'under_review' ? 'secondary' :
-                      'outline'
-                    }>
-                      {project.m2Status === 'building' && '🏗️ Building'}
-                      {project.m2Status === 'under_review' && '⏳ Under Review'}
-                      {project.m2Status === 'completed' && '✅ Completed'}
-                      {!project.m2Status && '🏗️ Building'}
-                    </Badge>
-                    
-                    {/* Status Change Dropdown */}
-                    <Select 
-                      value={project.m2Status || 'building'} 
-                      onValueChange={(status) => handleM2StatusChange(project.id, status as 'building' | 'under_review' | 'completed')}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Change status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="building">🏗️ Building</SelectItem>
-                        <SelectItem value="under_review">⏳ Under Review</SelectItem>
-                        <SelectItem value="completed">✅ Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
-                {/* Show final submission details if exists */}
-                {project.finalSubmission && (
-                  <div className="space-y-2 mb-4 bg-muted/50 rounded p-3">
-                    <h4 className="text-sm font-medium">Final Submission:</h4>
-                    <div className="flex gap-4 text-sm flex-wrap">
-                      {project.finalSubmission.repoUrl && (
-                        <a href={project.finalSubmission.repoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                          GitHub →
-                        </a>
-                      )}
-                      {project.finalSubmission.demoUrl && (
-                        <a href={project.finalSubmission.demoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                          Demo →
-                        </a>
-                      )}
-                      {project.finalSubmission.docsUrl && (
-                        <a href={project.finalSubmission.docsUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                          Docs →
-                        </a>
-                      )}
-                    </div>
-                    {project.finalSubmission.summary && (
-                      <p className="text-xs text-muted-foreground mt-2">{project.finalSubmission.summary}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Submitted: {formatDate(project.finalSubmission.submittedDate)}
-                    </p>
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -842,7 +713,7 @@ const AdminPage = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-warning">
-              {projects.filter((p) => p.status === "pending").length}
+              {projects.filter((p) => p.m2Status === "under_review").length}
             </div>
             <div className="text-sm text-muted-foreground">Pending Review</div>
           </CardContent>
@@ -850,125 +721,74 @@ const AdminPage = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-primary">
-              {projects.filter((p) => p.status === "winner").length}
+              {projects.filter((p) => p.m2Status === "completed").length}
             </div>
-            <div className="text-sm text-muted-foreground">Winners</div>
+            <div className="text-sm text-muted-foreground">M2 Graduates</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-primary">
-              {payouts.filter((p) => p.status === "completed").length}
+              ${projects.reduce((total, p) => {
+                const paid = p.totalPaid?.reduce((sum: number, payment: any) => sum + payment.amount, 0) || 0;
+                return total + paid;
+              }, 0).toLocaleString()}
             </div>
-            <div className="text-sm text-muted-foreground">Payouts Made</div>
+            <div className="text-sm text-muted-foreground">Total Paid Out</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Projects Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Management</CardTitle>
-          <CardDescription>
-            Review and manage submitted projects
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project Title</TableHead>
-                  <TableHead>Team Address</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>M2 Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {projects.map((project) => (
-                  <TableRow key={project.ss58Address}>
-                    <TableCell className="font-medium">
-                      {project.projectTitle}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {project.ss58Address.slice(0, 8)}...
-                      {project.ss58Address.slice(-6)}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={project.status}
-                        onValueChange={(value: Project["status"]) =>
-                          handleStatusChange(project.ss58Address, value)
-                        }
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="reviewing">Reviewing</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
-                          <SelectItem value="winner">Winner</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      {getM2StatusBadge(project as M2Project) || <span className="text-muted-foreground text-sm">N/A</span>}
-                    </TableCell>
-                    <TableCell>{formatDate(project.submittedAt)}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            window.open(
-                              `/project/${project.ss58Address}`,
-                              "_blank"
-                            )
-                          }
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            handleDeclareWinner(project.ss58Address)
-                          }
-                          disabled={project.status === "winner"}
-                        >
-                          <Trophy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedProject(project);
-                            setShowPayoutModal(true);
-                          }}
-                        >
-                          <DollarSign className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {/* All M2 Projects Table */}
+      <section className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold">📊 All M2 Projects</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Live status tracking for all M2 accelerator projects
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="sortBy" className="text-sm text-muted-foreground">
+              Sort by:
+            </Label>
+            <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="eventStartedAt">Event Date (Newest)</SelectItem>
+                <SelectItem value="projectName">Project Name (A-Z)</SelectItem>
+                <SelectItem value="newest">Created Date (Newest)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <M2ProjectsTable 
+          projects={sortedProjects || []} 
+          onPaymentClick={handlePaymentClick}
+        />
+      </section>
 
-      {/* Payout Modal */}
-      <PayoutModal
-        isOpen={showPayoutModal}
-        onClose={() => setShowPayoutModal(false)}
-        project={selectedProject}
-      />
+      {/* M1 Payout Modal */}
+      {selectedProject && (
+        <ConfirmM1PayoutModal
+          open={showM1PayoutModal}
+          onOpenChange={setShowM1PayoutModal}
+          project={selectedProject}
+          onConfirm={handleConfirmM1Payout}
+        />
+      )}
+
+      {/* M2 Payment Confirmation Modal */}
+      {selectedProject && (
+        <ConfirmPaymentModal
+          open={showPayoutModal}
+          onOpenChange={setShowPayoutModal}
+          project={selectedProject}
+          onConfirm={handleConfirmPayment}
+        />
+      )}
       </div>
     </div>
   );

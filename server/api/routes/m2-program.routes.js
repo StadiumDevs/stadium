@@ -20,4 +20,7 @@ router.patch('/:projectId/m2-agreement', requireTeamMemberOrAdmin, projectContro
 router.patch('/:projectId/payout-address', requireTeamMemberOrAdmin, projectController.updatePayoutAddress);
 router.post('/:projectId/submit-m2', requireTeamMemberOrAdmin, projectController.submitM2Deliverables);
 
+// --- Admin payment confirmation ---
+router.post('/:projectId/confirm-payment', requireAdmin, projectController.confirmPayment);
+
 export default router;

@@ -369,7 +369,7 @@ const HomePage = () => {
             
             {/* Past Events - Subtle */}
             <p className="text-sm text-muted-foreground/70 pt-4">
-              Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025
+              Past events: Blockspace Symmetry 2024 (Berlin), Blockspace Synergy 2025 (Berlin)
             </p>
           </div>
         </div>
@@ -404,7 +404,7 @@ const HomePage = () => {
                 </div>
                 
                 <p className="text-lg text-muted-foreground mb-6">
-                  Celebrating teams who completed the 6-week M2 Accelerator program at sub0 2025
+                  Celebrating teams who completed their M2 deliverables
                 </p>
                 
                 <div className="grid grid-cols-3 gap-4 mb-6">
@@ -656,7 +656,7 @@ const HomePage = () => {
                   {hackathonStats.inM2Program}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  In M2 Program
+                  Currently in the M2 Program
                 </div>
               </div>
               

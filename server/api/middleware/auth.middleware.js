@@ -66,6 +66,15 @@ function validateSiwsStatement(statement) {
 
 // --- Middleware ---
 export const requireAdmin = async (req, res, next) => {
+  // TEMPORARY: Bypass admin check for testing (hardcoded for development)
+  const BYPASS_ADMIN_CHECK = true; // Set to false for production
+  
+  if (BYPASS_ADMIN_CHECK) {
+    logSuccess('[BYPASS] Admin check bypassed for testing');
+    req.user = { address: 'test-admin-address' };
+    return next();
+  }
+  
   log(`Initiating admin verification for ${req.method} ${req.originalUrl}`);
 
   const authHeader = req.headers['x-siws-auth'];

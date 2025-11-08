@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Wrench, Clock, Home, Menu } from "lucide-react"
+import { Wrench, Clock, Home, Menu, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -13,6 +13,7 @@ export function Navigation() {
     { href: "/", label: "Home", icon: Home },
     { href: "/past-projects", label: "Past Projects", icon: Clock },
     { href: "/m2-program", label: "M2 Program", icon: Wrench },
+    { href: "/admin", label: "Admin", icon: Shield },
   ]
 
   return (

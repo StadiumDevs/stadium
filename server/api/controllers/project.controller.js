@@ -306,6 +306,106 @@ class ProjectController {
             });
         }
     }
+
+    /**
+     * Confirm payment for M1 or M2 milestone
+     * Admin only - records payment with transaction proof
+     */
+    async confirmPayment(req, res) {
+        try {
+            const { projectId } = req.params;
+            const { milestone, amount, currency, transactionProof } = req.body;
+
+            // Validation
+            if (!milestone || !['M1', 'M2'].includes(milestone)) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'Invalid milestone. Must be M1 or M2'
+                });
+            }
+
+            if (!amount || amount <= 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'Invalid amount'
+                });
+            }
+
+            if (!currency || !['USDC', 'DOT'].includes(currency)) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'Invalid currency. Must be USDC or DOT'
+                });
+            }
+
+            if (!transactionProof || !transactionProof.startsWith('http')) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'Valid transaction proof URL is required'
+                });
+            }
+
+            // Get project
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({
+                    status: 'error',
+                    error: 'Project not found'
+                });
+            }
+
+            // Check if already paid
+            const alreadyPaid = project.totalPaid?.some(p => p.milestone === milestone);
+            if (alreadyPaid) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: `${milestone} has already been paid`
+                });
+            }
+
+            // Prepare payment data
+            const paymentData = {
+                milestone,
+                amount,
+                currency,
+                transactionProof
+            };
+
+            // Add payment to totalPaid array
+            const updatedTotalPaid = [...(project.totalPaid || []), paymentData];
+
+            // If M2 payment, mark project as completed
+            const updateData = {
+                totalPaid: updatedTotalPaid
+            };
+
+            if (milestone === 'M2') {
+                updateData.m2Status = 'completed';
+                updateData.completionDate = new Date().toISOString();
+                logger.info(`[PAYMENT] M2 completed for project ${projectId}`);
+            }
+
+            // Update project
+            const updatedProject = await projectService.updateProject(projectId, updateData);
+
+            logger.info(`[PAYMENT] ${milestone} payment confirmed for project ${projectId}`);
+            logger.info(`  Amount: ${amount} ${currency}`);
+            logger.info(`  Transaction: ${transactionProof}`);
+
+            res.json({
+                status: 'success',
+                message: `${milestone} payment confirmed successfully`,
+                data: updatedProject
+            });
+        } catch (error) {
+            logger.error('[ERROR] Confirm payment failed:', error);
+            res.status(500).json({
+                status: 'error',
+                error: 'Internal server error',
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
 }
 
 export default new ProjectController();
