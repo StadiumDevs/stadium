@@ -43,7 +43,12 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
     amount: 1, // 1 USDC
     assetId: 1984, // USDC on Paseo Asset Hub (verify actual ID)
     network: 'Paseo Asset Hub',
-    rpc: PASEO_RPC
+    // Try multiple RPC endpoints in case one fails
+    rpcEndpoints: [
+      'wss://paseo-asset-hub-rpc.polkadot.io',
+      'wss://paseo-rpc.dwellir.com',
+      'wss://rpc-asset-hub-paseo.luckyfriday.io'
+    ]
   }
 
   const handleTestSend = async () => {
@@ -60,16 +65,85 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
     console.log('📝 Test Configuration:', TEST_CONFIG);
     console.log('🔗 Multisig:', CURRENT_MULTISIG);
 
+    let api: any = null;
+    let connectedRpc: string | null = null;
+
     try {
       // Import Polkadot API
       const { ApiPromise, WsProvider } = await import('@polkadot/api');
       
-      console.log('🔌 Connecting to RPC:', TEST_CONFIG.rpc);
-      const provider = new WsProvider(TEST_CONFIG.rpc);
-      const api = await ApiPromise.create({ provider });
+      // Try each RPC endpoint until one works
+      let lastError: Error | null = null;
       
-      console.log('✅ Connected to', TEST_CONFIG.network);
-      console.log('⛓️  Chain:', (await api.rpc.system.chain()).toString());
+      for (const rpcUrl of TEST_CONFIG.rpcEndpoints) {
+        try {
+          console.log(`🔌 Attempting to connect to: ${rpcUrl}`);
+          
+          const provider = new WsProvider(rpcUrl, 5000); // 5 second timeout
+          
+          // Set up connection event handlers
+          provider.on('connected', () => {
+            console.log(`✅ WebSocket connected to ${rpcUrl}`);
+          });
+          
+          provider.on('disconnected', () => {
+            console.log(`⚠️  WebSocket disconnected from ${rpcUrl}`);
+          });
+          
+          provider.on('error', (error) => {
+            console.error(`❌ WebSocket error on ${rpcUrl}:`, error);
+          });
+
+          // Try to create API with timeout
+          const apiPromise = ApiPromise.create({ 
+            provider,
+            throwOnConnect: true,
+            throwOnUnknown: true
+          });
+
+          // Add timeout to API creation
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000)
+          );
+
+          api = await Promise.race([apiPromise, timeoutPromise]);
+          
+          console.log('✅ Connected to', TEST_CONFIG.network);
+          console.log('⛓️  Chain:', (await api.rpc.system.chain()).toString());
+          console.log('📦 Runtime version:', (await api.rpc.state.getRuntimeVersion()).toJSON());
+          
+          connectedRpc = rpcUrl;
+          break; // Successfully connected, exit loop
+          
+        } catch (err: any) {
+          console.warn(`⚠️  Failed to connect to ${rpcUrl}:`, err.message);
+          lastError = err;
+          
+          // Clean up failed connection
+          if (api) {
+            try {
+              await api.disconnect();
+            } catch (e) {
+              // Ignore disconnect errors
+            }
+            api = null;
+          }
+          
+          // Continue to next RPC endpoint
+          continue;
+        }
+      }
+
+      // If no connection was successful
+      if (!api || !connectedRpc) {
+        throw new Error(
+          `Failed to connect to any Paseo RPC endpoint. Last error: ${lastError?.message || 'Unknown error'}. ` +
+          'This could be due to network issues or all RPC endpoints being temporarily unavailable. ' +
+          'Please check your internet connection and try again.'
+        );
+      }
+
+      console.log(`✅ Successfully using RPC: ${connectedRpc}`);
 
       // TODO: Actual transaction construction will go here
       // For now, just simulate success
@@ -85,6 +159,7 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
       console.log('👤 To:', TEST_CONFIG.recipient);
       console.log('💵 Amount:', TEST_CONFIG.amount, 'USDC');
       console.log('🌐 Network:', TEST_CONFIG.network);
+      console.log('🔗 RPC Used:', connectedRpc);
       console.log('');
       console.log('⚠️  NOTE: This is a TEST transaction');
       console.log('⚠️  NO database update was performed');
@@ -94,14 +169,36 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
       toast.success('Test transaction constructed successfully!');
 
       // Disconnect
-      await api.disconnect();
-      console.log('🔌 Disconnected from RPC');
+      if (api) {
+        await api.disconnect();
+        console.log('🔌 Disconnected from RPC');
+      }
 
     } catch (err: any) {
       console.error('❌ Test payment failed:', err);
       console.error('Error details:', err.message);
-      setError(err.message || 'Failed to construct test transaction');
-      toast.error('Test transaction failed');
+      console.error('Stack trace:', err.stack);
+      
+      // Provide helpful error message
+      let errorMessage = err.message || 'Failed to construct test transaction';
+      
+      if (errorMessage.includes('timeout')) {
+        errorMessage = 'Connection timeout. The RPC endpoint is not responding. Please try again or check your internet connection.';
+      } else if (errorMessage.includes('1006')) {
+        errorMessage = 'WebSocket connection failed (Error 1006). This usually means the RPC endpoint is unavailable or blocking the connection.';
+      }
+      
+      setError(errorMessage);
+      toast.error('Test transaction failed - check console for details');
+      
+      // Try to disconnect if connection was partially established
+      if (api) {
+        try {
+          await api.disconnect();
+        } catch (e) {
+          // Ignore disconnect errors
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -183,6 +280,10 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
               <span className="font-medium">Asset ID:</span>
               <Badge variant="outline">{TEST_CONFIG.assetId}</Badge>
             </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">RPC Endpoints:</span>
+              <span className="text-xs text-muted-foreground">{TEST_CONFIG.rpcEndpoints.length} available</span>
+            </div>
           </div>
 
           {/* Success Result */}
@@ -240,6 +341,7 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
           <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded">
             <p className="font-medium">What this does:</p>
             <ul className="list-disc list-inside space-y-1 ml-2">
+              <li>Tries multiple RPC endpoints for reliability</li>
               <li>Connects to {TEST_CONFIG.network}</li>
               <li>Constructs a test payment transaction</li>
               <li>Logs transaction details to console</li>
@@ -253,6 +355,13 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
               <li>Test transaction construction logic</li>
               <li>Debug payment flows</li>
               <li>Check multisig configuration</li>
+            </ul>
+            <p className="mt-2 text-yellow-600 font-medium">💡 Troubleshooting:</p>
+            <ul className="list-disc list-inside space-y-1 ml-2">
+              <li>If connection fails, check your internet connection</li>
+              <li>The modal tries multiple RPC endpoints automatically</li>
+              <li>Check browser console for detailed connection logs</li>
+              <li>Some networks may block WebSocket connections</li>
             </ul>
           </div>
         </div>
