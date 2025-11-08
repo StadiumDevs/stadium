@@ -90,7 +90,7 @@ type LegacyProject = {
   }>;
 };
 
-const ProjectsPage = () => {
+const M2ProgramPage = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<LegacyProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +116,7 @@ const ProjectsPage = () => {
           sortOrder: "desc",
           limit: 1000,
         });
-        console.log("[ProjectsPage] GET /api/projects response:", response);
+        console.log("[M2ProgramPage] GET /api/m2-program response:", response);
 
         // Map API response to legacy JSON shape expected by UI
         const apiProjects = Array.isArray(response?.data) ? response.data : [];
@@ -724,4 +724,4 @@ const ProjectsPage = () => {
   );
 };
 
-export default ProjectsPage;
+export default M2ProgramPage;

@@ -125,7 +125,7 @@ const PastProjectsPage = () => {
       isWinner: isWinner,
       demoUrl: project.demoUrl,
       githubUrl: project.projectRepo,
-      projectUrl: project.id ? `/projects/${project.id}` : undefined,
+      projectUrl: project.id ? `/m2-program/${project.id}` : undefined,
       eventStartedAt: eventStartedAt,
     };
   };

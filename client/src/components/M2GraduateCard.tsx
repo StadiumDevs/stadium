@@ -22,7 +22,7 @@ export function M2GraduateCard({ project, index }: M2GraduateCardProps) {
     >
       <Card 
         className="cursor-pointer hover:border-green-500/50 transition-all h-full group bg-gradient-to-br from-green-500/5 to-transparent"
-        onClick={() => navigate(`/projects/${project.id}`)}
+        onClick={() => navigate(`/m2-program/${project.id}`)}
       >
         <CardContent className="p-5">
           {/* Trophy Badge */}

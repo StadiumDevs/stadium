@@ -103,7 +103,7 @@ const WinnersPage = () => {
             isWinner: true, // All are winners on this page
             demoUrl: p.demoUrl,
             githubUrl: p.projectRepo,
-            projectUrl: p.id ? `/projects/${p.id}` : undefined,
+            projectUrl: p.id ? `/m2-program/${p.id}` : undefined,
             longDescription: p.description,
           };
         });

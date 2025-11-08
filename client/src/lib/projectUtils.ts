@@ -90,7 +90,7 @@ export function getProjectUrl(project: {
   donationAddress?: string 
 }): string {
   const routeId = getProjectRouteId(project);
-  return `/projects/${routeId}`;
+  return `/m2-program/${routeId}`;
 }
 
 /**

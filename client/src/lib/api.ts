@@ -114,7 +114,7 @@ export const api = {
     if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
 
     const queryString = searchParams.toString();
-    const result = await request(`/projects${queryString ? `?${queryString}` : ""}`);
+    const result = await request(`/m2-program${queryString ? `?${queryString}` : ""}`);
     console.log("[api.getProjects] API response:", result);
     return result;
   },
@@ -137,18 +137,18 @@ export const api = {
       throw new ApiError("Project not found", 404);
     }
     
-    return request(`/projects/${id}`);
+    return request(`/m2-program/${id}`);
   },
 
   updateProjectTeam: (projectId: string, teamMembers: Array<{ name: string; walletAddress?: string; customUrl?: string }>, authHeader: string) =>
-    request(`/projects/${projectId}/team`, {
+    request(`/m2-program/${projectId}/team`, {
       method: "POST",
       headers: { "x-siws-auth": authHeader },
       body: JSON.stringify({ teamMembers }),
     }),
 
   updateProjectCategories: (projectId: string, categories: string[], authHeader: string) =>
-    request(`/projects/${projectId}`, {
+    request(`/m2-program/${projectId}`, {
       method: "PATCH",
       headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
       body: JSON.stringify({ categories }),
@@ -195,7 +195,7 @@ export const api = {
     }
     
     // Real API call
-    return request(`/projects/${projectId}/submit-review`, {
+    return request(`/m2-program/${projectId}/submit-review`, {
       method: 'POST',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify(submission)
@@ -257,7 +257,7 @@ export const api = {
     }
     
     // Real API call
-    return request(`/projects/${projectId}/team`, {
+    return request(`/m2-program/${projectId}/team`, {
       method: 'PUT',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify(data)
@@ -265,7 +265,7 @@ export const api = {
   },
 
   webzeroApprove: async (projectId: string, authHeader?: string) =>
-    request(`/projects/${projectId}/approve`, {
+    request(`/m2-program/${projectId}/approve`, {
       method: "POST",
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -276,7 +276,7 @@ export const api = {
     }),
 
   requestChanges: async (projectId: string, feedback: string, authHeader?: string) =>
-    request(`/projects/${projectId}/request-changes`, {
+    request(`/m2-program/${projectId}/request-changes`, {
       method: "POST",
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -320,7 +320,7 @@ export const api = {
     }
     
     // Real API call
-    return request(`/projects/${projectId}/m2-agreement`, {
+    return request(`/m2-program/${projectId}/m2-agreement`, {
       method: 'POST',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify(agreement)
@@ -378,7 +378,7 @@ export const api = {
     }
     
     // Real API call
-    return request(`/projects/${projectId}/m2-agreement`, {
+    return request(`/m2-program/${projectId}/m2-agreement`, {
       method: 'PATCH',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify(data)
@@ -410,7 +410,7 @@ export const api = {
     }
     
     // Real API call
-    return request(`/projects/${projectId}`, {
+    return request(`/m2-program/${projectId}`, {
       method: "PATCH",
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -453,7 +453,7 @@ export const api = {
     }
     
     // Real API call
-    return request(`/projects/${projectId}/team`, {
+    return request(`/m2-program/${projectId}/team`, {
       method: 'POST',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({ teamMembers })
@@ -486,7 +486,7 @@ export const api = {
     }
     
     // Real API call
-    return request(`/projects/${projectId}`, {
+    return request(`/m2-program/${projectId}`, {
       method: 'PATCH',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({ donationAddress })

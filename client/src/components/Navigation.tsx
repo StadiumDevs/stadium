@@ -12,7 +12,7 @@ export function Navigation() {
   const navItems = [
     { href: "/", label: "Home", icon: Home },
     { href: "/past-projects", label: "Past Projects", icon: Clock },
-    { href: "/projects", label: "M2 Program", icon: Wrench },
+    { href: "/m2-program", label: "M2 Program", icon: Wrench },
   ]
 
   return (
@@ -32,7 +32,8 @@ export function Navigation() {
           <div className="hidden md:flex items-center gap-2">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = location.pathname === item.href
+              const isActive = location.pathname === item.href || 
+                (item.href === "/m2-program" && location.pathname.startsWith("/m2-program/"))
 
               return (
                 <Button
@@ -68,7 +69,8 @@ export function Navigation() {
               <div className="flex flex-col gap-2 mt-8">
                 {navItems.map((item) => {
                   const Icon = item.icon
-                  const isActive = location.pathname === item.href
+                  const isActive = location.pathname === item.href || 
+                    (item.href === "/m2-program" && location.pathname.startsWith("/m2-program/"))
 
                   return (
                     <Button

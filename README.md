@@ -92,7 +92,7 @@ This will import:
 
 **Verify the migration:**
 ```bash
-curl http://localhost:2000/api/projects | jq '.meta'
+curl http://localhost:2000/api/m2-program | jq '.meta'
 # Should show: { "total": 84, "count": 10, "limit": 10, "page": 1 }
 ```
 
@@ -272,14 +272,14 @@ What it does:
 
 ### Public Endpoints
 - `GET /api/health` - Health check
-- `GET /api/projects` - List all projects (supports filtering, search, pagination)
-- `GET /api/projects/:id` - Get single project
+- `GET /api/m2-program` - List all M2 program projects (supports filtering, search, pagination)
+- `GET /api/m2-program/:id` - Get single M2 project
 
 ### Protected Endpoints (Require SIWS Authentication)
-- `POST /api/projects` - Create project (Admin only)
-- `PATCH /api/projects/:id` - Update project (Admin or Team Member)
-- `PUT /api/projects/:id/team` - Update team members (Team Member)
-- `POST /api/projects/:id/submit-review` - Submit M2 deliverables (Team Member)
+- `POST /api/m2-program` - Create project (Admin only)
+- `PATCH /api/m2-program/:id` - Update project (Admin or Team Member)
+- `PUT /api/m2-program/:id/team` - Update team members (Team Member)
+- `POST /api/m2-program/:id/submit-review` - Submit M2 deliverables (Team Member)
 
 See [API_DOCS.md](./API_DOCS.md) for full API documentation.
 
@@ -313,7 +313,7 @@ cd server && node migration.js
 **Solution:**
 ```bash
 # Check if backend is returning data
-curl http://localhost:2000/api/projects
+curl http://localhost:2000/api/m2-program
 
 # If empty, run migration
 cd server && node migration.js

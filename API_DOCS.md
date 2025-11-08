@@ -1,6 +1,6 @@
-# Hackathonia API Documentation
+# Stadium M2 Program API Documentation
 
-This document provides instructions on how to authenticate with and use the Hackathonia project API.
+This document provides instructions on how to authenticate with and use the Stadium M2 Accelerator Program API.
 
 ## Authentication
 
@@ -47,11 +47,11 @@ To use them, open the file in VS Code and click the "Send Request" link that app
 
 All endpoints are available under the `/api` prefix.
 
-### Projects
+### M2 Program Projects
 
-#### `GET /api/projects`
+#### `GET /api/m2-program`
 
-Retrieves a list of all projects. Supports filtering and sorting.
+Retrieves a list of all projects in the M2 Accelerator Program. Supports filtering and sorting.
 
 -   **Method**: `GET`
 -   **Authentication**: None
@@ -69,14 +69,14 @@ Retrieves a list of all projects. Supports filtering and sorting.
 **Example Request:**
 
 ```http
-GET http://localhost:2000/api/projects?projectState=Milestone%20Delivered&sortOrder=asc
+GET http://localhost:2000/api/m2-program?projectState=Milestone%20Delivered&sortOrder=asc
 ```
 
 ---
 
-#### `POST /api/projects`
+#### `POST /api/m2-program`
 
-Creates a new project.
+Creates a new M2 program project.
 
 -   **Method**: `POST`
 -   **Authentication**: **Required (Admin)**
@@ -106,7 +106,7 @@ Creates a new project.
 
 ---
 
-#### `GET /api/projects/:projectId`
+#### `GET /api/m2-program/:projectId`
 
 Retrieves a single project by its unique ID.
 
@@ -116,12 +116,12 @@ Retrieves a single project by its unique ID.
 **Example Request:**
 
 ```http
-GET http://localhost:2000/api/projects/my-awesome-new-project-a1b2c3
+GET http://localhost:2000/api/m2-program/my-awesome-new-project-a1b2c3
 ```
 
 ---
 
-#### `PATCH /api/projects/:projectId`
+#### `PATCH /api/m2-program/:projectId`
 
 Updates an existing project.
 
@@ -148,12 +148,12 @@ You can send any subset of the project's fields to update.
 **Example Request:**
 
 ```http
-PATCH http://localhost:2000/api/projects/my-awesome-new-project-a1b2c3
+PATCH http://localhost:2000/api/m2-program/my-awesome-new-project-a1b2c3
 ```
 
 ---
 
-#### `POST /api/projects/:projectId/team`
+#### `POST /api/m2-program/:projectId/team`
 
 Replaces the team members array for a project.
 
@@ -186,12 +186,12 @@ Replaces the team members array for a project.
 **Example Request:**
 
 ```http
-POST http://localhost:2000/api/projects/my-awesome-new-project-a1b2c3/team
+POST http://localhost:2000/api/m2-program/my-awesome-new-project-a1b2c3/team
 ```
 
 ---
 
-#### `PATCH /api/projects/:projectId/m2-agreement`
+#### `PATCH /api/m2-program/:projectId/m2-agreement`
 
 Updates the M2 Agreement (roadmap) for a project in the M2 Accelerator Program.
 
@@ -232,7 +232,7 @@ Updates the M2 Agreement (roadmap) for a project in the M2 Accelerator Program.
 **Example Request:**
 
 ```http
-PATCH http://localhost:2000/api/projects/polkadot-portfolio-tracker-a1b2c3/m2-agreement
+PATCH http://localhost:2000/api/m2-program/polkadot-portfolio-tracker-a1b2c3/m2-agreement
 Content-Type: application/json
 x-siws-auth: <Your-Base64-Signature>
 
@@ -265,7 +265,7 @@ x-siws-auth: <Your-Base64-Signature>
 
 ---
 
-#### `PATCH /api/projects/:projectId/payout-address`
+#### `PATCH /api/m2-program/:projectId/payout-address`
 
 Updates the payout wallet address for M2 payments.
 
@@ -292,7 +292,7 @@ Updates the payout wallet address for M2 payments.
 **Example Request:**
 
 ```http
-PATCH http://localhost:2000/api/projects/polkadot-portfolio-tracker-a1b2c3/payout-address
+PATCH http://localhost:2000/api/m2-program/polkadot-portfolio-tracker-a1b2c3/payout-address
 Content-Type: application/json
 x-siws-auth: <Your-Base64-Signature>
 
@@ -317,7 +317,7 @@ x-siws-auth: <Your-Base64-Signature>
 
 ---
 
-#### `POST /api/projects/:projectId/submit-m2`
+#### `POST /api/m2-program/:projectId/submit-m2`
 
 Submits M2 deliverables for review.
 
@@ -350,7 +350,7 @@ Submits M2 deliverables for review.
 **Example Request:**
 
 ```http
-POST http://localhost:2000/api/projects/polkadot-portfolio-tracker-a1b2c3/submit-m2
+POST http://localhost:2000/api/m2-program/polkadot-portfolio-tracker-a1b2c3/submit-m2
 Content-Type: application/json
 x-siws-auth: <Your-Base64-Signature>
 

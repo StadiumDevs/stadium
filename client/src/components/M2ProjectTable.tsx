@@ -81,7 +81,7 @@ export function M2ProjectTable({ projects }: M2ProjectTableProps) {
                 <TableRow 
                   key={project.id}
                   className="cursor-pointer hover:bg-muted/30 transition-colors"
-                  onClick={() => navigate(`/projects/${project.id}`)}
+                  onClick={() => navigate(`/m2-program/${project.id}`)}
                 >
                   {/* Project Name */}
                   <TableCell>
@@ -174,7 +174,7 @@ export function M2ProjectTable({ projects }: M2ProjectTableProps) {
                         className="ml-2 h-8"
                         onClick={(e) => {
                           e.stopPropagation()
-                          navigate(`/projects/${project.id}`)
+                          navigate(`/m2-program/${project.id}`)
                         }}
                       >
                         View

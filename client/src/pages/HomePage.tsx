@@ -110,7 +110,7 @@ const HomePage = () => {
             track: p.bountyPrize?.[0]?.name || (p.categories?.[0] || "Winner"),
             isWinner: Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0,
             demoUrl: p.demoUrl || "",
-            projectUrl: p.donationAddress ? `/projects/${p.id}` : undefined,
+            projectUrl: p.donationAddress ? `/m2-program/${p.id}` : undefined,
             githubUrl: p.projectRepo,
             longDescription: p.description,
             m2Status: p.m2Status,
@@ -438,7 +438,7 @@ const HomePage = () => {
                 
                 <Button 
                   size="lg"
-                  onClick={() => navigate('/projects')}
+                  onClick={() => navigate('/m2-program')}
                   className="group"
                 >
                   View All Graduates
@@ -456,7 +456,7 @@ const HomePage = () => {
                       <div
                         key={project.id}
                         className="glass-panel rounded-lg p-4 border border-yellow-500/30 hover:border-yellow-500 transition-all cursor-pointer"
-                        onClick={() => navigate(`/projects/${project.id}`)}
+                        onClick={() => navigate(`/m2-program/${project.id}`)}
                         style={{
                           animation: `fadeIn 0.5s ease-out ${index * 0.1}s both`
                         }}
@@ -466,7 +466,7 @@ const HomePage = () => {
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            navigate(`/projects/${project.id}`);
+                            navigate(`/m2-program/${project.id}`);
                           }
                         }}
                       >
@@ -507,14 +507,14 @@ const HomePage = () => {
                 <div
                   key={project.id}
                   className="glass-panel rounded-lg p-6 hover:border-primary transition-all cursor-pointer group"
-                  onClick={() => navigate(`/projects/${project.id}`)}
+                  onClick={() => navigate(`/m2-program/${project.id}`)}
                   role="button"
                   tabIndex={0}
                   aria-label={`View ${project.title} project details`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate(`/projects/${project.id}`);
+                      navigate(`/m2-program/${project.id}`);
                     }
                   }}
                 >
@@ -567,7 +567,7 @@ const HomePage = () => {
                     className="w-full mt-4 group-hover:bg-primary/10"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/projects/${project.id}`);
+                      navigate(`/m2-program/${project.id}`);
                     }}
                   >
                     View Project

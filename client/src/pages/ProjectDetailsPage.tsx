@@ -834,7 +834,7 @@ const ProjectDetailsPage = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/projects')}
+              onClick={() => navigate('/m2-program')}
               className="text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -1638,7 +1638,7 @@ const ProjectDetailsPage = () => {
           open={showShareModal}
           onOpenChange={setShowShareModal}
           projectTitle={project.projectName}
-          projectUrl={`/projects/${project.id}`}
+          projectUrl={`/m2-program/${project.id}`}
         />
       )}
       
