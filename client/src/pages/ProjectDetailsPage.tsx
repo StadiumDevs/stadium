@@ -46,6 +46,10 @@ import { FinalSubmissionModal, SubmissionData } from "@/components/FinalSubmissi
 import { UpdateTeamModal, TeamMember } from "@/components/UpdateTeamModal";
 import { M2AgreementSection } from "@/components/M2AgreementSection";
 import { ShareProjectModal } from "@/components/ShareProjectModal";
+import { WalletConnectionBanner } from "@/components/WalletConnectionBanner";
+import { TeamPaymentSection } from "@/components/TeamPaymentSection";
+import { EditTeamModal, TeamMember as EditTeamMember } from "@/components/EditTeamModal";
+import { UpdatePayoutModal } from "@/components/UpdatePayoutModal";
 
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -137,6 +141,8 @@ const ProjectDetailsPage = () => {
   const [finalSubmissionModalOpen, setFinalSubmissionModalOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isEditTeamOpen, setIsEditTeamOpen] = useState(false);
+  const [isUpdatePayoutOpen, setIsUpdatePayoutOpen] = useState(false);
 
   // Format date utility
   const formatDate = (dateString?: string | Date) => {
@@ -449,6 +455,20 @@ const ProjectDetailsPage = () => {
     );
   }, [connectedAddress, project?.teamMembers]);
 
+  // Check if connected wallet is an admin
+  const isAdmin = useMemo(() => {
+    if (!connectedAddress) return false;
+    
+    // Get admin addresses from environment variable (consistent with AdminPage)
+    const adminAddressesEnv = import.meta.env.VITE_ADMIN_ADDRESSES || '';
+    const adminAddresses = adminAddressesEnv
+      .split(',')
+      .map((addr: string) => addr.trim().toLowerCase())
+      .filter((addr: string) => addr.length > 0);
+    
+    return adminAddresses.includes(connectedAddress.toLowerCase());
+  }, [connectedAddress]);
+
   // Check if it's Week 5+ (submission allowed)
   const isSubmissionWeek = useMemo(() => {
     const currentWeekData = getCurrentProgramWeek();
@@ -589,6 +609,106 @@ const ProjectDetailsPage = () => {
     }
   };
 
+  // Handle new team update (with SIWS)
+  const handleNewTeamUpdate = async (teamMembers: EditTeamMember[]) => {
+    if (!project) return;
+    
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Blockspace Stadium');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error('No wallet found');
+      
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'update-team',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Update team members via API
+      await api.updateTeamMembers(project.id, teamMembers, authHeader);
+      
+      // Refresh project data
+      await fetchProject();
+      
+      toast({
+        title: "Success!",
+        description: "Team details updated successfully.",
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Failed to update team. Please try again.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
+  // Handle payout address update (with SIWS)
+  const handlePayoutUpdate = async (donationAddress: string) => {
+    if (!project) return;
+    
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Blockspace Stadium');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error('No wallet found');
+      
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'update-payout',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Update payout address via API
+      await api.updatePayoutAddress(project.id, donationAddress, authHeader);
+      
+      // Refresh project data
+      await fetchProject();
+      
+      toast({
+        title: "Success!",
+        description: "Payout address updated successfully.",
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Failed to update payout address. Please try again.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
   // Handler for form submit
   const handleDeliverableSubmit = async () => {
     setFormError("");
@@ -686,32 +806,8 @@ const ProjectDetailsPage = () => {
       {/* Main Content */}
       <main className="flex-1 pt-16">
         <div className="container py-8 px-4 sm:px-6">
-          {/* Wallet connection and address */}
-          <div className="space-y-4 mb-6">
-            {!connectedAddress && (
-              <Button 
-                variant="default" 
-                size="lg"
-                onClick={connectWallet}
-                className="w-full md:w-auto"
-              >
-                Connect Wallet
-              </Button>
-            )}
-            {connectedAddress && (
-              <div className="flex items-center gap-4">
-                <span className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                  Welcome {connectedAddress.slice(0, 10)}...{connectedAddress.slice(-8)}, stay on top of milestone reviews and payouts for your team.
-                </span>
-                {!editMode && (
-                  <Button size="sm" variant="outline" onClick={startEdit}>
-                    Update Project Information
-                  </Button>
-                )}
-              </div>
-            )}
-            
-            {/* Back Button - Positioned below Connect Wallet */}
+          {/* Back Button */}
+          <div className="mb-6">
             <Button
               variant="ghost"
               size="sm"
@@ -722,7 +818,13 @@ const ProjectDetailsPage = () => {
               Back to M2 Program
             </Button>
           </div>
+          
           <div className="max-w-4xl mx-auto space-y-8">
+            {/* Wallet Connection Banner */}
+            <WalletConnectionBanner
+              onConnect={connectWallet}
+              isConnected={!!connectedAddress}
+            />
             {/* Success Banner for Completed Projects */}
             {project.m2Status === 'completed' && (
               <div className="bg-gradient-to-r from-green-900/20 to-yellow-900/20 border border-green-500/30 rounded-lg p-4 mb-6">
@@ -1016,6 +1118,18 @@ const ProjectDetailsPage = () => {
                 onUpdate={fetchProject}
               />
             )}
+
+            {/* Team & Payment Section */}
+            <TeamPaymentSection
+              teamMembers={project.teamMembers || []}
+              donationAddress={project.donationAddress}
+              totalPaid={project.totalPaid}
+              m2Status={project.m2Status}
+              isTeamMember={isTeamMember}
+              isAdmin={isAdmin}
+              onEditTeam={() => setIsEditTeamOpen(true)}
+              onUpdatePayout={() => setIsUpdatePayoutOpen(true)}
+            />
 
             {/* Milestone 2 Submission Section - Only for building or under_review status */}
             {(project.m2Status === 'building' || project.m2Status === 'under_review') && (
@@ -1684,6 +1798,29 @@ const ProjectDetailsPage = () => {
             onSubmit={handleTeamUpdate}
           />
           
+          {/* New Edit Team Modal */}
+          <EditTeamModal
+            open={isEditTeamOpen}
+            onOpenChange={setIsEditTeamOpen}
+            teamMembers={(project.teamMembers || []).map(m => ({
+              name: m.name,
+              walletAddress: m.walletAddress || '',
+              role: m.role || '',
+              twitter: m.twitter || '',
+              github: m.github || '',
+              linkedin: m.linkedin || '',
+              customUrl: m.customUrl || '',
+            }))}
+            onSave={handleNewTeamUpdate}
+          />
+          
+          {/* Update Payout Modal */}
+          <UpdatePayoutModal
+            open={isUpdatePayoutOpen}
+            onOpenChange={setIsUpdatePayoutOpen}
+            currentAddress={project.donationAddress}
+            onSave={handlePayoutUpdate}
+          />
         </>
       )}
     </div>

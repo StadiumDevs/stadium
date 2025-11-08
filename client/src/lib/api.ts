@@ -418,6 +418,80 @@ export const api = {
       }),
     })
   },
+
+  updateTeamMembers: async (
+    projectId: string,
+    teamMembers: Array<{
+      name: string;
+      walletAddress?: string;
+      role?: string;
+      twitter?: string;
+      github?: string;
+      linkedin?: string;
+      customUrl?: string;
+    }>,
+    authHeader?: string
+  ) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Updating team members for project', projectId, teamMembers);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].teamMembers = teamMembers;
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/projects/${projectId}/team`, {
+      method: 'POST',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamMembers })
+    });
+  },
+
+  updatePayoutAddress: async (
+    projectId: string,
+    donationAddress: string,
+    authHeader?: string
+  ) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Updating payout address for project', projectId, donationAddress);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].donationAddress = donationAddress;
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify({ donationAddress })
+    });
+  },
 };
 
 export { ApiError };
