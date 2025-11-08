@@ -230,6 +230,19 @@ This adds 2 M2 Accelerator projects for testing:
 - **Polkadot Portfolio Tracker** (status: `building`) - Active development
 - **Decentralized Voting DAO** (status: `under_review`) - Submitted for review
 
+**Update M2 dates for testing (LOCAL ONLY):**
+```bash
+cd server
+node update-m2-dates.js
+```
+
+⚠️ **WARNING:** This script is for **LOCAL TESTING ONLY**! It updates test projects with realistic dates so you can test M2 time-based features (roadmap editing, submission windows). It has a built-in safety check and will refuse to run if `NODE_ENV=production`.
+
+What it does:
+- Sets Polkadot Portfolio Tracker to Week 3 (can edit roadmap)
+- Sets Decentralized Voting DAO to Week 6 (can submit deliverables)
+- Enables testing of date enforcement features
+
 ---
 
 ## 🚀 API Endpoints
