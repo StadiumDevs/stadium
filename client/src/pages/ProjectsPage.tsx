@@ -4,6 +4,10 @@ import { Navigation } from "@/components/Navigation";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectCard } from "@/components/ProjectCard";
+import { M2StatusOverview } from "@/components/M2StatusOverview";
+import { M2ProgramGuideModal } from "@/components/M2ProgramGuideModal";
+import { M2ProjectTable } from "@/components/M2ProjectTable";
+import { M2GraduateCard } from "@/components/M2GraduateCard";
 import { web3Enable, web3Accounts } from '@polkadot/extension-dapp';
 import {
   Github,
@@ -15,6 +19,9 @@ import {
   ChevronLeft,
   Clock,
   AlertCircle,
+  Search,
+  LayoutGrid,
+  Table as TableIcon,
 } from "lucide-react";
 import {
   Card,
@@ -26,6 +33,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -33,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { getProjectUrl, getCurrentProgramWeek } from "@/lib/projectUtils";
@@ -80,46 +90,6 @@ type LegacyProject = {
   }>;
 };
 
-// StatBadge component
-interface StatBadgeProps {
-  count: number;
-  label: string;
-  color: "green" | "yellow" | "blue" | "red";
-  onClick?: () => void;
-}
-
-const StatBadge = ({ count, label, color, onClick }: StatBadgeProps) => {
-  const colorClasses = {
-    green: "border-l-green-500 bg-green-500/10 hover:bg-green-500/20",
-    yellow: "border-l-yellow-500 bg-yellow-500/10 hover:bg-yellow-500/20",
-    blue: "border-l-blue-500 bg-blue-500/10 hover:bg-blue-500/20",
-    red: "border-l-red-500 bg-red-500/10 hover:bg-red-500/20",
-  };
-
-  return (
-    <div
-      className={cn(
-        "rounded-lg border-l-4 p-3 transition-all duration-300 cursor-pointer hover:scale-105",
-        colorClasses[color],
-        onClick && "hover:shadow-md"
-      )}
-      onClick={onClick}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      } : undefined}
-      aria-label={onClick ? `Filter by ${label}` : undefined}
-    >
-      <div className="text-2xl font-bold font-heading">{count}</div>
-      <div className="text-sm text-muted-foreground">{label}</div>
-    </div>
-  );
-};
-
 const ProjectsPage = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<LegacyProject[]>([]);
@@ -129,6 +99,9 @@ const ProjectsPage = () => {
   const [sortBy, setSortBy] = useState('name');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isM2GuideOpen, setIsM2GuideOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const { toast } = useToast();
 
 
@@ -233,6 +206,18 @@ const ProjectsPage = () => {
   const filteredProjects = useMemo(() => {
     let filtered = [...projects];
 
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.projectName.toLowerCase().includes(query) ||
+        p.description.toLowerCase().includes(query) ||
+        p.teamMembers?.some(m => 
+          m.name.toLowerCase().includes(query)
+        )
+      );
+    }
+
     // Apply view filter
     if (viewFilter === 'my-teams') {
       // Filter projects where connected wallet address matches any team member's walletAddress
@@ -287,7 +272,7 @@ const ProjectsPage = () => {
     }
 
     return filtered;
-  }, [projects, viewFilter, statusFilter, sortBy, activeFilter, connectedAddress]);
+  }, [projects, viewFilter, statusFilter, sortBy, activeFilter, connectedAddress, searchQuery]);
 
   // Filter projects by M2 status using useMemo for performance
   const buildingProjects = useMemo(() => {
@@ -303,12 +288,24 @@ const ProjectsPage = () => {
     return projects.filter(p => p.m2Status === 'completed');
   }, [projects]);
 
-  // Handle stat badge click filter
-  const applyFilter = useCallback((filterType: string) => {
-    setActiveFilter(prev => prev === filterType ? null : filterType);
-    // Also update status filter to match
-    if (filterType === 'building' || filterType === 'under-review' || filterType === 'completed') {
-      setStatusFilter(filterType);
+  // Group filtered projects by status for sectioned display
+  const groupedProjects = useMemo(() => {
+    return {
+      building: filteredProjects.filter(p => p.m2Status === 'building'),
+      underReview: filteredProjects.filter(p => p.m2Status === 'under_review'),
+      completed: filteredProjects.filter(p => p.m2Status === 'completed'),
+    };
+  }, [filteredProjects]);
+
+  // Handle stat card click filter
+  const handleStatusFilterClick = useCallback((status: 'building' | 'under_review' | 'completed' | null) => {
+    if (status === null) {
+      setActiveFilter(null);
+      setStatusFilter('all');
+    } else {
+      const filterValue = status === 'under_review' ? 'under-review' : status;
+      setActiveFilter(filterValue);
+      setStatusFilter(filterValue);
     }
   }, []);
 
@@ -351,111 +348,228 @@ const ProjectsPage = () => {
               </p>
             </div>
             <div className="flex flex-col gap-2 md:items-end">
-              <Link 
-                to="/m2-program-guide" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline"
+              <button 
+                onClick={() => setIsM2GuideOpen(true)}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline text-right"
               >
-                View M2 Program Guide
-              </Link>
-              <Link 
-                to="/mentor-resources" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline"
-              >
-                Mentor Resources
-              </Link>
+                What's the M2 Program About?
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Program Stats Section */}
-        <div className="glass-panel rounded-lg border-subtle p-4 mb-6">
-          <div className="flex items-center justify-between gap-6 mb-3">
-            <h3 className="text-sm font-medium font-heading">📊 Program Stats:</h3>
-            <div className="text-sm text-muted-foreground text-center max-w-md leading-relaxed ml-auto">
-              <p>Click on any stat badge to filter projects by status. Use the dropdown filters below to view specific teams or change your view. Users who want to update their projects information including status updates must connect their wallets.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <StatBadge 
-              count={stats.building} 
-              label="building" 
-              color="blue"
-              onClick={() => applyFilter('building')}
-            />
-            <StatBadge 
-              count={stats.underReview} 
-              label="under review" 
-              color="yellow"
-              onClick={() => applyFilter('under-review')}
-            />
-            <StatBadge 
-              count={stats.completed} 
-              label="completed" 
-              color="green"
-              onClick={() => applyFilter('completed')}
-            />
-          </div>
-        </div>
+        {/* Program Stats Overview - NEW */}
+        <M2StatusOverview
+          buildingCount={stats.building}
+          underReviewCount={stats.underReview}
+          graduatesCount={stats.completed}
+          onFilterClick={handleStatusFilterClick}
+          activeFilter={activeFilter}
+        />
       </div>
 
       <div className="container px-4 pb-16">
-        {/* Filter Controls */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <Select value={viewFilter} onValueChange={setViewFilter}>
-            <SelectTrigger className="w-full md:w-[200px]">
-              <SelectValue placeholder="View as:" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Teams</SelectItem>
-              <SelectItem value="my-teams">My Teams</SelectItem>
-              <SelectItem value="my-mentored">Teams I Mentor</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Search and Filter Controls */}
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search and Filters Group */}
+              <div className="flex-1 flex flex-col md:flex-row gap-4">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search projects or team members..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
 
-          <Select value={statusFilter} onValueChange={(value) => {
-            setStatusFilter(value);
-            setActiveFilter(value !== 'all' ? value : null);
-          }}>
-            <SelectTrigger className="w-full md:w-[200px]">
-              <SelectValue placeholder="Status:" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="building">Building</SelectItem>
-              <SelectItem value="under-review">Under Review</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
+                {/* View Filter */}
+                <Select value={viewFilter} onValueChange={setViewFilter}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="View as:" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Teams</SelectItem>
+                    <SelectItem value="my-teams">My Teams</SelectItem>
+                    <SelectItem value="my-mentored">Teams I Mentor</SelectItem>
+                  </SelectContent>
+                </Select>
 
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-full md:w-[200px]">
-              <SelectValue placeholder="Sort by:" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name">Name (A-Z)</SelectItem>
-              <SelectItem value="status">Status</SelectItem>
-            </SelectContent>
-          </Select>
+                {/* Status Filter */}
+                <Select value={statusFilter} onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setActiveFilter(value !== 'all' ? value : null);
+                }}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Status:" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="building">🔨 Building</SelectItem>
+                    <SelectItem value="under-review">⏳ Under Review</SelectItem>
+                    <SelectItem value="completed">✅ Completed</SelectItem>
+                  </SelectContent>
+                </Select>
 
-          {activeFilter && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setActiveFilter(null);
-                setStatusFilter('all');
-              }}
-              className="md:ml-auto"
-            >
-              Clear Filters
-            </Button>
-          )}
-        </div>
+                {/* Sort */}
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Sort by:" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name (A-Z)</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-        {/* M2 Program Sections */}
-        <div className="space-y-12">
-          {/* Section 1: Building */}
-          <div>
+              {/* Right Side: View Toggle and Clear */}
+              <div className="flex gap-2 items-center justify-between md:justify-end">
+                {/* View Mode Toggle */}
+                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cards' | 'table')}>
+                  <TabsList>
+                    <TabsTrigger value="table" className="gap-2">
+                      <TableIcon className="h-4 w-4" />
+                      <span className="hidden sm:inline">Table</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="cards" className="gap-2">
+                      <LayoutGrid className="h-4 w-4" />
+                      <span className="hidden sm:inline">Cards</span>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {/* Clear Filters Button */}
+                {(activeFilter || searchQuery) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setActiveFilter(null);
+                      setStatusFilter('all');
+                      setSearchQuery('');
+                    }}
+                    className="whitespace-nowrap"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Conditional View: Table or Cards */}
+        {viewMode === 'table' ? (
+          /* Table View - Show grouped sections by status */
+          <div className="space-y-8">
+            {/* Building Section */}
+            {groupedProjects.building.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-lg">🔨</span>
+                    </div>
+                    <h2 className="text-2xl font-bold font-heading">
+                      Building
+                    </h2>
+                  </div>
+                  <Separator className="flex-1" />
+                  <span className="text-sm text-muted-foreground">
+                    {groupedProjects.building.length} {groupedProjects.building.length === 1 ? 'team' : 'teams'}
+                  </span>
+                </div>
+                
+                <p className="text-sm text-muted-foreground mb-4">
+                  Teams are working on their M2 deliverables (Weeks 1-4)
+                </p>
+                
+                <M2ProjectTable projects={groupedProjects.building} />
+              </section>
+            )}
+            
+            {/* Under Review Section */}
+            {groupedProjects.underReview.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center">
+                      <span className="text-lg">⏳</span>
+                    </div>
+                    <h2 className="text-2xl font-bold font-heading">
+                      Under Review
+                    </h2>
+                  </div>
+                  <Separator className="flex-1" />
+                  <span className="text-sm text-muted-foreground">
+                    {groupedProjects.underReview.length} {groupedProjects.underReview.length === 1 ? 'team' : 'teams'}
+                  </span>
+                </div>
+                
+                <p className="text-sm text-muted-foreground mb-4">
+                  Submissions are being reviewed by WebZero (Weeks 5-6)
+                </p>
+                
+                <M2ProjectTable projects={groupedProjects.underReview} />
+              </section>
+            )}
+            
+            {/* M2 Graduates Section */}
+            {groupedProjects.completed.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                      <span className="text-lg">✅</span>
+                    </div>
+                    <h2 className="text-2xl font-bold font-heading">
+                      M2 Graduates
+                    </h2>
+                  </div>
+                  <Separator className="flex-1" />
+                  <span className="text-sm text-muted-foreground">
+                    {groupedProjects.completed.length} {groupedProjects.completed.length === 1 ? 'team' : 'teams'}
+                  </span>
+                </div>
+                
+                <p className="text-sm text-muted-foreground mb-4">
+                  Congratulations to teams who completed the M2 accelerator! 🎉
+                </p>
+                
+                {/* Graduates always show as special cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {groupedProjects.completed.map((project, idx) => (
+                    <M2GraduateCard 
+                      key={project.id} 
+                      project={project} 
+                      index={idx} 
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+            
+            {/* Empty State */}
+            {filteredProjects.length === 0 && (
+              <Card>
+                <CardContent className="py-12 text-center space-y-2">
+                  <p className="text-lg font-semibold">No projects found</p>
+                  <p className="text-sm text-muted-foreground">
+                    Try adjusting your filters or search query
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : (
+          /* Card View - Show existing three-section layout */
+          <div className="space-y-12">
+            {/* Section 1: Building */}
+            <div>
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-heading flex items-center gap-2">
@@ -586,7 +700,8 @@ const ProjectsPage = () => {
               </div>
             )}
           </div>
-        </div>
+          </div>
+        )}
 
         {/* Fallback: Show empty state if no projects at all */}
         {projects.length === 0 && !loading ? (
@@ -599,6 +714,12 @@ const ProjectsPage = () => {
           />
         ) : null}
       </div>
+
+      {/* M2 Program Guide Modal */}
+      <M2ProgramGuideModal 
+        open={isM2GuideOpen}
+        onOpenChange={setIsM2GuideOpen}
+      />
     </div>
   );
 };
