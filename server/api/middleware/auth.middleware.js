@@ -3,15 +3,18 @@ import { verifySIWS } from '@talismn/siws';
 import { SiwsMessage } from '@talismn/siws';
 import chalk from 'chalk';
 import Project from '../../models/Project.js';
+import { getAuthorizedAddresses, isAuthorizedSigner, CURRENT_MULTISIG, NETWORK_CONFIG } from '../../config/polkadot-config.js';
 
 dotenv.config();
 
 // --- Configuration ---
-const ADMIN_WALLETS = (process.env.ADMIN_WALLETS || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean)
-  .map(s => s.toLowerCase());
+// Use authorized signers from network config (multisig signers)
+const ADMIN_WALLETS = getAuthorizedAddresses();
+
+console.log(chalk.cyan('[AuthMiddleware] Configuration:'));
+console.log(chalk.cyan(`  Network: ${NETWORK_CONFIG.networkName}`));
+console.log(chalk.cyan(`  Multisig: ${CURRENT_MULTISIG}`));
+console.log(chalk.cyan(`  Authorized Signers: ${ADMIN_WALLETS.length}`));
 
 // Multiple valid statements for different actions
 const VALID_STATEMENTS = [
@@ -133,15 +136,25 @@ export const requireAdmin = async (req, res, next) => {
     logSuccess('Domain matches.');
 
     const signerAddress = siwsMessage.address.toLowerCase();
-    log(`Checking if signer address is an admin. Address: ${signerAddress}`);
+    log(`Checking if signer address can sign for multisig. Address: ${signerAddress}`);
 
-    if (!ADMIN_WALLETS.includes(signerAddress)) {
-      logError(`Authorization failed: Address ${signerAddress} is not in the admin list.`);
-      return res.status(403).json({ status: 'error', message: 'User is not authorized to perform this action' });
+    if (!isAuthorizedSigner(signerAddress)) {
+      logError(`Authorization failed: Address ${signerAddress} is not authorized to sign for multisig ${CURRENT_MULTISIG}`);
+      logError(`Authorized signers: ${ADMIN_WALLETS.join(', ')}`);
+      return res.status(403).json({ 
+        status: 'error', 
+        message: 'Address is not authorized to sign for the multisig',
+        multisig: CURRENT_MULTISIG,
+        network: NETWORK_CONFIG.networkName
+      });
     }
 
-    logSuccess(`Admin user ${signerAddress} is authorized.`);
-    req.user = { address: siwsMessage.address };
+    logSuccess(`Authorized signer ${signerAddress} can sign for multisig ${CURRENT_MULTISIG}`);
+    req.user = { 
+      address: siwsMessage.address,
+      multisig: CURRENT_MULTISIG,
+      network: NETWORK_CONFIG.environment
+    };
     next();
 
   } catch (e) {
@@ -155,8 +168,8 @@ export const requireProjectWriteAccess = async (req, res, next) => {
   const actor = requireSignature(req, res);
   if (!actor) return; // response already sent
 
-  const admins = parseAdminAddresses();
-  const isAdmin = admins.includes(actor.address.toLowerCase());
+  const authorizedAddresses = getAuthorizedAddresses();
+  const isAdmin = authorizedAddresses.includes(actor.address.toLowerCase());
   if (isAdmin) {
     req.auth = { address: actor.address, isAdmin: true };
     return next();
@@ -237,12 +250,16 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
   const signerAddress = siwsMessage.address.toLowerCase();
   log(`Checking authorization for signer: ${signerAddress}`);
 
-  if (ADMIN_WALLETS.includes(signerAddress)) {
-    logSuccess(`Signer ${signerAddress} is an admin. Granting access.`);
-    req.user = { address: siwsMessage.address };
+  if (isAuthorizedSigner(signerAddress)) {
+    logSuccess(`Signer ${signerAddress} is authorized for multisig. Granting access.`);
+    req.user = { 
+      address: siwsMessage.address,
+      multisig: CURRENT_MULTISIG,
+      network: NETWORK_CONFIG.environment
+    };
     return next();
   }
-  log(`Signer ${signerAddress} is not an admin. Checking project team membership...`);
+  log(`Signer ${signerAddress} is not a multisig signer. Checking project team membership...`);
   
   try {
     const project = await Project.findById(projectId);

@@ -42,6 +42,7 @@ import { isAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
 import { M2ProjectsTable } from "@/components/admin/M2ProjectsTable";
 import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
 import { ConfirmM1PayoutModal } from "@/components/admin/ConfirmM1PayoutModal";
+import { TestPaymentModal } from "@/components/admin/TestPaymentModal";
 
 const formatAddress = (address = "") =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -87,6 +88,7 @@ const AdminPage = () => {
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showM1PayoutModal, setShowM1PayoutModal] = useState(false);
+  const [showTestPaymentModal, setShowTestPaymentModal] = useState(false);
   const [sortBy, setSortBy] = useState<'eventStartedAt' | 'projectName' | 'newest'>('eventStartedAt');
   const { toast } = useToast();
 
@@ -592,6 +594,13 @@ const AdminPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowTestPaymentModal(true)}
+            className="border-yellow-500 text-yellow-600 hover:bg-yellow-500/10"
+          >
+            🧪 Test Payment
+          </Button>
           <span className="text-sm text-muted-foreground">
             {walletState.selectedAccount?.meta.name || "Admin"} •{" "}
             {formatAddress(walletState.selectedAccount?.address || "")}
@@ -789,6 +798,12 @@ const AdminPage = () => {
           onConfirm={handleConfirmPayment}
         />
       )}
+
+      {/* Test Payment Modal */}
+      <TestPaymentModal
+        open={showTestPaymentModal}
+        onOpenChange={setShowTestPaymentModal}
+      />
       </div>
     </div>
   );

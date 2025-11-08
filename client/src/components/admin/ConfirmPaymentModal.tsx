@@ -32,9 +32,18 @@ import {
   Copy,
   CheckCircle2,
   Users,
-  DollarSign
+  DollarSign,
+  Wifi,
+  AlertCircle
 } from "lucide-react"
 import { toast } from "sonner"
+import { 
+  CURRENT_MULTISIG, 
+  CURRENT_NETWORK_NAME, 
+  NETWORK_ENV,
+  isTestnet,
+  getTransactionUrl 
+} from "@/lib/polkadot-config"
 
 interface ConfirmPaymentModalProps {
   open: boolean
@@ -216,6 +225,52 @@ export function ConfirmPaymentModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Network Info Banner */}
+          <div className={`p-4 rounded-lg border-2 ${isTestnet() ? 'bg-yellow-500/10 border-yellow-500' : 'bg-blue-500/10 border-blue-500'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wifi className="h-4 w-4" />
+                <span className="text-sm font-medium">Network:</span>
+                <Badge variant={isTestnet() ? "outline" : "default"} className={isTestnet() ? 'bg-yellow-500/20 border-yellow-500 text-yellow-700' : ''}>
+                  {CURRENT_NETWORK_NAME}
+                </Badge>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {NETWORK_ENV}
+              </Badge>
+            </div>
+            <div className="mt-2">
+              <div className="text-xs text-muted-foreground">Multisig Address:</div>
+              <div className="flex items-center gap-2 mt-1">
+                <code className="text-xs bg-background/50 px-2 py-1 rounded flex-1">
+                  {CURRENT_MULTISIG}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => {
+                    navigator.clipboard.writeText(CURRENT_MULTISIG);
+                    toast.success('Multisig address copied!');
+                  }}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Testnet Warning */}
+          {isTestnet() && (
+            <Alert className="border-yellow-500 bg-yellow-500/10">
+              <AlertCircle className="h-4 w-4 text-yellow-500" />
+              <AlertDescription>
+                <strong>⚠️ Testnet Mode:</strong> You are on {CURRENT_NETWORK_NAME}. Payments will use test USDC and will not have real value.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Project Info */}
           <div className="p-4 bg-muted/50 rounded-lg space-y-2">
             <div className="flex items-center justify-between">
@@ -431,6 +486,28 @@ export function ConfirmPaymentModal({
               </p>
             </div>
           )}
+
+          {/* Transaction Proof URL */}
+          <div className="space-y-2">
+            <Label htmlFor="transactionProof">
+              Transaction Proof URL <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="transactionProof"
+              type="url"
+              value={transactionProof}
+              onChange={(e) => setTransactionProof(e.target.value)}
+              placeholder={
+                isTestnet() 
+                  ? "https://paseo.subscan.io/extrinsic/..." 
+                  : "https://assethub-polkadot.subscan.io/extrinsic/..."
+              }
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              {isTestnet() ? 'Paseo Subscan' : 'Asset Hub Subscan'} link to the batch payment transaction
+            </p>
+          </div>
 
           {/* Warning for M2 */}
           {milestone === 'M2' && (
