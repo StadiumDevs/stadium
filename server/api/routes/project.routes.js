@@ -11,9 +11,13 @@ router.get('/:projectId', projectController.getProjectById);
 // --- Admin-Only, Write Routes ---
 router.post('/', requireAdmin, projectController.createProject);
 router.patch('/:projectId', requireTeamMemberOrAdmin, projectController.updateProject);
+
 // --- Team management ---
 router.post('/:projectId/team', requireTeamMemberOrAdmin, projectController.replaceTeamMembers);
-// --- M2 Agreement management ---
+
+// --- M2 Accelerator Program management ---
 router.patch('/:projectId/m2-agreement', requireTeamMemberOrAdmin, projectController.updateM2Agreement);
+router.patch('/:projectId/payout-address', requireTeamMemberOrAdmin, projectController.updatePayoutAddress);
+router.post('/:projectId/submit-m2', requireTeamMemberOrAdmin, projectController.submitM2Deliverables);
 
 export default router;

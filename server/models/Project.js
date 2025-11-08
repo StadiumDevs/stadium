@@ -52,16 +52,19 @@ const ProjectSchema = new mongoose.Schema({
   m2Agreement: {
     mentorName: { type: String },
     agreedDate: { type: Date },
-    agreedFeatures: [{ type: String }],
-    documentation: [{ type: String }],
-    successCriteria: { type: String }
+    agreedFeatures: [{ type: String, maxlength: 500 }],
+    documentation: [{ type: String, maxlength: 500 }],
+    successCriteria: { type: String, maxlength: 2000 },
+    lastUpdatedBy: { type: String, enum: ['team', 'admin'] },
+    lastUpdatedDate: { type: Date }
   },
   finalSubmission: {
-    repoUrl: { type: String },
-    demoUrl: { type: String },
-    docsUrl: { type: String },
-    summary: { type: String },
-    submittedDate: { type: Date }
+    repoUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    demoUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    docsUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    summary: { type: String, minlength: 10, maxlength: 1000, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    submittedDate: { type: Date },
+    submittedBy: { type: String }
   },
   changesRequested: {
     feedback: { type: String },

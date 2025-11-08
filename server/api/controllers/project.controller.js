@@ -1,5 +1,8 @@
 import projectService from '../services/project.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
+import { validateSS58, validateM2Submission } from '../utils/validation.js';
+import { canEditM2Agreement, isSubmissionWindowOpen, getCurrentWeek } from '../utils/dateHelpers.js';
+import logger from '../utils/logger.js';
 
 class ProjectController {
     async getProjectById(req, res) {
@@ -156,6 +159,151 @@ class ProjectController {
         } catch (error) {
             console.error("❌ Error updating M2 agreement:", error);
             res.status(500).json({ status: "error", message: error.message || "Failed to update M2 agreement" });
+        }
+    }
+
+    async updatePayoutAddress(req, res) {
+        try {
+            const { projectId } = req.params;
+            const { donationAddress } = req.body;
+            const userWallet = req.user?.address;
+
+            // Validation
+            if (!donationAddress || typeof donationAddress !== 'string') {
+                return res.status(400).json({
+                    status: "error",
+                    message: "Payout address is required"
+                });
+            }
+
+            // Validate SS58 format
+            if (!validateSS58(donationAddress)) {
+                return res.status(400).json({
+                    status: "error",
+                    message: "Invalid SS58 address format. Must be a valid Polkadot/Substrate address (47-48 characters)."
+                });
+            }
+
+            // Get current project to log the change
+            const currentProject = await projectService.getProjectById(projectId);
+            if (!currentProject) {
+                return res.status(404).json({ status: "error", message: "Project not found" });
+            }
+
+            // Log the change for security audit
+            logger.security(`Payout address change for project ${projectId}:`);
+            logger.security(`  Old: ${currentProject.donationAddress || 'none'}`);
+            logger.security(`  New: ${donationAddress}`);
+            logger.security(`  By: ${userWallet}`);
+
+            // Update payout address
+            const updated = await projectService.updateProject(projectId, { donationAddress });
+
+            if (!updated) {
+                return res.status(404).json({ status: "error", message: "Project not found" });
+            }
+
+            logger.update(`Project ${projectId} - Payout address updated by ${userWallet}`);
+            res.status(200).json({ 
+                status: "success", 
+                message: "Payout address updated successfully",
+                data: updated 
+            });
+        } catch (error) {
+            logger.error("Update payout address failed:", error);
+            res.status(500).json({ 
+                status: "error", 
+                message: "Failed to update payout address",
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    async submitM2Deliverables(req, res) {
+        try {
+            const { projectId } = req.params;
+            const { repoUrl, demoUrl, docsUrl, summary } = req.body;
+            const userWallet = req.user?.address;
+
+            // Validate submission data
+            const validation = validateM2Submission({ repoUrl, demoUrl, docsUrl, summary });
+            if (!validation.valid) {
+                return res.status(400).json({
+                    status: "error",
+                    message: validation.error
+                });
+            }
+
+            // Get project
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: "error", message: "Project not found" });
+            }
+
+            // Check if submission window is open (Week 5-6)
+            if (project.hackathon?.endDate) {
+                const currentWeek = getCurrentWeek(project.hackathon.endDate);
+                
+                if (currentWeek < 5) {
+                    return res.status(400).json({
+                        status: "error",
+                        message: `Submission window opens in Week 5. Currently in Week ${currentWeek}.`
+                    });
+                }
+                
+                if (currentWeek > 6) {
+                    return res.status(400).json({
+                        status: "error",
+                        message: "Submission deadline has passed (Week 6). Contact WebZero for an extension."
+                    });
+                }
+            }
+
+            // Check if already completed
+            if (project.m2Status === 'completed') {
+                return res.status(400).json({
+                    status: "error",
+                    message: "M2 has already been completed and approved"
+                });
+            }
+
+            // Update submission
+            const submissionData = {
+                finalSubmission: {
+                    repoUrl,
+                    demoUrl,
+                    docsUrl,
+                    summary,
+                    submittedDate: new Date(),
+                    submittedBy: userWallet
+                },
+                m2Status: 'under_review',
+                changesRequested: undefined // Clear any previous change requests
+            };
+
+            const updated = await projectService.updateProject(projectId, submissionData);
+
+            if (!updated) {
+                return res.status(404).json({ status: "error", message: "Project not found" });
+            }
+
+            logger.submission(`Project ${projectId} - M2 deliverables submitted by ${userWallet}`);
+            logger.info(`  Repo: ${repoUrl}`);
+            logger.info(`  Demo: ${demoUrl}`);
+            logger.info(`  Docs: ${docsUrl}`);
+
+            res.status(200).json({
+                status: "success",
+                message: "M2 deliverables submitted successfully. WebZero will review within 2-3 days.",
+                data: updated
+            });
+        } catch (error) {
+            logger.error("M2 submission failed:", error);
+            res.status(500).json({
+                status: "error",
+                message: "Failed to submit M2 deliverables",
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
         }
     }
 }

@@ -202,9 +202,12 @@ Updates the M2 Agreement (roadmap) for a project in the M2 Accelerator Program.
     -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
 
 **Notes:**
-- Team members can only edit the M2 Agreement during Weeks 1-4 of the accelerator program (frontend enforces this)
+- Team members can only edit the M2 Agreement during Weeks 1-4 of the accelerator program
 - Automatically adds `lastUpdatedBy: 'team'` and `lastUpdatedDate` timestamp
 - Preserves existing fields like `agreedDate` and `mentorName`
+- Maximum 20 core features, 10 documentation items
+- Each feature/doc item max 500 characters
+- Success criteria max 2000 characters
 
 **Example Body:**
 
@@ -255,6 +258,127 @@ x-siws-auth: <Your-Base64-Signature>
       "successCriteria": "Success criteria text",
       "lastUpdatedBy": "team",
       "lastUpdatedDate": "2025-11-08T12:30:00.000Z"
+    }
+  }
+}
+```
+
+---
+
+#### `PATCH /api/projects/:projectId/payout-address`
+
+Updates the payout wallet address for M2 payments.
+
+-   **Method**: `PATCH`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Notes:**
+- Must be a valid SS58 address (47-48 characters)
+- All changes are logged for security audit
+- Old and new addresses are logged
+- Critical for receiving M2 payments
+
+**Example Body:**
+
+```json
+{
+  "donationAddress": "5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU"
+}
+```
+
+**Example Request:**
+
+```http
+PATCH http://localhost:2000/api/projects/polkadot-portfolio-tracker-a1b2c3/payout-address
+Content-Type: application/json
+x-siws-auth: <Your-Base64-Signature>
+
+{
+  "donationAddress": "5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU"
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "Payout address updated successfully",
+  "data": {
+    "_id": "polkadot-portfolio-tracker-a1b2c3",
+    "projectName": "Polkadot Portfolio Tracker",
+    "donationAddress": "5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU"
+  }
+}
+```
+
+---
+
+#### `POST /api/projects/:projectId/submit-m2`
+
+Submits M2 deliverables for review.
+
+-   **Method**: `POST`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Notes:**
+- Can only submit during Weeks 5-6
+- repoUrl must be a GitHub URL
+- demoUrl must be YouTube or Loom video
+- docsUrl must be a valid URL
+- summary must be 10-1000 characters
+- Changes status to 'under_review'
+- Clears any previous change requests
+
+**Example Body:**
+
+```json
+{
+  "repoUrl": "https://github.com/team/polkadot-portfolio-tracker",
+  "demoUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "docsUrl": "https://docs.portfolio-tracker.com",
+  "summary": "We successfully built a comprehensive portfolio tracker with multi-chain support, real-time updates, and beautiful analytics. All features from the M2 agreement have been implemented and tested with 100+ users."
+}
+```
+
+**Example Request:**
+
+```http
+POST http://localhost:2000/api/projects/polkadot-portfolio-tracker-a1b2c3/submit-m2
+Content-Type: application/json
+x-siws-auth: <Your-Base64-Signature>
+
+{
+  "repoUrl": "https://github.com/team/repo",
+  "demoUrl": "https://youtube.com/watch?v=demo",
+  "docsUrl": "https://docs.example.com",
+  "summary": "Project completed with all features implemented."
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "M2 deliverables submitted successfully. WebZero will review within 2-3 days.",
+  "data": {
+    "_id": "polkadot-portfolio-tracker-a1b2c3",
+    "projectName": "Polkadot Portfolio Tracker",
+    "m2Status": "under_review",
+    "finalSubmission": {
+      "repoUrl": "https://github.com/team/repo",
+      "demoUrl": "https://youtube.com/watch?v=demo",
+      "docsUrl": "https://docs.example.com",
+      "summary": "Project completed with all features implemented.",
+      "submittedDate": "2025-11-08T15:30:00.000Z",
+      "submittedBy": "5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9"
     }
   }
 }
