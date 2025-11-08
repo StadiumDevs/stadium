@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:2000/api";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:2000/api";
 
 // TEMPORARY: Mock mode flag - set to true when server is down
 const USE_MOCK_DATA = false; // Set to false when server is back up

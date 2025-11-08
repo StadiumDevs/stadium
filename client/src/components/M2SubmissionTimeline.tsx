@@ -22,13 +22,17 @@ interface M2SubmissionTimelineProps {
   project: any;
   isTeamMember: boolean;
   isAdmin: boolean;
+  isConnected: boolean;
+  connectedWallet?: string | null;
   onSubmit: () => void;
 }
 
 export function M2SubmissionTimeline({ 
   project, 
   isTeamMember, 
-  isAdmin, 
+  isAdmin,
+  isConnected,
+  connectedWallet,
   onSubmit 
 }: M2SubmissionTimelineProps) {
   // Calculate current week and timeline status
@@ -310,39 +314,79 @@ export function M2SubmissionTimeline({
         {/* Action Button */}
         {!alreadySubmitted && (
           <div className="pt-2">
-            {canSubmit ? (
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={onSubmit}
-              >
-                <Rocket className="mr-2 h-5 w-5" />
-                🎯 Submit M2 Deliverables
-              </Button>
-            ) : timeline.currentWeek <= 4 ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled
-              >
-                <Lock className="mr-2 h-4 w-4" />
-                Submit Opens Week 5 ({format(timeline.week5OpenDate, 'MMM d')})
-              </Button>
-            ) : timeline.isPastDeadline ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled
-              >
-                Submission Closed
-              </Button>
-            ) : !isTeamMember && !isAdmin ? (
-              <Alert className="bg-muted">
-                <AlertDescription className="text-sm text-muted-foreground">
-                  Connect your wallet to submit deliverables
-                </AlertDescription>
-              </Alert>
-            ) : null}
+            {(() => {
+              // Not connected at all
+              if (!isConnected) {
+                return (
+                  <Alert className="bg-muted border-border">
+                    <AlertDescription className="text-sm text-center text-muted-foreground">
+                      Connect your wallet to submit deliverables
+                    </AlertDescription>
+                  </Alert>
+                );
+              }
+              
+              // Connected but not authorized (not team member and not admin)
+              if (isConnected && !isTeamMember && !isAdmin) {
+                return (
+                  <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      <p className="font-semibold">
+                        Connected: {connectedWallet?.slice(0, 6)}...{connectedWallet?.slice(-4)}
+                      </p>
+                      <p className="mt-1 text-xs">
+                        This wallet is not authorized. Connect with a team member wallet to submit.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                );
+              }
+              
+              // Week 1-4: Submission window not open yet
+              if (timeline.currentWeek <= 4) {
+                return (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled
+                  >
+                    <Lock className="mr-2 h-4 w-4" />
+                    Submit Opens Week 5 ({format(timeline.week5OpenDate, 'MMM d')})
+                  </Button>
+                );
+              }
+              
+              // Past deadline (Week 7+)
+              if (timeline.isPastDeadline) {
+                return (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled
+                  >
+                    Submission Closed
+                  </Button>
+                );
+              }
+              
+              // Can submit! (Week 5-6, connected, authorized)
+              if (canSubmit) {
+                return (
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={onSubmit}
+                  >
+                    <Rocket className="mr-2 h-5 w-5" />
+                    🎯 Submit M2 Deliverables
+                  </Button>
+                );
+              }
+              
+              // Fallback (shouldn't reach here)
+              return null;
+            })()}
           </div>
         )}
         

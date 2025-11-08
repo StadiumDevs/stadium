@@ -33,7 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
 import { SiwsMessage } from '@talismn/siws';
@@ -379,7 +379,11 @@ const ProjectDetailsPage = () => {
           uri: window.location.origin,
           address: account.address,
           nonce: Math.random().toString(36).slice(2),
-          statement: 'Submit milestone deliverables for Hackathonia',
+          statement: generateSiwsStatement({
+            action: 'update-project',
+            projectTitle: project.projectName,
+            projectId: project.id
+          }),
         });
         const injector = await web3FromSource(account.meta.source);
         const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
@@ -671,9 +675,10 @@ const ProjectDetailsPage = () => {
         address: account.address,
         nonce: Math.random().toString(36).slice(2),
         statement: generateSiwsStatement({
-          action: 'update-payout',
+          action: 'update-project',
           projectTitle: project.projectName,
-          projectId: project.id
+          projectId: project.id,
+          additionalContext: 'Update payout address'
         }),
       });
       const injector = await web3FromSource(account.meta.source);
@@ -732,9 +737,10 @@ const ProjectDetailsPage = () => {
         address: account.address,
         nonce: Math.random().toString(36).slice(2),
         statement: generateSiwsStatement({
-          action: 'submit-m2',
+          action: 'submit-deliverable',
           projectTitle: project.projectName,
-          projectId: project.id
+          projectId: project.id,
+          additionalContext: 'Submit M2 deliverables'
         }),
       });
       const injector = await web3FromSource(account.meta.source);
@@ -745,7 +751,7 @@ const ProjectDetailsPage = () => {
       const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       // Call the submit M2 endpoint
-      const response = await fetch(`/api/projects/${project.id}/submit-m2`, {
+      const response = await fetch(`${API_BASE_URL}/projects/${project.id}/submit-m2`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1128,6 +1134,8 @@ const ProjectDetailsPage = () => {
                 project={project}
                 isTeamMember={isTeamMember}
                 isAdmin={isAdmin}
+                isConnected={!!connectedAddress}
+                connectedWallet={connectedAddress}
                 onSubmit={() => setIsSubmitM2ModalOpen(true)}
               />
             )}

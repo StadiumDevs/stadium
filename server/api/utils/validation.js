@@ -162,6 +162,18 @@ export const validateM2Agreement = (data) => {
 };
 
 /**
+ * Validate simple URL format (starts with www or http)
+ * @param {string} url - URL to validate
+ * @returns {boolean} - True if valid URL format
+ */
+export const validateSimpleUrl = (url) => {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  return url.startsWith('www') || url.startsWith('http://') || url.startsWith('https://');
+};
+
+/**
  * Validate M2 submission data
  * @param {Object} data - Submission data
  * @returns {Object} - { valid: boolean, error: string }
@@ -173,16 +185,16 @@ export const validateM2Submission = (data) => {
     return { valid: false, error: 'All fields are required: repoUrl, demoUrl, docsUrl, summary' };
   }
   
-  if (!validateGitHubUrl(repoUrl)) {
-    return { valid: false, error: 'Repository URL must be a valid GitHub URL' };
+  if (!validateSimpleUrl(repoUrl)) {
+    return { valid: false, error: 'Repository URL must start with www or http' };
   }
   
-  if (!validateVideoUrl(demoUrl)) {
-    return { valid: false, error: 'Demo URL must be a YouTube or Loom video link' };
+  if (!validateSimpleUrl(demoUrl)) {
+    return { valid: false, error: 'Demo URL must start with www or http' };
   }
   
-  if (!validateUrl(docsUrl)) {
-    return { valid: false, error: 'Documentation URL must be a valid URL' };
+  if (!validateSimpleUrl(docsUrl)) {
+    return { valid: false, error: 'Documentation URL must start with www or http' };
   }
   
   if (!validateLength(summary, 10, 1000)) {

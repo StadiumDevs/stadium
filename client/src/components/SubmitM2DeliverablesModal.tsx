@@ -21,20 +21,22 @@ import { useEffect } from "react";
 const formSchema = z.object({
   repoUrl: z
     .string()
-    .url("Must be a valid URL")
-    .refine(url => url.includes('github.com'), {
-      message: 'Must be a GitHub repository URL',
+    .min(1, "Repository URL is required")
+    .refine(url => url.startsWith('www') || url.startsWith('http://') || url.startsWith('https://'), {
+      message: 'Must be a valid URL (starting with www or http)',
     }),
   demoUrl: z
     .string()
-    .url("Must be a valid URL")
-    .refine(
-      url => url.includes('youtube.com') || url.includes('youtu.be') || url.includes('loom.com'),
-      {
-        message: 'Must be a YouTube or Loom video URL',
-      }
-    ),
-  docsUrl: z.string().url("Must be a valid URL"),
+    .min(1, "Demo video URL is required")
+    .refine(url => url.startsWith('www') || url.startsWith('http://') || url.startsWith('https://'), {
+      message: 'Must be a valid URL (starting with www or http)',
+    }),
+  docsUrl: z
+    .string()
+    .min(1, "Documentation URL is required")
+    .refine(url => url.startsWith('www') || url.startsWith('http://') || url.startsWith('https://'), {
+      message: 'Must be a valid URL (starting with www or http)',
+    }),
   summary: z
     .string()
     .min(10, "Summary must be at least 10 characters")
@@ -126,7 +128,7 @@ export function SubmitM2DeliverablesModal({
               className="font-mono text-sm bg-muted/30 border-border"
             />
             <p className="text-xs text-muted-foreground">
-              ⓘ Link to your public GitHub repository with latest code
+              ⓘ Link to your code repository (GitHub, GitLab, etc.)
             </p>
             {form.formState.errors.repoUrl && (
               <p className="text-xs text-destructive">
@@ -148,7 +150,7 @@ export function SubmitM2DeliverablesModal({
               className="font-mono text-sm bg-muted/30 border-border"
             />
             <p className="text-xs text-muted-foreground">
-              ⓘ YouTube or Loom video demonstrating your project (3-5 minutes recommended)
+              ⓘ Video link demonstrating your project (YouTube, Loom, or other platform)
             </p>
             {form.formState.errors.demoUrl && (
               <p className="text-xs text-destructive">
