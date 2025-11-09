@@ -14,7 +14,7 @@ const getStatusColor = (status: string) => {
     case "winner":
       return "bg-gradient-accent text-accent-foreground";
     case "approved":
-      return "bg-success text-success-foreground";
+      return "bg-primary text-primary-foreground";
     case "reviewing":
       return "bg-warning text-warning-foreground";
     case "pending":
@@ -106,7 +106,7 @@ export const ProjectDetailsContent: React.FC<ProjectDetailsContentProps> = ({ pr
           <ul className="space-y-2">
             {project.milestones.map((milestone: string, idx: number) => (
               <li key={idx} className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
+                <CheckCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <span className="text-muted-foreground">{milestone}</span>
               </li>
             ))}

@@ -8,13 +8,18 @@ const ProjectSchema = new mongoose.Schema({
     _id: false,
     name: { type: String, required: true },
     customUrl: { type: String },
-    walletAddress: { type: String }
+    walletAddress: { type: String },
+    role: { type: String },
+    twitter: { type: String },
+    github: { type: String },
+    linkedin: { type: String }
   }],
   description: { type: String, required: true },
   hackathon: {
     id: { type: String, required: true },
     name: { type: String, required: true },
-    endDate: { type: Date, required: true }
+    endDate: { type: Date, required: true },
+    eventStartedAt: { type: String }
   },
   projectRepo: { type: String },
   demoUrl: { type: String },
@@ -38,6 +43,42 @@ const ProjectSchema = new mongoose.Schema({
   projectState: { type: String, required: true },
   // Flag to indicate if all milestones/bounties have been paid out or finalized (i.e. project abandoned).
   bountiesProcessed: { type: Boolean, default: false, required: true },
+  // M2 Accelerator Program fields
+  m2Status: { 
+    type: String, 
+    enum: ['building', 'under_review', 'completed'],
+    default: undefined
+  },
+  m2Agreement: {
+    mentorName: { type: String },
+    agreedDate: { type: Date },
+    agreedFeatures: [{ type: String, maxlength: 500 }],
+    documentation: [{ type: String, maxlength: 500 }],
+    successCriteria: { type: String, maxlength: 2000 },
+    lastUpdatedBy: { type: String, enum: ['team', 'admin'] },
+    lastUpdatedDate: { type: Date }
+  },
+  finalSubmission: {
+    repoUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    demoUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    docsUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    summary: { type: String, minlength: 10, maxlength: 1000, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
+    submittedDate: { type: Date },
+    submittedBy: { type: String }
+  },
+  changesRequested: {
+    feedback: { type: String },
+    requestedBy: { type: String },
+    requestedDate: { type: Date }
+  },
+  completionDate: { type: Date },
+  submittedDate: { type: Date },
+  totalPaid: [{
+    milestone: { type: String, enum: ['M1', 'M2'], required: true },
+    amount: { type: Number, required: true },
+    currency: { type: String, enum: ['USDC', 'DOT'], required: true },
+    transactionProof: { type: String, required: true } // URL to transaction proof
+  }]
 }, { timestamps: true, versionKey: false, toJSON: { virtuals: true, transform: (_doc, ret) => {
   ret.id = ret._id;
   delete ret._id;

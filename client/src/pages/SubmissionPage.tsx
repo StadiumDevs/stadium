@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Navigation } from "@/components/Navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -148,14 +149,16 @@ const SubmissionPage = () => {
   };
 
   return (
-    <div className="container py-8 max-w-4xl">
+    <div className="min-h-screen">
+      <Navigation />
+      <div className="container py-8 pt-24 max-w-4xl">
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-4">Project submission</h1>
+        <h1 className="font-heading text-4xl font-bold mb-4">Project submission</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Project Submission Form</CardTitle>
+          <CardTitle className="font-heading">Project Submission Form</CardTitle>
           <CardDescription>
             Please fill out all required fields to submit your project with the milestones you plan on completing for review.
           </CardDescription>
@@ -165,7 +168,7 @@ const SubmissionPage = () => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 submission-form" data-form="project-submission">
               {/* Team Information */}
               <div className="space-y-4 team-information">
-                <h3 className="text-lg font-semibold">Team Information</h3>
+                <h3 className="font-heading text-lg font-semibold">Team Information</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
@@ -206,7 +209,7 @@ const SubmissionPage = () => {
 
               {/* Project Details */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Project Details</h3>
+                <h3 className="font-heading text-lg font-semibold">Project Details</h3>
 
                 <FormField
                   control={form.control}
@@ -322,7 +325,7 @@ const SubmissionPage = () => {
 
               {/* Milestone Information */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Milestone Information</h3>
+                <h3 className="font-heading text-lg font-semibold">Milestone Information</h3>
 
                 <FormField
                   control={form.control}
@@ -448,7 +451,7 @@ const SubmissionPage = () => {
 
               {/* Additional Information */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">
+                <h3 className="font-heading text-lg font-semibold">
                   Additional Information
                 </h3>
 
@@ -496,6 +499,7 @@ const SubmissionPage = () => {
           </Form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };

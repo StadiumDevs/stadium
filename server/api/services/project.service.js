@@ -82,6 +82,30 @@ class ProjectService {
         }
         return await projectRepository.updateProject(projectId, updateData);
     }
+
+    async updateM2Agreement(projectId, agreementData) {
+        const { agreedFeatures, documentation, successCriteria } = agreementData;
+        
+        // Get existing project to preserve other m2Agreement fields
+        const existing = await projectRepository.getProjectById(projectId);
+        if (!existing) {
+            throw new Error('Project not found');
+        }
+
+        // Update m2Agreement with new data while preserving existing fields
+        const updatedAgreement = {
+            ...existing.m2Agreement,
+            agreedFeatures,
+            documentation,
+            successCriteria,
+            lastUpdatedBy: 'team',
+            lastUpdatedDate: new Date()
+        };
+
+        return await projectRepository.updateProject(projectId, {
+            m2Agreement: updatedAgreement
+        });
+    }
 }
 
 export default new ProjectService();

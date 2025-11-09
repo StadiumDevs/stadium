@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
+import { Navigation } from "@/components/Navigation";
 import {
-  Eye,
-  Trophy,
-  DollarSign,
   Shield,
   Loader2,
   LogOut,
   Wallet,
   AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import {
   Card,
@@ -18,7 +17,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -29,132 +27,51 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { adminApi, projectApi } from "@/lib/mockApi";
-import { Project, Payout } from "@/lib/mockData";
+import { Project } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
-
-const ADMIN_ADDRESS = "5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF";
+import { EmptyState } from "@/components/EmptyState";
+import { api } from "@/lib/api";
+import { useMemo } from "react";
+import { isAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
+import { M2ProjectsTable } from "@/components/admin/M2ProjectsTable";
+import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
+import { ConfirmM1PayoutModal } from "@/components/admin/ConfirmM1PayoutModal";
+import { TestPaymentModal } from "@/components/admin/TestPaymentModal";
 
 const formatAddress = (address = "") =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
 
-const PayoutModal = ({
-  isOpen,
-  onClose,
-  project,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  project: Project | null;
-}) => {
-  const [amount, setAmount] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const { toast } = useToast();
-
-  const handleCreatePayout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!project) return;
-
-    setIsCreating(true);
-    try {
-      await adminApi.createPayout({
-        projectId: project.id,
-        recipient: project.ss58Address,
-        amount,
-      });
-
-      toast({
-        title: "Payout Created",
-        description: `Payout of ${amount} tokens initiated for ${project.projectTitle}`,
-      });
-
-      onClose();
-      setAmount("");
-    } catch (error) {
-      const err = error as Error;
-      toast({
-        title: "Payout Failed",
-        description: err?.message || "Failed to create payout. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCreating(false);
-    }
+type M2Project = Project & {
+  projectName: string;
+  teamMembers?: Array<{
+    name: string;
+    walletAddress?: string;
+    role?: string;
+    twitter?: string;
+    github?: string;
+    linkedin?: string;
+  }>;
+  m2Status?: 'building' | 'under_review' | 'completed';
+  finalSubmission?: {
+    repoUrl: string;
+    demoUrl: string;
+    docsUrl: string;
+    summary?: string;
+    submittedDate: string;
   };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <DollarSign className="h-5 w-5" />
-            <span>Create Payout</span>
-          </DialogTitle>
-          <DialogDescription>
-            Create a payout for {project?.projectTitle}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleCreatePayout}>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="recipient">Recipient Address</Label>
-              <Input
-                id="recipient"
-                value={project?.ss58Address || ""}
-                readOnly
-                className="font-mono text-sm"
-              />
-            </div>
-            <div>
-              <Label htmlFor="amount">Amount (Tokens)</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="10000"
-                required
-                min="1"
-              />
-            </div>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isCreating}>
-              {isCreating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                "Create Payout"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
+  submittedDate?: string;
 };
 
 const AdminPage = () => {
+  // TESTING MODE: Bypass wallet connection check
+  const BYPASS_ADMIN_CHECK = true; // Set to false to re-enable wallet check
+  
   const [walletState, setWalletState] = useState({
     isExtensionAvailable: false,
     isConnected: false,
@@ -165,22 +82,56 @@ const AdminPage = () => {
     injector: null,
   });
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(BYPASS_ADMIN_CHECK);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProject, setSelectedProject] = useState<any>(null);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [showM1PayoutModal, setShowM1PayoutModal] = useState(false);
+  const [showTestPaymentModal, setShowTestPaymentModal] = useState(false);
+  const [sortBy, setSortBy] = useState<'eventStartedAt' | 'projectName' | 'newest'>('eventStartedAt');
   const { toast } = useToast();
 
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Fetch ALL projects from MongoDB via API (no pagination)
+      const response = await api.getProjects({ limit: 1000 });
+      console.log('[AdminPage] API response:', response);
+      
+      // Extract projects from response.data
+      const projectsData = response?.data || [];
+      console.log('[AdminPage] Loaded projects from DB:', projectsData.length, 'projects');
+      console.log('[AdminPage] Sample project:', projectsData[0]);
+      
+      setProjects(projectsData);
+    } catch (error) {
+      const err = error as Error;
+      console.error('[AdminPage] Failed to load data:', error);
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to load admin data.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
+    // TESTING MODE: Skip wallet check and directly load data
+    if (BYPASS_ADMIN_CHECK) {
+      loadData();
+      return;
+    }
+
     checkExtension();
 
     // Restore session if admin account exists in sessionStorage
     const sessionAccount = sessionStorage.getItem("admin_session_account");
     if (sessionAccount) {
       const account = JSON.parse(sessionAccount);
-      if (account.address === ADMIN_ADDRESS) {
+      if (isAdmin(account.address)) {
         setWalletState((prev) => ({
           ...prev,
           selectedAccount: account,
@@ -189,12 +140,14 @@ const AdminPage = () => {
         setIsAuthenticated(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !BYPASS_ADMIN_CHECK) {
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, projects]);
 
   const checkExtension = async () => {
@@ -249,14 +202,23 @@ const AdminPage = () => {
       if (!allAccounts.length)
         throw new Error("No accounts found in extension.");
 
+      // Debug: Log available accounts
+      console.log('[AdminPage] Available accounts:', allAccounts.map(a => ({
+        name: a.meta.name,
+        address: a.address
+      })));
+
       // Check if admin account is available
       const adminAccount = allAccounts.find(
-        (account) => account.address === ADMIN_ADDRESS
+        (account) => isAdmin(account.address)
       );
 
       if (!adminAccount) {
+        const availableAddresses = allAccounts.map(a => a.address).join(', ');
+        console.error('[AdminPage] No admin account found. Available addresses:', availableAddresses);
+        console.error('[AdminPage] Admin addresses from env:', ADMIN_ADDRESSES);
         throw new Error(
-          "Admin account not found. Please ensure you have the correct admin account in your wallet."
+          `Admin account not found. Please ensure you have the correct admin account in your wallet.\n\nYour wallet addresses: ${allAccounts.map(a => a.address).join(', ')}\n\nExpected admin addresses: ${ADMIN_ADDRESSES.join(', ')}\n\nAdd one of your addresses to the VITE_ADMIN_ADDRESSES in .env file and restart the dev server.`
         );
       }
 
@@ -280,7 +242,7 @@ const AdminPage = () => {
 
   const selectAccount = async (account) => {
     try {
-      if (account.address !== ADMIN_ADDRESS) {
+      if (!isAdmin(account.address)) {
         throw new Error(
           "Unauthorized: Only admin account can access this panel."
         );
@@ -310,55 +272,115 @@ const AdminPage = () => {
     }
   };
 
-  const loadData = async () => {
+  const handlePaymentClick = (project: any) => {
+    // Dollar sign button in table opens M1 payout modal
+    setSelectedProject(project);
+    setShowM1PayoutModal(true);
+  };
+
+  const handleConfirmM1Payout = async (data: any) => {
+    if (!selectedProject) return;
+
     try {
-      const [projectsData, payoutsData] = await Promise.all([
-        projectApi.getProjects(),
-        adminApi.getPayouts(),
-      ]);
-      setProjects(projectsData);
-      setPayouts(payoutsData);
-    } catch (error) {
-      const err = error as Error;
+      console.log('[AdminPage] Confirming M1 payout for project:', selectedProject.id);
+      console.log('[AdminPage] M1 payout data:', data);
+
+      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      console.log('[AdminPage] Response status:', response.status);
+
+      const responseText = await response.text();
+      console.log('[AdminPage] Response text:', responseText);
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to confirm M1 payout';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      toast({
+        title: "M1 Payout Confirmed",
+        description: `Payment distributed to ${data.recipients.length} team members`,
+      });
+
+      // Reload data
+      await loadData();
+      setShowM1PayoutModal(false);
+    } catch (error: any) {
+      console.error('[AdminPage] M1 payout confirmation error:', error);
       toast({
         title: "Error",
-        description: err?.message || "Failed to load admin data.",
+        description: error.message || 'Failed to confirm M1 payout',
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
-  const handleStatusChange = async (
-    projectId: string,
-    newStatus: Project["status"]
-  ) => {
+  const handleConfirmPayment = async (data: any) => {
+    if (!selectedProject) return;
+
     try {
-      const updatedProject = await projectApi.updateProjectStatus(
-        projectId,
-        newStatus
-      );
-      setProjects((prev) =>
-        prev.map((p) => (p.id === projectId ? updatedProject : p))
-      );
+      console.log('[AdminPage] Confirming payment for project:', selectedProject.id);
+      console.log('[AdminPage] Payment data:', data);
+
+      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      console.log('[AdminPage] Response status:', response.status);
+      console.log('[AdminPage] Response ok:', response.ok);
+
+      // Try to get response text first
+      const responseText = await response.text();
+      console.log('[AdminPage] Response text:', responseText);
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to confirm payment';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          // If JSON parsing fails, use the text as error message
+          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
 
       toast({
-        title: "Status Updated",
-        description: `Project status changed to ${newStatus}`,
+        title: "Payment Confirmed",
+        description: `${data.milestone} payment recorded successfully`,
       });
-    } catch (error) {
-      const err = error as Error;
+
+      // Reload data
+      await loadData();
+      setShowPayoutModal(false);
+    } catch (error: any) {
+      console.error('[AdminPage] Payment confirmation error:', error);
       toast({
-        title: "Update Failed",
-        description: err?.message || "Failed to update project status.",
+        title: "Error",
+        description: error.message || 'Failed to confirm payment',
         variant: "destructive",
       });
+      throw error;
     }
-  };
-
-  const handleDeclareWinner = async (projectId: string) => {
-    await handleStatusChange(projectId, "winner");
   };
 
   const handleLogout = () => {
@@ -375,12 +397,121 @@ const AdminPage = () => {
     sessionStorage.removeItem("admin_session_account");
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+  // Filter projects under review for M2
+  const projectsUnderReview = useMemo(() => {
+    return projects.filter((p) => p.m2Status === 'under_review');
+  }, [projects]);
+
+  // Filter M2 projects
+  const m2Projects = useMemo(() => 
+    projects.filter(p => p.m2Status),
+    [projects]
+  );
+
+  // Sort projects based on selected sort option
+  const sortedProjects = useMemo(() => {
+    const projectsCopy = [...projects];
+    
+    switch (sortBy) {
+      case 'eventStartedAt':
+        return projectsCopy.sort((a, b) => {
+          const dateA = a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0;
+          const dateB = b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0;
+          return dateB - dateA; // Newest first
+        });
+      case 'projectName':
+        return projectsCopy.sort((a, b) => 
+          (a.projectName || '').localeCompare(b.projectName || '')
+        );
+      case 'newest':
+        return projectsCopy.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA; // Newest first
+        });
+      default:
+        return projectsCopy;
+    }
+  }, [projects, sortBy]);
+
+  // Handle M2 approval
+  const handleApproveM2 = async (projectId: string) => {
+    if (!confirm('This will mark M2 as complete and initiate $2,000 payment. Continue?')) {
+      return;
+    }
+
+    try {
+      await api.webzeroApprove(projectId);
+      
+      // Update local state
+      setProjects((prev) =>
+        prev.map((p) => 
+          p.id === projectId 
+            ? { ...p, m2Status: 'completed' as const }
+            : p
+        )
+      );
+
+      toast({
+        title: "M2 Approved!",
+        description: "Payment will be processed.",
+      });
+      
+      loadData();
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: "Failed to approve M2",
+        description: err?.message || "Failed to approve M2. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle M2 status change
+  const handleM2StatusChange = async (projectId: string, newStatus: 'building' | 'under_review' | 'completed') => {
+    const statusLabels = {
+      building: 'Building',
+      under_review: 'Under Review',
+      completed: 'Completed (ready for payment)'
+    };
+    
+    if (!confirm(`Change project status to ${statusLabels[newStatus]}?`)) {
+      return;
+    }
+    
+    try {
+      await api.updateProjectStatus(projectId, newStatus);
+      
+      toast({
+        title: 'Status Updated',
+        description: `Status updated to ${statusLabels[newStatus]}`,
+      });
+      
+      // Refresh projects list
+      await loadData();
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: 'Failed to update status',
+        description: err?.message || 'An error occurred',
+        variant: 'destructive',
+      });
+      console.error(error);
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return dateString;
+    }
   };
 
   if (!isAuthenticated) {
@@ -389,7 +520,7 @@ const AdminPage = () => {
         <Card className="max-w-md mx-auto text-center py-12">
           <CardContent>
             <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Admin Access Required</h1>
+            <h1 className="font-heading text-2xl font-bold mb-2">Admin Access Required</h1>
             <p className="text-muted-foreground mb-6">
               Connect your admin wallet to access the management panel.
             </p>
@@ -436,11 +567,14 @@ const AdminPage = () => {
 
   if (loading) {
     return (
-      <div className="container py-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-lg">Loading admin panel...</span>
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="container py-8 pt-32">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex items-center space-x-2">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-lg">Loading admin panel...</span>
+            </div>
           </div>
         </div>
       </div>
@@ -448,16 +582,25 @@ const AdminPage = () => {
   }
 
   return (
-    <div className="container py-8">
+    <div className="min-h-screen">
+      <Navigation />
+      <div className="container py-8 pt-24">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-4xl font-bold mb-2">Admin Panel</h1>
+          <h1 className="font-heading text-4xl font-bold mb-2">Admin Panel</h1>
           <p className="text-xl text-muted-foreground">
             Manage hackathon projects and payouts
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowTestPaymentModal(true)}
+            className="border-yellow-500 text-yellow-600 hover:bg-yellow-500/10"
+          >
+            🧪 Test Payment
+          </Button>
           <span className="text-sm text-muted-foreground">
             {walletState.selectedAccount?.meta.name || "Admin"} •{" "}
             {formatAddress(walletState.selectedAccount?.address || "")}
@@ -467,6 +610,105 @@ const AdminPage = () => {
             Logout
           </Button>
         </div>
+      </div>
+
+      {/* Pending Review Section */}
+      <div className="glass-panel rounded-lg p-6 mb-6">
+        <h2 className="text-2xl font-heading mb-4">Pending Review</h2>
+        
+        {projectsUnderReview.length === 0 ? (
+          <EmptyState
+            title="No projects pending review"
+            description="All M2 submissions have been reviewed or no projects are currently under review."
+          />
+        ) : (
+          <div className="space-y-4">
+            {projectsUnderReview.map((project) => (
+              <div key={project.id} className="border border-subtle rounded-lg p-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="font-medium text-lg font-heading">{project.projectName}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      By {project.teamMembers?.[0]?.name || 'Unknown'} · Submitted {formatDate(project.finalSubmission?.submittedDate || project.submittedDate)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 mb-4">
+                  <h4 className="text-sm font-medium font-heading">Deliverables:</h4>
+                  <div className="flex gap-4 text-sm flex-wrap">
+                    {project.finalSubmission?.repoUrl && (
+                      <a 
+                        href={project.finalSubmission.repoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        GitHub →
+                      </a>
+                    )}
+                    {project.finalSubmission?.demoUrl && (
+                      <a 
+                        href={project.finalSubmission.demoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Demo →
+                      </a>
+                    )}
+                    {project.finalSubmission?.docsUrl && (
+                      <a 
+                        href={project.finalSubmission.docsUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Docs →
+                      </a>
+                    )}
+                    {!project.finalSubmission && project.gitLink && (
+                      <a 
+                        href={project.gitLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        GitHub →
+                      </a>
+                    )}
+                    {!project.finalSubmission && project.demoLink && (
+                      <a 
+                        href={project.demoLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Demo →
+                      </a>
+                    )}
+                  </div>
+                </div>
+                
+                {project.finalSubmission?.summary && (
+                  <p className="text-sm mb-4">{project.finalSubmission.summary}</p>
+                )}
+                
+                <div className="flex gap-2 flex-wrap">
+                  <Button 
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setShowPayoutModal(true);
+                    }}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" aria-hidden="true" />
+                    Approve & Process M2 Payment
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -480,129 +722,89 @@ const AdminPage = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-warning">
-              {projects.filter((p) => p.status === "pending").length}
+              {projects.filter((p) => p.m2Status === "under_review").length}
             </div>
             <div className="text-sm text-muted-foreground">Pending Review</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-success">
-              {projects.filter((p) => p.status === "winner").length}
+            <div className="text-2xl font-bold text-primary">
+              {projects.filter((p) => p.m2Status === "completed").length}
             </div>
-            <div className="text-sm text-muted-foreground">Winners</div>
+            <div className="text-sm text-muted-foreground">M2 Graduates</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-primary">
-              {payouts.filter((p) => p.status === "completed").length}
+              ${projects.reduce((total, p) => {
+                const paid = p.totalPaid?.reduce((sum: number, payment: any) => sum + payment.amount, 0) || 0;
+                return total + paid;
+              }, 0).toLocaleString()}
             </div>
-            <div className="text-sm text-muted-foreground">Payouts Made</div>
+            <div className="text-sm text-muted-foreground">Total Paid Out</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Projects Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Management</CardTitle>
-          <CardDescription>
-            Review and manage submitted projects
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project Title</TableHead>
-                  <TableHead>Team Address</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {projects.map((project) => (
-                  <TableRow key={project.ss58Address}>
-                    <TableCell className="font-medium">
-                      {project.projectTitle}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {project.ss58Address.slice(0, 8)}...
-                      {project.ss58Address.slice(-6)}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={project.status}
-                        onValueChange={(value: Project["status"]) =>
-                          handleStatusChange(project.ss58Address, value)
-                        }
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="reviewing">Reviewing</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
-                          <SelectItem value="winner">Winner</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>{formatDate(project.submittedAt)}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            window.open(
-                              `/project/${project.ss58Address}`,
-                              "_blank"
-                            )
-                          }
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            handleDeclareWinner(project.ss58Address)
-                          }
-                          disabled={project.status === "winner"}
-                        >
-                          <Trophy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedProject(project);
-                            setShowPayoutModal(true);
-                          }}
-                        >
-                          <DollarSign className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {/* All M2 Projects Table */}
+      <section className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold">📊 All M2 Projects</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Live status tracking for all M2 accelerator projects
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="sortBy" className="text-sm text-muted-foreground">
+              Sort by:
+            </Label>
+            <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="eventStartedAt">Event Date (Newest)</SelectItem>
+                <SelectItem value="projectName">Project Name (A-Z)</SelectItem>
+                <SelectItem value="newest">Created Date (Newest)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <M2ProjectsTable 
+          projects={sortedProjects || []} 
+          onPaymentClick={handlePaymentClick}
+        />
+      </section>
 
-      {/* Payout Modal */}
-      <PayoutModal
-        isOpen={showPayoutModal}
-        onClose={() => setShowPayoutModal(false)}
-        project={selectedProject}
+      {/* M1 Payout Modal */}
+      {selectedProject && (
+        <ConfirmM1PayoutModal
+          open={showM1PayoutModal}
+          onOpenChange={setShowM1PayoutModal}
+          project={selectedProject}
+          onConfirm={handleConfirmM1Payout}
+        />
+      )}
+
+      {/* M2 Payment Confirmation Modal */}
+      {selectedProject && (
+        <ConfirmPaymentModal
+          open={showPayoutModal}
+          onOpenChange={setShowPayoutModal}
+          project={selectedProject}
+          onConfirm={handleConfirmPayment}
+        />
+      )}
+
+      {/* Test Payment Modal */}
+      <TestPaymentModal
+        open={showTestPaymentModal}
+        onOpenChange={setShowTestPaymentModal}
       />
+      </div>
     </div>
   );
 };
