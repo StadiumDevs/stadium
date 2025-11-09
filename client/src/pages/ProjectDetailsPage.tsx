@@ -994,7 +994,7 @@ const ProjectDetailsPage = () => {
                   </div>
                 )}
                 <div className="flex gap-3 mt-4 flex-wrap">
-                  {project.projectRepo && (
+                  {project.projectRepo && project.projectRepo !== "nan" && (
                     <Button variant="outline" asChild>
                       <a href={project.projectRepo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
                         <Github className="h-4 w-4" />
@@ -1003,16 +1003,16 @@ const ProjectDetailsPage = () => {
                       </a>
                     </Button>
                   )}
-                  {(project.demoUrl || project.slidesUrl) && (
+                  {(project.demoUrl && project.demoUrl !== "nan") && (
                     <Button variant="outline" asChild>
-                      <a href={project.demoUrl || project.slidesUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                      <a href={project.demoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
                         <Globe className="h-4 w-4" />
                         <span>Live Demo</span>
                         <ExternalLink className="h-4 w-4 ml-1" />
                       </a>
                     </Button>
                   )}
-                  {project.slidesUrl && (
+                  {project.slidesUrl && project.slidesUrl !== "nan" && (
                     <Button variant="outline" asChild>
                       <a href={project.slidesUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
                         <FileText className="h-4 w-4" />
@@ -1558,7 +1558,15 @@ const ProjectDetailsPage = () => {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">
-                Built with ❤️ by WebZero.
+                Created by{' '}
+                <a
+                  href="https://x.com/sachalansky"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline transition-colors"
+                >
+                  Sacha Lansky
+                </a>
               </span>
             </div>
             <div className="flex items-center space-x-4">

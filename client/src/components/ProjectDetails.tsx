@@ -305,13 +305,13 @@ const ProjectDetails = () => {
           </Card>
 
           {/* External Links */}
-          {(project.gitLink || project.demoLink) && (
+          {((project.gitLink && project.gitLink !== "nan") || (project.demoLink && project.demoLink !== "nan")) && (
             <Card>
               <CardHeader>
                 <CardTitle>External Links</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {project.gitLink && (
+                {project.gitLink && project.gitLink !== "nan" && (
                   <Button
                     variant="outline"
                     className="w-full justify-start"
@@ -330,7 +330,7 @@ const ProjectDetails = () => {
                   </Button>
                 )}
 
-                {project.demoLink && (
+                {project.demoLink && project.demoLink !== "nan" && (
                   <Button
                     variant="outline"
                     className="w-full justify-start"

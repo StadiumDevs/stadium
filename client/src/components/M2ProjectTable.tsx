@@ -126,7 +126,7 @@ export function M2ProjectTable({ projects }: M2ProjectTableProps) {
                   {/* Links */}
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
-                      {project.githubRepo && (
+                      {project.githubRepo && project.githubRepo !== "nan" && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -140,7 +140,7 @@ export function M2ProjectTable({ projects }: M2ProjectTableProps) {
                           <Github className="h-4 w-4" />
                         </Button>
                       )}
-                      {project.demoUrl && (
+                      {project.demoUrl && project.demoUrl !== "nan" && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -154,7 +154,7 @@ export function M2ProjectTable({ projects }: M2ProjectTableProps) {
                           <Video className="h-4 w-4" />
                         </Button>
                       )}
-                      {project.slidesUrl && (
+                      {project.slidesUrl && project.slidesUrl !== "nan" && (
                         <Button
                           variant="ghost"
                           size="icon"
