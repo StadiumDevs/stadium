@@ -1,20 +1,29 @@
 import express from "express";
 import cors from "cors";
 import connectToMongo from "./db.js";
-import projectRoutes from './api/routes/project.routes.js';
+import m2ProgramRoutes from './api/routes/m2-program.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
 
 const app = express();
 const PORT = process.env.PORT || 2000;
 
 // Core Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:8080', 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:8080', 'http://127.0.0.1:5173'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
 // API Routes
-app.use('/api/projects', projectRoutes);
+app.use('/api/m2-program', m2ProgramRoutes);
+
+// Backward compatibility: Keep old /api/projects route as alias
+// TODO: Remove after frontend migration is stable
+app.use('/api/projects', m2ProgramRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

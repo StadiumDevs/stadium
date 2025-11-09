@@ -1,6 +1,6 @@
-# Hackathonia API Documentation
+# Stadium M2 Program API Documentation
 
-This document provides instructions on how to authenticate with and use the Hackathonia project API.
+This document provides instructions on how to authenticate with and use the Stadium M2 Accelerator Program API.
 
 ## Authentication
 
@@ -47,11 +47,11 @@ To use them, open the file in VS Code and click the "Send Request" link that app
 
 All endpoints are available under the `/api` prefix.
 
-### Projects
+### M2 Program Projects
 
-#### `GET /api/projects`
+#### `GET /api/m2-program`
 
-Retrieves a list of all projects. Supports filtering and sorting.
+Retrieves a list of all projects in the M2 Accelerator Program. Supports filtering and sorting.
 
 -   **Method**: `GET`
 -   **Authentication**: None
@@ -69,14 +69,14 @@ Retrieves a list of all projects. Supports filtering and sorting.
 **Example Request:**
 
 ```http
-GET http://localhost:2000/api/projects?projectState=Milestone%20Delivered&sortOrder=asc
+GET http://localhost:2000/api/m2-program?projectState=Milestone%20Delivered&sortOrder=asc
 ```
 
 ---
 
-#### `POST /api/projects`
+#### `POST /api/m2-program`
 
-Creates a new project.
+Creates a new M2 program project.
 
 -   **Method**: `POST`
 -   **Authentication**: **Required (Admin)**
@@ -106,7 +106,7 @@ Creates a new project.
 
 ---
 
-#### `GET /api/projects/:projectId`
+#### `GET /api/m2-program/:projectId`
 
 Retrieves a single project by its unique ID.
 
@@ -116,12 +116,12 @@ Retrieves a single project by its unique ID.
 **Example Request:**
 
 ```http
-GET http://localhost:2000/api/projects/my-awesome-new-project-a1b2c3
+GET http://localhost:2000/api/m2-program/my-awesome-new-project-a1b2c3
 ```
 
 ---
 
-#### `PATCH /api/projects/:projectId`
+#### `PATCH /api/m2-program/:projectId`
 
 Updates an existing project.
 
@@ -148,7 +148,240 @@ You can send any subset of the project's fields to update.
 **Example Request:**
 
 ```http
-PATCH http://localhost:2000/api/projects/my-awesome-new-project-a1b2c3
+PATCH http://localhost:2000/api/m2-program/my-awesome-new-project-a1b2c3
+```
+
+---
+
+#### `POST /api/m2-program/:projectId/team`
+
+Replaces the team members array for a project.
+
+-   **Method**: `POST`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Example Body:**
+
+```json
+{
+  "teamMembers": [
+    {
+      "name": "Alice Johnson",
+      "walletAddress": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "role": "Lead Developer",
+      "github": "alicejohnson"
+    },
+    {
+      "name": "Bob Smith",
+      "walletAddress": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+      "role": "Backend Developer"
+    }
+  ]
+}
+```
+
+**Example Request:**
+
+```http
+POST http://localhost:2000/api/m2-program/my-awesome-new-project-a1b2c3/team
+```
+
+---
+
+#### `PATCH /api/m2-program/:projectId/m2-agreement`
+
+Updates the M2 Agreement (roadmap) for a project in the M2 Accelerator Program.
+
+-   **Method**: `PATCH`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Notes:**
+- Team members can only edit the M2 Agreement during Weeks 1-4 of the accelerator program
+- Automatically adds `lastUpdatedBy: 'team'` and `lastUpdatedDate` timestamp
+- Preserves existing fields like `agreedDate` and `mentorName`
+- Maximum 20 core features, 10 documentation items
+- Each feature/doc item max 500 characters
+- Success criteria max 2000 characters
+
+**Example Body:**
+
+```json
+{
+  "agreedFeatures": [
+    "Multi-chain portfolio aggregation with real-time updates",
+    "Historical performance charts with multiple time ranges",
+    "Transaction history explorer with advanced filtering",
+    "Portfolio analytics dashboard with ROI calculations"
+  ],
+  "documentation": [
+    "Complete README with setup instructions",
+    "API documentation for all endpoints",
+    "Architecture diagram showing system components",
+    "User guide with screenshots"
+  ],
+  "successCriteria": "Application must track assets across 20+ parachains with <5 second latency, support 50+ tokens, handle 1000+ transactions without performance issues, and provide 99%+ accurate portfolio calculations."
+}
+```
+
+**Example Request:**
+
+```http
+PATCH http://localhost:2000/api/m2-program/polkadot-portfolio-tracker-a1b2c3/m2-agreement
+Content-Type: application/json
+x-siws-auth: <Your-Base64-Signature>
+
+{
+  "agreedFeatures": ["Feature 1", "Feature 2"],
+  "documentation": ["Doc 1", "Doc 2"],
+  "successCriteria": "Success criteria text"
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "polkadot-portfolio-tracker-a1b2c3",
+    "projectName": "Polkadot Portfolio Tracker",
+    "m2Agreement": {
+      "agreedDate": "2025-10-28T10:00:00.000Z",
+      "agreedFeatures": ["Feature 1", "Feature 2"],
+      "documentation": ["Doc 1", "Doc 2"],
+      "successCriteria": "Success criteria text",
+      "lastUpdatedBy": "team",
+      "lastUpdatedDate": "2025-11-08T12:30:00.000Z"
+    }
+  }
+}
+```
+
+---
+
+#### `PATCH /api/m2-program/:projectId/payout-address`
+
+Updates the payout wallet address for M2 payments.
+
+-   **Method**: `PATCH`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Notes:**
+- Must be a valid SS58 address (47-48 characters)
+- All changes are logged for security audit
+- Old and new addresses are logged
+- Critical for receiving M2 payments
+
+**Example Body:**
+
+```json
+{
+  "donationAddress": "5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU"
+}
+```
+
+**Example Request:**
+
+```http
+PATCH http://localhost:2000/api/m2-program/polkadot-portfolio-tracker-a1b2c3/payout-address
+Content-Type: application/json
+x-siws-auth: <Your-Base64-Signature>
+
+{
+  "donationAddress": "5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU"
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "Payout address updated successfully",
+  "data": {
+    "_id": "polkadot-portfolio-tracker-a1b2c3",
+    "projectName": "Polkadot Portfolio Tracker",
+    "donationAddress": "5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU"
+  }
+}
+```
+
+---
+
+#### `POST /api/m2-program/:projectId/submit-m2`
+
+Submits M2 deliverables for review.
+
+-   **Method**: `POST`
+-   **Authentication**: **Required (Admin or Project Team Member)**
+-   **Headers**:
+    -   `Content-Type: application/json`
+    -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
+
+**Notes:**
+- Can only submit during Weeks 5-6
+- repoUrl must be a GitHub URL
+- demoUrl must be YouTube or Loom video
+- docsUrl must be a valid URL
+- summary must be 10-1000 characters
+- Changes status to 'under_review'
+- Clears any previous change requests
+
+**Example Body:**
+
+```json
+{
+  "repoUrl": "https://github.com/team/polkadot-portfolio-tracker",
+  "demoUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "docsUrl": "https://docs.portfolio-tracker.com",
+  "summary": "We successfully built a comprehensive portfolio tracker with multi-chain support, real-time updates, and beautiful analytics. All features from the M2 agreement have been implemented and tested with 100+ users."
+}
+```
+
+**Example Request:**
+
+```http
+POST http://localhost:2000/api/m2-program/polkadot-portfolio-tracker-a1b2c3/submit-m2
+Content-Type: application/json
+x-siws-auth: <Your-Base64-Signature>
+
+{
+  "repoUrl": "https://github.com/team/repo",
+  "demoUrl": "https://youtube.com/watch?v=demo",
+  "docsUrl": "https://docs.example.com",
+  "summary": "Project completed with all features implemented."
+}
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "M2 deliverables submitted successfully. WebZero will review within 2-3 days.",
+  "data": {
+    "_id": "polkadot-portfolio-tracker-a1b2c3",
+    "projectName": "Polkadot Portfolio Tracker",
+    "m2Status": "under_review",
+    "finalSubmission": {
+      "repoUrl": "https://github.com/team/repo",
+      "demoUrl": "https://youtube.com/watch?v=demo",
+      "docsUrl": "https://docs.example.com",
+      "summary": "Project completed with all features implemented.",
+      "submittedDate": "2025-11-08T15:30:00.000Z",
+      "submittedBy": "5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9"
+    }
+  }
+}
 ```
 
 ---

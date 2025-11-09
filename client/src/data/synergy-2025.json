@@ -235,11 +235,11 @@
   },
   {
     "projectName": "Milkyway2",
-    "teamLead": "tatiana.dzhambinova",
+    "teamLead": "anonymous",
     "description": "Milkyway2 delivers transparent, privacy-first risk and incident reporting across Polkadot, Kusama and parachains. Users see real-time, color-coded risk indicators for each validator—paired with clear action steps—so anyone can make informed moves instantly. The platform combines advanced zero-knowledge, Sybil-resistant reporting and encrypted validator messaging, ensuring that every alert brings both context and security for the entire network.",
     "eventStartedAt": "synergy-hack-2024",
     "githubRepo": "https://github.com/tatdz/milkyway2",
-    "demoUrl": "https://milkyway-2-ubvant.replit.app",
+    "demoUrl": "https://monorepo-2-milestone-qadh.vercel.app/",
     "slidesUrl": "https://docs.google.com/presentation/d/14uqsXmstUvj2FWImFQv1frIORn4BB-z26BDHaYE9FsA/edit?usp=sharing",
     "techStack": "ink!",
     "milestones": [
@@ -277,23 +277,6 @@
     "slidesUrl": "https://www.canva.com/design/DAGYCfcaHHQ/a6qJKdH-6LsXTqgVsezJGg/edit?utm_content=DAGYCfcaHHQ&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton",
     "techStack": "Other",
     "milestones": [],
-    "donationAddress": "",
-    "winner": ""
-  },
-  {
-    "projectName": "CrackedDevZ",
-    "teamLead": "Armsves",
-    "description": "This project marks the first steps toward real life applicable ZK use cases for the Polkadot community. By leveraging the state of the art ZK tooling such Noir, ZK-SNARKS,HONKS and Pederson Commitment, “PolkaVote” introduces an anonymous voting protocol to the Polkadot eco-system for anonymous and decentralized governing.<br>At its core, the idea is to create a flexible, reusable and robust Zero Knowledge voting platform on Polkadot for Polkadot.",
-    "eventStartedAt": "synergy-hack-2024",
-    "githubRepo": "https://github.com/armsves/PolkaVote/tree/feat/server",
-    "demoUrl": "https://www.youtube.com/watch?v=awTz5q-QLQU",
-    "slidesUrl": "https://www.canva.com/design/DAGYEJlI1qM/nslQFnNaD8DHJdEXGb-W3g/edit?utm_content=DAGYEJlI1qM&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton",
-    "techStack": "Other",
-    "milestones": ["**Problem Statement and Research** propose a new cryptographic primitives that suit the needs of the protocol",
-    "**Commitment Scheme Implementation** Implementation of the new candidate to the commitment scheme variants that was proposed in the research phase",
-    "1. Landing page launch, attract (nonanonymous) email submissions.",
-    "2. With Polkavote team development, establish a site where cryptoholders and anonymously vote/join.",
-    "**Off Chain Merkle Tree** Implementation of a server that stores the voting commitments off chain and leverages blockchain for integrity by posting Merkle Tree root on chain"],
     "donationAddress": "",
     "winner": ""
   },
@@ -376,7 +359,7 @@
     "winner": ""
   },
   {
-    "projectName": "Blockchain solutions Hermann Müller Co KG",
+    "projectName": "Cranenalysis",
     "teamLead": "yanick.savov",
     "description": "An onchain monitoring and sleuthing tool that allows users to get a cutting edge for any future decision. From personal knowledge growth to an aid how to shape Inflation on Polkadot, through knowing what of the staking rewards will get sold, everything is possible and more fruitful with more information available.",
     "eventStartedAt": "synergy-hack-2024",
@@ -612,7 +595,7 @@
     "description": "The first real-world ZK application for Polkadot, enabling anonymous voting using state-of-the-art tools (Noir, ZK-SNARKs, HONK, and Pedersen Commitments). This flexible, reusable platform provides decentralized anonymous governance for the Polkadot ecosystem.",
     "eventStartedAt": "synergy-hack-2024",
     "githubRepo": "https://github.com/armsves/PolkaVote",
-    "demoUrl": "https://www.youtube.com/watch?v=awTz5q-QLQU",
+    "demoUrl": "https://polka-vote.vercel.app/",
     "slidesUrl": "https://docs.google.com/document/d/1vTirzHW5sFZefvPmq85l9IZcgwMRSMA8MIYW7oxPN74/edit?usp=sharing",
     "techStack": "Polkadot",
     "milestones": [
@@ -629,7 +612,7 @@
     "description": "Emerald is a P2P imageboard protocol with a Layer 1 blockchain and a novel sharded CDN designed to overcome key latency and incentive issues in decentralized storage.  Building this protocol alone is a massive undertaking, so I've stuck to implementing the Substrate-based blockchain, leaving the libp2p client for off-chain storage for milestone 2.",
     "eventStartedAt": "synergy-hack-2024",
     "githubRepo": "https://github.com/rednaxela5950/emerald-hackathon",
-    "demoUrl": "https://alex.sellstrom.me/papers/Emerald.mov",
+    "demoUrl": "https://alex.sellstrom.me/papers/Emerald.pdf",
     "slidesUrl": "https://docs.google.com/presentation/d/1Bh8zP4q5F8B0OcZMhdaOCx_kptNttIcpOfxcOhs4S-8/edit?usp=sharing",
     "techStack": "Other",
     "milestones": [
@@ -647,7 +630,7 @@
     "description": "Nexor lets you send and receive crypto instantly with a unique @key, Tap to Pay, and non-custodial technology with multi-token support.",
     "eventStartedAt": "synergy-hack-2024",
     "githubRepo": "https://github.com/web3summit/nexor",
-    "demoUrl": "https://drive.google.com/drive/folders/1Td4IZGUV6JHNAcixgLTNMG5ipvsndbne?usp=sharing",
+    "demoUrl": "https://drive.google.com/file/d/1_u3jVXsLd0nqX-z45H2ywakwnWp-ww32/view?usp=drive_link",
     "slidesUrl": "https://www.figma.com/slides/kBpfUiWaYMTmjKGlR2SVdR/",
     "techStack": "Other",
     "milestones": [

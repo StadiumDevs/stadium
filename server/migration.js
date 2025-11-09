@@ -6,12 +6,18 @@ import path from "path";
 import crypto from "crypto";
 import csv from "csv-parser";
 
-dotenv.config();
+// Load .env from server directory or root
+const envPath = path.resolve(process.cwd(), "server", ".env");
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config();
+}
 
 const connectToMongo = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ Connected to MongoDB Atlas for migration");
+    console.log("✅ Connected to MongoDB for migration");
   } catch (err) {
     console.error("❌ Mongoose connection failed:", err);
     throw err;
@@ -74,7 +80,11 @@ const readCsvData = (filePath) => {
 const migrate = async () => {
   await connectToMongo();
 
-  const payoutsPath = path.resolve(process.cwd(), "migration-data", "payouts.csv");
+  // Get the directory where this script is located (server/)
+  const serverDir = path.dirname(new URL(import.meta.url).pathname);
+  const migrationDataDir = path.join(serverDir, "migration-data");
+  
+  const payoutsPath = path.join(migrationDataDir, "payouts.csv");
   const payoutsData = await readCsvData(payoutsPath);
   const initialPayoutsCount = Object.keys(payoutsData).length;
   let matchedProjectsCount = 0;
@@ -89,11 +99,13 @@ const migrate = async () => {
       id: "synergy-2025",
       name: "Synergy 2025",
       endDate: new Date("2025-07-18T18:00:00"),
+      eventStartedAt: "synergy-hack-2024",
     },
     {
       id: "symmetry-2024",
       name: "Symmetry 2024",
       endDate: new Date("2024-08-21T23:55:00"),
+      eventStartedAt: "funkhaus-2024",
     },
   ];
 
@@ -101,11 +113,7 @@ const migrate = async () => {
   let allProjectsToInsert = [];
 
   for (const hackathon of pastHackathons) {
-    const jsonPath = path.resolve(
-      process.cwd(),
-      "migration-data",
-      `${hackathon.id}.json`
-    );
+    const jsonPath = path.join(migrationDataDir, `${hackathon.id}.json`);
 
     let projectsData;
     try {
@@ -161,6 +169,12 @@ const migrate = async () => {
           ? project.milestones.map(item => `- ${item}`).join('\\n')
           : project.milestones;
 
+        // Parse completionDate if it's a string
+        let completionDate = null;
+        if (project.completionDate) {
+          completionDate = new Date(project.completionDate);
+        }
+
         return {
           _id: generateProjectId(project.projectName),
           projectName: project.projectName,
@@ -173,12 +187,14 @@ const migrate = async () => {
           hackathon: {
             id: hackathon.id,
             name: hackathon.name,
-            endDate: hackathon.endDate
+            endDate: hackathon.endDate,
+            eventStartedAt: hackathon.eventStartedAt
           },
           projectRepo: project.githubRepo,
           demoUrl: project.demoUrl,
           slidesUrl: project.slidesUrl,
           techStack: techStackArray,
+          categories: project.categories || [],
           milestones: milestoneDescription ? [{
             description: milestoneDescription,
             createdAt: new Date(),
@@ -190,6 +206,11 @@ const migrate = async () => {
           donationAddress: project.donationAddress || "",
           projectState: projectState,
           bountiesProcessed: bountiesProcessed,
+          // M2 Accelerator Program fields
+          m2Status: project.m2Status || undefined,
+          completionDate: completionDate || undefined,
+          submittedDate: project.submittedDate ? new Date(project.submittedDate) : undefined,
+          totalPaid: project.totalPaid || undefined,
         };
       });
       allProjectsToInsert.push(...projectsFromHackathon);
