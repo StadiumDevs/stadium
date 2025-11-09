@@ -68,140 +68,141 @@ export function TestPaymentModal({ open, onOpenChange }: TestPaymentModalProps) 
     let api: any = null;
     let connectedRpc: string | null = null;
 
-    try {
-      // Import Polkadot API
-      const { ApiPromise, WsProvider } = await import('@polkadot/api');
+    // Must be moved to serverside
+    // try {
+    //   // Import Polkadot API
+    //   const { ApiPromise, WsProvider } = await import('@polkadot/api');
       
-      // Try each RPC endpoint until one works
-      let lastError: Error | null = null;
+    //   // Try each RPC endpoint until one works
+    //   let lastError: Error | null = null;
       
-      for (const rpcUrl of TEST_CONFIG.rpcEndpoints) {
-        try {
-          console.log(`🔌 Attempting to connect to: ${rpcUrl}`);
+    //   for (const rpcUrl of TEST_CONFIG.rpcEndpoints) {
+    //     try {
+    //       console.log(`🔌 Attempting to connect to: ${rpcUrl}`);
           
-          const provider = new WsProvider(rpcUrl, 5000); // 5 second timeout
+    //       const provider = new WsProvider(rpcUrl, 5000); // 5 second timeout
           
-          // Set up connection event handlers
-          provider.on('connected', () => {
-            console.log(`✅ WebSocket connected to ${rpcUrl}`);
-          });
+    //       // Set up connection event handlers
+    //       provider.on('connected', () => {
+    //         console.log(`✅ WebSocket connected to ${rpcUrl}`);
+    //       });
           
-          provider.on('disconnected', () => {
-            console.log(`⚠️  WebSocket disconnected from ${rpcUrl}`);
-          });
+    //       provider.on('disconnected', () => {
+    //         console.log(`⚠️  WebSocket disconnected from ${rpcUrl}`);
+    //       });
           
-          provider.on('error', (error) => {
-            console.error(`❌ WebSocket error on ${rpcUrl}:`, error);
-          });
+    //       provider.on('error', (error) => {
+    //         console.error(`❌ WebSocket error on ${rpcUrl}:`, error);
+    //       });
 
-          // Try to create API with timeout
-          const apiPromise = ApiPromise.create({ 
-            provider,
-            throwOnConnect: true,
-            throwOnUnknown: true
-          });
+    //       // Try to create API with timeout
+    //       const apiPromise = ApiPromise.create({ 
+    //         provider,
+    //         throwOnConnect: true,
+    //         throwOnUnknown: true
+    //       });
 
-          // Add timeout to API creation
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000)
-          );
+    //       // Add timeout to API creation
+    //       const timeoutPromise = new Promise((_, reject) => 
+    //         setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000)
+    //       );
 
-          api = await Promise.race([apiPromise, timeoutPromise]);
+    //       api = await Promise.race([apiPromise, timeoutPromise]);
           
-          console.log('✅ Connected to', TEST_CONFIG.network);
-          console.log('⛓️  Chain:', (await api.rpc.system.chain()).toString());
-          console.log('📦 Runtime version:', (await api.rpc.state.getRuntimeVersion()).toJSON());
+    //       console.log('✅ Connected to', TEST_CONFIG.network);
+    //       console.log('⛓️  Chain:', (await api.rpc.system.chain()).toString());
+    //       console.log('📦 Runtime version:', (await api.rpc.state.getRuntimeVersion()).toJSON());
           
-          connectedRpc = rpcUrl;
-          break; // Successfully connected, exit loop
+    //       connectedRpc = rpcUrl;
+    //       break; // Successfully connected, exit loop
           
-        } catch (err: any) {
-          console.warn(`⚠️  Failed to connect to ${rpcUrl}:`, err.message);
-          lastError = err;
+    //     } catch (err: any) {
+    //       console.warn(`⚠️  Failed to connect to ${rpcUrl}:`, err.message);
+    //       lastError = err;
           
-          // Clean up failed connection
-          if (api) {
-            try {
-              await api.disconnect();
-            } catch (e) {
-              // Ignore disconnect errors
-            }
-            api = null;
-          }
+    //       // Clean up failed connection
+    //       if (api) {
+    //         try {
+    //           await api.disconnect();
+    //         } catch (e) {
+    //           // Ignore disconnect errors
+    //         }
+    //         api = null;
+    //       }
           
-          // Continue to next RPC endpoint
-          continue;
-        }
-      }
+    //       // Continue to next RPC endpoint
+    //       continue;
+    //     }
+    //   }
 
-      // If no connection was successful
-      if (!api || !connectedRpc) {
-        throw new Error(
-          `Failed to connect to any Paseo RPC endpoint. Last error: ${lastError?.message || 'Unknown error'}. ` +
-          'This could be due to network issues or all RPC endpoints being temporarily unavailable. ' +
-          'Please check your internet connection and try again.'
-        );
-      }
+    //   // If no connection was successful
+    //   if (!api || !connectedRpc) {
+    //     throw new Error(
+    //       `Failed to connect to any Paseo RPC endpoint. Last error: ${lastError?.message || 'Unknown error'}. ` +
+    //       'This could be due to network issues or all RPC endpoints being temporarily unavailable. ' +
+    //       'Please check your internet connection and try again.'
+    //     );
+    //   }
 
-      console.log(`✅ Successfully using RPC: ${connectedRpc}`);
+    //   console.log(`✅ Successfully using RPC: ${connectedRpc}`);
 
-      // TODO: Actual transaction construction will go here
-      // For now, just simulate success
+    //   // TODO: Actual transaction construction will go here
+    //   // For now, just simulate success
       
-      // Simulated transaction hash (replace with actual transaction)
-      const mockTxHash = '0x' + Array.from({ length: 64 }, () => 
-        Math.floor(Math.random() * 16).toString(16)
-      ).join('');
+    //   // Simulated transaction hash (replace with actual transaction)
+    //   const mockTxHash = '0x' + Array.from({ length: 64 }, () => 
+    //     Math.floor(Math.random() * 16).toString(16)
+    //   ).join('');
       
-      console.log('✅ Transaction constructed successfully!');
-      console.log('📝 Transaction Hash:', mockTxHash);
-      console.log('💰 From:', CURRENT_MULTISIG);
-      console.log('👤 To:', TEST_CONFIG.recipient);
-      console.log('💵 Amount:', TEST_CONFIG.amount, 'USDC');
-      console.log('🌐 Network:', TEST_CONFIG.network);
-      console.log('🔗 RPC Used:', connectedRpc);
-      console.log('');
-      console.log('⚠️  NOTE: This is a TEST transaction');
-      console.log('⚠️  NO database update was performed');
-      console.log('⚠️  This only tests transaction construction');
+    //   console.log('✅ Transaction constructed successfully!');
+    //   console.log('📝 Transaction Hash:', mockTxHash);
+    //   console.log('💰 From:', CURRENT_MULTISIG);
+    //   console.log('👤 To:', TEST_CONFIG.recipient);
+    //   console.log('💵 Amount:', TEST_CONFIG.amount, 'USDC');
+    //   console.log('🌐 Network:', TEST_CONFIG.network);
+    //   console.log('🔗 RPC Used:', connectedRpc);
+    //   console.log('');
+    //   console.log('⚠️  NOTE: This is a TEST transaction');
+    //   console.log('⚠️  NO database update was performed');
+    //   console.log('⚠️  This only tests transaction construction');
 
-      setTxHash(mockTxHash);
-      toast.success('Test transaction constructed successfully!');
+    //   setTxHash(mockTxHash);
+    //   toast.success('Test transaction constructed successfully!');
 
-      // Disconnect
-      if (api) {
-        await api.disconnect();
-        console.log('🔌 Disconnected from RPC');
-      }
+    //   // Disconnect
+    //   if (api) {
+    //     await api.disconnect();
+    //     console.log('🔌 Disconnected from RPC');
+    //   }
 
-    } catch (err: any) {
-      console.error('❌ Test payment failed:', err);
-      console.error('Error details:', err.message);
-      console.error('Stack trace:', err.stack);
+    // } catch (err: any) {
+    //   console.error('❌ Test payment failed:', err);
+    //   console.error('Error details:', err.message);
+    //   console.error('Stack trace:', err.stack);
       
-      // Provide helpful error message
-      let errorMessage = err.message || 'Failed to construct test transaction';
+    //   // Provide helpful error message
+    //   let errorMessage = err.message || 'Failed to construct test transaction';
       
-      if (errorMessage.includes('timeout')) {
-        errorMessage = 'Connection timeout. The RPC endpoint is not responding. Please try again or check your internet connection.';
-      } else if (errorMessage.includes('1006')) {
-        errorMessage = 'WebSocket connection failed (Error 1006). This usually means the RPC endpoint is unavailable or blocking the connection.';
-      }
+    //   if (errorMessage.includes('timeout')) {
+    //     errorMessage = 'Connection timeout. The RPC endpoint is not responding. Please try again or check your internet connection.';
+    //   } else if (errorMessage.includes('1006')) {
+    //     errorMessage = 'WebSocket connection failed (Error 1006). This usually means the RPC endpoint is unavailable or blocking the connection.';
+    //   }
       
-      setError(errorMessage);
-      toast.error('Test transaction failed - check console for details');
+    //   setError(errorMessage);
+    //   toast.error('Test transaction failed - check console for details');
       
-      // Try to disconnect if connection was partially established
-      if (api) {
-        try {
-          await api.disconnect();
-        } catch (e) {
-          // Ignore disconnect errors
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
+    //   // Try to disconnect if connection was partially established
+    //   if (api) {
+    //     try {
+    //       await api.disconnect();
+    //     } catch (e) {
+    //       // Ignore disconnect errors
+    //     }
+    //   }
+    // } finally {
+    //   setLoading(false);
+    // }
   };
 
   const copyTxHash = () => {
