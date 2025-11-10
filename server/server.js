@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 2000;
 
 // Core Middleware
 app.use(cors({
-//   origin: ['https://stadium-indol.vercel.app'],
+  origin: ['https://stadium-indol.vercel.app'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth']
