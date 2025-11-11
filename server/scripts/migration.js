@@ -80,8 +80,9 @@ const readCsvData = (filePath) => {
 const migrate = async () => {
   await connectToMongo();
 
-  // Get the directory where this script is located (server/)
-  const serverDir = path.dirname(new URL(import.meta.url).pathname);
+  // Get the server directory (this script is in server/scripts/, need to go up one level)
+  const scriptsDir = path.dirname(new URL(import.meta.url).pathname);
+  const serverDir = path.dirname(scriptsDir);
   const migrationDataDir = path.join(serverDir, "migration-data");
   
   const payoutsPath = path.join(migrationDataDir, "payouts.csv");
