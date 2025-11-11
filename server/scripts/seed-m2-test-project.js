@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import Project from "./models/Project.js";
+import Project from "../models/Project.js";
 
 dotenv.config();
 

@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import Project from "./models/Project.js";
+import Project from "../models/Project.js";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -80,8 +80,9 @@ const readCsvData = (filePath) => {
 const migrate = async () => {
   await connectToMongo();
 
-  // Get the directory where this script is located (server/)
-  const serverDir = path.dirname(new URL(import.meta.url).pathname);
+  // Get the server directory (this script is in server/scripts/, need to go up one level)
+  const scriptsDir = path.dirname(new URL(import.meta.url).pathname);
+  const serverDir = path.dirname(scriptsDir);
   const migrationDataDir = path.join(serverDir, "migration-data");
   
   const payoutsPath = path.join(migrationDataDir, "payouts.csv");
@@ -91,7 +92,8 @@ const migrate = async () => {
 
   const projectNameMapping = {
     "anytype - nft gating": "AnyType NFT",
-    "blockchain solutions hermann müller co kg": "Blockchain Solutions Hermann K."
+    "blockchain solutions hermann müller co kg": "Blockchain Solutions Hermann K.",
+    "cranenalysis": "blockchain solutions hermann k."
   };
 
   const pastHackathons = [
@@ -175,7 +177,7 @@ const migrate = async () => {
           completionDate = new Date(project.completionDate);
         }
 
-        return {
+        const projectData = {
           _id: generateProjectId(project.projectName),
           projectName: project.projectName,
           teamMembers: [{
@@ -206,12 +208,42 @@ const migrate = async () => {
           donationAddress: project.donationAddress || "",
           projectState: projectState,
           bountiesProcessed: bountiesProcessed,
-          // M2 Accelerator Program fields
-          m2Status: project.m2Status || undefined,
-          completionDate: completionDate || undefined,
-          submittedDate: project.submittedDate ? new Date(project.submittedDate) : undefined,
-          totalPaid: project.totalPaid || undefined,
         };
+
+        // Only include M2 fields if they exist in the source data
+        if (project.m2Status) {
+          projectData.m2Status = project.m2Status;
+
+          // If m2Status is under_review or completed, we need finalSubmission
+          if (project.m2Status === 'under_review' || project.m2Status === 'completed') {
+            if (project.finalSubmission) {
+              projectData.finalSubmission = project.finalSubmission;
+            } else {
+              // Create a default finalSubmission from existing project data
+              projectData.finalSubmission = {
+                repoUrl: project.githubRepo || project.projectRepo || "N/A",
+                demoUrl: project.demoUrl || "N/A",
+                docsUrl: project.slidesUrl || "N/A",
+                summary: project.description || "Migrated from historical data",
+                submittedDate: project.submittedDate ? new Date(project.submittedDate) : completionDate || new Date()
+              };
+            }
+          }
+        }
+        if (project.m2Agreement) {
+          projectData.m2Agreement = project.m2Agreement;
+        }
+        if (completionDate) {
+          projectData.completionDate = completionDate;
+        }
+        if (project.submittedDate) {
+          projectData.submittedDate = new Date(project.submittedDate);
+        }
+        if (project.totalPaid) {
+          projectData.totalPaid = project.totalPaid;
+        }
+
+        return projectData;
       });
       allProjectsToInsert.push(...projectsFromHackathon);
   }
