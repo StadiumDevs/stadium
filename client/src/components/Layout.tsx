@@ -30,14 +30,14 @@ const Layout = () => {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">
-                Created by{' '}
+                Created with ❤️ by the cracked devs at{' '}
                 <a
-                  href="https://x.com/sachalansky"
+                  href="https://www.joinwebzero.com/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline transition-colors"
                 >
-                  Sacha Lansky
+                  WebZero
                 </a>
               </span>
             </div>
