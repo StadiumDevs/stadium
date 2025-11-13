@@ -14,12 +14,15 @@ export const NETWORK_ENV = process.env.NETWORK_ENV || 'testnet';
 
 /**
  * Multisig Addresses
- * 
+ *
  * Testnet: Paseo Asset Hub multisig (generated from admin signatories)
  * Mainnet: Polkadot Asset Hub multisig
+ *
+ * Generated with threshold=2 from AUTHORIZED_SIGNERS
+ * Run `npm run generate:multisig` to verify
  */
-export const TESTNET_MULTISIG = '169Lg4Y4YpuW9SdZ9bZSgJZ7nNo9waQNjGraSnvkQFacRtHM';
-export const MAINNET_MULTISIG = '5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF';
+export const TESTNET_MULTISIG = '5CSxUh77kKRGZiTsNRv5WMyBfJyFZuQfthJaobUoKB5wEfbc';
+export const MAINNET_MULTISIG = '1PFd2NBc6gk1FUPL4y5eWoLWvxuGCxoyC34xtU9sG7TQyPh';
 
 /**
  * Current Multisig Address
@@ -77,7 +80,7 @@ export function isAuthorizedSigner(address) {
 /**
  * RPC Endpoints
  */
-export const PASEO_RPC = 'wss://paseo-asset-hub-rpc.polkadot.io';
+export const PASEO_RPC = 'wss://asset-hub-paseo-rpc.n.dwellir.com';
 export const ASSET_HUB_RPC = 'wss://asset-hub-polkadot-rpc.polkadot.io';
 
 /**
