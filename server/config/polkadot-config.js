@@ -35,15 +35,15 @@ export const CURRENT_MULTISIG = NETWORK_ENV === 'mainnet'
 
 /**
  * Authorized Signers (from environment variable)
- * 
+ *
  * These are the addresses that can sign for the multisig
  * Format: Comma-separated list in .env
+ * NOTE: Addresses are NOT lowercased - SS58 addresses are case-sensitive with checksums
  */
 export const AUTHORIZED_SIGNERS = (process.env.AUTHORIZED_SIGNERS || '')
   .split(',')
   .map(s => s.trim())
-  .filter(Boolean)
-  .map(s => s.toLowerCase());
+  .filter(Boolean);
 
 /**
  * Legacy admin wallets support (backward compatibility)
@@ -52,8 +52,7 @@ export const AUTHORIZED_SIGNERS = (process.env.AUTHORIZED_SIGNERS || '')
 const LEGACY_ADMIN_WALLETS = (process.env.ADMIN_WALLETS || '')
   .split(',')
   .map(s => s.trim())
-  .filter(Boolean)
-  .map(s => s.toLowerCase());
+  .filter(Boolean);
 
 /**
  * Get all authorized addresses (signers or legacy admins)
@@ -80,7 +79,7 @@ export function isAuthorizedSigner(address) {
 /**
  * RPC Endpoints
  */
-export const PASEO_RPC = 'wss://asset-hub-paseo-rpc.n.dwellir.com';
+export const PASEO_RPC = 'wss://sys.ibp.network/asset-hub-paseo';
 export const ASSET_HUB_RPC = 'wss://asset-hub-polkadot-rpc.polkadot.io';
 
 /**

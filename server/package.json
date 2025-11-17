@@ -9,6 +9,7 @@
     "dev": "nodemon server.js",
     "seed:dev": "node scripts/seed-dev.js",
     "generate:multisig": "node scripts/generate-multisig.js",
+    "generate:test-account": "node scripts/generate-test-account.js",
     "test:transaction": "node scripts/test-transaction.js",
     "db:purge": "mongosh blockspace-stadium --eval \"db.dropDatabase()\" --quiet",
     "db:migrate": "node scripts/migration.js",
@@ -31,6 +32,7 @@
     "polkadot-api": "^1.13.1"
   },
   "devDependencies": {
+    "@polkadot/keyring": "^13.5.8",
     "@polkadot/util": "^13.5.8",
     "@polkadot/util-crypto": "^13.5.8",
     "nodemon": "^3.1.10"
