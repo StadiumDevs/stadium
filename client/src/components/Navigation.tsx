@@ -4,6 +4,7 @@ import { Wrench, Clock, Home, Menu, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Navigation() {
   const location = useLocation()
@@ -33,7 +34,7 @@ export function Navigation() {
           <div className="hidden md:flex items-center gap-2">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = location.pathname === item.href || 
+              const isActive = location.pathname === item.href ||
                 (item.href === "/m2-program" && location.pathname.startsWith("/m2-program/"))
 
               return (
@@ -47,7 +48,7 @@ export function Navigation() {
                     !isActive && "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Link 
+                  <Link
                     to={item.href}
                     aria-current={isActive ? "page" : undefined}
                   >
@@ -57,15 +58,18 @@ export function Navigation() {
                 </Button>
               )
             })}
+            <ThemeToggle />
           </div>
 
           {/* Mobile Menu */}
-          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-            <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon" aria-label="Open navigation menu">
-                <Menu className="h-5 w-5" aria-hidden="true" />
-              </Button>
-            </SheetTrigger>
+          <div className="md:hidden flex items-center gap-2">
+            <ThemeToggle />
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Open navigation menu">
+                  <Menu className="h-5 w-5" aria-hidden="true" />
+                </Button>
+              </SheetTrigger>
             <SheetContent side="right" className="w-[300px] sm:w-[400px]">
               <div className="flex flex-col gap-2 mt-8">
                 {navItems.map((item) => {
@@ -97,7 +101,8 @@ export function Navigation() {
                 })}
               </div>
             </SheetContent>
-          </Sheet>
+            </Sheet>
+          </div>
         </div>
       </div>
     </nav>
