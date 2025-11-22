@@ -13,7 +13,7 @@ export interface SiwsContext {
  * Generate a context-specific SIWS statement
  */
 export function generateSiwsStatement(context: SiwsContext): string {
-  const baseDomain = 'Hackathonia';
+  const baseDomain = 'Stadium';
   
   switch (context.action) {
     case 'update-team':
@@ -76,7 +76,7 @@ export function validateSiwsStatement(statement: string, expectedAction: SiwsCon
  * Generate an admin-specific SIWS statement
  */
 export function generateAdminStatement(action: 'review' | 'approve' | 'reject' | 'delete', projectTitle?: string): string {
-  const baseDomain = 'Hackathonia';
+  const baseDomain = 'Stadium';
   
   switch (action) {
     case 'review':

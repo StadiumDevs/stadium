@@ -1,0 +1,42 @@
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: blockspace-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - blockspace-network
+
+  # Backend Server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: blockspace-server
+    restart: unless-stopped
+    ports:
+      - "2000:2000"
+    environment:
+      - NODE_ENV=production
+      - PORT=2000
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/blockspace?authSource=admin
+    depends_on:
+      - mongodb
+    networks:
+      - blockspace-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  blockspace-network:
+    driver: bridge
+

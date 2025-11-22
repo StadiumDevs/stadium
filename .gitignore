@@ -16,6 +16,8 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+# Keep .env.example files
+!.env.example
 
 # IDE and editor files
 .vscode/
@@ -112,4 +114,14 @@ Cargo.lock
 
 # Polkadot specific
 *.key
-*.keyfile 
+*.keyfile
+.papi/
+
+# Docker
+docker-compose.override.yml
+*.dockerfile.swp
+
+# MongoDB data (if running locally without Docker)
+data/
+mongo-data/
+mongodb-data/

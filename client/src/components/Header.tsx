@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Code,
@@ -9,14 +9,112 @@ import {
   Menu,
   History,
   X,
+  Wallet,
+  Copy,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import { web3Enable, web3Accounts } from '@polkadot/extension-dapp';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { pathname } = useLocation();
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const isActive = (path) => pathname === path;
+
+  // Check for connected wallet on mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const extensions = await web3Enable('Blockspace Stadium');
+        if (extensions.length > 0) {
+          const accounts = await web3Accounts();
+          if (accounts.length > 0) {
+            setConnectedAddress(accounts[0].address);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check wallet connection:', error);
+      }
+    };
+    checkConnection();
+  }, []);
+
+  const truncateAddress = (addr: string) => {
+    return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+  };
+
+  const handleConnect = async () => {
+    try {
+      const extensions = await web3Enable('Blockspace Stadium');
+      if (extensions.length === 0) {
+        toast({
+          title: "No wallet extension found",
+          description: "Please install Polkadot.js or Talisman extension",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const accounts = await web3Accounts();
+      if (accounts.length === 0) {
+        toast({
+          title: "No accounts found",
+          description: "Please create an account in your wallet extension",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setConnectedAddress(accounts[0].address);
+      toast({
+        title: "Wallet connected",
+        description: `Connected to ${truncateAddress(accounts[0].address)}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Connection failed",
+        description: "Failed to connect wallet. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopyAddress = async () => {
+    if (!connectedAddress) return;
+    try {
+      await navigator.clipboard.writeText(connectedAddress);
+      toast({
+        title: "Copied!",
+        description: "Address copied to clipboard",
+      });
+    } catch (error) {
+      toast({
+        title: "Copy failed",
+        description: "Failed to copy address",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDisconnect = () => {
+    setConnectedAddress(null);
+    toast({
+      title: "Disconnected",
+      description: "Wallet disconnected successfully",
+    });
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card/80 backdrop-blur-sm shadow-elegant">
@@ -48,7 +146,7 @@ export default function Header() {
               variant={isActive(to) ? "default" : "ghost"}
               size="sm"
               asChild
-              className={isActive(to) ? "bg-atariGreen text-black hover:bg-atariGreen/90" : ""}
+              className={isActive(to) ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
             >
               <Link to={to} className="flex items-center space-x-2">
                 {Icon && <Icon className="h-4 w-4" />}
@@ -56,6 +154,42 @@ export default function Header() {
               </Link>
             </Button>
           ))}
+
+          {/* Wallet Connection - Desktop */}
+          {connectedAddress ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="font-mono text-sm">{truncateAddress(connectedAddress)}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium">Connected Wallet</p>
+                    <p className="text-xs text-muted-foreground font-mono break-all">
+                      {connectedAddress}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleCopyAddress}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  <span>Copy Address</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDisconnect}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Disconnect</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button onClick={handleConnect} className="gap-2">
+              <Wallet className="h-4 w-4" />
+              Connect Wallet
+            </Button>
+          )}
         </nav>
 
         {/* Mobile Menu Toggle */}
@@ -91,7 +225,7 @@ export default function Header() {
                 size="sm"
                 asChild
                 onClick={() => setMobileMenuOpen(false)}
-                className={isActive(to) ? "bg-atariGreen text-black hover:bg-atariGreen/90" : ""}
+                className={isActive(to) ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
               >
                 <Link to={to} className="flex items-center space-x-1">
                   <Icon className="h-4 w-4" />
@@ -99,6 +233,45 @@ export default function Header() {
                 </Link>
               </Button>
             ))}
+            
+            {/* Wallet Connection - Mobile */}
+            {connectedAddress ? (
+              <>
+                <div className="pt-2 pb-2 border-t">
+                  <div className="flex items-center gap-2 px-2 py-2 text-sm">
+                    <div className="h-2 w-2 rounded-full bg-green-500" />
+                    <span className="font-mono text-xs">{truncateAddress(connectedAddress)}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyAddress}
+                  className="justify-start"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Address
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDisconnect}
+                  className="justify-start"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={handleConnect}
+                size="sm"
+                className="mt-2 w-full gap-2"
+              >
+                <Wallet className="h-4 w-4" />
+                Connect Wallet
+              </Button>
+            )}
           </div>
         </div>
       )}

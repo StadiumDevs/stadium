@@ -4,7 +4,9 @@ export const ALLOWED_CATEGORIES = [
   "NFT",
   "Developer Tools",
   "Social",
-  "Other",
+  "AI",
+  "Arts",
+  "Mobile",
 ];
 
 export default ALLOWED_CATEGORIES;
