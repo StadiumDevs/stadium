@@ -7,6 +7,19 @@ import requestLogger from './api/middleware/logging.middleware.js';
 const app = express();
 const PORT = process.env.PORT || 2000;
 
+// CORS Configuration
+const allowedOrigins = process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+    : ['https://stadium.joinwebzero.com', 'https://stadium-indol.vercel.app', 'http://localhost:5173'];
+
+const corsOptions = {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth'],
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
 // Core Middleware
 app.use(cors({
   origin: ['https://stadium-indol.vercel.app'],
