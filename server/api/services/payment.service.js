@@ -6,7 +6,7 @@
  */
 
 import { createClient } from 'polkadot-api';
-import { getWsProvider } from 'polkadot-api/ws-provider/web';
+import { getWsProvider } from 'polkadot-api/ws-provider/node';
 import { withPolkadotSdkCompat } from 'polkadot-api/polkadot-sdk-compat';
 import { dot } from '@polkadot-api/descriptors';
 import crypto from 'crypto';
