@@ -11,8 +11,8 @@ const PORT = process.env.PORT || 2000;
 const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
     : process.env.NODE_ENV === 'production'
-      ? ['https://stadium.joinwebzero.com', 'https://stadium-indol.vercel.app']
-      : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'https://stadium-indol.vercel.app'];
+      ? ['https://stadium.joinwebzero.com', 'https://stadium-indol.vercel.app', 'https://stadium-nu.vercel.app']
+      : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'https://stadium-indol.vercel.app', 'https://stadium-nu.vercel.app'];
 
 app.use(cors({
     origin: allowedOrigins,
