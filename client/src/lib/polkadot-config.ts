@@ -14,20 +14,20 @@ export const NETWORK_ENV: NetworkEnv =
 
 /**
  * Multisig Addresses
- * 
+ *
  * Testnet: Paseo Asset Hub multisig (generated from admin signatories)
  * Mainnet: Polkadot Asset Hub multisig
  */
-export const TESTNET_MULTISIG = '169Lg4Y4YpuW9SdZ9bZSgJZ7nNo9waQNjGraSnvkQFacRtHM';
-export const MAINNET_MULTISIG = '5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF';
+export const TESTNET_MULTISIG = '5CSxUh77kKRGZiTsNRv5WMyBfJyFZuQfthJaobUoKB5wEfbc';
+export const MAINNET_MULTISIG = '1PFd2NBc6gk1FUPL4y5eWoLWvxuGCxoyC34xtU9sG7TQyPh';
 
 /**
  * RPC Endpoints
- * 
+ *
  * Paseo: Testnet Asset Hub
  * Polkadot: Mainnet Asset Hub
  */
-export const PASEO_RPC = 'wss://paseo-asset-hub-rpc.polkadot.io';
+export const PASEO_RPC = 'wss://sys.ibp.network/asset-hub-paseo';
 export const ASSET_HUB_RPC = 'wss://asset-hub-polkadot-rpc.polkadot.io';
 
 /**
@@ -115,7 +115,7 @@ export const NETWORK_CONFIG = {
  * Subscan URLs for transaction viewing
  */
 export const SUBSCAN_URLS = {
-  testnet: 'https://paseo.subscan.io',
+  testnet: 'https://assethub-paseo.subscan.io',
   mainnet: 'https://assethub-polkadot.subscan.io'
 } as const;
 

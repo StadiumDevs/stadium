@@ -23,4 +23,12 @@ router.post('/:projectId/submit-m2', requireTeamMemberOrAdmin, projectController
 // --- Admin payment confirmation ---
 router.post('/:projectId/confirm-payment', requireAdmin, projectController.confirmPayment);
 
+// --- Test payment (admin only) ---
+router.post('/test-payment', requireAdmin, projectController.testPayment);
+
+// --- Development-only test payment (no auth) ---
+if (process.env.NODE_ENV === 'development') {
+  router.post('/dev-test-payment', projectController.testPayment);
+}
+
 export default router;

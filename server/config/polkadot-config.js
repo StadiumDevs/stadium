@@ -14,12 +14,15 @@ export const NETWORK_ENV = process.env.NETWORK_ENV || 'testnet';
 
 /**
  * Multisig Addresses
- * 
+ *
  * Testnet: Paseo Asset Hub multisig (generated from admin signatories)
  * Mainnet: Polkadot Asset Hub multisig
+ *
+ * Generated with threshold=2 from AUTHORIZED_SIGNERS
+ * Run `npm run generate:multisig` to verify
  */
-export const TESTNET_MULTISIG = '169Lg4Y4YpuW9SdZ9bZSgJZ7nNo9waQNjGraSnvkQFacRtHM';
-export const MAINNET_MULTISIG = '5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF';
+export const TESTNET_MULTISIG = '5CSxUh77kKRGZiTsNRv5WMyBfJyFZuQfthJaobUoKB5wEfbc';
+export const MAINNET_MULTISIG = '1PFd2NBc6gk1FUPL4y5eWoLWvxuGCxoyC34xtU9sG7TQyPh';
 
 /**
  * Current Multisig Address
@@ -32,15 +35,15 @@ export const CURRENT_MULTISIG = NETWORK_ENV === 'mainnet'
 
 /**
  * Authorized Signers (from environment variable)
- * 
+ *
  * These are the addresses that can sign for the multisig
  * Format: Comma-separated list in .env
+ * NOTE: Addresses are NOT lowercased - SS58 addresses are case-sensitive with checksums
  */
 export const AUTHORIZED_SIGNERS = (process.env.AUTHORIZED_SIGNERS || '')
   .split(',')
   .map(s => s.trim())
-  .filter(Boolean)
-  .map(s => s.toLowerCase());
+  .filter(Boolean);
 
 /**
  * Legacy admin wallets support (backward compatibility)
@@ -49,8 +52,7 @@ export const AUTHORIZED_SIGNERS = (process.env.AUTHORIZED_SIGNERS || '')
 const LEGACY_ADMIN_WALLETS = (process.env.ADMIN_WALLETS || '')
   .split(',')
   .map(s => s.trim())
-  .filter(Boolean)
-  .map(s => s.toLowerCase());
+  .filter(Boolean);
 
 /**
  * Get all authorized addresses (signers or legacy admins)
@@ -77,7 +79,7 @@ export function isAuthorizedSigner(address) {
 /**
  * RPC Endpoints
  */
-export const PASEO_RPC = 'wss://paseo-asset-hub-rpc.polkadot.io';
+export const PASEO_RPC = 'wss://sys.ibp.network/asset-hub-paseo';
 export const ASSET_HUB_RPC = 'wss://asset-hub-polkadot-rpc.polkadot.io';
 
 /**
