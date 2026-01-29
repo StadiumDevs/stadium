@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import connectToMongo from "./db.js";
+import connectToSupabase from "./db.js";
 import m2ProgramRoutes from './api/routes/m2-program.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
 
@@ -8,28 +8,18 @@ const app = express();
 const PORT = process.env.PORT || 2000;
 
 // CORS Configuration
-const allowedOrigins = process.env.CORS_ORIGIN 
+const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-    : ['https://stadium.joinwebzero.com', 'https://stadium-indol.vercel.app', 'http://localhost:5173'];
+    : process.env.NODE_ENV === 'production'
+      ? ['https://stadium.joinwebzero.com', 'https://stadium-indol.vercel.app']
+      : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'https://stadium-indol.vercel.app'];
 
-const corsOptions = {
+app.use(cors({
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth'],
     credentials: true,
     optionsSuccessStatus: 200
-};
-
-// Core Middleware
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? ['https://stadium-indol.vercel.app']
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'https://stadium-indol.vercel.app'];
-
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -55,7 +45,7 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
     try {
-        await connectToMongo();
+        await connectToSupabase();
         app.listen(PORT, () => {
             console.log(`✅ Server is running on port ${PORT}`);
         });

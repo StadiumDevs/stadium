@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { verifySIWS } from '@talismn/siws';
 import { SiwsMessage } from '@talismn/siws';
 import chalk from 'chalk';
-import Project from '../../models/Project.js';
+import { supabase } from '../../db.js';
 import { getAuthorizedAddresses, isAuthorizedSigner, CURRENT_MULTISIG, NETWORK_CONFIG } from '../../config/polkadot-config.js';
 
 dotenv.config();
@@ -178,13 +178,28 @@ export const requireProjectWriteAccess = async (req, res, next) => {
   }
 
   try {
-    const project = await Project.findById(projectId).select('teamMembers');
-    if (!project) {
-      return res.status(404).json({ status: 'error', message: 'Project not found' });
+    const { data: teamMembers, error } = await supabase
+      .from('team_members')
+      .select('wallet_address')
+      .eq('project_id', projectId);
+
+    if (error) throw error;
+
+    if (!teamMembers || teamMembers.length === 0) {
+      // Check if project exists
+      const { data: project } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('id', projectId)
+        .single();
+
+      if (!project) {
+        return res.status(404).json({ status: 'error', message: 'Project not found' });
+      }
     }
 
     const actorLower = actor.address.toLowerCase();
-    const hasAccess = (project.teamMembers || []).some(m => (m.walletAddress || '').toLowerCase() === actorLower);
+    const hasAccess = (teamMembers || []).some(m => (m.wallet_address || '').toLowerCase() === actorLower);
 
     if (!hasAccess) {
       return res.status(403).json({ status: 'error', message: 'Not authorized to modify this project' });
@@ -259,14 +274,28 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
   log(`Signer ${signerAddress} is not a multisig signer. Checking project team membership...`);
   
   try {
-    const project = await Project.findById(projectId);
-    if (!project) {
+    // Check if project exists
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .single();
+
+    if (projectError || !project) {
       logError(`Authorization failed: Project with ID ${projectId} not found.`);
       return res.status(404).json({ status: 'error', message: 'Project not found' });
     }
 
-    const isTeamMember = project.teamMembers.some(
-      (member) => member.walletAddress && member.walletAddress.toLowerCase() === signerAddress
+    // Get team members
+    const { data: teamMembers, error: teamError } = await supabase
+      .from('team_members')
+      .select('wallet_address')
+      .eq('project_id', projectId);
+
+    if (teamError) throw teamError;
+
+    const isTeamMember = (teamMembers || []).some(
+      (member) => member.wallet_address && member.wallet_address.toLowerCase() === signerAddress
     );
 
     if (isTeamMember) {
