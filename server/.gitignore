@@ -23,7 +23,7 @@ yarn-debug.log*
 yarn-error.log*
 
 .env
-/.papi
+# /.papi  # Commented out - needed for deployment
 .vercel
 
 /migration-data/*

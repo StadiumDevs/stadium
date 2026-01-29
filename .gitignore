@@ -115,7 +115,7 @@ Cargo.lock
 # Polkadot specific
 *.key
 *.keyfile
-.papi/
+# .papi/  # Commented out - needed for deployment
 
 # Docker
 docker-compose.override.yml
