@@ -27,7 +27,7 @@ CREATE TABLE projects (
   hackathon_end_date TIMESTAMPTZ NOT NULL,
   hackathon_event_started_at TEXT,
   
-  -- M2 Accelerator fields
+  -- M2 Incubator fields
   m2_status TEXT CHECK (m2_status IN ('building', 'under_review', 'completed')),
   m2_mentor_name TEXT,
   m2_agreed_date TIMESTAMPTZ,

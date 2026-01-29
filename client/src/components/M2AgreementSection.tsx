@@ -55,7 +55,7 @@ export function M2AgreementSection({
           <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-xl font-heading mb-2">No M2 Roadmap Created Yet</h3>
           <p className="text-muted-foreground mb-4">
-            Define your 6-week development plan to get started with the M2 Accelerator Program
+            Define your 6-week development plan to get started with the M2 Incubator Program
           </p>
           {isTeamMember && (
             <Button 

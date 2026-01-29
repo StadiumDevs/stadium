@@ -567,7 +567,7 @@ const HomePage = () => {
               Past Winners and M2 Graduates
             </h2>
             <p className="text-muted-foreground">
-              Teams that successfully completed the 6-week accelerator program
+              Teams that successfully completed the 6-week incubator program
             </p>
           </div>
           

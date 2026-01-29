@@ -856,7 +856,7 @@ const ProjectDetailsPage = () => {
                   <div>
                     <h3 className="font-medium text-green-500">M2 Graduate</h3>
                     <p className="text-sm text-muted-foreground">
-                      This team successfully completed the 6-week M2 Accelerator program
+                      This team successfully completed the 6-week M2 Incubator program
                     </p>
                   </div>
                 </div>
@@ -1367,7 +1367,7 @@ const ProjectDetailsPage = () => {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Congratulations on completing the 6-week M2 Accelerator program! 🎉
+                        Congratulations on completing the 6-week M2 Incubator program! 🎉
                       </p>
                     </div>
                     
@@ -1525,7 +1525,7 @@ const ProjectDetailsPage = () => {
                         </a>
                         
                         <a
-                          href={`https://twitter.com/intent/tweet?text=Just%20completed%20the%20M2%20Accelerator%20at%20sub0!%20${encodeURIComponent(project.projectName || '')}`}
+                          href={`https://twitter.com/intent/tweet?text=Just%20completed%20the%20M2%20Incubator%20at%20sub0!%20${encodeURIComponent(project.projectName || '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors group"

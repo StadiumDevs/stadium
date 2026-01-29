@@ -21,11 +21,11 @@
 
 ## Project Overview
 
-**Stadium** is a hackathon project showcase and M2 accelerator program management platform built for the Polkadot ecosystem.
+**Stadium** is a hackathon project showcase and M2 incubator program management platform built for the Polkadot ecosystem.
 
 ### Purpose
 - Display hackathon projects (Synergy 2025, Symmetry 2024)
-- Manage M2 Accelerator Program (6-week mentorship program)
+- Manage M2 Incubator Program (6-week mentorship program)
 - Track project milestones and payments
 - Enable team submissions and admin reviews
 - Process on-chain payments via Polkadot multisig
@@ -173,7 +173,7 @@ Client ← JSON Response ← Express ← Controller ← Service ← Repository �
   projectState: String,           // Project lifecycle state
   bountiesProcessed: Boolean,     // Payment completion flag
   
-  // M2 Accelerator Program
+  // M2 Incubator Program
   m2Status: String,               // 'building' | 'under_review' | 'completed'
   m2Agreement: {
     mentorName: String,
@@ -482,7 +482,7 @@ No global state library (Redux, Zustand) is used.
 
 ## Key Features
 
-### 1. M2 Accelerator Program
+### 1. M2 Incubator Program
 
 **6-week mentorship program** for winning teams.
 
@@ -1007,7 +1007,7 @@ When implementing Supabase migration, consider:
 
 ## Summary
 
-**Stadium** is a React + Express + MongoDB app for hackathon project showcase and M2 accelerator program management with Polkadot blockchain integration.
+**Stadium** is a React + Express + MongoDB app for hackathon project showcase and M2 incubator program management with Polkadot blockchain integration.
 
 **Migration to Supabase** should:
 1. Replace MongoDB with PostgreSQL (Supabase)

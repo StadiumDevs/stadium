@@ -334,14 +334,14 @@ const M2ProgramPage = () => {
     <div className="min-h-screen animate-fade-in">
       <Navigation />
       
-      {/* M2 Accelerator Header Section */}
+      {/* M2 Incubator Header Section */}
       <div className="container mx-auto px-4 pt-24 pb-6">
         <div className="glass-panel rounded-lg border-subtle p-6 md:p-8 mb-6">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div className="flex-1">
-              <h1 className="font-display text-4xl font-bold mb-2">M2 Accelerator Program</h1>
+              <h1 className="font-display text-4xl font-bold mb-2">M2 Incubator Program</h1>
               <p className="text-muted-foreground mb-2">
-                An overview of all projects in the M2 Accelerator Program.
+                An overview of all projects in the M2 Incubator Program.
               </p>
               <p className="text-sm text-muted-foreground">
                 Teams admitted to the program must confirm their milestone 2 plans. Once confirmed, each team is assigned specific mentors according to the support they need.
@@ -537,7 +537,7 @@ const M2ProgramPage = () => {
                 </div>
                 
                 <p className="text-sm text-muted-foreground mb-4">
-                  Congratulations to teams who completed the M2 accelerator! 🎉
+                  Congratulations to teams who completed the M2 incubator! 🎉
                 </p>
                 
                 {/* Graduates always show as special cards */}

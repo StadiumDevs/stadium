@@ -43,7 +43,7 @@ const ProjectSchema = new mongoose.Schema({
   projectState: { type: String, required: true },
   // Flag to indicate if all milestones/bounties have been paid out or finalized (i.e. project abandoned).
   bountiesProcessed: { type: Boolean, default: false, required: true },
-  // M2 Accelerator Program fields
+  // M2 Incubator Program fields
   m2Status: { 
     type: String, 
     enum: ['building', 'under_review', 'completed'],

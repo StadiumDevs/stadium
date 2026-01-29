@@ -754,7 +754,7 @@ const AdminPage = () => {
           <div>
             <h2 className="text-2xl font-bold">📊 All M2 Projects</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Live status tracking for all M2 accelerator projects
+              Live status tracking for all M2 incubator projects
             </p>
           </div>
           <div className="flex items-center gap-2">

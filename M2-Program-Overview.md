@@ -1,8 +1,8 @@
-# Milestone 2 Accelerator Program
+# Milestone 2 Incubator Program
 
-## What is the M2 Accelerator?
+## What is the M2 Incubator?
 
-The Milestone 2 (M2) Accelerator is a **6-week post-hackathon support program** designed to help winning teams from WebZero hackathons to complete their second milestone and become grant-ready. The program provides structured mentorship, financial support, and resources to transform hackathon projects into fundable products.
+The Milestone 2 (M2) Incubator is a **6-week post-hackathon support program** designed to help winning teams from WebZero hackathons to complete their second milestone and become grant-ready. The program provides structured mentorship, financial support, and resources to transform hackathon projects into fundable products.
 
 It is currently in its third iteration, providing support for winners of the [sub0 Hack](https://luma.com/sub0hack), Buenos Aires (Nov 14-16 2025).
 

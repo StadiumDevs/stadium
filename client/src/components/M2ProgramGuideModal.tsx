@@ -31,7 +31,7 @@ export function M2ProgramGuideModal({ open, onOpenChange }: M2ProgramGuideModalP
         <DialogHeader>
           <DialogTitle className="text-3xl font-heading flex items-center gap-2">
             <Trophy className="h-8 w-8 text-primary" />
-            Milestone 2 Accelerator Program
+            Milestone 2 Incubator Program
           </DialogTitle>
           <DialogDescription>
             A 6-week post-hackathon support program for WebZero hackathon winners
@@ -43,10 +43,10 @@ export function M2ProgramGuideModal({ open, onOpenChange }: M2ProgramGuideModalP
           <section>
             <h2 className="text-2xl font-heading mb-3 flex items-center gap-2">
               <Lightbulb className="h-6 w-6 text-primary" />
-              What is the M2 Accelerator?
+              What is the M2 Incubator?
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              The Milestone 2 (M2) Accelerator is a <strong>6-week post-hackathon support program</strong> designed 
+              The Milestone 2 (M2) Incubator is a <strong>6-week post-hackathon support program</strong> designed 
               to help winning teams from WebZero hackathons to complete their second milestone and become grant-ready. 
               The program provides structured mentorship, financial support, and resources to transform hackathon 
               projects into fundable products.
