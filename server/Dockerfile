@@ -7,11 +7,12 @@ RUN apk add --no-cache python3 make g++
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and local dependencies first
 COPY package*.json ./
+COPY .papi ./.papi
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (use npm install for local file dependencies)
+RUN npm install --omit=dev
 
 # Copy application files
 COPY . .
