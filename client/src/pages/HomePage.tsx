@@ -343,7 +343,7 @@ const HomePage = () => {
         <div className="relative z-10 container mx-auto px-4 pt-28 pb-16">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <h1 className="font-display hero-title text-7xl md:text-8xl lg:text-9xl mb-6">
-              STADIUM.
+              STADIUM
             </h1>
             
             <p className="text-xl md:text-2xl text-muted-foreground">
