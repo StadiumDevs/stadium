@@ -30,7 +30,8 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "mongoose": "^8.16.1",
-    "polkadot-api": "^1.13.1"
+    "polkadot-api": "^1.13.1",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@polkadot/keyring": "^13.5.8",

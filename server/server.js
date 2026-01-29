@@ -1,3 +1,6 @@
+import { WebSocket } from 'ws';
+globalThis.WebSocket = WebSocket;
+
 import express from "express";
 import cors from "cors";
 import connectToSupabase from "./db.js";
