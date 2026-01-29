@@ -17,15 +17,19 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
 
-      // Prevent Vite/Rollup from trying to bundle Node-only Polkadot modules
-      "@polkadot/api": emptyModule,
+      // Only prevent api-contract from being bundled (not used)
       "@polkadot/api-contract": emptyModule,
     },
   },
 
   optimizeDeps: {
-    exclude: [
+    include: [
       "@polkadot/api",
+      "@polkadot/extension-dapp",
+      "@polkadot/util",
+      "@polkadot/util-crypto"
+    ],
+    exclude: [
       "@polkadot/api-contract"
     ],
   },
@@ -33,7 +37,6 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       external: [
-        "@polkadot/api",
         "@polkadot/api-contract"
       ],
     },

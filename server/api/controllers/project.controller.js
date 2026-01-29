@@ -1,8 +1,10 @@
 import projectService from '../services/project.service.js';
+import paymentService from '../services/payment.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
 import { validateSS58, validateM2Submission } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen, getCurrentWeek } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
+import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
 
 class ProjectController {
     async getProjectById(req, res) {
@@ -402,6 +404,77 @@ class ProjectController {
             res.status(500).json({
                 status: 'error',
                 error: 'Internal server error',
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    }
+
+    /**
+     * Test payment transfer
+     * Constructs an unsigned transaction for the frontend to sign with browser wallet
+     */
+    async testPayment(req, res) {
+        try {
+            logger.info('[TEST PAYMENT] Constructing test transfer...');
+
+            // Get authorized addresses (admin addresses that can receive test payments)
+            const authorizedAddresses = getAuthorizedAddresses();
+
+            if (authorizedAddresses.length < 2) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'Need at least 2 authorized addresses for test payment'
+                });
+            }
+
+            // Default to second admin address as recipient
+            const defaultRecipient = authorizedAddresses[1];
+            const { recipient = defaultRecipient, amount = 0.1 } = req.body;
+
+            // Validate recipient
+            if (!recipient || recipient.length === 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'Recipient address is required'
+                });
+            }
+
+            // Validate amount
+            const amountNum = parseFloat(amount);
+            if (isNaN(amountNum) || amountNum <= 0 || amountNum > 1) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'Amount must be between 0 and 1 DOT for test transfers'
+                });
+            }
+
+            // Convert amount to plancks (1 DOT = 10^10 plancks)
+            const amountInPlancks = paymentService.parseBalance(amountNum);
+
+            logger.info(`[TEST PAYMENT] Constructing transfer of ${amountNum} DOT to ${recipient}`);
+
+            // Construct unsigned transaction
+            const result = await paymentService.constructTransfer(
+                recipient,
+                amountInPlancks
+            );
+
+            logger.info('[TEST PAYMENT] Transaction constructed successfully');
+            logger.info(`  Status: ${result.status}`);
+            logger.info(`  Amount: ${result.amountFormatted} DOT`);
+            logger.info(`  Network: ${result.network}`);
+            logger.info(`  To: ${result.to}`);
+
+            res.json({
+                status: 'success',
+                message: 'Transaction constructed successfully. Sign with your browser wallet to submit.',
+                data: result
+            });
+        } catch (error) {
+            logger.error('[ERROR] Test payment failed:', error);
+            res.status(500).json({
+                status: 'error',
+                error: 'Test payment failed',
                 details: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }

@@ -39,6 +39,7 @@ const VALID_STATEMENTS = [
 ];
 
 const EXPECTED_DOMAIN = process.env.EXPECTED_DOMAIN || 'localhost';
+const DISABLE_SIWS_DOMAIN_CHECK = process.env.DISABLE_SIWS_DOMAIN_CHECK === 'true';
 
 const log = (message) => console.log(chalk.cyan(`[AuthMiddleware] ${message}`));
 const logError = (message) => console.log(chalk.red(`[AuthMiddleware] ${message}`));
@@ -69,15 +70,6 @@ function validateSiwsStatement(statement) {
 
 // --- Middleware ---
 export const requireAdmin = async (req, res, next) => {
-  // TEMPORARY: Bypass admin check for testing (hardcoded for development)
-  const BYPASS_ADMIN_CHECK = true; // Set to false for production
-  
-  if (BYPASS_ADMIN_CHECK) {
-    logSuccess('[BYPASS] Admin check bypassed for testing');
-    req.user = { address: 'test-admin-address' };
-    return next();
-  }
-  
   log(`Initiating admin verification for ${req.method} ${req.originalUrl}`);
 
   const authHeader = req.headers['x-siws-auth'];
@@ -128,12 +120,17 @@ export const requireAdmin = async (req, res, next) => {
     }
     logSuccess('Statement is valid.');
 
-    log(`Checking domain. Expected: "${EXPECTED_DOMAIN}"`);
-    if (siwsMessage.domain !== EXPECTED_DOMAIN) {
-      logError(`Invalid domain. Received: "${siwsMessage.domain}". Expected: "${EXPECTED_DOMAIN}"`);
-      return res.status(403).json({ status: 'error', message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.` });
+    // Check domain if not disabled
+    if (!DISABLE_SIWS_DOMAIN_CHECK) {
+      log(`Checking domain. Expected: "${EXPECTED_DOMAIN}"`);
+      if (siwsMessage.domain !== EXPECTED_DOMAIN) {
+        logError(`Invalid domain. Received: "${siwsMessage.domain}". Expected: "${EXPECTED_DOMAIN}"`);
+        return res.status(403).json({ status: 'error', message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.` });
+      }
+      logSuccess('Domain matches.');
+    } else {
+      log('Domain check disabled (DISABLE_SIWS_DOMAIN_CHECK=true)');
     }
-    logSuccess('Domain matches.');
 
     const signerAddress = siwsMessage.address.toLowerCase();
     log(`Checking if signer address can sign for multisig. Address: ${signerAddress}`);

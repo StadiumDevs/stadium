@@ -98,6 +98,12 @@ const migrate = async () => {
 
   const pastHackathons = [
     {
+      id: "symbiosis-2025",
+      name: "Symbiosis 2025",
+      endDate: new Date("2025-11-19T18:00:00"),
+      eventStartedAt: "symbiosis-2025",
+    },
+    {
       id: "synergy-2025",
       name: "Synergy 2025",
       endDate: new Date("2025-07-18T18:00:00"),
@@ -181,7 +187,7 @@ const migrate = async () => {
           _id: generateProjectId(project.projectName),
           projectName: project.projectName,
           teamMembers: [{
-            name: project.teamLead,
+            name: project.teamLead && project.teamLead.trim() ? project.teamLead.trim() : "Team Lead",
             customUrl: "",
             walletAddress: walletAddress.trim()
           }],

@@ -21,8 +21,12 @@ const corsOptions = {
 };
 
 // Core Middleware
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? ['https://stadium-indol.vercel.app']
+  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'https://stadium-indol.vercel.app'];
+
 app.use(cors({
-  origin: ['https://stadium-indol.vercel.app'],
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth']
