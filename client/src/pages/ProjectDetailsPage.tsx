@@ -1495,56 +1495,6 @@ const ProjectDetailsPage = () => {
                         </div>
                       )}
                     </div>
-                    
-                    {/* What's Next section */}
-                    <div className="mt-6 pt-6 border-t border-subtle">
-                      <h3 className="font-medium mb-4 flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-yellow-500" aria-hidden="true" />
-                        What's Next?
-                      </h3>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <a
-                          href="https://grants.web3.foundation/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors group"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <Target className="w-5 h-5 text-primary" aria-hidden="true" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium mb-1 group-hover:text-primary transition-colors">
-                              Apply for Grants
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              W3F Grants Program for continued funding
-                            </div>
-                          </div>
-                          <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
-                        </a>
-                        
-                        <a
-                          href={`https://twitter.com/intent/tweet?text=Just%20completed%20the%20M2%20Accelerator%20at%20sub0!%20${encodeURIComponent(project.projectName || '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors group"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <Share2 className="w-5 h-5 text-primary" aria-hidden="true" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium mb-1 group-hover:text-primary transition-colors">
-                              Share Your Success
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Tell the world about what you achieved. Someone might want to help take your project further.
-                            </div>
-                          </div>
-                          <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
-                        </a>
-                      </div>
-                    </div>
                   </div>
                 </div>
             )}
