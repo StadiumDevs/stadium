@@ -28,9 +28,11 @@ const Layout = () => {
       <footer className="border-t bg-muted/50 py-8 mt-16">
         <div className="container">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            
+            
             <div className="flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">
-                Created with ❤️ by the cracked devs at{' '}
+                Created by Sacha Lansky at {' '}
                 <a
                   href="https://www.joinwebzero.com/"
                   target="_blank"
@@ -40,6 +42,36 @@ const Layout = () => {
                   WebZero
                 </a>
               </span>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
+                <a
+                  href="https://luma.com/blockspace-symmetry"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline transition-colors"
+                >
+                  Blockspace Symmetry 2024
+                </a>
+                <span className="hidden sm:inline text-muted-foreground">•</span>
+                  <a
+                    href="https://luma.com/blockspacesynergy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline transition-colors"
+                  >
+                    Blockspace Synergy 2025
+                  </a>
+                  <span className="hidden sm:inline text-muted-foreground">•</span>
+                  <a
+                    href="https://luma.com/sub0hack"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline transition-colors"
+                  >
+                    sub0 Hack 2025
+                  </a>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <Link

@@ -905,15 +905,6 @@ export default function HomePage() {
           <p className="text-xl text-muted-foreground">
             The ultimate hacker's project progress and showcase portal.
           </p>
-          <div className="space-y-2">
-            <p className="text-accent flex items-center justify-center gap-2">
-              👍 Upcoming event:{" "}
-              <span className="font-semibold underline">sub0_hack_2025</span>
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Past events: Blockspace Symmetry 2024, Blockspace Synergy 2025.
-            </p>
-          </div>
         </div>
       </section>
 

@@ -349,28 +349,6 @@ const HomePage = () => {
             <p className="text-xl md:text-2xl text-muted-foreground">
               The ultimate progress and showcase portal for hackathon projects going places.
             </p>
-            
-            {/* Upcoming Event - Prominent */}
-            <div className="pt-6">
-              <div className="inline-flex items-center gap-3 px-6 py-3 bg-primary/10 border border-primary rounded-full">
-                <span className="text-base font-medium">
-                  Upcoming event:{" "}
-                  <a 
-                    href="https://luma.com/sub0hack"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold text-primary hover:text-accent underline underline-offset-4 cursor-pointer transition-colors"
-                  >
-                    sub0_hack_2025
-                  </a>
-                </span>
-              </div>
-            </div>
-            
-            {/* Past Events - Subtle */}
-            <p className="text-sm text-muted-foreground/70 pt-4">
-              Past events: Blockspace Symmetry 2024 (Berlin), Blockspace Synergy 2025 (Berlin)
-            </p>
           </div>
         </div>
       </section>
