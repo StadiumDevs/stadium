@@ -389,13 +389,15 @@ export function TeamPaymentSection({
             )}
           </div>
           
-          {/* Important Notice */}
-          <Alert className="bg-primary/5 border-primary/20">
-            <AlertDescription className="text-xs">
-              💡 <strong>Important:</strong> Payments are sent to the address above. 
-              Verify it's correct before M2 approval!
-            </AlertDescription>
-          </Alert>
+          {/* Important Notice - only show for team members/admins who can edit */}
+          {(isTeamMember || isAdmin) && donationAddress && (
+            <Alert className="bg-primary/5 border-primary/20">
+              <AlertDescription className="text-xs">
+                💡 <strong>Important:</strong> Payments are sent to the address above. 
+                Verify it's correct before M2 approval!
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </CardContent>
     </Card>
