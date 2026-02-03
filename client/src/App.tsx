@@ -9,7 +9,6 @@ import HomePage from "./pages/HomePage";
 import M2ProgramPage from "./pages/M2ProgramPage";
 import ProjectDetailsPage from "./pages/ProjectDetailsPage";
 import ProjectPage from "./pages/ProjectPage";
-import SubmissionPage from "./pages/SubmissionPage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
@@ -59,7 +58,6 @@ const App = () => {
                 {/* Redirect old past-projects route to homepage */}
                 <Route path="past-projects" element={<Navigate to="/" replace />} />
                 <Route path="project-page" element={<ProjectPage />} />
-                <Route path="submission" element={<SubmissionPage />} />
                 <Route path="admin" element={<AdminPage />} />
                 {/* Redirect old routes for backwards compatibility */}
                 <Route path="projects" element={<Navigate to="/m2-program" replace />} />

@@ -703,16 +703,6 @@ const M2ProgramPage = () => {
           </div>
         )}
 
-        {/* Fallback: Show empty state if no projects at all */}
-        {projects.length === 0 && !loading ? (
-          <EmptyState
-            title="No Projects Yet"
-            description="Be the first to submit your hackathon project to the Stadium!"
-            actionLabel="Submit Your Project"
-            onAction={() => window.location.href = "/submission"}
-            icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
-          />
-        ) : null}
       </div>
 
       {/* M2 Program Guide Modal */}

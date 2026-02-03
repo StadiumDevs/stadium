@@ -90,12 +90,6 @@ const Layout = () => {
               >
                 X
               </Link>
-              {/* <Link
-                to="/submission"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                Submit Project
-              </Link> */}
             </div>
           </div>
         </div>

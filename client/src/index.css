@@ -253,19 +253,6 @@ label, .form-label, [data-label] {
   color: #DC2626 !important; /* Red for errors */
 }
 
-/* Specific styling for SubmissionPage forms */
-.submission-form input,
-.submission-form textarea,
-.submission-form select {
-  color: #374151 !important; /* Dark gray text */
-}
-
-/* Ensure all form elements in the project submission have dark gray text */
-[data-form="project-submission"] input,
-[data-form="project-submission"] textarea,
-[data-form="project-submission"] select {
-  color: #374151 !important; /* Dark gray text */
-}
 
 /* Style the team information section specifically */
 .team-information input,

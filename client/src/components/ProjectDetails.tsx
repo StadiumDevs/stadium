@@ -352,14 +352,6 @@ const ProjectDetails = () => {
             </Card>
           )}
 
-          {/* Actions */}
-          <Card>
-            <CardContent className="pt-6">
-              <Button className="w-full" asChild>
-                <Link to="/submission">Submit Your Project</Link>
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
