@@ -167,13 +167,13 @@ export function M2ProgramGuideModal({ open, onOpenChange }: M2ProgramGuideModalP
                   <div className="flex items-start gap-2">
                     <Trophy className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
                     <p>
-                      <strong>4 winning teams</strong> selected from the sub0 hackathon main track
+                      <strong>Winning teams</strong> selected from the hackathon main track
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
                     <p>
-                      Must have completed <strong>Milestone 1</strong>
+                      Must have completed and won <strong>the hackathon</strong>
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
