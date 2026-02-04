@@ -48,7 +48,7 @@ export function WalletConnectionBanner({ onConnect, isConnected }: WalletConnect
           <Wallet className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between gap-4">
             <span className="flex-1">
-              Connect your wallet to update team details and manage payment information. Contact WebZero if you are having trouble signing in.
+              Connect your wallet to update team details, milestone deliverables and manage payment information. Contact WebZero if you are having trouble signing in.
             </span>
             <div className="flex items-center gap-2">
               <Button 
