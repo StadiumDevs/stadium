@@ -247,8 +247,71 @@ const HomePage = () => {
             </h1>
             
             <p className="text-xl md:text-2xl text-muted-foreground">
-              The ultimate progress and showcase portal for hackathon projects going places.
+              A progress and showcase portal for hackathon projects that keep shipping between events.
             </p>
+
+            {/* Past Event Partners */}
+            <div className="pt-8 space-y-4">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground/60">
+                Past event partners
+              </p>
+              <div className="flex flex-wrap justify-center items-center gap-6 md:gap-8">
+                {/* Polkadot */}
+                <div className="opacity-50 hover:opacity-80 transition-opacity" title="Polkadot">
+                  <svg className="h-6 md:h-7 w-auto" viewBox="0 0 1340 240" fill="currentColor">
+                    <path d="M120 0C53.73 0 0 53.73 0 120s53.73 120 120 120 120-53.73 120-120S186.27 0 120 0zm0 200c-44.18 0-80-35.82-80-80s35.82-80 80-80 80 35.82 80 80-35.82 80-80 80z"/>
+                    <circle cx="120" cy="40" r="25"/>
+                    <circle cx="120" cy="200" r="25"/>
+                    <circle cx="50" cy="80" r="20"/>
+                    <circle cx="190" cy="80" r="20"/>
+                    <circle cx="50" cy="160" r="20"/>
+                    <circle cx="190" cy="160" r="20"/>
+                  </svg>
+                </div>
+                {/* Solana */}
+                <div className="opacity-50 hover:opacity-80 transition-opacity" title="Solana">
+                  <svg className="h-5 md:h-6 w-auto" viewBox="0 0 508 80" fill="currentColor">
+                    <path d="M13.2 58.7l12.1-12.9c.8-.9 1.9-1.4 3.1-1.4h60.8c1.9 0 2.9 2.4 1.5 3.8L78.6 61.1c-.8.9-1.9 1.4-3.1 1.4H14.7c-1.9 0-2.9-2.4-1.5-3.8zM13.2 13.8L25.3.9c.8-.9 1.9-1.4 3.1-1.4h60.8c1.9 0 2.9 2.4 1.5 3.8L78.6 16.2c-.8.9-1.9 1.4-3.1 1.4H14.7c-1.9 0-2.9-2.4-1.5-3.8zM78.6 35.8L66.5 48.7c-.8.9-1.9 1.4-3.1 1.4H2.6c-1.9 0-2.9-2.4-1.5-3.8l12.1-12.9c.8-.9 1.9-1.4 3.1-1.4h60.8c1.9 0 2.9 2.4 1.5 3.8z"/>
+                  </svg>
+                </div>
+                {/* Ethereum */}
+                <div className="opacity-50 hover:opacity-80 transition-opacity" title="Ethereum">
+                  <svg className="h-7 md:h-8 w-auto" viewBox="0 0 256 417" fill="currentColor">
+                    <path d="M127.96 0l-2.79 9.5v275.27l2.79 2.78 127.96-75.64z" fillOpacity=".6"/>
+                    <path d="M127.96 0L0 211.91l127.96 75.64V0z"/>
+                    <path d="M127.96 312.18l-1.57 1.92v98.2l1.57 4.58 128.04-180.29z" fillOpacity=".6"/>
+                    <path d="M127.96 416.88v-104.7L0 236.59z"/>
+                    <path d="M127.96 287.55l127.96-75.64-127.96-58.12z" fillOpacity=".2"/>
+                    <path d="M0 211.91l127.96 75.64v-133.76z" fillOpacity=".6"/>
+                  </svg>
+                </div>
+                {/* Rootstock */}
+                <div className="opacity-50 hover:opacity-80 transition-opacity" title="Rootstock">
+                  <svg className="h-6 md:h-7 w-auto" viewBox="0 0 100 100" fill="currentColor">
+                    <path d="M50 0C22.4 0 0 22.4 0 50s22.4 50 50 50 50-22.4 50-50S77.6 0 50 0zm0 85c-19.3 0-35-15.7-35-35s15.7-35 35-35 35 15.7 35 35-15.7 35-35 35z"/>
+                    <path d="M50 25c-13.8 0-25 11.2-25 25s11.2 25 25 25 25-11.2 25-25-11.2-25-25-25zm0 40c-8.3 0-15-6.7-15-15s6.7-15 15-15 15 6.7 15 15-6.7 15-15 15z"/>
+                  </svg>
+                </div>
+                {/* XX Network */}
+                <div className="opacity-50 hover:opacity-80 transition-opacity" title="XX Network">
+                  <svg className="h-6 md:h-7 w-auto" viewBox="0 0 100 100" fill="currentColor">
+                    <path d="M20 20l25 30-25 30h15l17.5-21 17.5 21h15l-25-30 25-30h-15l-17.5 21L35 20z"/>
+                  </svg>
+                </div>
+                {/* Hyperbridge */}
+                <div className="opacity-50 hover:opacity-80 transition-opacity" title="Hyperbridge">
+                  <svg className="h-5 md:h-6 w-auto" viewBox="0 0 100 60" fill="currentColor">
+                    <path d="M10 10h15v40H10zM75 10h15v40H75zM30 25h40v10H30z"/>
+                  </svg>
+                </div>
+                {/* Arkiv */}
+                <div className="opacity-50 hover:opacity-80 transition-opacity" title="Arkiv">
+                  <svg className="h-6 md:h-7 w-auto" viewBox="0 0 100 100" fill="currentColor">
+                    <path d="M50 5L10 95h20l20-50 20 50h20z"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
