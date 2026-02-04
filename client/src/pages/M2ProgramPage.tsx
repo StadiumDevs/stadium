@@ -7,7 +7,6 @@ import { ProjectCard } from "@/components/ProjectCard";
 import { M2StatusOverview } from "@/components/M2StatusOverview";
 import { M2ProgramGuideModal } from "@/components/M2ProgramGuideModal";
 import { M2ProjectTable } from "@/components/M2ProjectTable";
-import { M2GraduateCard } from "@/components/M2GraduateCard";
 import { web3Enable, web3Accounts } from '@polkadot/extension-dapp';
 import {
   Github,
@@ -542,11 +541,22 @@ const M2ProgramPage = () => {
                 
                 {/* Graduates always show as special cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {groupedProjects.completed.map((project, idx) => (
-                    <M2GraduateCard 
-                      key={project.id} 
-                      project={project} 
-                      index={idx} 
+                  {groupedProjects.completed.map((project: LegacyProject) => (
+                    <ProjectCard
+                      key={project.id || project.projectName}
+                      title={project.projectName}
+                      author={project.teamLead}
+                      description={project.description}
+                      track={project.winner || "Completed"}
+                      isWinner={!!project.winner}
+                      demoUrl={project.demoUrl}
+                      githubUrl={project.githubRepo}
+                      projectUrl={getProjectUrl(project)}
+                      onClick={() => navigate(getProjectUrl(project))}
+                      showM2Progress={true}
+                      m2Status="completed"
+                      completionDate={new Date().toISOString()}
+                      totalPaid={project.totalPaid}
                     />
                   ))}
                 </div>
