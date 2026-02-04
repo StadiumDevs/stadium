@@ -203,15 +203,16 @@ export const api = {
   },
 
   updateTeam: async (projectId: string, data: {
-    members: Array<{ 
+    teamMembers: Array<{ 
       name: string; 
-      wallet: string;
+      walletAddress?: string;
       role?: string;
       twitter?: string;
       github?: string;
       linkedin?: string;
+      customUrl?: string;
     }>;
-    payoutAddress: string;
+    donationAddress?: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
       console.log('Mock: Updating team for project', projectId, data);
@@ -225,43 +226,34 @@ export const api = {
         const projects = JSON.parse(stored);
         const index = projects.findIndex((p: any) => p.id === projectId);
         if (index !== -1) {
-          projects[index].teamMembers = data.members.map(m => ({
-            name: m.name.trim(),
-            walletAddress: m.wallet.trim() || undefined,
-            role: m.role?.trim() || undefined,
-            twitter: m.twitter?.trim() || undefined,
-            github: m.github?.trim() || undefined,
-            linkedin: m.linkedin?.trim() || undefined,
-          }));
-          projects[index].donationAddress = data.payoutAddress.trim();
+          projects[index].teamMembers = data.teamMembers;
+          if (data.donationAddress) {
+            projects[index].donationAddress = data.donationAddress;
+          }
           localStorage.setItem('projects', JSON.stringify(projects));
         }
-      }
-      
-      // Also try to get from mock data and update in-memory
-      const { mockWinningProjects } = await import("./mockWinners");
-      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
-      if (mockProject) {
-        (mockProject as any).teamMembers = data.members.map(m => ({
-          name: m.name.trim(),
-          walletAddress: m.wallet.trim() || undefined,
-          role: m.role?.trim() || undefined,
-          twitter: m.twitter?.trim() || undefined,
-          github: m.github?.trim() || undefined,
-          linkedin: m.linkedin?.trim() || undefined,
-        }));
-        (mockProject as any).donationAddress = data.payoutAddress.trim();
       }
       
       return { success: true };
     }
     
-    // Real API call
-    return request(`/m2-program/${projectId}/team`, {
-      method: 'PUT',
+    // Real API call - update team members
+    const teamResult = await request(`/m2-program/${projectId}/team`, {
+      method: 'POST',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
+      body: JSON.stringify({ teamMembers: data.teamMembers })
     });
+
+    // If there's a donation address, update it separately
+    if (data.donationAddress) {
+      await request(`/m2-program/${projectId}/payout-address`, {
+        method: 'PATCH',
+        headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+        body: JSON.stringify({ donationAddress: data.donationAddress })
+      });
+    }
+
+    return teamResult;
   },
 
   webzeroApprove: async (projectId: string, authHeader?: string) =>
@@ -490,6 +482,47 @@ export const api = {
       method: 'PATCH',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({ donationAddress })
+    });
+  },
+
+  updateProjectDetails: async (
+    projectId: string,
+    data: {
+      projectName?: string;
+      description?: string;
+      projectRepo?: string;
+      demoUrl?: string;
+      slidesUrl?: string;
+      categories?: string[];
+      techStack?: string[];
+    },
+    authHeader?: string
+  ) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Updating project details for', projectId, data);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          Object.assign(projects[index], data);
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/m2-program/${projectId}`, {
+      method: 'PATCH',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
     });
   },
 };

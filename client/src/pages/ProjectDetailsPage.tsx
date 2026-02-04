@@ -41,11 +41,11 @@ import { M2AgreementSection } from "@/components/M2AgreementSection";
 import { ShareProjectModal } from "@/components/ShareProjectModal";
 import { WalletConnectionBanner } from "@/components/WalletConnectionBanner";
 import { TeamPaymentSection } from "@/components/TeamPaymentSection";
-import { EditTeamModal, TeamMember as EditTeamMember } from "@/components/EditTeamModal";
-import { UpdatePayoutModal } from "@/components/UpdatePayoutModal";
 import { M2SubmissionTimeline } from "@/components/M2SubmissionTimeline";
 import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModal";
+import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
+import { Edit } from "lucide-react";
 
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -135,9 +135,8 @@ const ProjectDetailsPage = () => {
   const [finalSubmissionModalOpen, setFinalSubmissionModalOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [isEditTeamOpen, setIsEditTeamOpen] = useState(false);
-  const [isUpdatePayoutOpen, setIsUpdatePayoutOpen] = useState(false);
   const [isSubmitM2ModalOpen, setIsSubmitM2ModalOpen] = useState(false);
+  const [isEditProjectDetailsOpen, setIsEditProjectDetailsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
 
   // Format date utility
@@ -411,13 +410,16 @@ const ProjectDetailsPage = () => {
     return checkIsAdmin(connectedAddress);
   }, [connectedAddress]);
 
+  // Check if user can edit (admin or team member)
+  const canEdit = isAdmin || isTeamMember;
+
   // Check if it's Week 5+ (submission allowed)
   const isSubmissionWeek = useMemo(() => {
     const currentWeekData = getCurrentProgramWeek();
     return currentWeekData.weekNumber >= 5;
   }, []);
 
-  // Handle team update
+  // Handle team update (from UpdateTeamModal)
   const handleTeamUpdate = async (data: { members: TeamMember[]; payoutAddress: string }) => {
     if (!project || !connectedAddress) {
       toast({
@@ -453,15 +455,25 @@ const ProjectDetailsPage = () => {
         : (siws as unknown as { toString: () => string }).toString();
       const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
-      // Update team
-      await api.updateTeam(project.id, data, authHeader);
+      // Update team - convert to new API format
+      await api.updateTeam(project.id, {
+        teamMembers: data.members.map(m => ({
+          name: m.name.trim(),
+          walletAddress: m.wallet?.trim() || undefined,
+          role: m.role?.trim() || undefined,
+          twitter: m.twitter?.trim() || undefined,
+          github: m.github?.trim() || undefined,
+          linkedin: m.linkedin?.trim() || undefined,
+        })),
+        donationAddress: data.payoutAddress.trim(),
+      }, authHeader);
       
       // Update local project state
       setProject((prev: ApiProject | null) => (prev ? {
         ...prev,
         teamMembers: data.members.map(m => ({
           name: m.name.trim(),
-          walletAddress: m.wallet.trim() || undefined,
+          walletAddress: m.wallet?.trim() || undefined,
           role: m.role?.trim() || undefined,
           twitter: m.twitter?.trim() || undefined,
           github: m.github?.trim() || undefined,
@@ -479,6 +491,168 @@ const ProjectDetailsPage = () => {
       toast({
         title: "Update Failed",
         description: error?.message || "Failed to update team. Please try again.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
+  // Handle project details update
+  const handleProjectDetailsUpdate = async (data: {
+    projectName: string;
+    description: string;
+    projectRepo?: string;
+    demoUrl?: string;
+    slidesUrl?: string;
+    categories: string[];
+    techStack: string[];
+  }) => {
+    if (!project || !connectedAddress) {
+      toast({
+        title: "Error",
+        description: "Please connect your wallet first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Hackathonia');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error("No wallet found");
+      
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'update-project',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Update project details
+      await api.updateProjectDetails(project.id, data, authHeader);
+      
+      // Update local project state
+      setProject((prev: ApiProject | null) => (prev ? {
+        ...prev,
+        projectName: data.projectName,
+        description: data.description,
+        projectRepo: data.projectRepo,
+        demoUrl: data.demoUrl,
+        slidesUrl: data.slidesUrl,
+        categories: data.categories,
+        techStack: data.techStack,
+      } as ApiProject : prev));
+      
+      toast({
+        title: "Success!",
+        description: "Project details updated successfully.",
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Failed to update project. Please try again.",
+        variant: "destructive",
+      });
+      throw err;
+    }
+  };
+
+  // Handle inline team & payment save
+  const handleTeamPaymentSave = async (data: { 
+    teamMembers: Array<{
+      name: string;
+      walletAddress?: string;
+      role?: string;
+      twitter?: string;
+      github?: string;
+      linkedin?: string;
+      customUrl?: string;
+    }>; 
+    donationAddress: string 
+  }) => {
+    if (!project || !connectedAddress) {
+      toast({
+        title: "Error",
+        description: "Please connect your wallet first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Connect wallet and sign with SIWS
+      await web3Enable('Hackathonia');
+      const accounts = await web3Accounts();
+      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      if (!account) throw new Error("No wallet found");
+      
+      const siws = new SiwsMessage({
+        domain: window.location.hostname,
+        uri: window.location.origin,
+        address: account.address,
+        nonce: Math.random().toString(36).slice(2),
+        statement: generateSiwsStatement({
+          action: 'update-team',
+          projectTitle: project.projectName,
+          projectId: project.id
+        }),
+      });
+      const injector = await web3FromSource(account.meta.source);
+      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+      const messageStr = typeof signed.message === 'string' && signed.message
+        ? signed.message
+        : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+      // Update team and payout address via API
+      await api.updateTeam(project.id, {
+        teamMembers: data.teamMembers.map(m => ({
+          name: m.name,
+          walletAddress: m.walletAddress || undefined,
+          role: m.role || undefined,
+          twitter: m.twitter || undefined,
+          github: m.github || undefined,
+          linkedin: m.linkedin || undefined,
+          customUrl: m.customUrl || undefined,
+        })),
+        donationAddress: data.donationAddress,
+      }, authHeader);
+      
+      // Update local project state
+      setProject((prev: ApiProject | null) => (prev ? {
+        ...prev,
+        teamMembers: data.teamMembers.map(m => ({
+          name: m.name.trim(),
+          walletAddress: m.walletAddress?.trim() || undefined,
+          role: m.role?.trim() || undefined,
+          twitter: m.twitter?.trim() || undefined,
+          github: m.github?.trim() || undefined,
+          linkedin: m.linkedin?.trim() || undefined,
+          customUrl: m.customUrl?.trim() || undefined,
+        })),
+        donationAddress: data.donationAddress.trim(),
+      } as ApiProject : prev));
+      
+      // Toast is shown by TeamPaymentSection
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Failed to save changes. Please try again.",
         variant: "destructive",
       });
       throw err;
@@ -545,107 +719,6 @@ const ProjectDetailsPage = () => {
       toast({
         title: "Submission Failed",
         description: error?.message || "Failed to submit M2 deliverables. Please try again.",
-        variant: "destructive",
-      });
-      throw err;
-    }
-  };
-
-  // Handle new team update (with SIWS)
-  const handleNewTeamUpdate = async (teamMembers: EditTeamMember[]) => {
-    if (!project) return;
-    
-    try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Blockspace Stadium');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error('No wallet found');
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-team',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
-
-      // Update team members via API
-      await api.updateTeamMembers(project.id, teamMembers, authHeader);
-      
-      // Refresh project data
-      await fetchProject();
-      
-      toast({
-        title: "Success!",
-        description: "Team details updated successfully.",
-      });
-    } catch (err) {
-      const error = err as Error;
-      toast({
-        title: "Update Failed",
-        description: error?.message || "Failed to update team. Please try again.",
-        variant: "destructive",
-      });
-      throw err;
-    }
-  };
-
-  // Handle payout address update (with SIWS)
-  const handlePayoutUpdate = async (donationAddress: string) => {
-    if (!project) return;
-    
-    try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Blockspace Stadium');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error('No wallet found');
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-project',
-          projectTitle: project.projectName,
-          projectId: project.id,
-          additionalContext: 'Update payout address'
-        }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
-
-      // Update payout address via API
-      await api.updatePayoutAddress(project.id, donationAddress, authHeader);
-      
-      // Refresh project data
-      await fetchProject();
-      
-      toast({
-        title: "Success!",
-        description: "Payout address updated successfully.",
-      });
-    } catch (err) {
-      const error = err as Error;
-      toast({
-        title: "Update Failed",
-        description: error?.message || "Failed to update payout address. Please try again.",
         variant: "destructive",
       });
       throw err;
@@ -918,6 +991,15 @@ const ProjectDetailsPage = () => {
                   <Share2 className="w-4 h-4 mr-2" aria-hidden="true" />
                   Share
                 </Button>
+                {canEdit && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEditProjectDetailsOpen(true)}
+                  >
+                    <Edit className="w-4 h-4 mr-2" aria-hidden="true" />
+                    Edit Details
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -1131,8 +1213,8 @@ const ProjectDetailsPage = () => {
                   m2Status={project.m2Status}
                   isTeamMember={isTeamMember}
                   isAdmin={isAdmin}
-                  onEditTeam={() => setIsEditTeamOpen(true)}
-                  onUpdatePayout={() => setIsUpdatePayoutOpen(true)}
+                  isConnected={!!connectedAddress}
+                  onSave={handleTeamPaymentSave}
                 />
               </TabsContent>
             </Tabs>
@@ -1257,36 +1339,29 @@ const ProjectDetailsPage = () => {
             onSubmit={handleTeamUpdate}
           />
           
-          {/* New Edit Team Modal */}
-          <EditTeamModal
-            open={isEditTeamOpen}
-            onOpenChange={setIsEditTeamOpen}
-            teamMembers={(project.teamMembers || []).map(m => ({
-              name: m.name,
-              walletAddress: m.walletAddress || '',
-              role: m.role || '',
-              twitter: m.twitter || '',
-              github: m.github || '',
-              linkedin: m.linkedin || '',
-              customUrl: m.customUrl || '',
-            }))}
-            onSave={handleNewTeamUpdate}
-          />
-          
-          {/* Update Payout Modal */}
-          <UpdatePayoutModal
-            open={isUpdatePayoutOpen}
-            onOpenChange={setIsUpdatePayoutOpen}
-            currentAddress={project.donationAddress}
-            onSave={handlePayoutUpdate}
-          />
-
           {/* Submit M2 Deliverables Modal */}
           <SubmitM2DeliverablesModal
             open={isSubmitM2ModalOpen}
             onOpenChange={setIsSubmitM2ModalOpen}
             project={project}
             onSubmit={handleSubmitM2}
+          />
+
+          {/* Edit Project Details Modal */}
+          <EditProjectDetailsModal
+            open={isEditProjectDetailsOpen}
+            onOpenChange={setIsEditProjectDetailsOpen}
+            project={{
+              id: project.id,
+              projectName: project.projectName,
+              description: project.description,
+              projectRepo: project.projectRepo,
+              demoUrl: project.demoUrl,
+              slidesUrl: project.slidesUrl,
+              categories: project.categories,
+              techStack: Array.isArray(project.techStack) ? project.techStack : [],
+            }}
+            onSave={handleProjectDetailsUpdate}
           />
         </>
       )}
