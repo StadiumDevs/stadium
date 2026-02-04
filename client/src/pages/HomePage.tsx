@@ -59,7 +59,7 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
 
 const HomePage = () => {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [showWinnersOnly, setShowWinnersOnly] = useState(false);
+  const [showWinnersOnly, setShowWinnersOnly] = useState(true);
   const [selectedProject, setSelectedProject] = useState<ProjectCardData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedHackathon, setSelectedHackathon] = useState<string>("all");
@@ -177,6 +177,13 @@ const HomePage = () => {
         });
       });
     }
+
+    // Sort by event date (latest first)
+    filtered.sort((a, b) => {
+      const dateA = a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0;
+      const dateB = b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0;
+      return dateB - dateA; // Latest first
+    });
 
     return filtered.map(convertToProjectCard);
   }, [projects, searchQuery, showWinnersOnly, activeFilters, selectedHackathon]);
