@@ -333,7 +333,9 @@ export function TeamPaymentSection({
                               {payment.milestone}
                             </Badge>
                             <span className="font-semibold">
-                              ${payment.amount.toLocaleString()} {payment.currency}
+                              {payment.currency === 'DOT' 
+                                ? `${payment.amount.toLocaleString()} DOT`
+                                : `$${payment.amount.toLocaleString()} ${payment.currency}`}
                             </span>
                           </div>
                           {payment.paidDate && (
@@ -388,14 +390,6 @@ export function TeamPaymentSection({
               </Card>
             )}
           </div>
-          
-          {/* Important Notice */}
-          <Alert className="bg-primary/5 border-primary/20">
-            <AlertDescription className="text-xs">
-              💡 <strong>Important:</strong> Payments are sent to the address above. 
-              Verify it's correct before M2 approval!
-            </AlertDescription>
-          </Alert>
         </div>
       </CardContent>
     </Card>

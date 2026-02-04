@@ -2,21 +2,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
 import { 
   Rocket, 
-  Calendar, 
-  Clock, 
   CheckCircle2, 
-  AlertCircle,
-  Github,
-  Video,
-  FileText,
-  Lock
+  Circle,
+  Upload
 } from "lucide-react";
-import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { calculateM2Timeline } from "@/lib/projectUtils";
 
 interface M2SubmissionTimelineProps {
   project: any;
@@ -35,15 +27,19 @@ export function M2SubmissionTimeline({
   connectedWallet,
   onSubmit 
 }: M2SubmissionTimelineProps) {
-  // Calculate current week and timeline status
-  const timeline = calculateM2Timeline(project.hackathon?.endDate);
+  // Determine checklist states based on project data
+  const isPlanAgreed = !!project.m2Agreement;
+  const isDeliveryCompleted = !!project.finalSubmission;
+  const isApproved = project.m2Status === 'completed';
+  const isPayoutConfirmed = project.totalPaid?.some(
+    (payment: { milestone: string }) => payment.milestone === 'M2'
+  );
   
-  // Determine if user can submit
-  const canSubmit = (isTeamMember || isAdmin) && 
-                    timeline.canSubmit && 
-                    !project.finalSubmission;
+  // Check if there are incomplete milestones (show submit button)
+  const hasIncompleteMilestones = !isDeliveryCompleted && isPlanAgreed;
   
-  const alreadySubmitted = !!project.finalSubmission;
+  // Can submit if team member or admin, plan is agreed, and not yet submitted
+  const canSubmit = (isTeamMember || isAdmin) && hasIncompleteMilestones && isConnected;
   
   return (
     <Card className="glass-panel border-primary/20">
@@ -73,226 +69,120 @@ export function M2SubmissionTimeline({
       </CardHeader>
       
       <CardContent className="space-y-6">
-        {/* Week Indicator */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              Week {timeline.currentWeek} of 6
+        {/* Progress Checklist */}
+        <div className="space-y-3">
+          {/* M2 Plan Agreed */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+            {isPlanAgreed ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+            ) : (
+              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            )}
+            <span className={`text-sm font-medium ${isPlanAgreed ? 'text-foreground' : 'text-muted-foreground'}`}>
+              M2 Plan Agreed
             </span>
-            <span className="font-medium text-foreground">
-              {timeline.currentWeek <= 4 ? 'Building Phase' :
-               timeline.currentWeek <= 6 ? 'Submission Window' :
-               'Review Phase'}
-            </span>
-          </div>
-          <Progress 
-            value={(Math.min(timeline.currentWeek, 6) / 6) * 100} 
-            className="h-2"
-          />
-        </div>
-        
-        {/* Visual Timeline */}
-        <div className="relative py-4">
-          {/* Progress Line */}
-          <div className="absolute top-9 left-0 right-0 h-0.5 bg-border">
-            <motion.div
-              className="h-full bg-primary"
-              initial={{ width: 0 }}
-              animate={{ width: `${(Math.min(timeline.currentWeek, 6) / 6) * 100}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
+            {isPlanAgreed && project.m2Agreement?.agreedDate && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                {format(new Date(project.m2Agreement.agreedDate), 'MMM d, yyyy')}
+              </span>
+            )}
           </div>
           
-          {/* Timeline Nodes */}
-          <div className="relative flex justify-between items-start">
-            {/* Week 1-4: Building */}
-            <div className="flex flex-col items-center flex-1">
-              <motion.div
-                className={`w-12 h-12 rounded-full flex items-center justify-center border-2 z-10 ${
-                  timeline.currentWeek >= 1 && timeline.currentWeek <= 4
-                    ? 'bg-primary border-primary shadow-lg shadow-primary/50'
-                    : timeline.currentWeek > 4
-                    ? 'bg-green-500/20 border-green-500/50'
-                    : 'bg-background border-border'
-                }`}
-                whileHover={{ scale: 1.05 }}
-              >
-                {timeline.currentWeek > 4 ? (
-                  <CheckCircle2 className="h-6 w-6 text-green-500" />
-                ) : (
-                  <span className="text-sm font-bold text-foreground">1-4</span>
-                )}
-              </motion.div>
-              <div className="mt-3 text-center">
-                <p className="text-sm font-medium text-foreground">Weeks 1-4</p>
-                <p className="text-xs text-muted-foreground">Building</p>
-              </div>
-            </div>
-            
-            {/* Week 5: Submit Opens */}
-            <div className="flex flex-col items-center flex-1">
-              <motion.div
-                className={`w-12 h-12 rounded-full flex items-center justify-center border-2 z-10 ${
-                  timeline.currentWeek === 5
-                    ? 'bg-primary border-primary shadow-lg shadow-primary/50'
-                    : timeline.currentWeek > 5
-                    ? 'bg-green-500/20 border-green-500/50'
-                    : 'bg-background border-border'
-                }`}
-                whileHover={{ scale: 1.05 }}
-              >
-                {timeline.currentWeek > 5 ? (
-                  <CheckCircle2 className="h-6 w-6 text-green-500" />
-                ) : timeline.currentWeek === 5 ? (
-                  <Rocket className="h-6 w-6 text-primary-foreground" />
-                ) : (
-                  <span className="text-sm font-bold text-muted-foreground">5</span>
-                )}
-              </motion.div>
-              <div className="mt-3 text-center">
-                <p className="text-sm font-medium text-foreground">Week 5</p>
-                <p className="text-xs text-muted-foreground">Submit Opens</p>
-              </div>
-            </div>
-            
-            {/* Week 6: Deadline */}
-            <div className="flex flex-col items-center flex-1">
-              <motion.div
-                className={`w-12 h-12 rounded-full flex items-center justify-center border-2 z-10 ${
-                  timeline.currentWeek === 6
-                    ? 'bg-orange-500 border-orange-500 shadow-lg shadow-orange-500/50'
-                    : timeline.currentWeek > 6
-                    ? 'bg-green-500/20 border-green-500/50'
-                    : 'bg-background border-border'
-                }`}
-                whileHover={{ scale: 1.05 }}
-                animate={timeline.currentWeek === 6 ? {
-                  scale: [1, 1.1, 1],
-                  transition: { repeat: Infinity, duration: 2 }
-                } : {}}
-              >
-                {timeline.currentWeek > 6 ? (
-                  <CheckCircle2 className="h-6 w-6 text-green-500" />
-                ) : timeline.currentWeek === 6 ? (
-                  <Clock className="h-6 w-6 text-white" />
-                ) : (
-                  <span className="text-sm font-bold text-muted-foreground">6</span>
-                )}
-              </motion.div>
-              <div className="mt-3 text-center">
-                <p className="text-sm font-medium text-foreground">Week 6</p>
-                <p className="text-xs text-muted-foreground">Deadline</p>
-              </div>
-            </div>
+          {/* M2 Delivery Completed */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+            {isDeliveryCompleted ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+            ) : (
+              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            )}
+            <span className={`text-sm font-medium ${isDeliveryCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
+              M2 Delivery Completed
+            </span>
+            {isDeliveryCompleted && project.finalSubmission?.submittedDate && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                {format(new Date(project.finalSubmission.submittedDate), 'MMM d, yyyy')}
+              </span>
+            )}
+          </div>
+          
+          {/* M2 Approved */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+            {isApproved ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+            ) : (
+              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            )}
+            <span className={`text-sm font-medium ${isApproved ? 'text-foreground' : 'text-muted-foreground'}`}>
+              M2 Approved
+            </span>
+            {isApproved && project.completionDate && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                {format(new Date(project.completionDate), 'MMM d, yyyy')}
+              </span>
+            )}
+          </div>
+          
+          {/* Payout Confirmed */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+            {isPayoutConfirmed ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+            ) : (
+              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            )}
+            <span className={`text-sm font-medium ${isPayoutConfirmed ? 'text-foreground' : 'text-muted-foreground'}`}>
+              Payout Confirmed
+            </span>
+            {isPayoutConfirmed && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                {(() => {
+                  const m2Payment = project.totalPaid?.find(
+                    (p: { milestone: string }) => p.milestone === 'M2'
+                  );
+                  if (!m2Payment) return '';
+                  return m2Payment.currency === 'DOT' 
+                    ? `${m2Payment.amount.toLocaleString()} DOT`
+                    : `$${m2Payment.amount.toLocaleString()} ${m2Payment.currency}`;
+                })()}
+              </span>
+            )}
           </div>
         </div>
-        
-        {/* Status-Specific Alerts */}
-        
-        {/* Weeks 1-4: Building Phase */}
-        {timeline.currentWeek <= 4 && !alreadySubmitted && (
-          <Alert className="bg-primary/5 border-primary/20">
-            <Calendar className="h-4 w-4 text-primary" />
-            <AlertDescription>
-              <div className="space-y-2">
-                <p className="font-semibold text-foreground">
-                  📅 Current: Week {timeline.currentWeek} of 6 (Building Phase)
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  ⏰ Submission opens: {format(timeline.week5OpenDate, 'MMMM d, yyyy')}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  💡 Keep building! Submission opens in {timeline.daysUntilSubmissionOpens} days.
-                  Use this time to complete your M2 roadmap above.
-                </p>
+
+        {/* Agreed Deliverables Section */}
+        {(() => {
+          // Get deliverables from m2Agreement.agreedFeatures or fallback to project.milestones
+          const deliverables = project.m2Agreement?.agreedFeatures || project.milestones || [];
+          const hasDeliverables = deliverables.length > 0;
+          
+          if (!hasDeliverables) return null;
+          
+          return (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Agreed Deliverables</h3>
+              <div className="bg-muted/20 rounded-lg p-4 space-y-2">
+                {deliverables.map((item: string | { description?: string }, index: number) => {
+                  const text = typeof item === 'string' ? item : item.description || '';
+                  if (!text) return null;
+                  return (
+                    <div key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <span className="text-primary">•</span>
+                      <span>{text}</span>
+                    </div>
+                  );
+                })}
               </div>
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {/* Week 5: Submission Window Open */}
-        {timeline.currentWeek === 5 && !alreadySubmitted && (
-          <Alert className="bg-green-500/10 border-green-500/30">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-            <AlertDescription>
-              <div className="space-y-3">
-                <p className="font-semibold text-green-500">
-                  ✅ Submission window is OPEN! {timeline.daysUntilDeadline} days remaining
-                </p>
-                <div className="space-y-2 text-sm text-foreground">
-                  <p className="font-medium">Ready to submit? Make sure you have:</p>
-                  <div className="space-y-1.5 ml-2">
-                    <div className="flex items-center gap-2">
-                      <Github className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span>GitHub repo with latest code</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Video className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span>Demo video (YouTube/Loom link)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span>Documentation (README, setup guide)</span>
-                    </div>
-                  </div>
+              {project.m2Agreement?.successCriteria && (
+                <div className="text-sm">
+                  <span className="font-medium text-foreground">Success Criteria: </span>
+                  <span className="text-muted-foreground">{project.m2Agreement.successCriteria}</span>
                 </div>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
+              )}
+            </div>
+          );
+        })()}
         
-        {/* Week 6: Final Week */}
-        {timeline.currentWeek === 6 && !alreadySubmitted && (
-          <Alert className="bg-orange-500/10 border-orange-500/30">
-            <AlertCircle className="h-4 w-4 text-orange-500" />
-            <AlertDescription>
-              <div className="space-y-3">
-                <p className="font-semibold text-orange-500">
-                  ⏰ FINAL WEEK! Deadline: {format(timeline.deadlineDate, 'MMMM d, yyyy')}
-                  {timeline.daysUntilDeadline > 0 && ` (${timeline.daysUntilDeadline} days left)`}
-                </p>
-                <div className="space-y-2 text-sm text-foreground">
-                  <p className="font-medium">Ready to submit? Make sure you have:</p>
-                  <div className="space-y-1.5 ml-2">
-                    <div className="flex items-center gap-2">
-                      <Github className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span>GitHub repo with latest code</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Video className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span>Demo video (YouTube/Loom link)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span>Documentation (README, setup guide)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {/* Past Deadline */}
-        {timeline.isPastDeadline && !alreadySubmitted && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <div className="space-y-1">
-                <p className="font-semibold">⚠️ Submission deadline has passed</p>
-                <p className="text-sm">
-                  Need an extension? Contact WebZero:{" "}
-                  <a href="mailto:sacha@joinwebzero.com" className="underline hover:text-destructive-foreground">
-                    sacha@joinwebzero.com
-                  </a>
-                </p>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {/* Already Submitted */}
-        {alreadySubmitted && (
+        {/* Submitted Alert */}
+        {isDeliveryCompleted && (
           <Alert className="bg-green-500/10 border-green-500/30">
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             <AlertDescription>
@@ -302,7 +192,7 @@ export function M2SubmissionTimeline({
                 </p>
                 <p className="text-sm text-foreground">
                   {project.m2Status === 'under_review' && 
-                    'WebZero is reviewing your submission. Check the Review Status section below for updates.'}
+                    'WebZero is reviewing your submission.'}
                   {project.m2Status === 'completed' && 
                     'Your M2 has been approved! Check Payment History for transaction details.'}
                 </p>
@@ -311,91 +201,34 @@ export function M2SubmissionTimeline({
           </Alert>
         )}
         
-        {/* Action Button */}
-        {!alreadySubmitted && (
+        {/* Submit Button - Only show if incomplete milestones */}
+        {hasIncompleteMilestones && (
           <div className="pt-2">
-            {(() => {
-              // Not connected at all
-              if (!isConnected) {
-                return (
-                  <Alert className="bg-muted border-border">
-                    <AlertDescription className="text-sm text-center text-muted-foreground">
-                      Connect your wallet to submit deliverables
-                    </AlertDescription>
-                  </Alert>
-                );
-              }
-              
-              // Connected but not authorized (not team member and not admin)
-              if (isConnected && !isTeamMember && !isAdmin) {
-                return (
-                  <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-sm">
-                      <p className="font-semibold">
-                        Connected: {connectedWallet?.slice(0, 6)}...{connectedWallet?.slice(-4)}
-                      </p>
-                      <p className="mt-1 text-xs">
-                        This wallet is not authorized. Connect with a team member wallet to submit.
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                );
-              }
-              
-              // Week 1-4: Submission window not open yet
-              if (timeline.currentWeek <= 4) {
-                return (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled
-                  >
-                    <Lock className="mr-2 h-4 w-4" />
-                    Submit Opens Week 5 ({format(timeline.week5OpenDate, 'MMM d')})
-                  </Button>
-                );
-              }
-              
-              // Past deadline (Week 7+)
-              if (timeline.isPastDeadline) {
-                return (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled
-                  >
-                    Submission Closed
-                  </Button>
-                );
-              }
-              
-              // Can submit! (Week 5-6, connected, authorized)
-              if (canSubmit) {
-                return (
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={onSubmit}
-                  >
-                    <Rocket className="mr-2 h-5 w-5" />
-                    🎯 Submit M2 Deliverables
-                  </Button>
-                );
-              }
-              
-              // Fallback (shouldn't reach here)
-              return null;
-            })()}
+            {!isConnected ? (
+              <Alert className="bg-muted border-border">
+                <AlertDescription className="text-sm text-center text-muted-foreground">
+                  Connect your wallet to submit deliverables
+                </AlertDescription>
+              </Alert>
+            ) : !isTeamMember && !isAdmin ? (
+              <Alert className="bg-muted border-border">
+                <AlertDescription className="text-sm text-center text-muted-foreground">
+                  Only team members can submit deliverables
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={onSubmit}
+              >
+                <Upload className="mr-2 h-5 w-5" />
+                Submit Milestone
+              </Button>
+            )}
           </div>
         )}
-        
-        {/* Help Text */}
-        <p className="text-xs text-center text-muted-foreground">
-          Need help? Contact your mentor in Telegram
-        </p>
       </CardContent>
     </Card>
   );
 }
-
