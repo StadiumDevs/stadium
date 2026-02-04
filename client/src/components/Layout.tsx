@@ -32,7 +32,7 @@ const Layout = () => {
             
             <div className="flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">
-                Created by Sacha Lansky at {' '}
+                Created with ❤️ by the cracked devs at {' '}
                 <a
                   href="https://www.joinwebzero.com/"
                   target="_blank"
