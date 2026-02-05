@@ -495,6 +495,14 @@ export const api = {
       slidesUrl?: string;
       categories?: string[];
       techStack?: string[];
+      bountiesProcessed?: boolean;
+      projectState?: string;
+      bountyPrize?: Array<{
+        name: string;
+        amount: number;
+        hackathonWonAtId: string;
+        txHash?: string;
+      }>;
     },
     authHeader?: string
   ) => {

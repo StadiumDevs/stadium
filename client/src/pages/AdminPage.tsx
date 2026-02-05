@@ -40,6 +40,7 @@ import { api } from "@/lib/api";
 import { useMemo } from "react";
 import { isAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
 import { M2ProjectsTable } from "@/components/admin/M2ProjectsTable";
+import { WinnersTable } from "@/components/admin/WinnersTable";
 import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
 import { ConfirmM1PayoutModal } from "@/components/admin/ConfirmM1PayoutModal";
 import { TestPaymentModal } from "@/components/admin/TestPaymentModal";
@@ -747,6 +748,23 @@ const AdminPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* All Winners Table */}
+      <section className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold">🏆 All Winners</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Track bounty payments and prizes for all winning projects (M2 + bounty-only)
+            </p>
+          </div>
+        </div>
+        <WinnersTable 
+          projects={projects} 
+          onRefresh={loadData}
+          connectedAddress={walletState.selectedAccount?.address}
+        />
+      </section>
 
       {/* All M2 Projects Table */}
       <section className="mb-6">
