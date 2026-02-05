@@ -533,6 +533,31 @@ export const api = {
       body: JSON.stringify(data)
     });
   },
+
+  confirmPayment: async (
+    projectId: string,
+    data: {
+      milestone: 'M1' | 'M2' | 'BOUNTY';
+      amount: number;
+      currency: 'USDC' | 'DOT';
+      transactionProof: string;
+      bountyName?: string; // Required for BOUNTY milestone
+    },
+    authHeader?: string
+  ) => {
+    if (USE_MOCK_DATA) {
+      console.log('Mock: Confirming payment for project', projectId, data);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/m2-program/${projectId}/confirm-payment`, {
+      method: 'POST',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+  },
 };
 
 export { ApiError };

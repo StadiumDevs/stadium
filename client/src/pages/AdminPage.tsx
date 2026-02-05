@@ -71,7 +71,7 @@ type M2Project = Project & {
 
 const AdminPage = () => {
   // TESTING MODE: Bypass wallet connection check
-  const BYPASS_ADMIN_CHECK = true; // Set to false to re-enable wallet check
+  const BYPASS_ADMIN_CHECK = true; // Set to false for production
   
   const [walletState, setWalletState] = useState({
     isExtensionAvailable: false,
@@ -762,7 +762,7 @@ const AdminPage = () => {
         <WinnersTable 
           projects={projects} 
           onRefresh={loadData}
-          connectedAddress={walletState.selectedAccount?.address}
+          connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0] : walletState.selectedAccount?.address}
         />
       </section>
 

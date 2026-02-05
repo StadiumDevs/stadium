@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -32,10 +33,10 @@ import {
   Eye,
   CheckCircle2,
   XCircle,
-  Edit,
-  Plus,
   Trophy,
   Loader2,
+  Settings,
+  CheckCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -50,22 +51,42 @@ interface BountyPrize {
   txHash?: string;
 }
 
+interface PayoutModalData {
+  projectId: string;
+  projectName: string;
+  projectState: string;
+  bountiesProcessed: boolean;
+  txProofUrl: string;
+  bountyAmount: number;
+  bountyName: string;
+  donationAddress: string;
+}
+
 interface WinnersTableProps {
   projects: any[];
   onRefresh: () => void;
   connectedAddress?: string;
 }
 
+type WinnerFilter = "all" | "main-track" | "bounty";
+
 export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersTableProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState<string | null>(null);
-  const [editingTxHash, setEditingTxHash] = useState<{ projectId: string; bountyIndex: number; txHash: string } | null>(null);
-  const [editingBounty, setEditingBounty] = useState<{ projectId: string; bountyIndex: number; bounty: BountyPrize } | null>(null);
-  const [addingBounty, setAddingBounty] = useState<{ projectId: string } | null>(null);
-  const [newBounty, setNewBounty] = useState<BountyPrize>({ name: "", amount: 0, hackathonWonAtId: "" });
+  const [winnerFilter, setWinnerFilter] = useState<WinnerFilter>("all");
+  const [payoutModal, setPayoutModal] = useState<PayoutModalData | null>(null);
+  const [bulkMarkPaidDialog, setBulkMarkPaidDialog] = useState(false);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
-  // Helper to get SIWS auth header
-  const getSiwsAuthHeader = async (action: string): Promise<string> => {
+  // Helper to check if a project is a main track winner
+  const isMainTrackWinner = (project: any): boolean => {
+    return project.bountyPrize?.some((b: BountyPrize) => 
+      b.name.toLowerCase().includes("main track")
+    ) || false;
+  };
+
+  // Helper to get SIWS auth header for admin actions
+  const getSiwsAuthHeader = async (): Promise<string> => {
     if (!connectedAddress) {
       throw new Error("Please connect your wallet first.");
     }
@@ -73,17 +94,22 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     await web3Enable('Hackathonia');
     const accounts = await web3Accounts();
     const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-    if (!account) throw new Error("No wallet found");
+    
+    // DEV MODE: If no wallet available in development, use bypass
+    if (!account) {
+      if (import.meta.env.DEV) {
+        console.log('[DEV] Using dev-bypass auth header');
+        return 'dev-bypass';
+      }
+      throw new Error("No wallet found. Please connect your wallet extension.");
+    }
     
     const siws = new SiwsMessage({
       domain: window.location.hostname,
       uri: window.location.origin,
       address: account.address,
       nonce: Math.random().toString(36).slice(2),
-      statement: generateSiwsStatement({ action }),
-      chainId: 'polkadot:91b171bb158e2d3848fa23a9f1c25182',
-      issuedAt: new Date().toISOString(),
-      expirationTime: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      statement: generateSiwsStatement({ action: 'admin-action' }),
     });
     
     const injector = await web3FromSource(account.meta.source!);
@@ -104,47 +130,49 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     });
   };
 
-  // Filter: show projects with bountyPrize OR m2Status (winners)
+  // Filter: show only projects with bountyPrize entries (winners from CSV)
   const winnerProjects = (projects || []).filter(p => 
-    (p.bountyPrize && p.bountyPrize.length > 0) || p.m2Status
+    p.bountyPrize && p.bountyPrize.length > 0
   );
 
-  // Sort: by event date (newest first), then M2 first
-  const sortedProjects = [...winnerProjects].sort((a, b) => {
-    // First sort by event date (newest first)
-    const dateA = a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0;
-    const dateB = b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0;
-    if (dateB !== dateA) return dateB - dateA;
-    
-    // Then by type (M2 first)
-    const typeA = a.m2Status ? 0 : 1;
-    const typeB = b.m2Status ? 0 : 1;
-    return typeA - typeB;
+  // Apply winner type filter
+  const filteredProjects = winnerProjects.filter(p => {
+    if (winnerFilter === "all") return true;
+    if (winnerFilter === "main-track") return isMainTrackWinner(p);
+    if (winnerFilter === "bounty") return !isMainTrackWinner(p);
+    return true;
   });
 
-  // Determine winner type
-  const getWinnerType = (project: any) => {
-    if (project.m2Status) {
-      return { label: "M2 Winner", variant: "default" as const };
-    }
-    return { label: "Bounty", variant: "secondary" as const };
-  };
+  // Sort: by event date (newest first)
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    const dateA = a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0;
+    const dateB = b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0;
+    return dateB - dateA;
+  });
 
-  // Get status badge
-  const getStatusBadge = (project: any) => {
+  // Count by type for display
+  const mainTrackCount = winnerProjects.filter(isMainTrackWinner).length;
+  const bountyCount = winnerProjects.length - mainTrackCount;
+  
+  // Count unpaid projects (for bulk action)
+  const unpaidProjects = winnerProjects.filter(p => !p.bountiesProcessed);
+  const unpaidCount = unpaidProjects.length;
+
+  // Get M2 status display
+  const getM2StatusDisplay = (project: any) => {
+    if (!project.m2Status) {
+      return <span className="text-muted-foreground">—</span>;
+    }
     if (project.m2Status === 'completed') {
       return <Badge className="bg-green-500/10 text-green-500 border-green-500">Completed</Badge>;
     }
     if (project.m2Status === 'under_review') {
       return <Badge className="bg-orange-500/10 text-orange-500 border-orange-500">Under Review</Badge>;
     }
-    if (project.m2Status === 'building') {
-      return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500">Building</Badge>;
+    if (project.m2Status === 'active') {
+      return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500">Active</Badge>;
     }
-    if (project.bountiesProcessed) {
-      return <Badge className="bg-green-500/10 text-green-500 border-green-500">Paid</Badge>;
-    }
-    return <Badge variant="outline" className="text-muted-foreground">Pending</Badge>;
+    return <Badge variant="outline">{project.m2Status}</Badge>;
   };
 
   // Calculate total bounty amount
@@ -153,84 +181,81 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     return project.bountyPrize.reduce((sum: number, b: BountyPrize) => sum + b.amount, 0);
   };
 
-  // Toggle bountiesProcessed
-  const togglePaymentStatus = async (project: any) => {
-    setSaving(project.id);
-    try {
-      const authHeader = await getSiwsAuthHeader("toggle payment status");
-      await api.updateProjectDetails(project.id, {
-        bountiesProcessed: !project.bountiesProcessed,
-      }, authHeader);
-      toast({
-        title: "Payment status updated",
-        description: project.bountiesProcessed ? "Marked as unpaid" : "Marked as paid",
-      });
-      onRefresh();
-    } catch (error: any) {
-      toast({
-        title: "Failed to update",
-        description: error.message || "Could not update payment status",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(null);
-    }
+  // Open payout modal with project data
+  const openPayoutModal = (project: any) => {
+    const bounty = project.bountyPrize?.[0];
+    // Check if there's an existing BOUNTY payment in totalPaid
+    const existingBountyPayment = project.totalPaid?.find((p: any) => p.milestone === 'BOUNTY');
+    
+    setPayoutModal({
+      projectId: project.id,
+      projectName: project.projectName,
+      projectState: project.projectState || "Hackathon Submission",
+      bountiesProcessed: project.bountiesProcessed || false,
+      txProofUrl: existingBountyPayment?.transactionProof || bounty?.txHash || "",
+      bountyAmount: getTotalBounty(project),
+      bountyName: bounty?.name || "Bounty",
+      donationAddress: project.donationAddress || "",
+    });
   };
 
-  // Update project state
-  const updateProjectState = async (projectId: string, newState: string) => {
-    setSaving(projectId);
-    try {
-      const authHeader = await getSiwsAuthHeader("update project state");
-      await api.updateProjectDetails(projectId, {
-        projectState: newState,
-      }, authHeader);
-      toast({
-        title: "Project state updated",
-        description: `State changed to ${newState}`,
-      });
-      onRefresh();
-    } catch (error: any) {
-      toast({
-        title: "Failed to update",
-        description: error.message || "Could not update project state",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  // Save TX hash
-  const saveTxHash = async () => {
-    if (!editingTxHash) return;
-    setSaving(editingTxHash.projectId);
+  // Save payout modal changes
+  const savePayoutModal = async () => {
+    if (!payoutModal) return;
+    setSaving(payoutModal.projectId);
     
     try {
-      const authHeader = await getSiwsAuthHeader("add transaction hash");
-      const project = projects.find(p => p.id === editingTxHash.projectId);
+      const authHeader = await getSiwsAuthHeader();
+      const project = projects.find(p => p.id === payoutModal.projectId);
       if (!project) throw new Error("Project not found");
       
-      const updatedBounties = [...(project.bountyPrize || [])];
-      updatedBounties[editingTxHash.bountyIndex] = {
-        ...updatedBounties[editingTxHash.bountyIndex],
-        txHash: editingTxHash.txHash,
+      // Build update data
+      const updateData: Record<string, any> = {
+        projectState: payoutModal.projectState,
+        bountiesProcessed: payoutModal.bountiesProcessed,
       };
-      
-      await api.updateProjectDetails(editingTxHash.projectId, {
-        bountyPrize: updatedBounties,
-      }, authHeader);
+
+      // Update donation address if changed
+      if (payoutModal.donationAddress !== project.donationAddress) {
+        updateData.donationAddress = payoutModal.donationAddress;
+      }
+
+      // Update bounty amount if changed
+      const currentAmount = getTotalBounty(project);
+      if (payoutModal.bountyAmount !== currentAmount && project.bountyPrize?.length > 0) {
+        const updatedBounties = [...project.bountyPrize];
+        updatedBounties[0] = {
+          ...updatedBounties[0],
+          amount: payoutModal.bountyAmount,
+        };
+        updateData.bountyPrize = updatedBounties;
+      }
+
+      // Update project details
+      await api.updateProjectDetails(payoutModal.projectId, updateData, authHeader);
+
+      // If marking as paid with TX proof, add BOUNTY entry to totalPaid
+      const existingBountyPayment = project.totalPaid?.find((p: any) => p.milestone === 'BOUNTY');
+      if (payoutModal.bountiesProcessed && payoutModal.txProofUrl && !existingBountyPayment) {
+        await api.confirmPayment(payoutModal.projectId, {
+          milestone: 'BOUNTY',
+          amount: payoutModal.bountyAmount,
+          currency: 'USDC',
+          transactionProof: payoutModal.txProofUrl,
+          bountyName: payoutModal.bountyName,
+        }, authHeader);
+      }
       
       toast({
-        title: "TX hash saved",
-        description: "Transaction hash has been recorded",
+        title: "Project updated",
+        description: `${payoutModal.projectName} has been updated`,
       });
-      setEditingTxHash(null);
+      setPayoutModal(null);
       onRefresh();
     } catch (error: any) {
       toast({
-        title: "Failed to save",
-        description: error.message || "Could not save TX hash",
+        title: "Failed to update",
+        description: error.message || "Could not update project",
         variant: "destructive",
       });
     } finally {
@@ -238,77 +263,42 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     }
   };
 
-  // Save bounty edit
-  const saveBountyEdit = async () => {
-    if (!editingBounty) return;
-    setSaving(editingBounty.projectId);
+  // Bulk mark all unpaid projects as paid
+  const bulkMarkAsPaid = async () => {
+    setBulkUpdating(true);
+    let successCount = 0;
+    let failCount = 0;
     
     try {
-      const authHeader = await getSiwsAuthHeader("edit bounty prize");
-      const project = projects.find(p => p.id === editingBounty.projectId);
-      if (!project) throw new Error("Project not found");
+      const authHeader = await getSiwsAuthHeader();
       
-      const updatedBounties = [...(project.bountyPrize || [])];
-      updatedBounties[editingBounty.bountyIndex] = editingBounty.bounty;
-      
-      await api.updateProjectDetails(editingBounty.projectId, {
-        bountyPrize: updatedBounties,
-      }, authHeader);
+      for (const project of unpaidProjects) {
+        try {
+          await api.updateProjectDetails(project.id, {
+            bountiesProcessed: true,
+          }, authHeader);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to update ${project.projectName}:`, err);
+          failCount++;
+        }
+      }
       
       toast({
-        title: "Bounty updated",
-        description: "Prize details have been saved",
+        title: "Bulk update complete",
+        description: `Marked ${successCount} projects as paid${failCount > 0 ? `, ${failCount} failed` : ''}`,
       });
-      setEditingBounty(null);
+      
+      setBulkMarkPaidDialog(false);
       onRefresh();
     } catch (error: any) {
       toast({
-        title: "Failed to save",
-        description: error.message || "Could not save bounty",
+        title: "Bulk update failed",
+        description: error.message || "Could not complete bulk update",
         variant: "destructive",
       });
     } finally {
-      setSaving(null);
-    }
-  };
-
-  // Add new bounty
-  const addBountyToProject = async () => {
-    if (!addingBounty || !newBounty.name || !newBounty.amount) return;
-    setSaving(addingBounty.projectId);
-    
-    try {
-      const authHeader = await getSiwsAuthHeader("add bounty prize");
-      const project = projects.find(p => p.id === addingBounty.projectId);
-      if (!project) throw new Error("Project not found");
-      
-      const updatedBounties = [
-        ...(project.bountyPrize || []),
-        {
-          ...newBounty,
-          hackathonWonAtId: newBounty.hackathonWonAtId || project.hackathon?.id || "",
-        },
-      ];
-      
-      await api.updateProjectDetails(addingBounty.projectId, {
-        bountyPrize: updatedBounties,
-      }, authHeader);
-      
-      toast({
-        title: "Bounty added",
-        description: `Added ${newBounty.name} prize`,
-      });
-      setAddingBounty(null);
-      setNewBounty({ name: "", amount: 0, hackathonWonAtId: "" });
-      onRefresh();
-    } catch (error: any) {
-      toast({
-        title: "Failed to add",
-        description: error.message || "Could not add bounty",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(null);
+      setBulkUpdating(false);
     }
   };
 
@@ -325,23 +315,65 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
 
   return (
     <>
+      {/* Filter Controls */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filter:</span>
+          <div className="flex gap-1">
+            <Button
+              variant={winnerFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setWinnerFilter("all")}
+            >
+              All ({winnerProjects.length})
+            </Button>
+            <Button
+              variant={winnerFilter === "main-track" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setWinnerFilter("main-track")}
+            >
+              Main Track ({mainTrackCount})
+            </Button>
+            <Button
+              variant={winnerFilter === "bounty" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setWinnerFilter("bounty")}
+            >
+              Other Bounties ({bountyCount})
+            </Button>
+          </div>
+        </div>
+        
+        {/* Bulk Actions */}
+        {connectedAddress && unpaidCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBulkMarkPaidDialog(true)}
+            className="gap-1"
+          >
+            <CheckCheck className="h-4 w-4" />
+            Mark All as Paid ({unpaidCount})
+          </Button>
+        )}
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className={connectedAddress ? "w-[20%]" : "w-[25%]"}>Project</TableHead>
+                <TableHead className={connectedAddress ? "w-[18%]" : "w-[22%]"}>Project</TableHead>
                 <TableHead className={connectedAddress ? "w-[12%]" : "w-[15%]"}>Event</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Type</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Status</TableHead>
-                <TableHead className={connectedAddress ? "w-[15%]" : "w-[20%]"}>Amount</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[16%]"}>Payment</TableHead>
-                {connectedAddress && <TableHead className="w-[23%] text-right">Actions</TableHead>}
+                <TableHead className={connectedAddress ? "w-[20%]" : "w-[24%]"}>Track/Bounty</TableHead>
+                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Amount</TableHead>
+                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>M2 Status</TableHead>
+                <TableHead className={connectedAddress ? "w-[10%]" : "w-[15%]"}>Payment</TableHead>
+                {connectedAddress && <TableHead className="w-[20%] text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedProjects.map((project) => {
-                const type = getWinnerType(project);
                 const totalBounty = getTotalBounty(project);
                 const isSaving = saving === project.id;
 
@@ -360,57 +392,34 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
                       <p className="text-sm">{project.hackathon?.name || "N/A"}</p>
                     </TableCell>
 
-                    {/* Type */}
+                    {/* Track/Bounty - simplified, no edit buttons */}
                     <TableCell>
-                      <Badge variant={type.variant}>{type.label}</Badge>
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell>
-                      {getStatusBadge(project)}
+                      <div className="space-y-1">
+                        {project.bountyPrize.map((b: BountyPrize, idx: number) => (
+                          <div key={idx}>
+                            <span className="text-sm">{b.name}</span>
+                          </div>
+                        ))}
+                      </div>
                     </TableCell>
 
                     {/* Amount */}
                     <TableCell>
                       <div className="space-y-1">
-                        {project.bountyPrize && project.bountyPrize.length > 0 ? (
-                          <>
-                            <p className="font-semibold">${totalBounty.toLocaleString()}</p>
+                        <p className="font-semibold">${totalBounty.toLocaleString()}</p>
+                        {project.bountyPrize.length > 1 && (
+                          <div className="text-xs text-muted-foreground">
                             {project.bountyPrize.map((b: BountyPrize, idx: number) => (
-                              <div key={idx} className="text-xs text-muted-foreground flex items-center gap-1">
-                                <span>{b.name}: ${b.amount.toLocaleString()}</span>
-                                {connectedAddress && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5"
-                                    onClick={() => setEditingBounty({ 
-                                      projectId: project.id, 
-                                      bountyIndex: idx, 
-                                      bounty: { ...b } 
-                                    })}
-                                  >
-                                    <Edit className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </div>
+                              <div key={idx}>${b.amount.toLocaleString()}</div>
                             ))}
-                          </>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No bounty</p>
-                        )}
-                        {connectedAddress && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-xs"
-                            onClick={() => setAddingBounty({ projectId: project.id })}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add Prize
-                          </Button>
+                          </div>
                         )}
                       </div>
+                    </TableCell>
+
+                    {/* M2 Status */}
+                    <TableCell>
+                      {getM2StatusDisplay(project)}
                     </TableCell>
 
                     {/* Payment */}
@@ -426,29 +435,29 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
                           <span className="text-sm">Not paid</span>
                         </div>
                       )}
-                      {project.bountyPrize?.some((b: BountyPrize) => b.txHash) && (
+                      {/* Show TX link if exists */}
+                      {(project.totalPaid?.some((p: any) => p.milestone === 'BOUNTY' && p.transactionProof) ||
+                        project.bountyPrize?.some((b: BountyPrize) => b.txHash)) && (
                         <div className="mt-1">
-                          {project.bountyPrize.map((b: BountyPrize, idx: number) => 
-                            b.txHash && (
-                              <a
-                                key={idx}
-                                href={b.txHash.startsWith('http') ? b.txHash : `https://polkadot.subscan.io/extrinsic/${b.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary hover:underline flex items-center gap-1"
-                              >
-                                TX <ExternalLink className="h-3 w-3" />
-                              </a>
-                            )
-                          )}
+                          {project.totalPaid?.filter((p: any) => p.milestone === 'BOUNTY' && p.transactionProof).map((p: any, idx: number) => (
+                            <a
+                              key={`tp-${idx}`}
+                              href={p.transactionProof.startsWith('http') ? p.transactionProof : `https://polkadot.subscan.io/extrinsic/${p.transactionProof}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              TX <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ))}
                         </div>
                       )}
                     </TableCell>
 
-                    {/* Actions - only show when wallet connected */}
+                    {/* Actions - unified Confirm Payout for all rows */}
                     {connectedAddress && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2 flex-wrap">
+                        <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -460,52 +469,21 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
                           </Button>
                           
                           <Button
-                            variant={project.bountiesProcessed ? "outline" : "default"}
+                            variant="default"
                             size="sm"
                             className="h-8"
-                            onClick={() => togglePaymentStatus(project)}
+                            onClick={() => openPayoutModal(project)}
                             disabled={isSaving}
                           >
                             {isSaving ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : project.bountiesProcessed ? (
-                              "Mark Unpaid"
                             ) : (
-                              "Mark Paid"
+                              <>
+                                <Settings className="h-4 w-4 mr-1" />
+                                Manage
+                              </>
                             )}
                           </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                            onClick={() => {
-                              const bounty = project.bountyPrize?.[0];
-                              setEditingTxHash({
-                                projectId: project.id,
-                                bountyIndex: 0,
-                                txHash: bounty?.txHash || "",
-                              });
-                            }}
-                          >
-                            Add TX
-                          </Button>
-
-                          <Select
-                            value={project.projectState || "Hackathon Submission"}
-                            onValueChange={(value) => updateProjectState(project.id, value)}
-                            disabled={isSaving}
-                          >
-                            <SelectTrigger className="h-8 w-[140px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Hackathon Submission">Hackathon Submission</SelectItem>
-                              <SelectItem value="Bounty Payout">Bounty Payout</SelectItem>
-                              <SelectItem value="Milestone Delivered">Milestone Delivered</SelectItem>
-                              <SelectItem value="Abandoned">Abandoned</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
                       </TableCell>
                     )}
@@ -517,122 +495,143 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
         </CardContent>
       </Card>
 
-      {/* TX Hash Dialog */}
-      <Dialog open={!!editingTxHash} onOpenChange={() => setEditingTxHash(null)}>
-        <DialogContent>
+      {/* Unified Payout Management Modal */}
+      <Dialog open={!!payoutModal} onOpenChange={() => setPayoutModal(null)}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Transaction Hash</DialogTitle>
+            <DialogTitle>Manage Payout</DialogTitle>
             <DialogDescription>
-              Enter the transaction hash or Subscan URL for this payment.
+              Update payout details for <strong>{payoutModal?.projectName}</strong>
             </DialogDescription>
           </DialogHeader>
+          
           <div className="space-y-4">
+            {/* Project State Dropdown */}
             <div className="space-y-2">
-              <Label>TX Hash or URL</Label>
-              <Input
-                value={editingTxHash?.txHash || ""}
-                onChange={(e) => setEditingTxHash(prev => prev ? { ...prev, txHash: e.target.value } : null)}
-                placeholder="e.g., 0x... or https://polkadot.subscan.io/extrinsic/..."
-              />
+              <Label>Project State</Label>
+              <Select
+                value={payoutModal?.projectState || "Hackathon Submission"}
+                onValueChange={(value) => setPayoutModal(prev => prev ? { ...prev, projectState: value } : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hackathon Submission">Hackathon Submission</SelectItem>
+                  <SelectItem value="Bounty Payout">Bounty Payout</SelectItem>
+                  <SelectItem value="Milestone Delivered">Milestone Delivered</SelectItem>
+                  <SelectItem value="Abandoned">Abandoned</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingTxHash(null)}>Cancel</Button>
-            <Button onClick={saveTxHash} disabled={saving !== null}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Edit Bounty Dialog */}
-      <Dialog open={!!editingBounty} onOpenChange={() => setEditingBounty(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Prize</DialogTitle>
-            <DialogDescription>
-              Update the prize details for this project.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
+            {/* Bounty Amount (editable) */}
             <div className="space-y-2">
-              <Label>Prize Name</Label>
-              <Input
-                value={editingBounty?.bounty.name || ""}
-                onChange={(e) => setEditingBounty(prev => prev ? { 
-                  ...prev, 
-                  bounty: { ...prev.bounty, name: e.target.value } 
-                } : null)}
-                placeholder="e.g., Best DeFi Project"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Amount (USD)</Label>
+              <Label>Bounty Amount (USD)</Label>
               <Input
                 type="number"
-                value={editingBounty?.bounty.amount || 0}
-                onChange={(e) => setEditingBounty(prev => prev ? { 
-                  ...prev, 
-                  bounty: { ...prev.bounty, amount: Number(e.target.value) } 
-                } : null)}
-                placeholder="1000"
+                value={payoutModal?.bountyAmount || 0}
+                onChange={(e) => setPayoutModal(prev => prev ? { ...prev, bountyAmount: Number(e.target.value) } : null)}
               />
+              <p className="text-xs text-muted-foreground">
+                Prize: {payoutModal?.bountyName}
+              </p>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingBounty(null)}>Cancel</Button>
-            <Button onClick={saveBountyEdit} disabled={saving !== null}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Add Bounty Dialog */}
-      <Dialog open={!!addingBounty} onOpenChange={() => setAddingBounty(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Prize</DialogTitle>
-            <DialogDescription>
-              Add a new prize/bounty to this project.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
+            {/* Donation Address */}
             <div className="space-y-2">
-              <Label>Prize Name</Label>
+              <Label>Payout Address</Label>
               <Input
-                value={newBounty.name}
-                onChange={(e) => setNewBounty(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Best DeFi Project"
+                value={payoutModal?.donationAddress || ""}
+                onChange={(e) => setPayoutModal(prev => prev ? { ...prev, donationAddress: e.target.value } : null)}
+                placeholder="Enter wallet address..."
               />
             </div>
+
+            {/* TX Proof URL */}
             <div className="space-y-2">
-              <Label>Amount (USD)</Label>
+              <Label>TX Proof URL</Label>
               <Input
-                type="number"
-                value={newBounty.amount || ""}
-                onChange={(e) => setNewBounty(prev => ({ ...prev, amount: Number(e.target.value) }))}
-                placeholder="1000"
+                value={payoutModal?.txProofUrl || ""}
+                onChange={(e) => setPayoutModal(prev => prev ? { ...prev, txProofUrl: e.target.value } : null)}
+                placeholder="e.g., https://polkadot.subscan.io/extrinsic/..."
               />
+              <p className="text-xs text-muted-foreground">
+                Subscan URL or transaction hash for payment proof
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label>Hackathon ID (optional)</Label>
-              <Input
-                value={newBounty.hackathonWonAtId}
-                onChange={(e) => setNewBounty(prev => ({ ...prev, hackathonWonAtId: e.target.value }))}
-                placeholder="e.g., synergy-2025"
+
+            {/* Bounties Processed Checkbox */}
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox
+                id="bountiesProcessed"
+                checked={payoutModal?.bountiesProcessed || false}
+                onCheckedChange={(checked) => setPayoutModal(prev => prev ? { ...prev, bountiesProcessed: checked === true } : null)}
               />
+              <Label htmlFor="bountiesProcessed" className="text-sm font-normal cursor-pointer">
+                Mark as paid
+              </Label>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddingBounty(null); setNewBounty({ name: "", amount: 0, hackathonWonAtId: "" }); }}>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setPayoutModal(null)}>
               Cancel
             </Button>
-            <Button onClick={addBountyToProject} disabled={saving !== null || !newBounty.name || !newBounty.amount}>
+            <Button 
+              onClick={savePayoutModal} 
+              disabled={saving !== null}
+            >
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Add Prize
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Mark as Paid Confirmation Dialog */}
+      <Dialog open={bulkMarkPaidDialog} onOpenChange={setBulkMarkPaidDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark All as Paid</DialogTitle>
+            <DialogDescription>
+              This will mark <strong>{unpaidCount} projects</strong> as paid (set <code>bountiesProcessed: true</code>).
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-2">Projects to be updated:</p>
+            <div className="max-h-48 overflow-y-auto border rounded-md p-2 bg-muted/30">
+              {unpaidProjects.slice(0, 20).map((p) => (
+                <div key={p.id} className="text-sm py-1 flex justify-between">
+                  <span>{p.projectName}</span>
+                  <span className="text-muted-foreground">${getTotalBounty(p).toLocaleString()}</span>
+                </div>
+              ))}
+              {unpaidProjects.length > 20 && (
+                <div className="text-sm text-muted-foreground py-1">
+                  ... and {unpaidProjects.length - 20} more
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkMarkPaidDialog(false)} disabled={bulkUpdating}>
+              Cancel
+            </Button>
+            <Button onClick={bulkMarkAsPaid} disabled={bulkUpdating}>
+              {bulkUpdating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <CheckCheck className="h-4 w-4 mr-2" />
+                  Mark All as Paid
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

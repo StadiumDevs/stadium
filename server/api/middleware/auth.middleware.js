@@ -72,7 +72,13 @@ function validateSiwsStatement(statement) {
 export const requireAdmin = async (req, res, next) => {
   log(`Initiating admin verification for ${req.method} ${req.originalUrl}`);
 
+  // DEV MODE BYPASS: Skip auth in development when header contains 'dev-bypass'
   const authHeader = req.headers['x-siws-auth'];
+  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
+    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication'));
+    req.adminAddress = ADMIN_WALLETS[0] || 'dev-admin';
+    return next();
+  }
 
   if (!authHeader) {
     logError('Verification failed: Missing x-siws-auth header.');
@@ -208,6 +214,14 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
   }
 
   const authHeader = req.headers['x-siws-auth'];
+  
+  // DEV MODE BYPASS: Skip auth in development when header contains 'dev-bypass'
+  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
+    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for team/admin'));
+    req.auth = { address: ADMIN_WALLETS[0] || 'dev-admin', isAdmin: true };
+    return next();
+  }
+  
   if (!authHeader) {
     logError('Verification failed: Missing x-siws-auth header.');
     return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
