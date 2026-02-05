@@ -310,19 +310,19 @@ class ProjectController {
     }
 
     /**
-     * Confirm payment for M1 or M2 milestone
+     * Confirm payment for M1, M2, or BOUNTY
      * Admin only - records payment with transaction proof
      */
     async confirmPayment(req, res) {
         try {
             const { projectId } = req.params;
-            const { milestone, amount, currency, transactionProof } = req.body;
+            const { milestone, amount, currency, transactionProof, bountyName } = req.body;
 
             // Validation
-            if (!milestone || !['M1', 'M2'].includes(milestone)) {
+            if (!milestone || !['M1', 'M2', 'BOUNTY'].includes(milestone)) {
                 return res.status(400).json({
                     status: 'error',
-                    error: 'Invalid milestone. Must be M1 or M2'
+                    error: 'Invalid milestone. Must be M1, M2, or BOUNTY'
                 });
             }
 
@@ -347,6 +347,14 @@ class ProjectController {
                 });
             }
 
+            // BOUNTY payments require bountyName
+            if (milestone === 'BOUNTY' && !bountyName) {
+                return res.status(400).json({
+                    status: 'error',
+                    error: 'bountyName is required for BOUNTY payments'
+                });
+            }
+
             // Get project
             const project = await projectService.getProjectById(projectId);
             if (!project) {
@@ -356,12 +364,22 @@ class ProjectController {
                 });
             }
 
-            // Check if already paid
-            const alreadyPaid = project.totalPaid?.some(p => p.milestone === milestone);
+            // Check if already paid (for M1/M2, check milestone; for BOUNTY, check milestone + bountyName)
+            let alreadyPaid = false;
+            if (milestone === 'BOUNTY') {
+                alreadyPaid = project.totalPaid?.some(p => 
+                    p.milestone === 'BOUNTY' && p.bountyName === bountyName
+                );
+            } else {
+                alreadyPaid = project.totalPaid?.some(p => p.milestone === milestone);
+            }
+            
             if (alreadyPaid) {
                 return res.status(400).json({
                     status: 'error',
-                    error: `${milestone} has already been paid`
+                    error: milestone === 'BOUNTY' 
+                        ? `Bounty "${bountyName}" has already been paid`
+                        : `${milestone} has already been paid`
                 });
             }
 
@@ -370,33 +388,46 @@ class ProjectController {
                 milestone,
                 amount,
                 currency,
-                transactionProof
+                transactionProof,
+                paidDate: new Date()
             };
+
+            // Add bountyName only for BOUNTY payments
+            if (milestone === 'BOUNTY') {
+                paymentData.bountyName = bountyName;
+            }
 
             // Add payment to totalPaid array
             const updatedTotalPaid = [...(project.totalPaid || []), paymentData];
 
-            // If M2 payment, mark project as completed
+            // Build update data
             const updateData = {
                 totalPaid: updatedTotalPaid
             };
 
+            // GUARD: Only update m2Status for M2 payments, NOT for BOUNTY
             if (milestone === 'M2') {
                 updateData.m2Status = 'completed';
                 updateData.completionDate = new Date().toISOString();
                 logger.info(`[PAYMENT] M2 completed for project ${projectId}`);
             }
+            // Note: BOUNTY payments do NOT affect m2Status
 
             // Update project
             const updatedProject = await projectService.updateProject(projectId, updateData);
 
             logger.info(`[PAYMENT] ${milestone} payment confirmed for project ${projectId}`);
+            if (milestone === 'BOUNTY') {
+                logger.info(`  Bounty: ${bountyName}`);
+            }
             logger.info(`  Amount: ${amount} ${currency}`);
             logger.info(`  Transaction: ${transactionProof}`);
 
             res.json({
                 status: 'success',
-                message: `${milestone} payment confirmed successfully`,
+                message: milestone === 'BOUNTY' 
+                    ? `Bounty "${bountyName}" payment confirmed successfully`
+                    : `${milestone} payment confirmed successfully`,
                 data: updatedProject
             });
         } catch (error) {
