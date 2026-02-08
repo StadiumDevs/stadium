@@ -9,24 +9,27 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ExternalLink, Github, Trophy } from "lucide-react"
+import { ExternalLink, Github, Globe, Trophy } from "lucide-react"
 import { DemoPlayer } from "@/components/DemoPlayer"
+
+export interface ProjectDetailModalProject {
+  title: string
+  author: string
+  description: string
+  longDescription?: string
+  track: string
+  isWinner?: boolean
+  demoUrl?: string
+  githubUrl?: string
+  projectUrl?: string
+  liveUrl?: string
+  eventStartedAt?: string
+}
 
 interface ProjectDetailModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  project: {
-    title: string
-    author: string
-    description: string
-    longDescription?: string
-    track: string
-    isWinner?: boolean
-    demoUrl?: string
-    githubUrl?: string
-    projectUrl?: string
-    eventStartedAt?: string
-  }
+  project: ProjectDetailModalProject
 }
 
 export function ProjectDetailModal({
@@ -65,7 +68,23 @@ export function ProjectDetailModal({
           </div>
         </DialogHeader>
 
-        {/* Demo Player Section */}
+        {/* Live site: primary when present */}
+        {project.liveUrl && project.liveUrl !== "nan" && (
+          <div className="my-4">
+            <a
+              href={project.liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-4 px-4 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Globe className="h-5 w-5" aria-hidden="true" />
+              Visit live site
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          </div>
+        )}
+
+        {/* Demo Player Section (when no live URL or in addition) */}
         {project.demoUrl && project.demoUrl !== "nan" && (
           <div className="my-4">
             <DemoPlayer demoUrl={project.demoUrl} title={project.title} />
@@ -103,9 +122,21 @@ export function ProjectDetailModal({
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 pt-4">
-            {project.projectUrl && (
+            {project.liveUrl && project.liveUrl !== "nan" && (
               <Button
                 variant="default"
+                className="flex-1 gap-2"
+                asChild
+              >
+                <a href={project.liveUrl} target="_blank" rel="noopener noreferrer">
+                  <Globe className="h-4 w-4" aria-hidden="true" />
+                  Visit live site
+                </a>
+              </Button>
+            )}
+            {project.projectUrl && (
+              <Button
+                variant={project.liveUrl ? "outline" : "default"}
                 className="flex-1"
                 onClick={handleProjectPageClick}
               >

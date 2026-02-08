@@ -78,6 +78,7 @@ const ProjectDetailsPage = () => {
     projectRepo?: string;
     demoUrl?: string;
     slidesUrl?: string;
+    liveUrl?: string;
     techStack?: string | string[];
     categories?: string[];
     milestones?: ApiMilestone[];
@@ -512,6 +513,7 @@ const ProjectDetailsPage = () => {
     projectRepo?: string;
     demoUrl?: string;
     slidesUrl?: string;
+    liveUrl?: string;
     categories: string[];
     techStack: string[];
   }) => {
@@ -560,6 +562,7 @@ const ProjectDetailsPage = () => {
         projectRepo: data.projectRepo,
         demoUrl: data.demoUrl,
         slidesUrl: data.slidesUrl,
+        liveUrl: data.liveUrl,
         categories: data.categories,
         techStack: data.techStack,
       } as ApiProject : prev));
@@ -964,6 +967,14 @@ const ProjectDetailsPage = () => {
               
               {/* Link Buttons */}
               <div className="flex gap-3 flex-wrap">
+                {project.liveUrl && project.liveUrl !== "nan" && (
+                  <Button variant="outline" asChild>
+                    <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      <span>Live site</span>
+                    </a>
+                  </Button>
+                )}
                 {project.projectRepo && project.projectRepo !== "nan" && (
                   <Button variant="outline" asChild>
                     <a href={project.projectRepo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
@@ -1027,6 +1038,21 @@ const ProjectDetailsPage = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      {project.liveUrl && project.liveUrl !== "nan" && (
+                        <a 
+                          href={project.liveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <Globe className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Live site</div>
+                            <div className="text-xs text-muted-foreground">Visit the project</div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        </a>
+                      )}
                       <a 
                         href={project.finalSubmission.repoUrl}
                         target="_blank"
@@ -1089,9 +1115,15 @@ const ProjectDetailsPage = () => {
                       {project.m2Status === 'completed' || project.m2Status === 'under_review' ? (
                         <>
                           <h3 className="font-medium mb-2">Deliverables not recorded</h3>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground mb-4">
                             This project was marked {project.m2Status === 'completed' ? 'completed' : 'under review'} but no final submission (repo, demo, docs) was stored. You can submit or update deliverables below to add them here.
                           </p>
+                          {project.liveUrl && project.liveUrl !== "nan" && (
+                            <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-primary hover:underline">
+                              <Globe className="h-4 w-4" />
+                              <span>Visit live site</span>
+                            </a>
+                          )}
                         </>
                       ) : (
                         <>
@@ -1373,6 +1405,7 @@ const ProjectDetailsPage = () => {
               projectRepo: project.projectRepo,
               demoUrl: project.demoUrl,
               slidesUrl: project.slidesUrl,
+              liveUrl: project.liveUrl,
               categories: project.categories,
               techStack: Array.isArray(project.techStack) ? project.techStack : [],
             }}

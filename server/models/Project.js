@@ -24,6 +24,8 @@ const ProjectSchema = new mongoose.Schema({
   projectRepo: { type: String },
   demoUrl: { type: String },
   slidesUrl: { type: String },
+  /** Live/production website URL (e.g. https://kleo.finance/) */
+  liveUrl: { type: String },
   techStack: { type: [String], required: true },
   categories: { type: [String], default: [] },
   milestones: [{

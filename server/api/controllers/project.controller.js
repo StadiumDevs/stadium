@@ -1,7 +1,7 @@
 import projectService from '../services/project.service.js';
 import paymentService from '../services/payment.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
-import { validateSS58, validateM2Submission } from '../utils/validation.js';
+import { validateSS58, validateM2Submission, validateSimpleUrl } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
@@ -79,6 +79,13 @@ class ProjectController {
                 // Prevent user from setting 'Winners' directly; backend will enforce derivation
                 if (updateData.categories.includes('Winners')) {
                     return res.status(422).json({ status: "error", message: "'Winners' category is managed automatically and cannot be set manually." });
+                }
+            }
+
+            if (Object.prototype.hasOwnProperty.call(updateData, 'liveUrl')) {
+                const v = updateData.liveUrl;
+                if (v != null && v !== '' && !validateSimpleUrl(v)) {
+                    return res.status(422).json({ status: "error", message: "liveUrl must be a valid URL (e.g. https://example.com)" });
                 }
             }
 

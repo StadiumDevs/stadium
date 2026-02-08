@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 // Lazy load heavy components
 const FilterSidebar = lazy(() => import("@/components/FilterSidebar").then(module => ({ default: module.FilterSidebar })));
 const ProjectDetailModal = lazy(() => import("@/components/ProjectDetailModal").then(module => ({ default: module.ProjectDetailModal })));
+import type { ProjectDetailModalProject } from "@/components/ProjectDetailModal";
 
 type ProjectCardData = {
   id: string;
@@ -28,6 +29,7 @@ type ProjectCardData = {
   demoUrl?: string;
   githubUrl?: string;
   projectUrl?: string;
+  liveUrl?: string;
   eventStartedAt?: string;
   m2Status?: "building" | "under_review" | "completed";
   m2Week?: number;
@@ -125,6 +127,7 @@ const HomePage = () => {
       demoUrl: project.demoUrl,
       githubUrl: project.projectRepo,
       projectUrl: project.id ? `/m2-program/${project.id}` : undefined,
+      liveUrl: project.liveUrl,
       eventStartedAt: eventStartedAt,
       m2Status: project.m2Status,
       showM2Progress: hasM2,
@@ -595,8 +598,9 @@ const HomePage = () => {
               demoUrl: selectedProject.demoUrl,
               githubUrl: selectedProject.githubUrl,
               projectUrl: selectedProject.projectUrl,
+              liveUrl: selectedProject.liveUrl,
               eventStartedAt: selectedProject.eventStartedAt,
-            }}
+            } as ProjectDetailModalProject}
           />
         </Suspense>
       )}

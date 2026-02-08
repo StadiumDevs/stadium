@@ -58,6 +58,11 @@ const formSchema = z.object({
     .max(500, "URL must be less than 500 characters")
     .optional()
     .or(z.literal("")),
+  liveUrl: z
+    .string()
+    .max(500, "URL must be less than 500 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -72,6 +77,7 @@ interface EditProjectDetailsModalProps {
     projectRepo?: string;
     demoUrl?: string;
     slidesUrl?: string;
+    liveUrl?: string;
     categories?: string[];
     techStack?: string[];
   };
@@ -81,6 +87,7 @@ interface EditProjectDetailsModalProps {
     projectRepo?: string;
     demoUrl?: string;
     slidesUrl?: string;
+    liveUrl?: string;
     categories: string[];
     techStack: string[];
   }) => Promise<void>;
@@ -104,6 +111,7 @@ export function EditProjectDetailsModal({
       projectRepo: "",
       demoUrl: "",
       slidesUrl: "",
+      liveUrl: "",
     },
   });
 
@@ -116,6 +124,7 @@ export function EditProjectDetailsModal({
         projectRepo: project.projectRepo || "",
         demoUrl: project.demoUrl || "",
         slidesUrl: project.slidesUrl || "",
+        liveUrl: project.liveUrl || "",
       });
       setSelectedCategories(project.categories || []);
       setTechStack(project.techStack || []);
@@ -157,6 +166,7 @@ export function EditProjectDetailsModal({
         projectRepo: data.projectRepo || undefined,
         demoUrl: data.demoUrl || undefined,
         slidesUrl: data.slidesUrl || undefined,
+        liveUrl: data.liveUrl || undefined,
         categories: selectedCategories,
         techStack: techStack,
       });
@@ -270,6 +280,25 @@ export function EditProjectDetailsModal({
                 {form.formState.errors.slidesUrl.message}
               </p>
             )}
+          </div>
+
+          {/* Live / website URL */}
+          <div className="space-y-2">
+            <Label htmlFor="liveUrl">Live site URL</Label>
+            <Input
+              id="liveUrl"
+              {...form.register("liveUrl")}
+              placeholder="https://your-project.com"
+              className="font-mono text-sm"
+            />
+            {form.formState.errors.liveUrl && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.liveUrl.message}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Production or live website (e.g. https://kleo.finance/)
+            </p>
           </div>
 
           {/* Categories */}

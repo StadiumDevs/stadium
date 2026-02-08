@@ -86,6 +86,8 @@ export type ApiProject = {
   projectRepo?: string;
   demoUrl?: string;
   slidesUrl?: string;
+  /** Live/production website URL */
+  liveUrl?: string;
   donationAddress?: string;
   bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
   techStack?: string[];
@@ -536,6 +538,7 @@ export const api = {
       projectRepo?: string;
       demoUrl?: string;
       slidesUrl?: string;
+      liveUrl?: string;
       categories?: string[];
       techStack?: string[];
       bountiesProcessed?: boolean;

@@ -38,6 +38,7 @@ type ProjectCardData = {
   demoUrl?: string;
   githubUrl?: string;
   projectUrl?: string;
+  liveUrl?: string;
   longDescription?: string;
 };
 
@@ -104,6 +105,7 @@ const WinnersPage = () => {
             demoUrl: p.demoUrl,
             githubUrl: p.projectRepo,
             projectUrl: p.id ? `/m2-program/${p.id}` : undefined,
+            liveUrl: p.liveUrl,
             longDescription: p.description,
           };
         });
@@ -218,6 +220,7 @@ const WinnersPage = () => {
               demoUrl: selectedProject.demoUrl,
               githubUrl: selectedProject.githubUrl,
               projectUrl: selectedProject.projectUrl,
+              liveUrl: selectedProject.liveUrl,
             }}
           />
         </Suspense>
