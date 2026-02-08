@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, lazy, Suspense, useCallback } from "react";
-import { Filter, FolderOpen, Trophy, Users } from "lucide-react";
+import { Filter, FolderOpen, Trophy, Users, Rocket, ArrowRight, CheckCircle2, Github } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,29 +9,13 @@ import { SearchBar } from "@/components/SearchBar";
 import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { NoProjectsFound } from "@/components/EmptyState";
-import { api } from "@/lib/api";
+import { api, type ApiProject } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 
 // Lazy load heavy components
 const FilterSidebar = lazy(() => import("@/components/FilterSidebar").then(module => ({ default: module.FilterSidebar })));
 const ProjectDetailModal = lazy(() => import("@/components/ProjectDetailModal").then(module => ({ default: module.ProjectDetailModal })));
-
-type ApiProject = {
-  id: string;
-  projectName: string;
-  description: string;
-  teamMembers?: { name: string }[];
-  projectRepo?: string;
-  demoUrl?: string;
-  slidesUrl?: string;
-  donationAddress?: string;
-  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
-  techStack?: string[];
-  categories?: string[];
-  m2Status?: 'building' | 'under_review' | 'completed';
-  hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
-};
 
 type ProjectCardData = {
   id: string;
@@ -43,6 +28,17 @@ type ProjectCardData = {
   githubUrl?: string;
   projectUrl?: string;
   eventStartedAt?: string;
+  m2Status?: "building" | "under_review" | "completed";
+  m2Week?: number;
+  showM2Progress?: boolean;
+  submittedDate?: string;
+  completionDate?: string;
+  totalPaid?: Array<{
+    milestone: "M1" | "M2";
+    amount: number;
+    currency: "USDC" | "DOT";
+    transactionProof: string;
+  }>;
 };
 
 // Map filter IDs to category names
@@ -112,12 +108,11 @@ const HomePage = () => {
 
   // Convert API project to ProjectCard format
   const convertToProjectCard = (project: ApiProject): ProjectCardData => {
-    const track = project.bountyPrize?.[0]?.name || 
+    const track = project.bountyPrize?.[0]?.name ||
                  (project.categories?.[0] || "Other");
     const isWinner = Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0;
-    
-    // Get eventStartedAt from hackathon (should always be present)
     const eventStartedAt = project.hackathon?.eventStartedAt;
+    const hasM2 = project.m2Status != null;
 
     return {
       id: project.id,
@@ -130,6 +125,11 @@ const HomePage = () => {
       githubUrl: project.projectRepo,
       projectUrl: project.id ? `/m2-program/${project.id}` : undefined,
       eventStartedAt: eventStartedAt,
+      m2Status: project.m2Status,
+      showM2Progress: hasM2,
+      submittedDate: project.submittedDate,
+      completionDate: project.completionDate,
+      totalPaid: project.totalPaid as ProjectCardData["totalPaid"],
     };
   };
 
@@ -195,6 +195,26 @@ const HomePage = () => {
     const m2Graduates = projects.filter(p => p.m2Status === 'completed').length;
     return { totalProjects, winners, m2Graduates };
   }, [projects]);
+
+  // Recently completed M2 projects (sorted by completion date, newest first)
+  // Returns raw ApiProject objects to access completion date and other fields
+  const recentlyShipped = useMemo(() => {
+    return projects
+      .filter(p => p.m2Status === 'completed')
+      .sort((a, b) => {
+        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        return dateB - dateA; // Newest first
+      })
+      .slice(0, 4);
+  }, [projects]);
+
+  // Format completion date for display
+  const formatCompletionDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
   const handleFilterChange = useCallback((filterId: string) => {
     setActiveFilters((prev) =>
@@ -357,6 +377,112 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* Recently Shipped Spotlight Section */}
+      {recentlyShipped.length > 0 && (
+        <section className="relative py-12 overflow-hidden">
+          {/* Gradient Background */}
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-primary/10 to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_hsl(var(--primary)/0.15)_0%,_transparent_70%)]" />
+          
+          <div className="relative container mx-auto px-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              {/* Section Header */}
+              <div className="text-center mb-10">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
+                  <Rocket className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-primary">Milestone 2 Complete</span>
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-3">Recently Shipped</h2>
+                <p className="text-muted-foreground text-lg">
+                  Teams that recently completed their Milestone 2
+                </p>
+              </div>
+              
+              {/* Spotlight Cards - Horizontal Layout */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {recentlyShipped.map((project, index) => (
+                  <motion.div
+                    key={project.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 + index * 0.1 }}
+                  >
+                    <Link 
+                      to={`/m2-program/${project.id}`}
+                      className="group block"
+                    >
+                      <div className="glass-panel rounded-xl border border-primary/20 p-6 hover:border-primary/40 hover:purple-glow transition-all duration-300">
+                        <div className="flex gap-5">
+                          {/* Left: Icon/Badge */}
+                          <div className="flex-shrink-0">
+                            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 flex items-center justify-center group-hover:scale-105 transition-transform">
+                              <CheckCircle2 className="h-7 w-7 text-primary" />
+                            </div>
+                          </div>
+                          
+                          {/* Right: Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Title & Author */}
+                            <h3 className="text-xl font-bold mb-1 group-hover:text-primary transition-colors truncate">
+                              {project.projectName}
+                            </h3>
+                            <p className="text-sm text-muted-foreground mb-3">
+                              by {project.teamMembers?.[0]?.name || 'Team'}
+                              {project.completionDate && (
+                                <span className="ml-2 text-primary/70">
+                                  • Shipped {formatCompletionDate(project.completionDate)}
+                                </span>
+                              )}
+                            </p>
+                            
+                            {/* Description */}
+                            <p className="text-muted-foreground text-sm line-clamp-2 mb-4">
+                              {project.description}
+                            </p>
+                            
+                            {/* Footer: Track & Link */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {project.bountyPrize?.[0]?.name && (
+                                  <span className="px-2 py-1 text-xs rounded-md bg-primary/10 text-primary border border-primary/20">
+                                    {project.bountyPrize[0].name}
+                                  </span>
+                                )}
+                                {project.projectRepo && (
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      window.open(project.projectRepo, '_blank', 'noopener,noreferrer');
+                                    }}
+                                    className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                                  >
+                                    <Github className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                                  </button>
+                                )}
+                              </div>
+                              <span className="inline-flex items-center gap-1 text-sm font-medium text-primary group-hover:gap-2 transition-all">
+                                View Project
+                                <ArrowRight className="h-4 w-4" />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
       {/* Projects Section */}
       <div className="container mx-auto px-4 pb-16">
         {/* Search and Filters Header */}
@@ -438,6 +564,12 @@ const HomePage = () => {
                     githubUrl={project.githubUrl}
                     projectUrl={project.projectUrl}
                     onClick={() => handleProjectClick(project)}
+                    showM2Progress={project.showM2Progress}
+                    m2Status={project.m2Status}
+                    m2Week={project.m2Week}
+                    submittedDate={project.submittedDate}
+                    completionDate={project.completionDate}
+                    totalPaid={project.totalPaid}
                   />
                 ))}
               </div>

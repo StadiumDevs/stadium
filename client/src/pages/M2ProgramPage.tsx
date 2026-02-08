@@ -43,29 +43,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
+import { api, type ApiProject } from "@/lib/api";
 import { getProjectUrl, getCurrentProgramWeek } from "@/lib/projectUtils";
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
-
-type ApiProject = {
-  id: string;
-  projectName: string;
-  description: string;
-  teamMembers?: { name: string; walletAddress?: string }[];
-  projectRepo?: string;
-  demoUrl?: string;
-  slidesUrl?: string;
-  donationAddress?: string;
-  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
-  m2Status?: 'building' | 'under_review' | 'completed';
-  totalPaid?: Array<{
-    milestone: 'M1' | 'M2';
-    amount: number;
-    currency: 'USDC' | 'DOT';
-    transactionProof: string;
-  }>;
-};
 
 type LegacyProject = {
   id?: string;
@@ -78,13 +59,14 @@ type LegacyProject = {
   donationAddress?: string;
   winner?: string;
   isWinner?: boolean;
-  m2Status?: 'building' | 'under_review' | 'completed';
+  m2Status?: "building" | "under_review" | "completed";
+  completionDate?: string;
   lastUpdateDays?: number;
   teamMembers?: { name: string; walletAddress?: string }[];
   totalPaid?: Array<{
-    milestone: 'M1' | 'M2';
+    milestone: "M1" | "M2";
     amount: number;
-    currency: 'USDC' | 'DOT';
+    currency: "USDC" | "DOT";
     transactionProof: string;
   }>;
 };
@@ -129,13 +111,12 @@ const M2ProgramPage = () => {
           demoUrl: p.demoUrl || "",
           slidesUrl: p.slidesUrl || "",
           donationAddress: p.donationAddress || "",
-          // Winner string preserved from migration in bountyPrize[0].name
           winner: p.bountyPrize?.[0]?.name || "",
           isWinner: !!(p.bountyPrize && p.bountyPrize.length > 0),
-          m2Status: p.m2Status || 'building',
-          totalPaid: p.totalPaid,
-          // Mock lastUpdateDays for stats calculation (would come from API in production)
-          lastUpdateDays: Math.floor(Math.random() * 14), // 0-13 days
+          m2Status: p.m2Status || "building",
+          completionDate: p.completionDate,
+          totalPaid: p.totalPaid as LegacyProject["totalPaid"],
+          lastUpdateDays: Math.floor(Math.random() * 14),
         }));
 
         console.log("[ProjectsPage] Mapped projects count:", mapped.length);
@@ -555,7 +536,7 @@ const M2ProgramPage = () => {
                       onClick={() => navigate(getProjectUrl(project))}
                       showM2Progress={true}
                       m2Status="completed"
-                      completionDate={new Date().toISOString()}
+                      completionDate={project.completionDate}
                       totalPaid={project.totalPaid}
                     />
                   ))}
@@ -703,7 +684,7 @@ const M2ProgramPage = () => {
                     showM2Progress={true}
                     m2Status="completed"
                     className="border-yellow-500/30"
-                    completionDate={new Date().toISOString()}
+                    completionDate={project.completionDate}
                     totalPaid={project.totalPaid}
                   />
                 ))}

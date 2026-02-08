@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -27,6 +28,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { 
   ExternalLink, 
@@ -37,6 +44,10 @@ import {
   Loader2,
   Settings,
   CheckCheck,
+  FileText,
+  ClipboardList,
+  CreditCard,
+  Save,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -51,14 +62,29 @@ interface BountyPrize {
   txHash?: string;
 }
 
-interface PayoutModalData {
+interface ManageProjectModalData {
   projectId: string;
   projectName: string;
+  // Tab 1: Project Status
   projectState: string;
+  m2Status: string;
   bountiesProcessed: boolean;
-  txProofUrl: string;
-  bountyAmount: number;
+  // Tab 2: M2 Agreement
+  agreedFeatures: string;
+  documentation: string;
+  successCriteria: string;
+  // Tab 3: Deliverables
+  repoUrl: string;
+  demoUrl: string;
+  docsUrl: string;
+  summary: string;
+  // Tab 4: Payments
+  paymentMilestone: 'M1' | 'M2' | 'BOUNTY';
+  paymentAmount: number;
+  paymentCurrency: 'USDC' | 'DOT';
+  transactionProof: string;
   bountyName: string;
+  // Extra data for reference
   donationAddress: string;
 }
 
@@ -74,7 +100,8 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
   const { toast } = useToast();
   const [saving, setSaving] = useState<string | null>(null);
   const [winnerFilter, setWinnerFilter] = useState<WinnerFilter>("all");
-  const [payoutModal, setPayoutModal] = useState<PayoutModalData | null>(null);
+  const [manageModal, setManageModal] = useState<ManageProjectModalData | null>(null);
+  const [activeTab, setActiveTab] = useState("status");
   const [bulkMarkPaidDialog, setBulkMarkPaidDialog] = useState(false);
   const [bulkUpdating, setBulkUpdating] = useState(false);
 
@@ -181,81 +208,230 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     return project.bountyPrize.reduce((sum: number, b: BountyPrize) => sum + b.amount, 0);
   };
 
-  // Open payout modal with project data
-  const openPayoutModal = (project: any) => {
+  // Open manage modal with project data
+  const openManageModal = (project: any) => {
     const bounty = project.bountyPrize?.[0];
-    // Check if there's an existing BOUNTY payment in totalPaid
-    const existingBountyPayment = project.totalPaid?.find((p: any) => p.milestone === 'BOUNTY');
+    const m2Agreement = project.m2Agreement || {};
+    const finalSubmission = project.finalSubmission || {};
     
-    setPayoutModal({
+    setManageModal({
       projectId: project.id,
       projectName: project.projectName,
+      // Tab 1: Project Status
       projectState: project.projectState || "Hackathon Submission",
+      m2Status: project.m2Status || "",
       bountiesProcessed: project.bountiesProcessed || false,
-      txProofUrl: existingBountyPayment?.transactionProof || bounty?.txHash || "",
-      bountyAmount: getTotalBounty(project),
+      // Tab 2: M2 Agreement
+      agreedFeatures: (m2Agreement.agreedFeatures || []).join('\n'),
+      documentation: (m2Agreement.documentation || []).join('\n'),
+      successCriteria: m2Agreement.successCriteria || "",
+      // Tab 3: Deliverables
+      repoUrl: finalSubmission.repoUrl || project.projectRepo || "",
+      demoUrl: finalSubmission.demoUrl || project.demoUrl || "",
+      docsUrl: finalSubmission.docsUrl || "",
+      summary: finalSubmission.summary || "",
+      // Tab 4: Payments
+      paymentMilestone: 'BOUNTY',
+      paymentAmount: getTotalBounty(project),
+      paymentCurrency: 'USDC',
+      transactionProof: "",
       bountyName: bounty?.name || "Bounty",
+      // Extra
       donationAddress: project.donationAddress || "",
     });
+    setActiveTab("status");
   };
 
-  // Save payout modal changes
-  const savePayoutModal = async () => {
-    if (!payoutModal) return;
-    setSaving(payoutModal.projectId);
+  // Tab 1: Save Project Status
+  const saveProjectStatus = async () => {
+    if (!manageModal) return;
+    setSaving("status");
     
     try {
       const authHeader = await getSiwsAuthHeader();
-      const project = projects.find(p => p.id === payoutModal.projectId);
-      if (!project) throw new Error("Project not found");
       
-      // Build update data
       const updateData: Record<string, any> = {
-        projectState: payoutModal.projectState,
-        bountiesProcessed: payoutModal.bountiesProcessed,
+        projectState: manageModal.projectState,
+        bountiesProcessed: manageModal.bountiesProcessed,
       };
-
-      // Update donation address if changed
-      if (payoutModal.donationAddress !== project.donationAddress) {
-        updateData.donationAddress = payoutModal.donationAddress;
+      
+      // Only set m2Status if it has a value
+      if (manageModal.m2Status) {
+        updateData.m2Status = manageModal.m2Status;
       }
 
-      // Update bounty amount if changed
-      const currentAmount = getTotalBounty(project);
-      if (payoutModal.bountyAmount !== currentAmount && project.bountyPrize?.length > 0) {
-        const updatedBounties = [...project.bountyPrize];
-        updatedBounties[0] = {
-          ...updatedBounties[0],
-          amount: payoutModal.bountyAmount,
-        };
-        updateData.bountyPrize = updatedBounties;
-      }
-
-      // Update project details
-      await api.updateProjectDetails(payoutModal.projectId, updateData, authHeader);
-
-      // If marking as paid with TX proof, add BOUNTY entry to totalPaid
-      const existingBountyPayment = project.totalPaid?.find((p: any) => p.milestone === 'BOUNTY');
-      if (payoutModal.bountiesProcessed && payoutModal.txProofUrl && !existingBountyPayment) {
-        await api.confirmPayment(payoutModal.projectId, {
-          milestone: 'BOUNTY',
-          amount: payoutModal.bountyAmount,
-          currency: 'USDC',
-          transactionProof: payoutModal.txProofUrl,
-          bountyName: payoutModal.bountyName,
-        }, authHeader);
-      }
+      await api.updateProjectDetails(manageModal.projectId, updateData, authHeader);
       
       toast({
-        title: "Project updated",
-        description: `${payoutModal.projectName} has been updated`,
+        title: "Status updated",
+        description: `Project status saved successfully`,
       });
-      setPayoutModal(null);
       onRefresh();
     } catch (error: any) {
       toast({
-        title: "Failed to update",
-        description: error.message || "Could not update project",
+        title: "Failed to save status",
+        description: error.message || "Could not update project status",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Tab 2: Save M2 Agreement
+  const saveM2Agreement = async () => {
+    if (!manageModal) return;
+    setSaving("agreement");
+    
+    try {
+      const authHeader = await getSiwsAuthHeader();
+      
+      // Parse line-separated strings into arrays
+      const agreedFeatures = manageModal.agreedFeatures
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+        .slice(0, 20); // Max 20 items
+        
+      const documentation = manageModal.documentation
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+        .slice(0, 10); // Max 10 items
+
+      if (agreedFeatures.length === 0) {
+        throw new Error("Please add at least one agreed feature");
+      }
+      if (documentation.length === 0) {
+        throw new Error("Please add at least one documentation item");
+      }
+      if (!manageModal.successCriteria.trim()) {
+        throw new Error("Please add success criteria");
+      }
+
+      // Use the api helper which includes API_BASE_URL
+      await api.updateM2Agreement(
+        manageModal.projectId,
+        {
+          agreedFeatures,
+          documentation,
+          successCriteria: manageModal.successCriteria.trim(),
+        },
+        authHeader
+      );
+      
+      toast({
+        title: "M2 Agreement updated",
+        description: `Agreement saved successfully`,
+      });
+      onRefresh();
+    } catch (error: any) {
+      toast({
+        title: "Failed to save agreement",
+        description: error.message || "Could not update M2 agreement",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Tab 3: Save Deliverables (bypass week restriction by using PATCH directly)
+  const saveDeliverables = async () => {
+    if (!manageModal) return;
+    setSaving("deliverables");
+    
+    try {
+      const authHeader = await getSiwsAuthHeader();
+      
+      // Validate
+      if (!manageModal.repoUrl) {
+        throw new Error("Repository URL is required");
+      }
+      if (!manageModal.demoUrl) {
+        throw new Error("Demo URL is required");
+      }
+      if (!manageModal.docsUrl) {
+        throw new Error("Documentation URL is required");
+      }
+      if (!manageModal.summary || manageModal.summary.length < 10) {
+        throw new Error("Summary must be at least 10 characters");
+      }
+
+      // Use PATCH to set finalSubmission directly (bypasses week restriction)
+      const updateData = {
+        finalSubmission: {
+          repoUrl: manageModal.repoUrl,
+          demoUrl: manageModal.demoUrl,
+          docsUrl: manageModal.docsUrl,
+          summary: manageModal.summary,
+          submittedDate: new Date().toISOString(),
+          submittedBy: connectedAddress || 'admin',
+        },
+        m2Status: 'under_review',
+      };
+
+      await api.updateProjectDetails(manageModal.projectId, updateData, authHeader);
+      
+      toast({
+        title: "Deliverables saved",
+        description: `Submission saved and status set to "Under Review"`,
+      });
+      onRefresh();
+    } catch (error: any) {
+      toast({
+        title: "Failed to save deliverables",
+        description: error.message || "Could not update deliverables",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Tab 4: Save Payment
+  const savePayment = async () => {
+    if (!manageModal) return;
+    setSaving("payment");
+    
+    try {
+      const authHeader = await getSiwsAuthHeader();
+      
+      // Validate
+      if (!manageModal.paymentAmount || manageModal.paymentAmount <= 0) {
+        throw new Error("Payment amount must be greater than 0");
+      }
+      if (!manageModal.transactionProof || !manageModal.transactionProof.startsWith('http')) {
+        throw new Error("Valid transaction proof URL is required");
+      }
+      if (manageModal.paymentMilestone === 'BOUNTY' && !manageModal.bountyName) {
+        throw new Error("Bounty name is required for BOUNTY payments");
+      }
+
+      await api.confirmPayment(manageModal.projectId, {
+        milestone: manageModal.paymentMilestone,
+        amount: manageModal.paymentAmount,
+        currency: manageModal.paymentCurrency,
+        transactionProof: manageModal.transactionProof,
+        bountyName: manageModal.paymentMilestone === 'BOUNTY' ? manageModal.bountyName : undefined,
+      }, authHeader);
+      
+      toast({
+        title: "Payment confirmed",
+        description: `${manageModal.paymentMilestone} payment recorded successfully`,
+      });
+      
+      // Clear payment fields after successful save
+      setManageModal(prev => prev ? {
+        ...prev,
+        transactionProof: "",
+      } : null);
+      
+      onRefresh();
+    } catch (error: any) {
+      toast({
+        title: "Failed to record payment",
+        description: error.message || "Could not confirm payment",
         variant: "destructive",
       });
     } finally {
@@ -472,7 +648,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
                             variant="default"
                             size="sm"
                             className="h-8"
-                            onClick={() => openPayoutModal(project)}
+                            onClick={() => openManageModal(project)}
                             disabled={isSaving}
                           >
                             {isSaving ? (
@@ -495,97 +671,279 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
         </CardContent>
       </Card>
 
-      {/* Unified Payout Management Modal */}
-      <Dialog open={!!payoutModal} onOpenChange={() => setPayoutModal(null)}>
-        <DialogContent className="max-w-md">
+      {/* Multi-Tab Manage Project Modal */}
+      <Dialog open={!!manageModal} onOpenChange={() => setManageModal(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Manage Payout</DialogTitle>
+            <DialogTitle>Manage Project</DialogTitle>
             <DialogDescription>
-              Update payout details for <strong>{payoutModal?.projectName}</strong>
+              Update details for <strong>{manageModal?.projectName}</strong>
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            {/* Project State Dropdown */}
-            <div className="space-y-2">
-              <Label>Project State</Label>
-              <Select
-                value={payoutModal?.projectState || "Hackathon Submission"}
-                onValueChange={(value) => setPayoutModal(prev => prev ? { ...prev, projectState: value } : null)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hackathon Submission">Hackathon Submission</SelectItem>
-                  <SelectItem value="Bounty Payout">Bounty Payout</SelectItem>
-                  <SelectItem value="Milestone Delivered">Milestone Delivered</SelectItem>
-                  <SelectItem value="Abandoned">Abandoned</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="status" className="gap-1">
+                <Settings className="h-3 w-3" />
+                <span className="hidden sm:inline">Status</span>
+              </TabsTrigger>
+              <TabsTrigger value="agreement" className="gap-1">
+                <ClipboardList className="h-3 w-3" />
+                <span className="hidden sm:inline">Agreement</span>
+              </TabsTrigger>
+              <TabsTrigger value="deliverables" className="gap-1">
+                <FileText className="h-3 w-3" />
+                <span className="hidden sm:inline">Deliverables</span>
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="gap-1">
+                <CreditCard className="h-3 w-3" />
+                <span className="hidden sm:inline">Payments</span>
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Bounty Amount (editable) */}
-            <div className="space-y-2">
-              <Label>Bounty Amount (USD)</Label>
-              <Input
-                type="number"
-                value={payoutModal?.bountyAmount || 0}
-                onChange={(e) => setPayoutModal(prev => prev ? { ...prev, bountyAmount: Number(e.target.value) } : null)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Prize: {payoutModal?.bountyName}
-              </p>
-            </div>
+            {/* Tab 1: Project Status */}
+            <TabsContent value="status" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Project State</Label>
+                <Select
+                  value={manageModal?.projectState || "Hackathon Submission"}
+                  onValueChange={(value) => setManageModal(prev => prev ? { ...prev, projectState: value } : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Hackathon Submission">Hackathon Submission</SelectItem>
+                    <SelectItem value="Milestone Agreed">Milestone Agreed</SelectItem>
+                    <SelectItem value="Bounty Payout">Bounty Payout</SelectItem>
+                    <SelectItem value="Milestone Delivered">Milestone Delivered</SelectItem>
+                    <SelectItem value="Abandoned">Abandoned</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Donation Address */}
-            <div className="space-y-2">
-              <Label>Payout Address</Label>
-              <Input
-                value={payoutModal?.donationAddress || ""}
-                onChange={(e) => setPayoutModal(prev => prev ? { ...prev, donationAddress: e.target.value } : null)}
-                placeholder="Enter wallet address..."
-              />
-            </div>
+              <div className="space-y-2">
+                <Label>M2 Status</Label>
+                <Select
+                  value={manageModal?.m2Status || "none"}
+                  onValueChange={(value) => setManageModal(prev => prev ? { ...prev, m2Status: value === "none" ? "" : value } : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Not in M2 program" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not in M2 program</SelectItem>
+                    <SelectItem value="building">Building</SelectItem>
+                    <SelectItem value="under_review">Under Review</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* TX Proof URL */}
-            <div className="space-y-2">
-              <Label>TX Proof URL</Label>
-              <Input
-                value={payoutModal?.txProofUrl || ""}
-                onChange={(e) => setPayoutModal(prev => prev ? { ...prev, txProofUrl: e.target.value } : null)}
-                placeholder="e.g., https://polkadot.subscan.io/extrinsic/..."
-              />
-              <p className="text-xs text-muted-foreground">
-                Subscan URL or transaction hash for payment proof
-              </p>
-            </div>
+              <div className="flex items-center space-x-2 pt-2">
+                <Checkbox
+                  id="bountiesProcessed"
+                  checked={manageModal?.bountiesProcessed || false}
+                  onCheckedChange={(checked) => setManageModal(prev => prev ? { ...prev, bountiesProcessed: checked === true } : null)}
+                />
+                <Label htmlFor="bountiesProcessed" className="text-sm font-normal cursor-pointer">
+                  Mark bounties as processed (paid)
+                </Label>
+              </div>
 
-            {/* Bounties Processed Checkbox */}
-            <div className="flex items-center space-x-2 pt-2">
-              <Checkbox
-                id="bountiesProcessed"
-                checked={payoutModal?.bountiesProcessed || false}
-                onCheckedChange={(checked) => setPayoutModal(prev => prev ? { ...prev, bountiesProcessed: checked === true } : null)}
-              />
-              <Label htmlFor="bountiesProcessed" className="text-sm font-normal cursor-pointer">
-                Mark as paid
-              </Label>
-            </div>
-          </div>
+              <div className="pt-4 flex justify-end">
+                <Button onClick={saveProjectStatus} disabled={saving === "status"}>
+                  {saving === "status" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save Status
+                </Button>
+              </div>
+            </TabsContent>
 
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setPayoutModal(null)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={savePayoutModal} 
-              disabled={saving !== null}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save Changes
-            </Button>
-          </DialogFooter>
+            {/* Tab 2: M2 Agreement */}
+            <TabsContent value="agreement" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Agreed Features (one per line, max 20)</Label>
+                <Textarea
+                  value={manageModal?.agreedFeatures || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, agreedFeatures: e.target.value } : null)}
+                  placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
+                  rows={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(manageModal?.agreedFeatures || "").split('\n').filter(s => s.trim()).length}/20 features
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Documentation Deliverables (one per line, max 10)</Label>
+                <Textarea
+                  value={manageModal?.documentation || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, documentation: e.target.value } : null)}
+                  placeholder="README with setup instructions&#10;API documentation&#10;Architecture diagram"
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(manageModal?.documentation || "").split('\n').filter(s => s.trim()).length}/10 items
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Success Criteria (max 2000 chars)</Label>
+                <Textarea
+                  value={manageModal?.successCriteria || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, successCriteria: e.target.value.slice(0, 2000) } : null)}
+                  placeholder="Define measurable success criteria..."
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(manageModal?.successCriteria || "").length}/2000 characters
+                </p>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button onClick={saveM2Agreement} disabled={saving === "agreement"}>
+                  {saving === "agreement" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save Agreement
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Tab 3: Deliverables */}
+            <TabsContent value="deliverables" className="space-y-4 mt-4">
+              <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
+                <strong>Admin Note:</strong> Saving here bypasses the Week 5-6 restriction. 
+                Status will be set to "Under Review".
+              </div>
+
+              <div className="space-y-2">
+                <Label>Repository URL (GitHub)</Label>
+                <Input
+                  value={manageModal?.repoUrl || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, repoUrl: e.target.value } : null)}
+                  placeholder="https://github.com/team/repo"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Demo URL (YouTube/Loom)</Label>
+                <Input
+                  value={manageModal?.demoUrl || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, demoUrl: e.target.value } : null)}
+                  placeholder="https://youtube.com/watch?v=..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Documentation URL</Label>
+                <Input
+                  value={manageModal?.docsUrl || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, docsUrl: e.target.value } : null)}
+                  placeholder="https://docs.example.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Summary (10-1000 chars)</Label>
+                <Textarea
+                  value={manageModal?.summary || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, summary: e.target.value.slice(0, 1000) } : null)}
+                  placeholder="Describe what was built and how it meets the M2 agreement..."
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(manageModal?.summary || "").length}/1000 characters
+                </p>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button onClick={saveDeliverables} disabled={saving === "deliverables"}>
+                  {saving === "deliverables" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save Deliverables
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Tab 4: Payments */}
+            <TabsContent value="payments" className="space-y-4 mt-4">
+              <div className="p-3 bg-muted/50 rounded-md text-sm">
+                <strong>Payout Address:</strong> {manageModal?.donationAddress || <span className="text-muted-foreground">Not set</span>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Milestone</Label>
+                <Select
+                  value={manageModal?.paymentMilestone || "BOUNTY"}
+                  onValueChange={(value) => setManageModal(prev => prev ? { ...prev, paymentMilestone: value as 'M1' | 'M2' | 'BOUNTY' } : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="M1">M1 (First milestone)</SelectItem>
+                    <SelectItem value="M2">M2 (Second milestone)</SelectItem>
+                    <SelectItem value="BOUNTY">BOUNTY (Prize payout)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {manageModal?.paymentMilestone === 'BOUNTY' && (
+                <div className="space-y-2">
+                  <Label>Bounty Name</Label>
+                  <Input
+                    value={manageModal?.bountyName || ""}
+                    onChange={(e) => setManageModal(prev => prev ? { ...prev, bountyName: e.target.value } : null)}
+                    placeholder="e.g., Polkadot main track"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Amount</Label>
+                  <Input
+                    type="number"
+                    value={manageModal?.paymentAmount || 0}
+                    onChange={(e) => setManageModal(prev => prev ? { ...prev, paymentAmount: Number(e.target.value) } : null)}
+                    placeholder="1000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Currency</Label>
+                  <Select
+                    value={manageModal?.paymentCurrency || "USDC"}
+                    onValueChange={(value) => setManageModal(prev => prev ? { ...prev, paymentCurrency: value as 'USDC' | 'DOT' } : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USDC">USDC</SelectItem>
+                      <SelectItem value="DOT">DOT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Transaction Proof URL</Label>
+                <Input
+                  value={manageModal?.transactionProof || ""}
+                  onChange={(e) => setManageModal(prev => prev ? { ...prev, transactionProof: e.target.value } : null)}
+                  placeholder="https://polkadot.subscan.io/extrinsic/..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Subscan URL or block explorer link showing the payment
+                </p>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button onClick={savePayment} disabled={saving === "payment"}>
+                  {saving === "payment" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Confirm Payment
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 

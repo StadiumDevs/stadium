@@ -67,6 +67,32 @@ type GetProjectsParams = {
   sortOrder?: "asc" | "desc";
 };
 
+/** Project shape returned by getProjects (includes M2 fields from server) */
+export type ApiProject = {
+  id: string;
+  projectName: string;
+  description: string;
+  teamMembers?: { name: string; walletAddress?: string }[];
+  projectRepo?: string;
+  demoUrl?: string;
+  slidesUrl?: string;
+  donationAddress?: string;
+  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
+  techStack?: string[];
+  categories?: string[];
+  m2Status?: "building" | "under_review" | "completed";
+  completionDate?: string;
+  submittedDate?: string;
+  hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+  totalPaid?: Array<{
+    milestone: "M1" | "M2" | "BOUNTY";
+    amount: number;
+    currency: "USDC" | "DOT";
+    transactionProof: string;
+    bountyName?: string;
+  }>;
+};
+
 export const api = {
   submitEntry: (data: unknown) =>
     request("/entry", {
