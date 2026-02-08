@@ -123,7 +123,7 @@ export function ProjectDetailModal({
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
               Description
             </h4>
-            <p className="text-foreground leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-line">
               {project.longDescription || project.description}
             </p>
           </div>

@@ -132,8 +132,8 @@ export function M2AgreementSection({
             <ul className="space-y-2">
               {m2Agreement.agreedFeatures.map((feature, index) => (
                 <li key={index} className="flex items-start gap-2">
-                  <span className="text-purple-500 mt-1">•</span>
-                  <span className="flex-1">{feature}</span>
+                  <span className="text-purple-500 mt-1 flex-shrink-0">•</span>
+                  <span className="flex-1 text-sm leading-relaxed whitespace-pre-line">{feature}</span>
                 </li>
               ))}
             </ul>
@@ -151,8 +151,8 @@ export function M2AgreementSection({
               <ul className="space-y-2">
                 {m2Agreement.documentation.map((doc, index) => (
                   <li key={index} className="flex items-start gap-2">
-                    <span className="text-blue-500 mt-1">•</span>
-                    <span className="flex-1">{doc}</span>
+                    <span className="text-blue-500 mt-1 flex-shrink-0">•</span>
+                    <span className="flex-1 text-sm leading-relaxed whitespace-pre-line">{doc}</span>
                   </li>
                 ))}
               </ul>

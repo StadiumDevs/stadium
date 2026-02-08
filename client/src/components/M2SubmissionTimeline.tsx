@@ -165,8 +165,8 @@ export function M2SubmissionTimeline({
                   if (!text) return null;
                   return (
                     <div key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <span className="text-primary">•</span>
-                      <span>{text}</span>
+                      <span className="text-primary flex-shrink-0">•</span>
+                      <span className="flex-1 leading-relaxed whitespace-pre-line">{text}</span>
                     </div>
                   );
                 })}
@@ -174,7 +174,7 @@ export function M2SubmissionTimeline({
               {project.m2Agreement?.successCriteria && (
                 <div className="text-sm">
                   <span className="font-medium text-foreground">Success Criteria: </span>
-                  <span className="text-muted-foreground">{project.m2Agreement.successCriteria}</span>
+                  <span className="text-muted-foreground whitespace-pre-line leading-relaxed">{project.m2Agreement.successCriteria}</span>
                 </div>
               )}
             </div>

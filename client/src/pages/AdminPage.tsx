@@ -692,7 +692,7 @@ const AdminPage = () => {
                 </div>
                 
                 {project.finalSubmission?.summary && (
-                  <p className="text-sm mb-4">{project.finalSubmission.summary}</p>
+                  <p className="text-sm mb-4 whitespace-pre-line leading-relaxed">{project.finalSubmission.summary}</p>
                 )}
                 
                 <div className="flex gap-2 flex-wrap">

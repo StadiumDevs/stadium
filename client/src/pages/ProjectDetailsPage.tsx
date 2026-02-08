@@ -55,6 +55,27 @@ function ensureSubmissionUrl(url: string): string {
   return s.includes("://") ? s : `https://${s}`;
 }
 
+/** Renders summary text with bullet lines as a proper list */
+function SummaryWithBullets({ text }: { text: string }) {
+  const bulletPattern = /^[\-\•\*·]\s+/;
+  const lines = text.split("\n");
+  return (
+    <ul className="list-disc pl-4 space-y-1 text-sm text-muted-foreground leading-relaxed">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <li key={i} className="list-none h-2" aria-hidden="true" />;
+        const isBullet = bulletPattern.test(trimmed);
+        const content = isBullet ? trimmed.replace(bulletPattern, "").trim() : trimmed;
+        return (
+          <li key={i} className={isBullet ? "" : "list-none"}>
+            {content}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1098,9 +1119,7 @@ const ProjectDetailsPage = () => {
                       {project.finalSubmission.summary && (
                         <div className="mt-4 p-4 bg-muted/20 rounded-lg">
                           <h4 className="text-sm font-medium mb-2">Summary:</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {project.finalSubmission.summary}
-                          </p>
+                          <SummaryWithBullets text={project.finalSubmission.summary} />
                         </div>
                       )}
                     </CardContent>
