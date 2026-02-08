@@ -2,7 +2,7 @@ import projectService from '../services/project.service.js';
 import paymentService from '../services/payment.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
 import { validateSS58, validateM2Submission } from '../utils/validation.js';
-import { canEditM2Agreement, isSubmissionWindowOpen, getCurrentWeek } from '../utils/dateHelpers.js';
+import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
 
@@ -242,34 +242,7 @@ class ProjectController {
                 return res.status(404).json({ status: "error", message: "Project not found" });
             }
 
-            // Check if submission window is open (Week 5-6)
-            if (project.hackathon?.endDate) {
-                const currentWeek = getCurrentWeek(project.hackathon.endDate);
-                
-                if (currentWeek < 5) {
-                    return res.status(400).json({
-                        status: "error",
-                        message: `Submission window opens in Week 5. Currently in Week ${currentWeek}.`
-                    });
-                }
-                
-                if (currentWeek > 6) {
-                    return res.status(400).json({
-                        status: "error",
-                        message: "Submission deadline has passed (Week 6). Contact WebZero for an extension."
-                    });
-                }
-            }
-
-            // Check if already completed
-            if (project.m2Status === 'completed') {
-                return res.status(400).json({
-                    status: "error",
-                    message: "M2 has already been completed and approved"
-                });
-            }
-
-            // Update submission
+            // Update submission (allow updating finalSubmission even when already completed, e.g. to fix links)
             const submissionData = {
                 finalSubmission: {
                     repoUrl,
@@ -279,9 +252,12 @@ class ProjectController {
                     submittedDate: new Date(),
                     submittedBy: userWallet
                 },
-                m2Status: 'under_review',
                 changesRequested: undefined // Clear any previous change requests
             };
+            // Only move to under_review if not already completed (preserve completed status when updating links)
+            if (project.m2Status !== 'completed') {
+                submissionData.m2Status = 'under_review';
+            }
 
             const updated = await projectService.updateProject(projectId, submissionData);
 

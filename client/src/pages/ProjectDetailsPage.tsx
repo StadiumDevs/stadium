@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { api, API_BASE_URL } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
 import { SiwsMessage } from '@talismn/siws';
@@ -46,6 +46,14 @@ import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModa
 import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
 import { Edit } from "lucide-react";
+
+/** Normalize URL for server (must start with www or http(s)://) */
+function ensureSubmissionUrl(url: string): string {
+  const s = (url || "").trim();
+  if (!s) return s;
+  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("www")) return s;
+  return s.includes("://") ? s : `https://${s}`;
+}
 
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -695,14 +703,13 @@ const ProjectDetailsPage = () => {
         : (siws as unknown as { toString: () => string }).toString();
       const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
-      // Submit for review (API expects simplified format)
       await api.submitForReview(project.id, {
-        repoUrl: data.repoUrl,
-        demoUrl: data.demoUrl,
-        docsUrl: data.docsUrl,
-        summary: data.summary,
+        repoUrl: ensureSubmissionUrl(data.repoUrl),
+        demoUrl: ensureSubmissionUrl(data.demoUrl),
+        docsUrl: ensureSubmissionUrl(data.docsUrl),
+        summary: (data.summary || "").trim(),
       }, authHeader);
-      
+
       // Refresh project data
       const response = await api.getProject(project.id);
       const projectData = response?.data || response;
@@ -741,10 +748,9 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Blockspace Stadium');
+      await web3Enable('Hackathonia');
       const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
+      const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
       if (!account) throw new Error('No wallet found');
 
       const siws = new SiwsMessage({
@@ -756,37 +762,35 @@ const ProjectDetailsPage = () => {
           action: 'submit-deliverable',
           projectTitle: project.projectName,
           projectId: project.id,
-          additionalContext: 'Submit M2 deliverables'
         }),
       });
       const injector = await web3FromSource(account.meta.source);
+      if (!injector?.signer?.signRaw) throw new Error('Wallet does not support signing');
       const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+      const messageStr =
+        typeof signed.message === 'string' && signed.message
+          ? signed.message
+          : (siws as unknown as { toString: () => string }).toString();
+      const authHeader = btoa(
+        JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address })
+      );
 
-      // Call the submit M2 endpoint
-      const response = await fetch(`${API_BASE_URL}/projects/${project.id}/submit-m2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-siws-auth': authHeader,
+      await api.submitForReview(
+        project.id,
+        {
+          repoUrl: ensureSubmissionUrl(data.repoUrl),
+          demoUrl: ensureSubmissionUrl(data.demoUrl),
+          docsUrl: ensureSubmissionUrl(data.docsUrl),
+          summary: data.summary.trim(),
         },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Submission failed');
-      }
+        authHeader
+      );
 
       toast({
         title: 'Success!',
         description: '🎉 M2 deliverables submitted! WebZero will review within 2-3 days.',
       });
 
-      // Refetch project to show updated status
       await fetchProject();
     } catch (err) {
       const error = err as Error;
@@ -1077,15 +1081,26 @@ const ProjectDetailsPage = () => {
                   </Card>
                 )}
 
-                {/* If no final submission, show placeholder */}
-                {!project.finalSubmission && project.m2Status !== 'completed' && project.m2Status !== 'under_review' && (
+                {/* No final submission: show placeholder or fallback for completed/under_review */}
+                {!project.finalSubmission && (
                   <Card>
                     <CardContent className="py-8 text-center">
                       <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="font-medium mb-2">No Deliverables Yet</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Final deliverables will appear here once the team submits them.
-                      </p>
+                      {project.m2Status === 'completed' || project.m2Status === 'under_review' ? (
+                        <>
+                          <h3 className="font-medium mb-2">Deliverables not recorded</h3>
+                          <p className="text-sm text-muted-foreground">
+                            This project was marked {project.m2Status === 'completed' ? 'completed' : 'under review'} but no final submission (repo, demo, docs) was stored. You can submit or update deliverables below to add them here.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className="font-medium mb-2">No Deliverables Yet</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Final deliverables will appear here once the team submits them.
+                          </p>
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 )}

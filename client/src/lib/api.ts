@@ -46,8 +46,16 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
   const response = await fetch(url, config);
 
   if (!response.ok) {
-    const friendly = mapStatusToMessage(response.status);
-    throw new ApiError(friendly, response.status);
+    let message = mapStatusToMessage(response.status);
+    try {
+      const body = await response.json();
+      if (body && typeof body.message === "string" && body.message.trim()) {
+        message = body.message;
+      }
+    } catch {
+      // ignore non-JSON or empty body
+    }
+    throw new ApiError(message, response.status);
   }
 
   // Some endpoints may return 204 No Content
@@ -229,8 +237,8 @@ export const api = {
       return { success: true };
     }
     
-    // Real API call
-    return request(`/m2-program/${projectId}/submit-review`, {
+    // Real API call (server route is submit-m2, not submit-review)
+    return request(`/m2-program/${projectId}/submit-m2`, {
       method: 'POST',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify(submission)
