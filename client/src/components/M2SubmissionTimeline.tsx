@@ -181,21 +181,31 @@ export function M2SubmissionTimeline({
           );
         })()}
         
-        {/* Submitted Alert */}
+        {/* Submitted / Approved Alert */}
         {isDeliveryCompleted && (
           <Alert className="bg-green-500/10 border-green-500/30">
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             <AlertDescription>
               <div className="space-y-1">
-                <p className="font-semibold text-green-500">
-                  ✅ Deliverables submitted on {format(new Date(project.finalSubmission.submittedDate), 'MMMM d, yyyy')}
-                </p>
-                <p className="text-sm text-foreground">
-                  {project.m2Status === 'under_review' && 
-                    'WebZero is reviewing your submission.'}
-                  {project.m2Status === 'completed' && 
-                    'Your M2 has been approved! Check Payment History for transaction details.'}
-                </p>
+                {project.m2Status === 'completed' ? (
+                  <>
+                    <p className="font-semibold text-green-500">
+                      Your M2 has been approved
+                    </p>
+                    <p className="text-sm text-foreground">
+                      Check Payment History for transaction details.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-green-500">
+                      M2 deliverables submitted on {format(new Date(project.finalSubmission.submittedDate), 'MMMM d, yyyy')}
+                    </p>
+                    <p className="text-sm text-foreground">
+                      WebZero is reviewing your submission.
+                    </p>
+                  </>
+                )}
               </div>
             </AlertDescription>
           </Alert>
