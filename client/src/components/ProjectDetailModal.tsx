@@ -68,24 +68,32 @@ export function ProjectDetailModal({
           </div>
         </DialogHeader>
 
-        {/* Live site: primary when present */}
+        {/* When project has a live URL, embed the site (no demo video) */}
         {project.liveUrl && project.liveUrl !== "nan" && (
-          <div className="my-4">
+          <div className="my-4 space-y-2">
+            <div className="rounded-lg border bg-muted/30 overflow-hidden min-h-[50vh]">
+              <iframe
+                src={project.liveUrl}
+                title={`${project.title} — live site`}
+                className="w-full h-[60vh] min-h-[400px] border-0"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                referrerPolicy="no-referrer"
+              />
+            </div>
             <a
               href={project.liveUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-4 px-4 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
-              <Globe className="h-5 w-5" aria-hidden="true" />
-              Visit live site
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Open in new tab
             </a>
           </div>
         )}
 
-        {/* Demo Player Section (when no live URL or in addition) */}
-        {project.demoUrl && project.demoUrl !== "nan" && (
+        {/* Demo Player only when no live URL (so modal shows either live site or video, not both) */}
+        {!project.liveUrl && project.demoUrl && project.demoUrl !== "nan" && (
           <div className="my-4">
             <DemoPlayer demoUrl={project.demoUrl} title={project.title} />
           </div>
@@ -130,7 +138,7 @@ export function ProjectDetailModal({
               >
                 <a href={project.liveUrl} target="_blank" rel="noopener noreferrer">
                   <Globe className="h-4 w-4" aria-hidden="true" />
-                  Visit live site
+                  Open live site in new tab
                 </a>
               </Button>
             )}
