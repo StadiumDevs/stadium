@@ -24,6 +24,7 @@ class ProjectService {
             sortOrder = 'desc',
             hackathonId,
             winnersOnly,
+            mainTrackOnly,
         } = queryParams;
 
         const query = {};
@@ -39,13 +40,21 @@ class ProjectService {
         if (hackathonId) {
             query['hackathon.id'] = hackathonId;
         }
-        // winnersOnly can be boolean or string
+        const mainTrackOnlyBool = typeof mainTrackOnly === 'string' ? mainTrackOnly === 'true' : Boolean(mainTrackOnly);
         const winnersOnlyBool = typeof winnersOnly === 'string' ? winnersOnly === 'true' : Boolean(winnersOnly);
-        if (winnersOnlyBool) {
+
+        if (mainTrackOnlyBool) {
+            // M2 program: only projects that won a "main track" bounty (bountyPrize[].name contains "main track")
+            const mainTrackMatch = { name: { $regex: /main track/i } };
+            if (hackathonId) {
+                query.bountyPrize = { $elemMatch: { hackathonWonAtId: hackathonId, ...mainTrackMatch } };
+            } else {
+                query.bountyPrize = { $elemMatch: mainTrackMatch };
+            }
+        } else if (winnersOnlyBool) {
             if (hackathonId) {
                 query.bountyPrize = { $elemMatch: { hackathonWonAtId: hackathonId } };
             } else {
-                // Non-empty bountyPrize array
                 query.bountyPrize = { $exists: true, $not: { $size: 0 } };
             }
         }

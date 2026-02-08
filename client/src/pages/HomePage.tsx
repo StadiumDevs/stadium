@@ -10,6 +10,7 @@ import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { NoProjectsFound } from "@/components/EmptyState";
 import { api, type ApiProject } from "@/lib/api";
+import { isMainTrackWinner } from "@/lib/projectUtils";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 
@@ -188,23 +189,24 @@ const HomePage = () => {
     return filtered.map(convertToProjectCard);
   }, [projects, searchQuery, showWinnersOnly, activeFilters, selectedHackathon]);
 
-  // Calculate stats
+  // Calculate stats (m2Graduates = main track completed only, per M2 program scope)
   const stats = useMemo(() => {
     const totalProjects = projects.length;
-    const winners = projects.filter(p => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0).length;
-    const m2Graduates = projects.filter(p => p.m2Status === 'completed').length;
+    const winners = projects.filter((p) => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0).length;
+    const m2Graduates = projects.filter(
+      (p) => p.m2Status === "completed" && isMainTrackWinner(p)
+    ).length;
     return { totalProjects, winners, m2Graduates };
   }, [projects]);
 
-  // Recently completed M2 projects (sorted by completion date, newest first)
-  // Returns raw ApiProject objects to access completion date and other fields
+  // Recently completed M2 projects (main track only), sorted by completion date, newest first
   const recentlyShipped = useMemo(() => {
     return projects
-      .filter(p => p.m2Status === 'completed')
+      .filter((p) => p.m2Status === "completed" && isMainTrackWinner(p))
       .sort((a, b) => {
         const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
         const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
-        return dateB - dateA; // Newest first
+        return dateB - dateA;
       })
       .slice(0, 4);
   }, [projects]);

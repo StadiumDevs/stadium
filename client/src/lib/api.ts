@@ -63,6 +63,8 @@ type GetProjectsParams = {
   projectState?: string;
   hackathonId?: string;
   winnersOnly?: boolean;
+  /** When true, only projects that won a main track (bountyPrize[].name contains "main track") */
+  mainTrackOnly?: boolean;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
@@ -123,7 +125,13 @@ export const api = {
         mockResponse.meta.total = mockResponse.data.length;
         mockResponse.meta.count = mockResponse.data.length;
       }
-      
+      if (params?.mainTrackOnly) {
+        mockResponse.data = mockResponse.data.filter((p) =>
+          p.bountyPrize?.some((b) => b.name.toLowerCase().includes("main track"))
+        );
+        mockResponse.meta.total = mockResponse.data.length;
+        mockResponse.meta.count = mockResponse.data.length;
+      }
       console.log("🔧 Using mock data (server is down)");
       return Promise.resolve(mockResponse);
     }
@@ -136,6 +144,7 @@ export const api = {
     if (params?.status) searchParams.set("projectState", params.status);
     if (params?.hackathonId) searchParams.set("hackathonId", params.hackathonId);
     if (params?.winnersOnly !== undefined) searchParams.set("winnersOnly", String(params.winnersOnly));
+    if (params?.mainTrackOnly !== undefined) searchParams.set("mainTrackOnly", String(params.mainTrackOnly));
     if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
     if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
 

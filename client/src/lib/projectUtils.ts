@@ -3,6 +3,19 @@
  */
 
 /**
+ * Project has at least one bounty prize whose name indicates "main track" (M2 program scope).
+ */
+export function isMainTrackWinner(project: {
+  bountyPrize?: Array<{ name: string }>;
+}): boolean {
+  return (
+    project.bountyPrize?.some((b) =>
+      b.name.toLowerCase().includes("main track")
+    ) ?? false
+  );
+}
+
+/**
  * TypeScript types for M2 program weeks
  */
 export interface M2Week {

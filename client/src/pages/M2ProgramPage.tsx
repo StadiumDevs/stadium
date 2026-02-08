@@ -90,9 +90,10 @@ const M2ProgramPage = () => {
     const loadProjects = async () => {
       try {
         // Query backend API and log response (for mapping step)
+        // Load only main track winners (M2 program is for main track winners only)
         const response = await api.getProjects({
-          hackathonId: "synergy-2025",
           winnersOnly: true,
+          mainTrackOnly: true,
           sortBy: "updatedAt",
           sortOrder: "desc",
           limit: 1000,
