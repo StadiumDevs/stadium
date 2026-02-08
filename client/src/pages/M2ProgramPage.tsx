@@ -264,17 +264,30 @@ const M2ProgramPage = () => {
     return filteredProjects.filter(p => p.m2Status === 'under_review');
   }, [filteredProjects]);
 
-  // M2 Graduates should always show all completed projects, regardless of filters
+  // M2 Graduates: all completed projects, latest first (by completionDate)
   const completedProjects = useMemo(() => {
-    return projects.filter(p => p.m2Status === 'completed');
+    return projects
+      .filter((p) => p.m2Status === "completed")
+      .sort((a, b) => {
+        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        return dateB - dateA;
+      });
   }, [projects]);
 
-  // Group filtered projects by status for sectioned display
+  // Group filtered projects by status for sectioned display (completed = latest first)
   const groupedProjects = useMemo(() => {
+    const completed = filteredProjects
+      .filter((p) => p.m2Status === "completed")
+      .sort((a, b) => {
+        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        return dateB - dateA;
+      });
     return {
-      building: filteredProjects.filter(p => p.m2Status === 'building'),
-      underReview: filteredProjects.filter(p => p.m2Status === 'under_review'),
-      completed: filteredProjects.filter(p => p.m2Status === 'completed'),
+      building: filteredProjects.filter((p) => p.m2Status === "building"),
+      underReview: filteredProjects.filter((p) => p.m2Status === "under_review"),
+      completed,
     };
   }, [filteredProjects]);
 
