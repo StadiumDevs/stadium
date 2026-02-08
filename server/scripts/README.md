@@ -123,17 +123,19 @@ npm run db:migrate
 
 ### Production Script: `migration.js`
 
-**Purpose:** Import historical hackathon data
+**Purpose:** Import historical hackathon data and apply production-ready M2 data
 
 **What it does:**
 - Reads project data from `migration-data/` JSON files
 - Matches projects with payout data from CSV
 - Creates `finalSubmission` for completed M2 projects
 - Maps renamed projects automatically
+- **Post-insert patch:** Applies `finalSubmission` + `liveUrl` for OpenArkiv, Kleo Protocol, ObraClara so M2 deliverables and live site links are correct when the app goes to production
 
 **Requirements:**
 - `migration-data/synergy-2025.json`
 - `migration-data/symmetry-2024.json`
+- `migration-data/symbiosis-2025.json` (contains OpenArkiv, Kleo Protocol, ObraClara)
 - `migration-data/payouts.csv` (optional)
 
 **Safety Features:**
@@ -273,6 +275,8 @@ Located in `server/scripts/`:
 | `seed-dev.js` | Development setup (purge + 3 test projects) | **Main dev script** ⭐ |
 | `migration.js` | Production migration (84 historical projects) | **Main prod script** |
 | `seed-m2-test-project.js` | Add 1 test project (no purge) | Used by `db:reset` |
+| `set-live-urls.js` | Set `liveUrl` for specific projects | One-off / existing DB |
+| `set-m2-final-submissions.js` | Set `finalSubmission` for OpenArkiv, Kleo, ObraClara | One-off / existing DB (migration.js also applies this on fresh run) |
 
 **Note:** These are called automatically by npm scripts. You rarely need to run them directly.
 
