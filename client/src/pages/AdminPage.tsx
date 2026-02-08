@@ -33,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Project } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/EmptyState";
 import { api } from "@/lib/api";
@@ -48,7 +47,8 @@ import { TestPaymentModal } from "@/components/admin/TestPaymentModal";
 const formatAddress = (address = "") =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
 
-type M2Project = Project & {
+type M2Project = {
+  id: string;
   projectName: string;
   teamMembers?: Array<{
     name: string;
@@ -70,8 +70,7 @@ type M2Project = Project & {
 };
 
 const AdminPage = () => {
-  // TESTING MODE: Bypass wallet connection check
-  const BYPASS_ADMIN_CHECK = true; // Set to false for production
+  const BYPASS_ADMIN_CHECK = false;
   
   const [walletState, setWalletState] = useState({
     isExtensionAvailable: false,
@@ -98,17 +97,10 @@ const AdminPage = () => {
     try {
       // Fetch ALL projects from MongoDB via API (no pagination)
       const response = await api.getProjects({ limit: 1000 });
-      console.log('[AdminPage] API response:', response);
-      
-      // Extract projects from response.data
       const projectsData = response?.data || [];
-      console.log('[AdminPage] Loaded projects from DB:', projectsData.length, 'projects');
-      console.log('[AdminPage] Sample project:', projectsData[0]);
-      
       setProjects(projectsData);
     } catch (error) {
       const err = error as Error;
-      console.error('[AdminPage] Failed to load data:', error);
       toast({
         title: "Error",
         description: err?.message || "Failed to load admin data.",
@@ -203,21 +195,12 @@ const AdminPage = () => {
       if (!allAccounts.length)
         throw new Error("No accounts found in extension.");
 
-      // Debug: Log available accounts
-      console.log('[AdminPage] Available accounts:', allAccounts.map(a => ({
-        name: a.meta.name,
-        address: a.address
-      })));
-
       // Check if admin account is available
       const adminAccount = allAccounts.find(
         (account) => isAdmin(account.address)
       );
 
       if (!adminAccount) {
-        const availableAddresses = allAccounts.map(a => a.address).join(', ');
-        console.error('[AdminPage] No admin account found. Available addresses:', availableAddresses);
-        console.error('[AdminPage] Admin addresses from env:', ADMIN_ADDRESSES);
         throw new Error(
           `Admin account not found. Please ensure you have the correct admin account in your wallet.\n\nYour wallet addresses: ${allAccounts.map(a => a.address).join(', ')}\n\nExpected admin addresses: ${ADMIN_ADDRESSES.join(', ')}\n\nAdd one of your addresses to the VITE_ADMIN_ADDRESSES in .env file and restart the dev server.`
         );
@@ -283,9 +266,6 @@ const AdminPage = () => {
     if (!selectedProject) return;
 
     try {
-      console.log('[AdminPage] Confirming M1 payout for project:', selectedProject.id);
-      console.log('[AdminPage] M1 payout data:', data);
-
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: 'POST',
         headers: {
@@ -295,10 +275,7 @@ const AdminPage = () => {
         body: JSON.stringify(data),
       });
 
-      console.log('[AdminPage] Response status:', response.status);
-
       const responseText = await response.text();
-      console.log('[AdminPage] Response text:', responseText);
 
       if (!response.ok) {
         let errorMessage = 'Failed to confirm M1 payout';
@@ -320,7 +297,6 @@ const AdminPage = () => {
       await loadData();
       setShowM1PayoutModal(false);
     } catch (error: any) {
-      console.error('[AdminPage] M1 payout confirmation error:', error);
       toast({
         title: "Error",
         description: error.message || 'Failed to confirm M1 payout',
@@ -334,9 +310,6 @@ const AdminPage = () => {
     if (!selectedProject) return;
 
     try {
-      console.log('[AdminPage] Confirming payment for project:', selectedProject.id);
-      console.log('[AdminPage] Payment data:', data);
-
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: 'POST',
         headers: {
@@ -346,12 +319,7 @@ const AdminPage = () => {
         body: JSON.stringify(data),
       });
 
-      console.log('[AdminPage] Response status:', response.status);
-      console.log('[AdminPage] Response ok:', response.ok);
-
-      // Try to get response text first
       const responseText = await response.text();
-      console.log('[AdminPage] Response text:', responseText);
 
       if (!response.ok) {
         let errorMessage = 'Failed to confirm payment';
@@ -374,7 +342,6 @@ const AdminPage = () => {
       await loadData();
       setShowPayoutModal(false);
     } catch (error: any) {
-      console.error('[AdminPage] Payment confirmation error:', error);
       toast({
         title: "Error",
         description: error.message || 'Failed to confirm payment',
@@ -498,7 +465,6 @@ const AdminPage = () => {
         description: err?.message || 'An error occurred',
         variant: 'destructive',
       });
-      console.error(error);
     }
   };
 

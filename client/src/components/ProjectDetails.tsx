@@ -25,9 +25,27 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { projectApi } from "@/lib/mockApi";
-import { Project } from "@/lib/mockData";
+import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+
+interface Project {
+  id: string;
+  ss58Address: string;
+  projectTitle: string;
+  projectSummary: string;
+  background: string;
+  techStack: string;
+  gitLink?: string;
+  demoLink?: string;
+  milestoneTitle: string;
+  milestoneDescription: string;
+  deliverables: string[];
+  successCriteria: string;
+  additionalNotes?: string;
+  hasOtherMilestones: boolean;
+  status: "pending" | "reviewing" | "approved" | "winner" | "rejected";
+  submittedAt: string;
+}
 
 const ProjectDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -45,7 +63,8 @@ const ProjectDetails = () => {
       }
 
       try {
-        const projectData = await projectApi.getProject(id);
+        const response = await api.getProject(id);
+        const projectData = response?.data;
         if (projectData) {
           setProject(projectData);
         } else {

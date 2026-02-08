@@ -142,7 +142,6 @@ export const api = {
         mockResponse.meta.total = mockResponse.data.length;
         mockResponse.meta.count = mockResponse.data.length;
       }
-      console.log("🔧 Using mock data (server is down)");
       return Promise.resolve(mockResponse);
     }
     
@@ -159,9 +158,7 @@ export const api = {
     if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
 
     const queryString = searchParams.toString();
-    const result = await request(`/m2-program${queryString ? `?${queryString}` : ""}`);
-    console.log("[api.getProjects] API response:", result);
-    return result;
+    return request(`/m2-program${queryString ? `?${queryString}` : ""}`);
   },
 
   getProject: async (id: string) => {
@@ -171,7 +168,6 @@ export const api = {
       const mockProject = mockWinningProjects.find((p) => p.id === id);
       
       if (mockProject) {
-        console.log("🔧 Using mock data for project:", id);
         return Promise.resolve({
           status: "success",
           data: mockProject
@@ -206,8 +202,6 @@ export const api = {
     summary: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Submitting M2 for project', projectId, submission);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -260,8 +254,6 @@ export const api = {
     donationAddress?: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating team for project', projectId, data);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -330,8 +322,6 @@ export const api = {
     successCriteria?: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Submitting M2 Agreement for project', projectId, agreement);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -374,8 +364,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating M2 Agreement for project', projectId, data);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -424,8 +412,6 @@ export const api = {
 
   updateProjectStatus: async (projectId: string, status: 'building' | 'under_review' | 'completed', authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log(`Mock: Updating project ${projectId} status to ${status}`)
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500))
       
@@ -470,8 +456,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating team members for project', projectId, teamMembers);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -503,8 +487,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating payout address for project', projectId, donationAddress);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -553,8 +535,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating project details for', projectId, data);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -592,7 +572,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Confirming payment for project', projectId, data);
       await new Promise(resolve => setTimeout(resolve, 500));
       return { success: true };
     }

@@ -81,8 +81,12 @@ const HomePage = () => {
           }
         }
         setHackathons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })));
-      } catch (e) {
-        console.error("Failed to load hackathons:", e);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load hackathon list. Event filtering may be unavailable.",
+          variant: "destructive",
+        });
       }
     };
     loadHackathons();
@@ -99,9 +103,13 @@ const HomePage = () => {
         const response = await api.getProjects(params);
         const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
         setProjects(apiProjects);
-      } catch (e) {
-        console.error("[HomePage] Failed to load projects:", e);
+      } catch (error) {
         setProjects([]);
+        toast({
+          title: "Error",
+          description: "Failed to load projects. Please try again later.",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
