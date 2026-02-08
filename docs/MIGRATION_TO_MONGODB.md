@@ -8,7 +8,7 @@ Successfully migrated the Blockspace Stadium application from using mock data to
 
 ### 1. Schema Documentation
 - Created `DATA_SCHEMA.md` documenting the complete data schema
-- Documented all frontend-expected fields including M2 Accelerator Program fields
+- Documented all frontend-expected fields including M2 Incubator Program fields
 
 ### 2. MongoDB Schema Updates
 **File**: `server/models/Project.js`
@@ -94,7 +94,7 @@ Added missing fields to support frontend expectations:
 The frontend now expects and receives:
 - ✅ Base project fields (projectName, description, teamMembers, etc.)
 - ✅ Hackathon information
-- ✅ M2 Accelerator Program fields (m2Status, m2Agreement, finalSubmission, etc.)
+- ✅ M2 Incubator Program fields (m2Status, m2Agreement, finalSubmission, etc.)
 - ✅ Extended team member fields (role, social links)
 - ✅ Tech stack and categories
 

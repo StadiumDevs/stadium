@@ -24,6 +24,8 @@ const ProjectSchema = new mongoose.Schema({
   projectRepo: { type: String },
   demoUrl: { type: String },
   slidesUrl: { type: String },
+  /** Live/production website URL (e.g. https://kleo.finance/) */
+  liveUrl: { type: String },
   techStack: { type: [String], required: true },
   categories: { type: [String], default: [] },
   milestones: [{
@@ -43,7 +45,7 @@ const ProjectSchema = new mongoose.Schema({
   projectState: { type: String, required: true },
   // Flag to indicate if all milestones/bounties have been paid out or finalized (i.e. project abandoned).
   bountiesProcessed: { type: Boolean, default: false, required: true },
-  // M2 Accelerator Program fields
+  // M2 Incubator Program fields
   m2Status: { 
     type: String, 
     enum: ['building', 'under_review', 'completed'],
@@ -74,10 +76,12 @@ const ProjectSchema = new mongoose.Schema({
   completionDate: { type: Date },
   submittedDate: { type: Date },
   totalPaid: [{
-    milestone: { type: String, enum: ['M1', 'M2'], required: true },
+    milestone: { type: String, enum: ['M1', 'M2', 'BOUNTY'], required: true },
     amount: { type: Number, required: true },
     currency: { type: String, enum: ['USDC', 'DOT'], required: true },
-    transactionProof: { type: String, required: true } // URL to transaction proof
+    transactionProof: { type: String, required: true }, // URL to transaction proof
+    bountyName: { type: String }, // Only for BOUNTY milestone type - name from bountyPrize
+    paidDate: { type: Date, default: Date.now }
   }]
 }, { timestamps: true, versionKey: false, toJSON: { virtuals: true, transform: (_doc, ret) => {
   ret.id = ret._id;

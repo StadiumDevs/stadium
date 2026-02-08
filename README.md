@@ -249,7 +249,7 @@ cd server
 node seed-m2-projects.js
 ```
 
-This adds 2 M2 Accelerator projects for testing:
+This adds 2 M2 Incubator projects for testing:
 - **Polkadot Portfolio Tracker** (status: `building`) - Active development
 - **Decentralized Voting DAO** (status: `under_review`) - Submitted for review
 

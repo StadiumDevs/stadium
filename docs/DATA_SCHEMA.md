@@ -51,12 +51,12 @@ This document describes the complete data schema for the Blockspace Stadium appl
 }
 ```
 
-### M2 Accelerator Program Fields (Optional)
+### M2 Incubator Program Fields (Optional)
 
 ```typescript
 {
   m2Status?: 'building' | 'under_review' | 'completed';
-  // Status of Milestone 2 in the accelerator program
+  // Status of Milestone 2 in the incubator program
   
   m2Agreement?: {                // Optional: Milestone 2 agreement details
     mentorName: string;          // Required: Mentor name

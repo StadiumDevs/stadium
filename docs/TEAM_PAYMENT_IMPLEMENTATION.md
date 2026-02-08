@@ -2,7 +2,7 @@
 
 ## Summary
 
-Successfully implemented comprehensive Team & Payment management features with improved wallet connection UX for the Stadium M2 Accelerator platform.
+Successfully implemented comprehensive Team & Payment management features with improved wallet connection UX for the Stadium M2 Incubator platform.
 
 ## Components Created
 

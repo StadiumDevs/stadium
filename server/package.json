@@ -14,7 +14,8 @@
     "db:purge": "mongosh blockspace-stadium --eval \"db.dropDatabase()\" --quiet",
     "db:migrate": "node scripts/migration.js",
     "db:migrate:fresh": "npm run db:purge && npm run db:migrate",
-    "db:reset": "npm run db:purge && npm run db:migrate && node scripts/seed-m2-test-project.js"
+    "db:reset": "npm run db:purge && npm run db:migrate && node scripts/seed-m2-test-project.js",
+    "list:winners-zero-paid": "node scripts/list-winners-zero-paid.js"
   },
   "keywords": [],
   "author": "",

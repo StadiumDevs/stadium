@@ -80,7 +80,7 @@ const seedTestProject = async () => {
       projectState: "Milestone Delivered",
       bountiesProcessed: false,
       
-      // M2 Accelerator Program - Building Status (Week 5 - Submission Window Open)
+      // M2 Incubator Program - Building Status (Week 5 - Submission Window Open)
       m2Status: "building",
       m2Agreement: {
         agreedDate: fiveWeeksAgo,

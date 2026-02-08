@@ -13,10 +13,6 @@
 /* Legacy fonts */
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
 @import url("./fonts.css");
-@import url("https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@100..900&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Sofia+Sans+Condensed:ital,wght@0,1..1000;1,1..1000&display=swap");
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -201,87 +197,6 @@
       0 0 10px hsl(var(--primary) / 0.4),
       0 0 20px hsl(var(--primary) / 0.2);
   }
-}
-
-/* Form styling - Dark gray text for all form elements */
-input, textarea, select {
-  color: #374151 !important; /* Dark gray text */
-}
-
-/* Ensure form labels and descriptions also have appropriate contrast */
-.form-label, .form-description {
-  color: #6B7280 !important; /* Medium gray for labels */
-}
-
-/* Additional form element styling for better coverage */
-input[type="text"], 
-input[type="email"], 
-input[type="password"], 
-input[type="number"], 
-input[type="url"],
-input[type="search"],
-input[type="tel"],
-textarea,
-select,
-.form-input,
-.form-textarea {
-  color: #374151 !important; /* Dark gray text */
-}
-
-/* Ensure placeholder text is also visible */
-input::placeholder,
-textarea::placeholder {
-  color: #9CA3AF !important; /* Medium gray for placeholders */
-}
-
-/* Additional styling for form labels and descriptions */
-label, .form-label, [data-label] {
-  color: #6B7280 !important; /* Medium gray for labels */
-}
-
-/* Style form descriptions and help text */
-.form-description, 
-[data-description],
-.help-text {
-  color: #9CA3AF !important; /* Light gray for descriptions */
-}
-
-/* Ensure form validation messages are visible */
-.form-message,
-.error-message,
-.validation-error {
-  color: #DC2626 !important; /* Red for errors */
-}
-
-/* Specific styling for SubmissionPage forms */
-.submission-form input,
-.submission-form textarea,
-.submission-form select {
-  color: #374151 !important; /* Dark gray text */
-}
-
-/* Ensure all form elements in the project submission have dark gray text */
-[data-form="project-submission"] input,
-[data-form="project-submission"] textarea,
-[data-form="project-submission"] select {
-  color: #374151 !important; /* Dark gray text */
-}
-
-/* Style the team information section specifically */
-.team-information input,
-.team-information textarea {
-  color: #374151 !important; /* Dark gray text */
-}
-
-body {
-  /* font-family: "Kumbh Sans", sans-serif;
-  font-optical-sizing: auto;
-  font-style: normal;
-  font-variation-settings: "YOPQ" 300; */
-  /* font-family: "Sofia Sans Condensed", sans-serif; */
-  font-optical-sizing: auto;
-  font-style: normal;
-  font-variation-settings: "YOPQ" 300;
 }
 
 /* Bubble grid layout for PastProjectsPage */

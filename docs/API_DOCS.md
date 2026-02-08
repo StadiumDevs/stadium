@@ -1,6 +1,6 @@
 # Stadium M2 Program API Documentation
 
-This document provides instructions on how to authenticate with and use the Stadium M2 Accelerator Program API.
+This document provides instructions on how to authenticate with and use the Stadium M2 Incubator Program API.
 
 ## Authentication
 
@@ -51,7 +51,7 @@ All endpoints are available under the `/api` prefix.
 
 #### `GET /api/m2-program`
 
-Retrieves a list of all projects in the M2 Accelerator Program. Supports filtering and sorting.
+Retrieves a list of all projects in the M2 Incubator Program. Supports filtering and sorting.
 
 -   **Method**: `GET`
 -   **Authentication**: None
@@ -193,7 +193,7 @@ POST http://localhost:2000/api/m2-program/my-awesome-new-project-a1b2c3/team
 
 #### `PATCH /api/m2-program/:projectId/m2-agreement`
 
-Updates the M2 Agreement (roadmap) for a project in the M2 Accelerator Program.
+Updates the M2 Agreement (roadmap) for a project in the M2 Incubator Program.
 
 -   **Method**: `PATCH`
 -   **Authentication**: **Required (Admin or Project Team Member)**
@@ -202,7 +202,7 @@ Updates the M2 Agreement (roadmap) for a project in the M2 Accelerator Program.
     -   `x-siws-auth: <Your-Base64-Encoded-Signature>`
 
 **Notes:**
-- Team members can only edit the M2 Agreement during Weeks 1-4 of the accelerator program
+- Team members can only edit the M2 Agreement during Weeks 1-4 of the incubator program
 - Automatically adds `lastUpdatedBy: 'team'` and `lastUpdatedDate` timestamp
 - Preserves existing fields like `agreedDate` and `mentorName`
 - Maximum 20 core features, 10 documentation items

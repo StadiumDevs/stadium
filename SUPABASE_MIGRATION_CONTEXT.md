@@ -21,11 +21,11 @@
 
 ## Project Overview
 
-**Stadium** is a hackathon project showcase and M2 accelerator program management platform built for the Polkadot ecosystem.
+**Stadium** is a hackathon project showcase and M2 incubator program management platform built for the Polkadot ecosystem.
 
 ### Purpose
 - Display hackathon projects (Synergy 2025, Symmetry 2024)
-- Manage M2 Accelerator Program (6-week mentorship program)
+- Manage M2 Incubator Program (6-week mentorship program)
 - Track project milestones and payments
 - Enable team submissions and admin reviews
 - Process on-chain payments via Polkadot multisig
@@ -147,6 +147,7 @@ Client ← JSON Response ← Express ← Controller ← Service ← Repository �
   projectRepo: String,            // GitHub repo
   demoUrl: String,                // Demo video URL
   slidesUrl: String,              // Presentation slides
+  liveUrl: String,                // Live/production site (e.g. https://kleo.finance/)
   
   // Classification
   techStack: [String],            // Technologies used
@@ -173,7 +174,7 @@ Client ← JSON Response ← Express ← Controller ← Service ← Repository �
   projectState: String,           // Project lifecycle state
   bountiesProcessed: Boolean,     // Payment completion flag
   
-  // M2 Accelerator Program
+  // M2 Incubator Program
   m2Status: String,               // 'building' | 'under_review' | 'completed'
   m2Agreement: {
     mentorName: String,
@@ -208,10 +209,12 @@ Client ← JSON Response ← Express ← Controller ← Service ← Repository �
   
   // Payment records
   totalPaid: [{
-    milestone: String,            // 'M1' | 'M2'
+    milestone: String,            // 'M1' | 'M2' | 'BOUNTY'
     amount: Number,
     currency: String,             // 'USDC' | 'DOT'
-    transactionProof: String      // URL to transaction proof
+    transactionProof: String,     // URL to transaction proof
+    bountyName: String,           // For BOUNTY: name from bountyPrize
+    paidDate: Date                // When payment was made
   }],
   
   // Timestamps (auto-generated)
@@ -482,7 +485,7 @@ No global state library (Redux, Zustand) is used.
 
 ## Key Features
 
-### 1. M2 Accelerator Program
+### 1. M2 Incubator Program
 
 **6-week mentorship program** for winning teams.
 
@@ -575,6 +578,7 @@ CREATE TABLE projects (
   project_repo TEXT,
   demo_url TEXT,
   slides_url TEXT,
+  live_url TEXT,
   tech_stack TEXT[],
   categories TEXT[],
   donation_address TEXT,
@@ -656,10 +660,12 @@ CREATE TABLE milestones (
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  milestone TEXT NOT NULL CHECK (milestone IN ('M1', 'M2')),
+  milestone TEXT NOT NULL CHECK (milestone IN ('M1', 'M2', 'BOUNTY')),
   amount NUMERIC NOT NULL,
   currency TEXT NOT NULL CHECK (currency IN ('USDC', 'DOT')),
   transaction_proof TEXT NOT NULL,
+  bounty_name TEXT,
+  paid_date TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -1007,7 +1013,7 @@ When implementing Supabase migration, consider:
 
 ## Summary
 
-**Stadium** is a React + Express + MongoDB app for hackathon project showcase and M2 accelerator program management with Polkadot blockchain integration.
+**Stadium** is a React + Express + MongoDB app for hackathon project showcase and M2 incubator program management with Polkadot blockchain integration.
 
 **Migration to Supabase** should:
 1. Replace MongoDB with PostgreSQL (Supabase)

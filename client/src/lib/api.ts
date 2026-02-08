@@ -46,8 +46,16 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
   const response = await fetch(url, config);
 
   if (!response.ok) {
-    const friendly = mapStatusToMessage(response.status);
-    throw new ApiError(friendly, response.status);
+    let message = mapStatusToMessage(response.status);
+    try {
+      const body = await response.json();
+      if (body && typeof body.message === "string" && body.message.trim()) {
+        message = body.message;
+      }
+    } catch {
+      // ignore non-JSON or empty body
+    }
+    throw new ApiError(message, response.status);
   }
 
   // Some endpoints may return 204 No Content
@@ -63,8 +71,38 @@ type GetProjectsParams = {
   projectState?: string;
   hackathonId?: string;
   winnersOnly?: boolean;
+  /** When true, only projects that won a main track (bountyPrize[].name contains "main track") */
+  mainTrackOnly?: boolean;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+};
+
+/** Project shape returned by getProjects (includes M2 fields from server) */
+export type ApiProject = {
+  id: string;
+  projectName: string;
+  description: string;
+  teamMembers?: { name: string; walletAddress?: string }[];
+  projectRepo?: string;
+  demoUrl?: string;
+  slidesUrl?: string;
+  /** Live/production website URL */
+  liveUrl?: string;
+  donationAddress?: string;
+  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
+  techStack?: string[];
+  categories?: string[];
+  m2Status?: "building" | "under_review" | "completed";
+  completionDate?: string;
+  submittedDate?: string;
+  hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+  totalPaid?: Array<{
+    milestone: "M1" | "M2" | "BOUNTY";
+    amount: number;
+    currency: "USDC" | "DOT";
+    transactionProof: string;
+    bountyName?: string;
+  }>;
 };
 
 export const api = {
@@ -97,8 +135,13 @@ export const api = {
         mockResponse.meta.total = mockResponse.data.length;
         mockResponse.meta.count = mockResponse.data.length;
       }
-      
-      console.log("🔧 Using mock data (server is down)");
+      if (params?.mainTrackOnly) {
+        mockResponse.data = mockResponse.data.filter((p) =>
+          p.bountyPrize?.some((b) => b.name.toLowerCase().includes("main track"))
+        );
+        mockResponse.meta.total = mockResponse.data.length;
+        mockResponse.meta.count = mockResponse.data.length;
+      }
       return Promise.resolve(mockResponse);
     }
     
@@ -110,13 +153,12 @@ export const api = {
     if (params?.status) searchParams.set("projectState", params.status);
     if (params?.hackathonId) searchParams.set("hackathonId", params.hackathonId);
     if (params?.winnersOnly !== undefined) searchParams.set("winnersOnly", String(params.winnersOnly));
+    if (params?.mainTrackOnly !== undefined) searchParams.set("mainTrackOnly", String(params.mainTrackOnly));
     if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
     if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
 
     const queryString = searchParams.toString();
-    const result = await request(`/m2-program${queryString ? `?${queryString}` : ""}`);
-    console.log("[api.getProjects] API response:", result);
-    return result;
+    return request(`/m2-program${queryString ? `?${queryString}` : ""}`);
   },
 
   getProject: async (id: string) => {
@@ -126,7 +168,6 @@ export const api = {
       const mockProject = mockWinningProjects.find((p) => p.id === id);
       
       if (mockProject) {
-        console.log("🔧 Using mock data for project:", id);
         return Promise.resolve({
           status: "success",
           data: mockProject
@@ -161,8 +202,6 @@ export const api = {
     summary: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Submitting M2 for project', projectId, submission);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -194,8 +233,8 @@ export const api = {
       return { success: true };
     }
     
-    // Real API call
-    return request(`/m2-program/${projectId}/submit-review`, {
+    // Real API call (server route is submit-m2, not submit-review)
+    return request(`/m2-program/${projectId}/submit-m2`, {
       method: 'POST',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify(submission)
@@ -203,19 +242,18 @@ export const api = {
   },
 
   updateTeam: async (projectId: string, data: {
-    members: Array<{ 
+    teamMembers: Array<{ 
       name: string; 
-      wallet: string;
+      walletAddress?: string;
       role?: string;
       twitter?: string;
       github?: string;
       linkedin?: string;
+      customUrl?: string;
     }>;
-    payoutAddress: string;
+    donationAddress?: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating team for project', projectId, data);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -225,43 +263,34 @@ export const api = {
         const projects = JSON.parse(stored);
         const index = projects.findIndex((p: any) => p.id === projectId);
         if (index !== -1) {
-          projects[index].teamMembers = data.members.map(m => ({
-            name: m.name.trim(),
-            walletAddress: m.wallet.trim() || undefined,
-            role: m.role?.trim() || undefined,
-            twitter: m.twitter?.trim() || undefined,
-            github: m.github?.trim() || undefined,
-            linkedin: m.linkedin?.trim() || undefined,
-          }));
-          projects[index].donationAddress = data.payoutAddress.trim();
+          projects[index].teamMembers = data.teamMembers;
+          if (data.donationAddress) {
+            projects[index].donationAddress = data.donationAddress;
+          }
           localStorage.setItem('projects', JSON.stringify(projects));
         }
-      }
-      
-      // Also try to get from mock data and update in-memory
-      const { mockWinningProjects } = await import("./mockWinners");
-      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
-      if (mockProject) {
-        (mockProject as any).teamMembers = data.members.map(m => ({
-          name: m.name.trim(),
-          walletAddress: m.wallet.trim() || undefined,
-          role: m.role?.trim() || undefined,
-          twitter: m.twitter?.trim() || undefined,
-          github: m.github?.trim() || undefined,
-          linkedin: m.linkedin?.trim() || undefined,
-        }));
-        (mockProject as any).donationAddress = data.payoutAddress.trim();
       }
       
       return { success: true };
     }
     
-    // Real API call
-    return request(`/m2-program/${projectId}/team`, {
-      method: 'PUT',
+    // Real API call - update team members
+    const teamResult = await request(`/m2-program/${projectId}/team`, {
+      method: 'POST',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
+      body: JSON.stringify({ teamMembers: data.teamMembers })
     });
+
+    // If there's a donation address, update it separately
+    if (data.donationAddress) {
+      await request(`/m2-program/${projectId}/payout-address`, {
+        method: 'PATCH',
+        headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+        body: JSON.stringify({ donationAddress: data.donationAddress })
+      });
+    }
+
+    return teamResult;
   },
 
   webzeroApprove: async (projectId: string, authHeader?: string) =>
@@ -293,8 +322,6 @@ export const api = {
     successCriteria?: string;
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Submitting M2 Agreement for project', projectId, agreement);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -337,8 +364,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating M2 Agreement for project', projectId, data);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -387,8 +412,6 @@ export const api = {
 
   updateProjectStatus: async (projectId: string, status: 'building' | 'under_review' | 'completed', authHeader?: string) => {
     if (USE_MOCK_DATA) {
-      console.log(`Mock: Updating project ${projectId} status to ${status}`)
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500))
       
@@ -433,8 +456,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating team members for project', projectId, teamMembers);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -466,8 +487,6 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      console.log('Mock: Updating payout address for project', projectId, donationAddress);
-      
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -490,6 +509,78 @@ export const api = {
       method: 'PATCH',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({ donationAddress })
+    });
+  },
+
+  updateProjectDetails: async (
+    projectId: string,
+    data: {
+      projectName?: string;
+      description?: string;
+      projectRepo?: string;
+      demoUrl?: string;
+      slidesUrl?: string;
+      liveUrl?: string;
+      categories?: string[];
+      techStack?: string[];
+      bountiesProcessed?: boolean;
+      projectState?: string;
+      bountyPrize?: Array<{
+        name: string;
+        amount: number;
+        hackathonWonAtId: string;
+        txHash?: string;
+      }>;
+    },
+    authHeader?: string
+  ) => {
+    if (USE_MOCK_DATA) {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Update project in localStorage
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: any) => p.id === projectId);
+        if (index !== -1) {
+          Object.assign(projects[index], data);
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+      
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/m2-program/${projectId}`, {
+      method: 'PATCH',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+  },
+
+  confirmPayment: async (
+    projectId: string,
+    data: {
+      milestone: 'M1' | 'M2' | 'BOUNTY';
+      amount: number;
+      currency: 'USDC' | 'DOT';
+      transactionProof: string;
+      bountyName?: string; // Required for BOUNTY milestone
+    },
+    authHeader?: string
+  ) => {
+    if (USE_MOCK_DATA) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { success: true };
+    }
+    
+    // Real API call
+    return request(`/m2-program/${projectId}/confirm-payment`, {
+      method: 'POST',
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
     });
   },
 };

@@ -248,6 +248,9 @@ const migrate = async () => {
         if (project.totalPaid) {
           projectData.totalPaid = project.totalPaid;
         }
+        if (project.liveUrl) {
+          projectData.liveUrl = project.liveUrl;
+        }
 
         return projectData;
       });
@@ -260,6 +263,54 @@ const migrate = async () => {
       console.log(`✅ Migrated ${allProjectsToInsert.length} projects in total.`);
     } catch (err) {
       console.error(`❌ Failed to insert projects:`, err);
+    }
+  }
+
+  // Apply M2 final submissions + liveUrl for known completed projects (production-ready)
+  const m2DeliverablesPatch = [
+    {
+      projectName: "OpenArkiv",
+      finalSubmission: {
+        repoUrl: "https://github.com/OpenArkiv",
+        demoUrl: "https://youtu.be/zQvZUBh5aco",
+        docsUrl: "https://github.com/OpenArkiv",
+        summary: "Refactored and initialized the codebase for scalability. Designed and tested multi-hop architecture for routing payloads across n devices. Validated multi-hop flows with BitChat architecture and test cases. Implemented Open Attestation schema on Arkiv with location coordinates. Refactored device key generation and signature flows for secure multi-device usage. Began media support and base64 encoding strategies. Advanced planning and partial implementation of encrypted payload flows. Created new landing site with sideloading instructions and shipped release file for OpenArkiv app installation.",
+        submittedDate: new Date("2026-02-04"),
+      },
+      liveUrl: "https://openarkiv.vercel.app",
+    },
+    {
+      projectName: "Kleo Protocol",
+      finalSubmission: {
+        repoUrl: "https://github.com/Kleo-Protocol",
+        demoUrl: "https://youtu.be/i9du6iR0uiI",
+        docsUrl: "https://deepwiki.com/Kleo-Protocol/kleo-contracts",
+        summary: "Loan event standardization with schema for indexing. Full repayment system with on-chain transfers. Protocol update using pools and vouchers (no collateral). Kleo SDK public on npm (@kleo-protocol/kleo-sdk). Full Kleo beta on Paseo Asset Hub with PAS tokens. Repos: kleo-dapp, kleo-contracts, kleo-sdk, kleo-landing-page. Live at kleo.finance.",
+        submittedDate: new Date("2026-01-31"),
+      },
+      liveUrl: "https://kleo.finance/",
+    },
+    {
+      projectName: "ObraClara",
+      finalSubmission: {
+        repoUrl: "https://github.com/obra-clara/ink-documents-contract",
+        demoUrl: "https://youtu.be/_4Z4MabWh8E",
+        docsUrl: "https://github.com/chulista/hacksub0.obra-clara/blob/main/README.md",
+        summary: "Milestone 2 completed. Smart contract repository: ink-documents-contract. Full details in MILESTONE-2-COMPLETED.md in hacksub0.obra-clara repo.",
+        submittedDate: new Date("2026-01-20"),
+      },
+    },
+  ];
+  const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const row of m2DeliverablesPatch) {
+    const project = await Project.findOne({
+      projectName: new RegExp(`^${escapeRegex(row.projectName)}$`, "i"),
+    });
+    if (project) {
+      const update = { finalSubmission: row.finalSubmission };
+      if (row.liveUrl) update.liveUrl = row.liveUrl;
+      await Project.findByIdAndUpdate(project._id, { $set: update }, { new: true });
+      console.log(`✅ Patched M2 deliverables: ${project.projectName}`);
     }
   }
 

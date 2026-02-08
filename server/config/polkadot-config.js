@@ -71,7 +71,7 @@ export function isAuthorizedSigner(address) {
   if (!address) return false;
   
   const normalizedAddress = address.toLowerCase();
-  const authorizedAddresses = getAuthorizedAddresses();
+  const authorizedAddresses = getAuthorizedAddresses().map(a => a.toLowerCase());
   
   return authorizedAddresses.includes(normalizedAddress);
 }

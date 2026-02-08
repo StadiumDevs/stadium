@@ -7,7 +7,6 @@ import { ProjectCard } from "@/components/ProjectCard";
 import { M2StatusOverview } from "@/components/M2StatusOverview";
 import { M2ProgramGuideModal } from "@/components/M2ProgramGuideModal";
 import { M2ProjectTable } from "@/components/M2ProjectTable";
-import { M2GraduateCard } from "@/components/M2GraduateCard";
 import { web3Enable, web3Accounts } from '@polkadot/extension-dapp';
 import {
   Github,
@@ -44,29 +43,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
+import { api, type ApiProject } from "@/lib/api";
 import { getProjectUrl, getCurrentProgramWeek } from "@/lib/projectUtils";
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
-
-type ApiProject = {
-  id: string;
-  projectName: string;
-  description: string;
-  teamMembers?: { name: string; walletAddress?: string }[];
-  projectRepo?: string;
-  demoUrl?: string;
-  slidesUrl?: string;
-  donationAddress?: string;
-  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
-  m2Status?: 'building' | 'under_review' | 'completed';
-  totalPaid?: Array<{
-    milestone: 'M1' | 'M2';
-    amount: number;
-    currency: 'USDC' | 'DOT';
-    transactionProof: string;
-  }>;
-};
 
 type LegacyProject = {
   id?: string;
@@ -79,13 +59,14 @@ type LegacyProject = {
   donationAddress?: string;
   winner?: string;
   isWinner?: boolean;
-  m2Status?: 'building' | 'under_review' | 'completed';
+  m2Status?: "building" | "under_review" | "completed";
+  completionDate?: string;
   lastUpdateDays?: number;
   teamMembers?: { name: string; walletAddress?: string }[];
   totalPaid?: Array<{
-    milestone: 'M1' | 'M2';
+    milestone: "M1" | "M2";
     amount: number;
-    currency: 'USDC' | 'DOT';
+    currency: "USDC" | "DOT";
     transactionProof: string;
   }>;
 };
@@ -109,9 +90,10 @@ const M2ProgramPage = () => {
     const loadProjects = async () => {
       try {
         // Query backend API and log response (for mapping step)
+        // Load only main track winners (M2 program is for main track winners only)
         const response = await api.getProjects({
-          hackathonId: "synergy-2025",
           winnersOnly: true,
+          mainTrackOnly: true,
           sortBy: "updatedAt",
           sortOrder: "desc",
           limit: 1000,
@@ -130,13 +112,12 @@ const M2ProgramPage = () => {
           demoUrl: p.demoUrl || "",
           slidesUrl: p.slidesUrl || "",
           donationAddress: p.donationAddress || "",
-          // Winner string preserved from migration in bountyPrize[0].name
           winner: p.bountyPrize?.[0]?.name || "",
           isWinner: !!(p.bountyPrize && p.bountyPrize.length > 0),
-          m2Status: p.m2Status || 'building',
-          totalPaid: p.totalPaid,
-          // Mock lastUpdateDays for stats calculation (would come from API in production)
-          lastUpdateDays: Math.floor(Math.random() * 14), // 0-13 days
+          m2Status: p.m2Status || "building",
+          completionDate: p.completionDate,
+          totalPaid: p.totalPaid as LegacyProject["totalPaid"],
+          lastUpdateDays: Math.floor(Math.random() * 14),
         }));
 
         console.log("[ProjectsPage] Mapped projects count:", mapped.length);
@@ -283,17 +264,30 @@ const M2ProgramPage = () => {
     return filteredProjects.filter(p => p.m2Status === 'under_review');
   }, [filteredProjects]);
 
-  // M2 Graduates should always show all completed projects, regardless of filters
+  // M2 Graduates: all completed projects, latest first (by completionDate)
   const completedProjects = useMemo(() => {
-    return projects.filter(p => p.m2Status === 'completed');
+    return projects
+      .filter((p) => p.m2Status === "completed")
+      .sort((a, b) => {
+        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        return dateB - dateA;
+      });
   }, [projects]);
 
-  // Group filtered projects by status for sectioned display
+  // Group filtered projects by status for sectioned display (completed = latest first)
   const groupedProjects = useMemo(() => {
+    const completed = filteredProjects
+      .filter((p) => p.m2Status === "completed")
+      .sort((a, b) => {
+        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        return dateB - dateA;
+      });
     return {
-      building: filteredProjects.filter(p => p.m2Status === 'building'),
-      underReview: filteredProjects.filter(p => p.m2Status === 'under_review'),
-      completed: filteredProjects.filter(p => p.m2Status === 'completed'),
+      building: filteredProjects.filter((p) => p.m2Status === "building"),
+      underReview: filteredProjects.filter((p) => p.m2Status === "under_review"),
+      completed,
     };
   }, [filteredProjects]);
 
@@ -334,14 +328,14 @@ const M2ProgramPage = () => {
     <div className="min-h-screen animate-fade-in">
       <Navigation />
       
-      {/* M2 Accelerator Header Section */}
+      {/* M2 Incubator Header Section */}
       <div className="container mx-auto px-4 pt-24 pb-6">
         <div className="glass-panel rounded-lg border-subtle p-6 md:p-8 mb-6">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div className="flex-1">
-              <h1 className="font-display text-4xl font-bold mb-2">M2 Accelerator Program</h1>
+              <h1 className="font-display text-4xl font-bold mb-2">Program Overview</h1>
               <p className="text-muted-foreground mb-2">
-                An overview of all projects in the M2 Accelerator Program.
+                An overview of all projects in the M2 Incubator Program.
               </p>
               <p className="text-sm text-muted-foreground">
                 Teams admitted to the program must confirm their milestone 2 plans. Once confirmed, each team is assigned specific mentors according to the support they need.
@@ -537,16 +531,27 @@ const M2ProgramPage = () => {
                 </div>
                 
                 <p className="text-sm text-muted-foreground mb-4">
-                  Congratulations to teams who completed the M2 accelerator! 🎉
+                  Congratulations to teams who completed the M2 incubator! 🎉
                 </p>
                 
                 {/* Graduates always show as special cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {groupedProjects.completed.map((project, idx) => (
-                    <M2GraduateCard 
-                      key={project.id} 
-                      project={project} 
-                      index={idx} 
+                  {groupedProjects.completed.map((project: LegacyProject) => (
+                    <ProjectCard
+                      key={project.id || project.projectName}
+                      title={project.projectName}
+                      author={project.teamLead}
+                      description={project.description}
+                      track={project.winner || "Completed"}
+                      isWinner={!!project.winner}
+                      demoUrl={project.demoUrl}
+                      githubUrl={project.githubRepo}
+                      projectUrl={getProjectUrl(project)}
+                      onClick={() => navigate(getProjectUrl(project))}
+                      showM2Progress={true}
+                      m2Status="completed"
+                      completionDate={project.completionDate}
+                      totalPaid={project.totalPaid}
                     />
                   ))}
                 </div>
@@ -693,7 +698,7 @@ const M2ProgramPage = () => {
                     showM2Progress={true}
                     m2Status="completed"
                     className="border-yellow-500/30"
-                    completionDate={new Date().toISOString()}
+                    completionDate={project.completionDate}
                     totalPaid={project.totalPaid}
                   />
                 ))}
@@ -703,16 +708,6 @@ const M2ProgramPage = () => {
           </div>
         )}
 
-        {/* Fallback: Show empty state if no projects at all */}
-        {projects.length === 0 && !loading ? (
-          <EmptyState
-            title="No Projects Yet"
-            description="Be the first to submit your hackathon project to the Stadium!"
-            actionLabel="Submit Your Project"
-            onAction={() => window.location.href = "/submission"}
-            icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
-          />
-        ) : null}
       </div>
 
       {/* M2 Program Guide Modal */}

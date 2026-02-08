@@ -2,7 +2,7 @@
 
 ## 🔒 **YES, Date Enforcement is FULLY IMPLEMENTED**
 
-Stadium enforces strict time-based restrictions for M2 Accelerator Program activities based on the 6-week program timeline.
+Stadium enforces strict time-based restrictions for M2 Incubator Program activities based on the 6-week program timeline.
 
 ---
 

@@ -9,24 +9,27 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ExternalLink, Github, Trophy } from "lucide-react"
+import { ExternalLink, Github, Globe, Trophy } from "lucide-react"
 import { DemoPlayer } from "@/components/DemoPlayer"
+
+export interface ProjectDetailModalProject {
+  title: string
+  author: string
+  description: string
+  longDescription?: string
+  track: string
+  isWinner?: boolean
+  demoUrl?: string
+  githubUrl?: string
+  projectUrl?: string
+  liveUrl?: string
+  eventStartedAt?: string
+}
 
 interface ProjectDetailModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  project: {
-    title: string
-    author: string
-    description: string
-    longDescription?: string
-    track: string
-    isWinner?: boolean
-    demoUrl?: string
-    githubUrl?: string
-    projectUrl?: string
-    eventStartedAt?: string
-  }
+  project: ProjectDetailModalProject
 }
 
 export function ProjectDetailModal({
@@ -65,8 +68,32 @@ export function ProjectDetailModal({
           </div>
         </DialogHeader>
 
-        {/* Demo Player Section */}
-        {project.demoUrl && project.demoUrl !== "nan" && (
+        {/* When project has a live URL, embed the site (no demo video) */}
+        {project.liveUrl && project.liveUrl !== "nan" && (
+          <div className="my-4 space-y-2">
+            <div className="rounded-lg border bg-muted/30 overflow-hidden min-h-[50vh]">
+              <iframe
+                src={project.liveUrl}
+                title={`${project.title} — live site`}
+                className="w-full h-[60vh] min-h-[400px] border-0"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <a
+              href={project.liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Open in new tab
+            </a>
+          </div>
+        )}
+
+        {/* Demo Player only when no live URL (so modal shows either live site or video, not both) */}
+        {!project.liveUrl && project.demoUrl && project.demoUrl !== "nan" && (
           <div className="my-4">
             <DemoPlayer demoUrl={project.demoUrl} title={project.title} />
           </div>
@@ -96,16 +123,28 @@ export function ProjectDetailModal({
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
               Description
             </h4>
-            <p className="text-foreground leading-relaxed">
+            <p className="text-foreground leading-relaxed whitespace-pre-line">
               {project.longDescription || project.description}
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 pt-4">
-            {project.projectUrl && (
+            {project.liveUrl && project.liveUrl !== "nan" && (
               <Button
                 variant="default"
+                className="flex-1 gap-2"
+                asChild
+              >
+                <a href={project.liveUrl} target="_blank" rel="noopener noreferrer">
+                  <Globe className="h-4 w-4" aria-hidden="true" />
+                  Open live site in new tab
+                </a>
+              </Button>
+            )}
+            {project.projectUrl && (
+              <Button
+                variant={project.liveUrl ? "outline" : "default"}
                 className="flex-1"
                 onClick={handleProjectPageClick}
               >

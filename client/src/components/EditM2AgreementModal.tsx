@@ -183,7 +183,7 @@ export function EditM2AgreementModal({
             {currentAgreement ? 'Edit Your M2 Roadmap' : 'Create Your M2 Roadmap'}
           </DialogTitle>
           <DialogDescription>
-            Update your plan for the 6-week accelerator program
+            Update your plan for the 6-week incubator program
           </DialogDescription>
         </DialogHeader>
 

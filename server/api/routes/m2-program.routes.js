@@ -15,7 +15,7 @@ router.patch('/:projectId', requireTeamMemberOrAdmin, projectController.updatePr
 // --- Team management ---
 router.post('/:projectId/team', requireTeamMemberOrAdmin, projectController.replaceTeamMembers);
 
-// --- M2 Accelerator Program management ---
+// --- M2 Incubator Program management ---
 router.patch('/:projectId/m2-agreement', requireTeamMemberOrAdmin, projectController.updateM2Agreement);
 router.patch('/:projectId/payout-address', requireTeamMemberOrAdmin, projectController.updatePayoutAddress);
 router.post('/:projectId/submit-m2', requireTeamMemberOrAdmin, projectController.submitM2Deliverables);
