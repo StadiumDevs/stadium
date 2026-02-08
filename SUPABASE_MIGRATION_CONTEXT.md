@@ -147,6 +147,7 @@ Client ← JSON Response ← Express ← Controller ← Service ← Repository �
   projectRepo: String,            // GitHub repo
   demoUrl: String,                // Demo video URL
   slidesUrl: String,              // Presentation slides
+  liveUrl: String,                // Live/production site (e.g. https://kleo.finance/)
   
   // Classification
   techStack: [String],            // Technologies used
@@ -208,10 +209,12 @@ Client ← JSON Response ← Express ← Controller ← Service ← Repository �
   
   // Payment records
   totalPaid: [{
-    milestone: String,            // 'M1' | 'M2'
+    milestone: String,            // 'M1' | 'M2' | 'BOUNTY'
     amount: Number,
     currency: String,             // 'USDC' | 'DOT'
-    transactionProof: String      // URL to transaction proof
+    transactionProof: String,     // URL to transaction proof
+    bountyName: String,           // For BOUNTY: name from bountyPrize
+    paidDate: Date                // When payment was made
   }],
   
   // Timestamps (auto-generated)
@@ -575,6 +578,7 @@ CREATE TABLE projects (
   project_repo TEXT,
   demo_url TEXT,
   slides_url TEXT,
+  live_url TEXT,
   tech_stack TEXT[],
   categories TEXT[],
   donation_address TEXT,
@@ -656,10 +660,12 @@ CREATE TABLE milestones (
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  milestone TEXT NOT NULL CHECK (milestone IN ('M1', 'M2')),
+  milestone TEXT NOT NULL CHECK (milestone IN ('M1', 'M2', 'BOUNTY')),
   amount NUMERIC NOT NULL,
   currency TEXT NOT NULL CHECK (currency IN ('USDC', 'DOT')),
   transaction_proof TEXT NOT NULL,
+  bounty_name TEXT,
+  paid_date TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

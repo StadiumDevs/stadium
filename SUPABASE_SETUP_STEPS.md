@@ -68,8 +68,8 @@ cd /Users/salansky/Desktop/GithubRepos/stadium
 supabase db push
 ```
 
-This applies the migration file:
-- `supabase/migrations/20251122024003_initial_schema.sql`
+This applies the migration file(s) in `supabase/migrations/`:
+- `20260208000000_initial_schema_from_develop.sql` (schema aligned with develop: projects with live_url, payments with paid_date/bounty_name and BOUNTY milestone)
 
 Tables created:
 - ✅ projects
