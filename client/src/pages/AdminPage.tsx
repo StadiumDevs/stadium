@@ -76,10 +76,11 @@ const AdminPage = () => {
     isExtensionAvailable: false,
     isConnected: false,
     isConnecting: false,
-    accounts: [],
-    selectedAccount: null,
+    accounts: [] as any[],
+    selectedAccount: null as any | null,
     error: "",
-    injector: null,
+    errorData: null as any | null,
+    injector: null as any | null,
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState(BYPASS_ADMIN_CHECK);
@@ -203,9 +204,14 @@ const AdminPage = () => {
       );
 
       if (!adminAccount) {
-        throw new Error(
-          `Admin account not found. Please ensure you have the correct admin account in your wallet.\n\nYour wallet addresses: ${allAccounts.map(a => a.address).join(', ')}\n\nExpected admin addresses: ${ADMIN_ADDRESSES.join(', ')}\n\nAdd one of your addresses to the VITE_ADMIN_ADDRESSES in .env file and restart the dev server.`
-        );
+        // Store structured error data for better formatting
+        const errorData = {
+          message: "Admin account not found. Please ensure you have the correct admin account in your wallet.",
+          walletAddresses: allAccounts.map(a => a.address),
+          expectedAddresses: ADMIN_ADDRESSES,
+          isProduction: import.meta.env.PROD
+        };
+        throw errorData;
       }
 
       setWalletState((prev) => ({
@@ -217,12 +223,23 @@ const AdminPage = () => {
 
       // Auto-select admin account
       selectAccount(adminAccount);
-    } catch (err) {
-      setWalletState((prev) => ({
-        ...prev,
-        error: `Connection failed: ${err.message}`,
-        isConnecting: false,
-      }));
+    } catch (err: any) {
+      // Handle structured error data
+      if (err.walletAddresses && Array.isArray(err.walletAddresses)) {
+        setWalletState((prev) => ({
+          ...prev,
+          error: err.message || "Connection failed",
+          errorData: err,
+          isConnecting: false,
+        }));
+      } else {
+        setWalletState((prev) => ({
+          ...prev,
+          error: `Connection failed: ${err.message}`,
+          errorData: null,
+          isConnecting: false,
+        }));
+      }
     }
   };
 
@@ -354,15 +371,16 @@ const AdminPage = () => {
   };
 
   const handleLogout = () => {
-    setWalletState({
-      isExtensionAvailable: true,
-      isConnected: false,
-      isConnecting: false,
-      accounts: [],
-      selectedAccount: null,
-      error: "",
-      injector: null,
-    });
+      setWalletState({
+        isExtensionAvailable: true,
+        isConnected: false,
+        isConnecting: false,
+        accounts: [],
+        selectedAccount: null,
+        error: "",
+        errorData: null,
+        injector: null,
+      });
     setIsAuthenticated(false);
     sessionStorage.removeItem("admin_session_account");
   };
@@ -495,11 +513,73 @@ const AdminPage = () => {
             </p>
 
             {walletState.error && (
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20 mb-6">
-                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                <span className="text-destructive text-sm">
-                  {walletState.error}
-                </span>
+              <div className="space-y-4 mb-6">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-3">
+                    <p className="text-destructive text-sm font-medium">
+                      {walletState.error}
+                    </p>
+                    
+                    {walletState.errorData && (
+                      <div className="space-y-3 pt-2 border-t border-destructive/20">
+                        {walletState.errorData.walletAddresses && walletState.errorData.walletAddresses.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-destructive/80 mb-2">Your wallet addresses:</p>
+                            <ul className="space-y-1.5">
+                              {walletState.errorData.walletAddresses.map((addr: string, idx: number) => (
+                                <li key={idx} className="text-xs text-destructive/70 font-mono break-all bg-destructive/5 p-2 rounded border border-destructive/10">
+                                  {addr}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {walletState.errorData.expectedAddresses && walletState.errorData.expectedAddresses.length > 0 ? (
+                          <div>
+                            <p className="text-xs font-semibold text-destructive/80 mb-2">Expected admin addresses:</p>
+                            <ul className="space-y-1.5">
+                              {walletState.errorData.expectedAddresses.map((addr: string, idx: number) => (
+                                <li key={idx} className="text-xs text-destructive/70 font-mono break-all bg-destructive/5 p-2 rounded border border-destructive/10">
+                                  {addr}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded p-3">
+                            <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                              ⚠️ No admin addresses configured
+                            </p>
+                            <p className="text-xs text-yellow-600/80 dark:text-yellow-400/80 mt-1">
+                              {walletState.errorData.isProduction 
+                                ? "Set VITE_ADMIN_ADDRESSES in Vercel environment variables and redeploy."
+                                : "Add VITE_ADMIN_ADDRESSES to your .env file and restart the dev server."}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {walletState.errorData.expectedAddresses && walletState.errorData.expectedAddresses.length > 0 && (
+                          <div className="bg-muted/50 border border-border rounded p-3 mt-3">
+                            <p className="text-xs text-muted-foreground">
+                              {walletState.errorData.isProduction ? (
+                                <>
+                                  <strong>To fix:</strong> Add one of your wallet addresses to <code className="bg-background px-1 py-0.5 rounded text-[10px]">VITE_ADMIN_ADDRESSES</code> in{" "}
+                                  <strong>Vercel Dashboard → Settings → Environment Variables</strong> (Production), then redeploy.
+                                </>
+                              ) : (
+                                <>
+                                  <strong>To fix:</strong> Add one of your addresses to <code className="bg-background px-1 py-0.5 rounded text-[10px]">VITE_ADMIN_ADDRESSES</code> in your <code className="bg-background px-1 py-0.5 rounded text-[10px]">.env</code> file and restart the dev server.
+                                </>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
