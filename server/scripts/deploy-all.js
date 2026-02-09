@@ -10,10 +10,11 @@
  * This script:
  * 1. Checks git (on main, clean, up to date)
  * 2. Applies Supabase migrations if needed
- * 3. Updates Symbiosis M2 status (sets main-track winners to 'building')
- * 4. Deploys Railway server
- * 5. Deploys Vercel client
- * 6. Verifies everything works
+ * 3. Updates Symbiosis M2 status (sets main-track winners to 'building' and 'completed')
+ * 4. Applies Symbiosis payouts (updates payments table and project status)
+ * 5. Deploys Railway server
+ * 6. Deploys Vercel client
+ * 7. Verifies everything works
  */
 
 import { execSync } from 'child_process';
@@ -157,6 +158,24 @@ async function updateSymbiosisM2Status() {
   }
 }
 
+async function applySymbiosisPayouts() {
+  logStep('Applying Symbiosis payouts');
+  
+  const serverDir = path.join(repoRoot, 'server');
+  try {
+    // Check if env vars are set
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      logWarning('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set. Skipping payout updates.');
+      return;
+    }
+    
+    execSync('npm run db:symbiosis-payouts', { cwd: serverDir, stdio: 'inherit' });
+    logSuccess('Symbiosis payouts applied');
+  } catch (err) {
+    logWarning(`Symbiosis payout update failed: ${err.message}. This is optional - payouts may already be applied.`);
+  }
+}
+
 async function deployRailway() {
   logStep('Deploying Railway server');
   
@@ -225,6 +244,7 @@ async function main() {
     await checkGit();
     await checkSupabaseMigrations();
     await updateSymbiosisM2Status();
+    await applySymbiosisPayouts();
     await deployRailway();
     await deployVercel();
     await verify();
