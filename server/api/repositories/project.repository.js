@@ -387,12 +387,13 @@ class ProjectRepository {
                 p.m2_status !== 'building' || (p.m2_agreed_date != null && p.m2_agreed_date !== '')
             );
         }
-        // M2 program: only projects that are completing a milestone or have completed one (have at least one payment, or are under_review/completed)
+        // M2 program: only projects that are completing a milestone or have completed one (payment, under_review/completed, or building with M2 agreement)
         if (query.m2Status?.$in?.length) {
             filteredProjects = filteredProjects.filter(p => {
                 const hasPayment = (p.payments && p.payments.length > 0);
                 const completedOrInReview = p.m2_status === 'under_review' || p.m2_status === 'completed';
-                return hasPayment || completedOrInReview;
+                const buildingWithAgreement = p.m2_status === 'building' && (p.m2_agreed_date != null && p.m2_agreed_date !== '');
+                return hasPayment || completedOrInReview || buildingWithAgreement;
             });
         }
 

@@ -4,6 +4,42 @@ Instructions for a **code agent** or automation to update production after code 
 
 ---
 
+## 🚀 One-command deploy (recommended)
+
+From the **repo root**, run:
+
+```bash
+node server/scripts/deploy-all.js
+```
+
+Or from **server/**:
+
+```bash
+cd server
+npm run deploy:all
+```
+
+This single command:
+
+1. ✅ Checks Git (on main, clean, up to date) — auto-commits/pushes if needed
+2. ✅ Applies Supabase migrations (`supabase db push` if any pending)
+3. ✅ Deploys Railway server (`railway up --detach`)
+4. ✅ Deploys Vercel client (`vercel --prod`)
+5. ✅ Quick verification (API/frontend reachable)
+
+**After it finishes**, wait 1-2 minutes for Railway build, then run:
+
+```bash
+cd server
+npm run verify:production
+```
+
+For full verification that everything matches main and works correctly.
+
+---
+
+---
+
 ## Do I need to commit everything for deploy?
 
 **Railway & Vercel (app code):**  
@@ -84,6 +120,73 @@ Replace `/path/to/stadium` with the actual workspace path (e.g. `$WORKSPACE` or 
 
 ---
 
+## Connect Railway to Vercel
+
+For the Vercel frontend to talk to the Railway API, both sides must be configured:
+
+### 1. Vercel → Railway (frontend calls API)
+
+- In **Vercel**: [Dashboard](https://vercel.com) → your project → **Settings** → **Environment Variables**.
+- Add (or edit) for **Production** (and Preview if you want):
+  - **Name:** `VITE_API_BASE_URL`
+  - **Value:** `https://stadium-production-996a.up.railway.app/api`
+- **Save**, then trigger a **new production deploy** (Deployments → … → Redeploy).  
+  Vite bakes this in at build time, so a redeploy is required after changing it.
+
+### 2. Railway → Vercel (API allows frontend origin)
+
+- The server already allows any `https://*.vercel.app` origin (see `server.js` CORS). No change needed if you deploy from this repo.
+- Optional: In **Railway** → your service → **Variables**, you can set **`CORS_ORIGIN`** to a comma-separated list of exact origins (e.g. your custom domain + Vercel URL). If set, it overrides the default list but the code still allows any `*.vercel.app` in addition.
+
+### 3. Confirm
+
+- Open your Vercel production URL. In the browser console run: `__STADIUM_API_BASE__`  
+  It should print `https://stadium-production-996a.up.railway.app/api`.
+- Projects should load. If not, see [DEBUG_UI_PROJECTS.md](./DEBUG_UI_PROJECTS.md).
+
+---
+
+## How Railway connects to Supabase
+
+The server (on Railway) talks to Supabase using **two environment variables**. They are read in `server/db.js` when the app starts.
+
+### Required variables (set in Railway)
+
+In **Railway** → your project → **Variables** (or the service that runs the server), add:
+
+| Variable | Description | Where to get it |
+|----------|-------------|------------------|
+| **`SUPABASE_URL`** | Your project URL | Supabase Dashboard → Project Settings → API → **Project URL** (e.g. `https://xxxxx.supabase.co`) |
+| **`SUPABASE_SERVICE_ROLE_KEY`** | Service role secret (bypasses RLS) | Supabase Dashboard → Project Settings → API → **Project API keys** → **service_role** (secret) |
+
+- No other Supabase env vars are needed for the app.
+- The server trims whitespace/newlines from these values (so pasting from the dashboard is safe).
+- If either is missing or wrong, the server will either fail to start (connection test on startup) or return errors when handling requests.
+
+### Verify the connection
+
+1. **Railway logs**  
+   On startup you should see: `✅ Connected to Supabase`. If you see `❌ Supabase connection failed`, the URL or key is wrong or the project is unreachable.
+
+2. **Health endpoint**  
+   After deploy, open (replace with your Railway URL if different):
+   ```text
+   https://stadium-production-996a.up.railway.app/api/health/db
+   ```
+   - **200** and `"message": "Connected to Supabase"` → connection is working.
+   - **503** or an error message → connection or query failed; check the variables and Supabase project.
+
+3. **Projects API**  
+   If `/api/health/db` is OK but the UI still has no projects, the issue is likely CORS or the frontend API URL, not Railway ↔ Supabase.
+
+### If it’s not working
+
+- Confirm **both** variables are set in the **same** Railway service that runs the server (and that you didn’t leave a space or newline in the value).
+- Confirm the **service_role** key is from the same Supabase project as the **Project URL**.
+- In Supabase Dashboard, confirm the project is not paused and that the **projects** table exists (migrations applied).
+
+---
+
 ## Environment / config
 
 - **Railway:** Env vars (e.g. `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PORT`) are set in the Railway project. No local `.env` is uploaded.
@@ -124,12 +227,27 @@ Use this checklist so the latest code and DB are live and working.
 - [ ] In [Vercel dashboard](https://vercel.com) → your project → **Deployments**:  
   Latest production deployment is **Ready**.
 
-### 4. Database (Supabase)
+### 4. Database (Supabase) – ensure all migrations are done
 
-- [ ] **Option A – CLI:** `supabase migration list` shows remote = local (all applied).  
-  If not: `supabase db push` to apply pending migrations.
-- [ ] **Option B – Manual:** If you use the SQL script, run `supabase/manual_fix_schema.sql` in Supabase Dashboard → **SQL Editor**.  
-  Then in **Table Editor** → **projects**: confirm `live_url` exists (and **payments**: `bounty_name`, `paid_date` if you use them).
+Production uses the **same** Supabase project as the one you link to the CLI. To have the latest schema so the app can render correctly:
+
+1. **From the repo (with Supabase linked):**
+   ```bash
+   cd /path/to/stadium
+   supabase migration list
+   ```
+   - If **Local** and **Remote** match for every row → all migrations are applied; you’re done.
+   - If any migration is **only in Local** (missing under Remote), apply them:
+     ```bash
+     supabase db push
+     ```
+
+2. **Optional safety pass (idempotent):**  
+   In [Supabase Dashboard](https://supabase.com/dashboard) → your project → **SQL Editor**, run the contents of **`supabase/manual_fix_schema.sql`**.  
+   Then in **Table Editor** → **projects** confirm the **`live_url`** column exists (and **payments** → `bounty_name`, `paid_date` if you use them).
+
+3. **If you never use the CLI:**  
+   You can apply schema changes by running the SQL from each migration file (or `manual_fix_schema.sql` / `fresh_project_schema.sql` as appropriate) in the Dashboard **SQL Editor**. The app and CLI both talk to the same DB; migrations just need to be applied once.
 
 ### 5. Config / env
 
@@ -145,3 +263,76 @@ Use this checklist so the latest code and DB are live and working.
 - [ ] If something fails: check browser Network tab (API errors?) and Railway logs (server errors?).
 
 When all steps are checked, the latest version is deployed to production.
+
+### 7. Verify API reads from DB (optional)
+
+From the **server** directory, run the API test against production (replace the URL if your Railway domain differs):
+
+```bash
+cd server
+API_BASE_URL=https://stadium-production-996a.up.railway.app/api npm run test:api-db
+```
+
+Or against a local server (with Supabase env set):
+
+```bash
+cd server && npm start
+# In another terminal:
+cd server && npm run test:api-db
+```
+
+All three checks should pass: list projects, filtered list, and get-by-id. Then the UI can read from the DB via the API.
+
+### 8. Full production verification (recommended)
+
+From the **server** directory, run the comprehensive verification script:
+
+```bash
+cd server
+export API_BASE_URL="https://stadium-production-996a.up.railway.app/api"
+export FRONTEND_URL="https://your-vercel-production-url.vercel.app"
+npm run verify:production
+```
+
+This checks:
+
+- ✅ Railway API is reachable (`/api/health`)
+- ✅ Railway → Supabase connection (`/api/health/db`)
+- ✅ API returns projects from DB
+- ✅ Symbiosis 2025 projects exist
+- ✅ Symbiosis main-track winners exist
+- ✅ Symbiosis main-track appear on M2 Program Overview (M2 filters)
+- ✅ Vercel frontend is reachable
+- ✅ Frontend can call API (CORS)
+
+If any checks fail, the script prints next steps (e.g. run migrations, check env vars, redeploy).
+
+### 9. Verify production matches main branch
+
+From the **repo root** (not server/), run:
+
+```bash
+export API_BASE_URL="https://stadium-production-996a.up.railway.app/api"
+export FRONTEND_URL="https://your-vercel-production-url.vercel.app"
+npm run verify:main-deployed --prefix server
+```
+
+Or from **server/**:
+
+```bash
+cd server
+export API_BASE_URL="..." FRONTEND_URL="..."
+node scripts/verify-main-deployed.js
+```
+
+This checks:
+
+- ✅ Git: on main branch, clean working tree, up to date with origin/main
+- ✅ Supabase: migrations match local (all applied)
+- ✅ Railway API health and DB connection
+- ✅ API returns projects correctly
+- ✅ Program Overview filters work (main track + M2 only)
+- ✅ Vercel frontend reachable
+- ✅ Frontend → API CORS works
+
+If any check fails, it prints what to fix (commit/push, run migrations, redeploy, etc.).
