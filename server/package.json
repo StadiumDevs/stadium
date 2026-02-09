@@ -23,6 +23,8 @@
     "db:symbiosis-m2-building": "node scripts/set-symbiosis-m2-building.js",
     "db:symbiosis-completed": "node scripts/set-symbiosis-completed.js",
     "db:symbiosis-payouts": "node scripts/apply-symbiosis-payouts-to-supabase.js",
+    "db:plata-mia-update": "node scripts/update-plata-mia-to-supabase.js",
+    "db:sync-final-submissions": "node scripts/sync-final-submissions-to-supabase.js",
     "db:remove-symbiosis-duplicates": "node scripts/remove-symbiosis-duplicates.js",
     "db:remove-all-duplicates": "node scripts/remove-all-duplicates.js",
     "db:fix-symbiosis": "node scripts/fix-symbiosis-in-supabase.js",

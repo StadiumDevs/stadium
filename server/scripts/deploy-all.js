@@ -12,9 +12,10 @@
  * 2. Applies Supabase migrations if needed
  * 3. Updates Symbiosis M2 status (sets main-track winners to 'building' and 'completed')
  * 4. Applies Symbiosis payouts (updates payments table and project status)
- * 5. Deploys Railway server
- * 6. Deploys Vercel client
- * 7. Verifies everything works
+ * 5. Updates project data (Plata Mia team/plan, final submissions for completed projects)
+ * 6. Deploys Railway server
+ * 7. Deploys Vercel client
+ * 8. Verifies everything works
  */
 
 import { execSync } from 'child_process';
@@ -176,6 +177,29 @@ async function applySymbiosisPayouts() {
   }
 }
 
+async function updateProjectData() {
+  logStep('Updating project data (Plata Mia, final submissions)');
+  
+  const serverDir = path.join(repoRoot, 'server');
+  try {
+    // Check if env vars are set
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      logWarning('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set. Skipping project data updates.');
+      return;
+    }
+    
+    // Update Plata Mia with team members and M2 plan
+    execSync('npm run db:plata-mia-update', { cwd: serverDir, stdio: 'inherit' });
+    logSuccess('Plata Mia data updated');
+    
+    // Sync final submissions for completed projects
+    execSync('npm run db:sync-final-submissions', { cwd: serverDir, stdio: 'inherit' });
+    logSuccess('Final submissions synced');
+  } catch (err) {
+    logWarning(`Project data update failed: ${err.message}. This is optional - data may already be updated.`);
+  }
+}
+
 async function deployRailway() {
   logStep('Deploying Railway server');
   
@@ -245,6 +269,7 @@ async function main() {
     await checkSupabaseMigrations();
     await updateSymbiosisM2Status();
     await applySymbiosisPayouts();
+    await updateProjectData();
     await deployRailway();
     await deployVercel();
     await verify();
