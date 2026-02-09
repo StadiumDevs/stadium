@@ -3,10 +3,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Sanitize env vars — Railway CLI can inject newlines that corrupt HTTP headers
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/[\n\r\s]+/g, '');
+const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').replace(/[\n\r\s]+/g, '');
+
 // Create Supabase client
 export const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_URL,
+  SUPABASE_KEY,
   {
     auth: {
       autoRefreshToken: false,
