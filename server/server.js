@@ -8,15 +8,6 @@ const app = express();
 const PORT = process.env.PORT || 2000;
 
 // CORS Configuration
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? ['https://stadium.joinwebzero.com', 'https://stadium-indol.vercel.app']
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'https://stadium-indol.vercel.app'];
-
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth']
 const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
     : process.env.NODE_ENV === 'production'
