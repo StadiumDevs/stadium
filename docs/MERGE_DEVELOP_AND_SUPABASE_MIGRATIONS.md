@@ -59,7 +59,42 @@ When you move to Supabase, you’ll need to run equivalent data updates (or seed
 
 ---
 
-## 4. Checklist before Supabase cutover
+## 4. How to trigger update on an existing Supabase instance
+
+If you already have a Supabase project and database (e.g. created with an older schema), apply the new develop fields like this:
+
+**1. Link your repo to the project (if not already linked)**
+
+```bash
+cd /path/to/stadium
+supabase link --project-ref YOUR_PROJECT_REF
+```
+
+Use the ref from your Supabase URL: `https://YOUR_PROJECT_REF.supabase.co`.
+
+**2. Push migrations (applies pending migrations only)**
+
+```bash
+supabase db push
+```
+
+- If your DB was created from an **older** migration (e.g. no `live_url`, no `paid_date`/`bounty_name` on payments), the migration **`20260208100000_add_live_url_and_payment_fields.sql`** will run and add:
+  - `projects.live_url`
+  - `payments.bounty_name`, `payments.paid_date`
+  - `payments.milestone` check updated to allow `'BOUNTY'`
+- If your DB was created from **`20260208000000_initial_schema_from_develop.sql`** (full schema), that migration is already applied; the add-fields migration will still run and is safe (it uses `ADD COLUMN IF NOT EXISTS` and may no-op or only adjust the constraint).
+
+**3. Optional: run from Supabase Dashboard**
+
+- In the Supabase Dashboard → **SQL Editor**, paste and run the contents of `supabase/migrations/20260208100000_add_live_url_and_payment_fields.sql` if you prefer not to use the CLI.
+
+**4. Verify**
+
+- In **Table Editor**, check that `projects` has a `live_url` column and `payments` has `bounty_name` and `paid_date`.
+
+---
+
+## 5. Checklist before Supabase cutover
 
 - [ ] develop merged into main.
 - [ ] Supabase migration applied (`supabase db push` or equivalent).

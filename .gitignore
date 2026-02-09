@@ -125,3 +125,9 @@ docker-compose.override.yml
 data/
 mongo-data/
 mongodb-data/
+
+# Supabase CLI cache
+supabase/.temp/
+
+# Generated descriptors (optional: uncomment if not needed in repo)
+# server/.papi/

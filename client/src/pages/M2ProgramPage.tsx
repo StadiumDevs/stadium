@@ -114,7 +114,7 @@ const M2ProgramPage = () => {
           donationAddress: p.donationAddress || "",
           winner: p.bountyPrize?.[0]?.name || "",
           isWinner: !!(p.bountyPrize && p.bountyPrize.length > 0),
-          m2Status: p.m2Status || "building",
+          m2Status: p.m2Status ?? undefined,
           completionDate: p.completionDate,
           totalPaid: p.totalPaid as LegacyProject["totalPaid"],
           lastUpdateDays: Math.floor(Math.random() * 14),

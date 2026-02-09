@@ -1,9 +1,8 @@
--- Stadium Supabase schema (aligned with develop branch MongoDB Project model)
--- Includes: live_url, totalPaid paid_date/bounty_name, milestone BOUNTY
--- Uses IF NOT EXISTS so safe to run when tables already exist (e.g. after 20251122024003).
+-- Run this in a NEW Supabase project (SQL Editor) to create the full schema from develop.
+-- One-time: use for "start from scratch" only. Do not run on an existing DB that already has these tables.
 
--- Projects table
-CREATE TABLE IF NOT EXISTS projects (
+-- Projects
+CREATE TABLE projects (
   id TEXT PRIMARY KEY,
   project_name TEXT NOT NULL,
   description TEXT NOT NULL,
@@ -16,12 +15,10 @@ CREATE TABLE IF NOT EXISTS projects (
   donation_address TEXT,
   project_state TEXT NOT NULL,
   bounties_processed BOOLEAN NOT NULL DEFAULT FALSE,
-
   hackathon_id TEXT NOT NULL,
   hackathon_name TEXT NOT NULL,
   hackathon_end_date TIMESTAMPTZ NOT NULL,
   hackathon_event_started_at TEXT,
-
   m2_status TEXT CHECK (m2_status IN ('building', 'under_review', 'completed')),
   m2_mentor_name TEXT,
   m2_agreed_date TIMESTAMPTZ,
@@ -30,26 +27,22 @@ CREATE TABLE IF NOT EXISTS projects (
   m2_success_criteria TEXT,
   m2_last_updated_by TEXT CHECK (m2_last_updated_by IN ('team', 'admin')),
   m2_last_updated_date TIMESTAMPTZ,
-
   final_submission_repo_url TEXT,
   final_submission_demo_url TEXT,
   final_submission_docs_url TEXT,
   final_submission_summary TEXT,
   final_submission_submitted_date TIMESTAMPTZ,
   final_submission_submitted_by TEXT,
-
   changes_requested_feedback TEXT,
   changes_requested_by TEXT,
   changes_requested_date TIMESTAMPTZ,
-
   completion_date TIMESTAMPTZ,
   submitted_date TIMESTAMPTZ,
-
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS team_members (
+CREATE TABLE team_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -61,7 +54,7 @@ CREATE TABLE IF NOT EXISTS team_members (
   linkedin TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bounty_prizes (
+CREATE TABLE bounty_prizes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -69,7 +62,7 @@ CREATE TABLE IF NOT EXISTS bounty_prizes (
   hackathon_won_at_id TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS milestones (
+CREATE TABLE milestones (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
@@ -79,7 +72,7 @@ CREATE TABLE IF NOT EXISTS milestones (
   updated_by TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS payments (
+CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   milestone TEXT NOT NULL CHECK (milestone IN ('M1', 'M2', 'BOUNTY')),
@@ -91,7 +84,7 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS multisig_transactions (
+CREATE TABLE multisig_transactions (
   id TEXT PRIMARY KEY,
   call_data TEXT NOT NULL,
   call_hash TEXT NOT NULL,
@@ -122,7 +115,7 @@ CREATE TABLE IF NOT EXISTS multisig_transactions (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS multisig_approvals (
+CREATE TABLE multisig_approvals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   transaction_id TEXT NOT NULL REFERENCES multisig_transactions(id) ON DELETE CASCADE,
   signer_address TEXT NOT NULL,
@@ -131,12 +124,12 @@ CREATE TABLE IF NOT EXISTS multisig_approvals (
   action TEXT NOT NULL CHECK (action IN ('initiated', 'approved', 'executed'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_projects_m2_status ON projects(m2_status);
-CREATE INDEX IF NOT EXISTS idx_projects_hackathon_id ON projects(hackathon_id);
-CREATE INDEX IF NOT EXISTS idx_projects_project_state ON projects(project_state);
-CREATE INDEX IF NOT EXISTS idx_team_members_project_id ON team_members(project_id);
-CREATE INDEX IF NOT EXISTS idx_team_members_wallet_address ON team_members(wallet_address);
-CREATE INDEX IF NOT EXISTS idx_multisig_transactions_status ON multisig_transactions(status, network);
-CREATE INDEX IF NOT EXISTS idx_multisig_transactions_call_hash ON multisig_transactions(call_hash);
-CREATE INDEX IF NOT EXISTS idx_multisig_approvals_transaction_id ON multisig_approvals(transaction_id);
-CREATE INDEX IF NOT EXISTS idx_multisig_approvals_signer_address ON multisig_approvals(signer_address);
+CREATE INDEX idx_projects_m2_status ON projects(m2_status);
+CREATE INDEX idx_projects_hackathon_id ON projects(hackathon_id);
+CREATE INDEX idx_projects_project_state ON projects(project_state);
+CREATE INDEX idx_team_members_project_id ON team_members(project_id);
+CREATE INDEX idx_team_members_wallet_address ON team_members(wallet_address);
+CREATE INDEX idx_multisig_transactions_status ON multisig_transactions(status, network);
+CREATE INDEX idx_multisig_transactions_call_hash ON multisig_transactions(call_hash);
+CREATE INDEX idx_multisig_approvals_transaction_id ON multisig_approvals(transaction_id);
+CREATE INDEX idx_multisig_approvals_signer_address ON multisig_approvals(signer_address);

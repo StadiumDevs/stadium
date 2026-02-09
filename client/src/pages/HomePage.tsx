@@ -190,11 +190,17 @@ const HomePage = () => {
       });
     }
 
-    // Sort by event date (latest first)
+    // Sort: latest / milestone winners first (completion date newest, then submitted, then event)
     filtered.sort((a, b) => {
-      const dateA = a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0;
-      const dateB = b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0;
-      return dateB - dateA; // Latest first
+      const compA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+      const compB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+      if (compB !== compA) return compB - compA;
+      const subA = a.submittedDate ? new Date(a.submittedDate).getTime() : 0;
+      const subB = b.submittedDate ? new Date(b.submittedDate).getTime() : 0;
+      if (subB !== subA) return subB - subA;
+      const dateA = a.hackathon?.endDate ? new Date(a.hackathon.endDate).getTime() : (a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0);
+      const dateB = b.hackathon?.endDate ? new Date(b.hackathon.endDate).getTime() : (b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0);
+      return dateB - dateA;
     });
 
     return filtered.map(convertToProjectCard);
