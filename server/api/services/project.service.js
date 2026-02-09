@@ -44,13 +44,14 @@ class ProjectService {
         const winnersOnlyBool = typeof winnersOnly === 'string' ? winnersOnly === 'true' : Boolean(winnersOnly);
 
         if (mainTrackOnlyBool) {
-            // M2 program: only projects that won a "main track" bounty (bountyPrize[].name contains "main track")
+            // M2 program: only main track winners that are in the program (have m2Status)
             const mainTrackMatch = { name: { $regex: /main track/i } };
             if (hackathonId) {
                 query.bountyPrize = { $elemMatch: { hackathonWonAtId: hackathonId, ...mainTrackMatch } };
             } else {
                 query.bountyPrize = { $elemMatch: mainTrackMatch };
             }
+            query.m2Status = { $in: ['building', 'under_review', 'completed'] };
         } else if (winnersOnlyBool) {
             if (hackathonId) {
                 query.bountyPrize = { $elemMatch: { hackathonWonAtId: hackathonId } };

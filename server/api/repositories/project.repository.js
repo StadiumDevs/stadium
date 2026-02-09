@@ -334,6 +334,9 @@ class ProjectRepository {
         if (query['hackathon.id']) {
             supabaseQuery = supabaseQuery.eq('hackathon_id', query['hackathon.id']);
         }
+        if (query.m2Status?.$in?.length) {
+            supabaseQuery = supabaseQuery.in('m2_status', query.m2Status.$in);
+        }
 
         // Handle sorting
         const sortField = Object.keys(sortOptions)[0] || 'updated_at';
@@ -355,21 +358,42 @@ class ProjectRepository {
 
         if (error) throw error;
 
-        // Handle winnersOnly filter (needs post-processing due to array check)
+        // Handle winnersOnly / mainTrackOnly filter (post-process bounty_prizes array)
         let filteredProjects = projects;
         if (query.bountyPrize) {
             if (query.bountyPrize.$elemMatch?.hackathonWonAtId) {
-                // Filter by specific hackathon
                 const hackathonId = query.bountyPrize.$elemMatch.hackathonWonAtId;
+                const requireMainTrack = !!query.bountyPrize.$elemMatch.name;
                 filteredProjects = projects.filter(p =>
-                    p.bounty_prizes?.some(b => b.hackathon_won_at_id === hackathonId)
+                    p.bounty_prizes?.some(b =>
+                        b.hackathon_won_at_id === hackathonId &&
+                        (!requireMainTrack || (b.name && /main track/i.test(b.name)))
+                    )
+                );
+            } else if (query.bountyPrize.$elemMatch?.name) {
+                // Main track only: bounty name contains "main track"
+                filteredProjects = projects.filter(p =>
+                    p.bounty_prizes?.some(b => b.name && /main track/i.test(b.name))
                 );
             } else if (query.bountyPrize.$exists && query.bountyPrize.$not?.$size === 0) {
-                // Filter for non-empty bounty array
                 filteredProjects = projects.filter(p =>
                     p.bounty_prizes && p.bounty_prizes.length > 0
                 );
             }
+        }
+        // M2 program: only show "building" if they have signed M2 agreement (m2_agreed_date set)
+        if (query.m2Status?.$in?.includes('building')) {
+            filteredProjects = filteredProjects.filter(p =>
+                p.m2_status !== 'building' || (p.m2_agreed_date != null && p.m2_agreed_date !== '')
+            );
+        }
+        // M2 program: only projects that are completing a milestone or have completed one (have at least one payment, or are under_review/completed)
+        if (query.m2Status?.$in?.length) {
+            filteredProjects = filteredProjects.filter(p => {
+                const hasPayment = (p.payments && p.payments.length > 0);
+                const completedOrInReview = p.m2_status === 'under_review' || p.m2_status === 'completed';
+                return hasPayment || completedOrInReview;
+            });
         }
 
         return {
