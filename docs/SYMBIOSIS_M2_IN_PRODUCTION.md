@@ -82,6 +82,33 @@ Run the **Supabase-only** seed script (no MongoDB required):
 
 ---
 
+## Quick fix: Symbiosis projects missing bounty_prizes
+
+If Symbiosis projects are in Supabase but have **empty `bountyPrize: []`**, they won’t show when `winnersOnly=true` or `mainTrackOnly=true`. This happens if `migrate-mongo-to-supabase.js` ran before `migration.js` loaded Symbiosis into MongoDB.
+
+**Fix:**
+
+```bash
+cd server
+export SUPABASE_URL="https://hxojfhlrtffcvksxkvwf.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+npm run db:fix-symbiosis
+```
+
+This script:
+- Reads `symbiosis-2025.json`
+- Matches projects by name (case-insensitive)
+- Adds missing `bounty_prizes` from the JSON `winner` field
+- Optionally sets `m2_status='building'` for main-track winners (use `SET_M2_BUILDING=true`)
+
+**To also set main-track winners to M2 "building":**
+
+```bash
+SET_M2_BUILDING=true npm run db:fix-symbiosis
+```
+
+---
+
 ## Quick checks
 
 - **Homepage**

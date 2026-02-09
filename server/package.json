@@ -21,6 +21,10 @@
     "db:reset": "npm run db:purge && npm run db:migrate && node scripts/seed-m2-test-project.js",
     "db:mongo-to-supabase": "node scripts/migrate-mongo-to-supabase.js",
     "db:symbiosis-m2-building": "node scripts/set-symbiosis-m2-building.js",
+    "db:symbiosis-completed": "node scripts/set-symbiosis-completed.js",
+    "db:remove-symbiosis-duplicates": "node scripts/remove-symbiosis-duplicates.js",
+    "db:fix-symbiosis": "node scripts/fix-symbiosis-in-supabase.js",
+    "db:sync-bounties-from-mongo": "node scripts/sync-bounty-prizes-from-mongo.js",
     "db:mongo-then-supabase": "npm run db:migrate && npm run db:mongo-to-supabase",
     "db:mongo-then-supabase:full": "npm run db:migrate && npm run db:mongo-to-supabase && npm run db:symbiosis-m2-building",
     "list:winners-zero-paid": "node scripts/list-winners-zero-paid.js"

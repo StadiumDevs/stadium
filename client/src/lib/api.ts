@@ -108,6 +108,7 @@ export type ApiProject = {
   m2Status?: "building" | "under_review" | "completed";
   completionDate?: string;
   submittedDate?: string;
+  updatedAt?: string;
   hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
   totalPaid?: Array<{
     milestone: "M1" | "M2" | "BOUNTY";
