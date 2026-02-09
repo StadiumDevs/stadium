@@ -96,17 +96,33 @@ const ProjectSchema = new mongoose.Schema({
 
 const Project = mongoose.model('Project', ProjectSchema, 'projects');
 
+// Validate Supabase env vars
+const SUPABASE_URL = process.env.SUPABASE_URL?.trim();
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('❌ Missing Supabase env vars:');
+  console.error('   SUPABASE_URL:', SUPABASE_URL ? '✓' : '✗ missing');
+  console.error('   SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_KEY ? '✓' : '✗ missing');
+  console.error('\nSet them in server/.env or export before running:');
+  console.error('   export SUPABASE_URL="https://YOUR_PROJECT.supabase.co"');
+  console.error('   export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"');
+  process.exit(1);
+}
+
 // Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function migrate() {
   console.log('🚀 Starting MongoDB to Supabase migration...\n');
+  console.log(`Supabase URL: ${SUPABASE_URL.slice(0, 40)}...`);
 
   // Connect to MongoDB
-  console.log('📦 Connecting to MongoDB...');
+  console.log('\n📦 Connecting to MongoDB...');
+  if (!process.env.MONGO_URI) {
+    console.error('❌ Missing MONGO_URI env var');
+    process.exit(1);
+  }
   try {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ Connected to MongoDB\n');
@@ -117,13 +133,32 @@ async function migrate() {
 
   // Test Supabase connection
   console.log('🔗 Testing Supabase connection...');
-  const { error: testError } = await supabase.from('projects').select('id').limit(1);
-  if (testError) {
-    console.error('❌ Failed to connect to Supabase:', testError.message);
+  try {
+    const { data, error: testError } = await supabase.from('projects').select('id').limit(1);
+    if (testError) {
+      console.error('❌ Supabase query failed:', testError.message);
+      console.error('   Code:', testError.code);
+      console.error('   Details:', testError.details);
+      if (testError.message.includes('fetch')) {
+        console.error('\n💡 Network error - check:');
+        console.error('   • SUPABASE_URL is correct (https://xxx.supabase.co)');
+        console.error('   • Internet connection');
+        console.error('   • Supabase project is not paused');
+      }
+      await mongoose.connection.close();
+      process.exit(1);
+    }
+    console.log('✅ Connected to Supabase\n');
+  } catch (err) {
+    console.error('❌ Supabase connection error:', err.message);
+    if (err.cause) console.error('   Cause:', err.cause.message);
+    console.error('\n💡 Check:');
+    console.error('   • SUPABASE_URL format (should be https://xxx.supabase.co, no trailing slash)');
+    console.error('   • SUPABASE_SERVICE_ROLE_KEY is the service_role key (not anon key)');
+    console.error('   • Network/firewall allows outbound HTTPS');
     await mongoose.connection.close();
     process.exit(1);
   }
-  console.log('✅ Connected to Supabase\n');
 
   // Fetch all projects from MongoDB
   console.log('📥 Fetching projects from MongoDB...');

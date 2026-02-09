@@ -1,4 +1,14 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Fallbacks: production so Vercel deploy works without env; dev so local works without .env
+const PRODUCTION_API = 'https://stadium-production-996a.up.railway.app/api';
+const DEV_API = 'http://localhost:2000/api';
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD ? PRODUCTION_API : DEV_API);
+
+// Expose for debugging in console (e.g. type __STADIUM_API_BASE__)
+if (typeof window !== "undefined") {
+  (window as unknown as { __STADIUM_API_BASE__?: string }).__STADIUM_API_BASE__ = API_BASE_URL;
+}
 
 // TEMPORARY: Mock mode flag - set to true when server is down
 const USE_MOCK_DATA = false; // Set to false when server is back up
@@ -36,6 +46,9 @@ const mapStatusToMessage = (status: number) => {
 
 const request = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
+  if (typeof window !== "undefined" && import.meta.env.DEV) {
+    console.debug("[api]", url.slice(0, 80) + (url.length > 80 ? "…" : ""));
+  }
 
   // Ensure we never drop the default Content-Type when custom headers are provided
   const config: RequestInit = { ...options };

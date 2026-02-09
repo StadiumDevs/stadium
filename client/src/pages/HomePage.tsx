@@ -9,7 +9,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { NoProjectsFound } from "@/components/EmptyState";
-import { api, type ApiProject } from "@/lib/api";
+import { api, type ApiProject, API_BASE_URL } from "@/lib/api";
 import { isMainTrackWinner } from "@/lib/projectUtils";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -65,6 +65,7 @@ const HomePage = () => {
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [hackathons, setHackathons] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const { toast } = useToast();
 
@@ -93,21 +94,41 @@ const HomePage = () => {
   }, []);
 
   // Load projects when selected hackathon changes
+  const [retryCount, setRetryCount] = useState(0);
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
+        setLoadError(null);
         const params = selectedHackathon === "all"
           ? { limit: 1000, sortBy: "updatedAt", sortOrder: "desc" as const }
           : { hackathonId: selectedHackathon, limit: 1000, sortBy: "updatedAt", sortOrder: "desc" as const };
         const response = await api.getProjects(params);
-        const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
+        if (!Array.isArray(response?.data)) {
+          const msg = "API returned no data array. Check server response.";
+          setLoadError(msg);
+          setProjects([]);
+          if (typeof window !== "undefined") {
+            console.error("[HomePage] getProjects unexpected shape", response);
+          }
+          toast({ title: "Could not load projects", description: msg, variant: "destructive" });
+          return;
+        }
+        const apiProjects: ApiProject[] = response.data;
+        if (import.meta.env.DEV && typeof window !== "undefined") {
+          console.debug("[HomePage] getProjects response", { count: apiProjects?.length, sample: apiProjects?.[0]?.projectName });
+        }
         setProjects(apiProjects);
       } catch (error) {
+        const errMsg = error instanceof Error ? error.message : "Failed to load projects";
+        setLoadError(errMsg);
+        if (typeof window !== "undefined") {
+          console.error("[HomePage] getProjects failed", errMsg, error);
+        }
         setProjects([]);
         toast({
           title: "Error",
-          description: "Failed to load projects. Please try again later.",
+          description: errMsg,
           variant: "destructive",
         });
       } finally {
@@ -115,7 +136,7 @@ const HomePage = () => {
       }
     };
     load();
-  }, [selectedHackathon]);
+  }, [selectedHackathon, toast, retryCount]);
 
   // Convert API project to ProjectCard format
   const convertToProjectCard = (project: ApiProject): ProjectCardData => {
@@ -568,7 +589,25 @@ const HomePage = () => {
                 ))}
               </div>
             ) : filteredProjects.length === 0 ? (
-              <NoProjectsFound onClearFilters={handleClearFilters} />
+              loadError ? (
+                <Card className="p-6 border-destructive/50 bg-destructive/5">
+                  <CardContent className="space-y-4">
+                    <h3 className="font-semibold text-destructive">Could not load projects</h3>
+                    <p className="text-sm text-muted-foreground break-all">{loadError}</p>
+                    <p className="text-xs text-muted-foreground">
+                      API: <code className="bg-muted px-1 rounded">{API_BASE_URL || "undefined"}</code>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      In Vercel, set <code className="bg-muted px-1 rounded">VITE_API_BASE_URL</code> to this URL for Production, then redeploy.
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => setRetryCount((c) => c + 1)}>
+                      Retry
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <NoProjectsFound onClearFilters={handleClearFilters} />
+              )
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredProjects.map((project) => (
