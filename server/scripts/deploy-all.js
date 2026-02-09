@@ -10,9 +10,10 @@
  * This script:
  * 1. Checks git (on main, clean, up to date)
  * 2. Applies Supabase migrations if needed
- * 3. Deploys Railway server
- * 4. Deploys Vercel client
- * 5. Verifies everything works
+ * 3. Updates Symbiosis M2 status (sets main-track winners to 'building')
+ * 4. Deploys Railway server
+ * 5. Deploys Vercel client
+ * 6. Verifies everything works
  */
 
 import { execSync } from 'child_process';
@@ -133,6 +134,29 @@ async function checkSupabaseMigrations() {
   }
 }
 
+async function updateSymbiosisM2Status() {
+  logStep('Updating Symbiosis M2 status');
+  
+  const serverDir = path.join(repoRoot, 'server');
+  try {
+    // Check if env vars are set
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      logWarning('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set. Skipping Symbiosis M2 update.');
+      return;
+    }
+    
+    // First set main-track winners to 'building'
+    execSync('npm run db:symbiosis-m2-building', { cwd: serverDir, stdio: 'inherit' });
+    logSuccess('Symbiosis M2 building status updated');
+    
+    // Then set completed projects to 'completed' (for Recently Shipped)
+    execSync('npm run db:symbiosis-completed', { cwd: serverDir, stdio: 'inherit' });
+    logSuccess('Symbiosis M2 completed status updated');
+  } catch (err) {
+    logWarning(`Symbiosis M2 update failed: ${err.message}. This is optional - projects may already be updated.`);
+  }
+}
+
 async function deployRailway() {
   logStep('Deploying Railway server');
   
@@ -200,6 +224,7 @@ async function main() {
   try {
     await checkGit();
     await checkSupabaseMigrations();
+    await updateSymbiosisM2Status();
     await deployRailway();
     await deployVercel();
     await verify();

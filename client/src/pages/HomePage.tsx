@@ -211,17 +211,30 @@ const HomePage = () => {
       });
     }
 
-    // Sort: latest / milestone winners first (completion date newest, then submitted, then event)
+    // Sort: latest / milestone winners first (completion date newest, then submitted, then updatedAt, then hackathon end date)
     filtered.sort((a, b) => {
+      // First: completion date (newest first)
       const compA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
       const compB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
       if (compB !== compA) return compB - compA;
+      
+      // Second: submitted date (newest first)
       const subA = a.submittedDate ? new Date(a.submittedDate).getTime() : 0;
       const subB = b.submittedDate ? new Date(b.submittedDate).getTime() : 0;
       if (subB !== subA) return subB - subA;
-      const dateA = a.hackathon?.endDate ? new Date(a.hackathon.endDate).getTime() : (a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0);
-      const dateB = b.hackathon?.endDate ? new Date(b.hackathon.endDate).getTime() : (b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0);
-      return dateB - dateA;
+      
+      // Third: updatedAt (newest first) - use this for projects without completion/submitted dates
+      const updA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const updB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      if (updB !== updA) return updB - updA;
+      
+      // Fourth: hackathon end date (newest first) - only use if it's a valid date string
+      const endDateA = a.hackathon?.endDate ? new Date(a.hackathon.endDate).getTime() : 0;
+      const endDateB = b.hackathon?.endDate ? new Date(b.hackathon.endDate).getTime() : 0;
+      if (endDateB !== endDateA && endDateA > 0 && endDateB > 0) return endDateB - endDateA;
+      
+      // Final fallback: keep original order
+      return 0;
     });
 
     return filtered.map(convertToProjectCard);

@@ -23,9 +23,14 @@ This single command:
 
 1. ✅ Checks Git (on main, clean, up to date) — auto-commits/pushes if needed
 2. ✅ Applies Supabase migrations (`supabase db push` if any pending)
-3. ✅ Deploys Railway server (`railway up --detach`)
-4. ✅ Deploys Vercel client (`vercel --prod`)
-5. ✅ Quick verification (API/frontend reachable)
+3. ✅ Updates Symbiosis M2 status:
+   - Sets main-track winners to `m2_status='building'` (for Program Overview)
+   - Sets completed projects to `m2_status='completed'` (for Recently Shipped)
+4. ✅ Deploys Railway server (`railway up --detach`)
+5. ✅ Deploys Vercel client (`vercel --prod`)
+6. ✅ Quick verification (API/frontend reachable)
+
+**Note:** Step 3 requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your environment. If not set, it will skip with a warning (projects may already be updated).
 
 **After it finishes**, wait 1-2 minutes for Railway build, then run:
 
