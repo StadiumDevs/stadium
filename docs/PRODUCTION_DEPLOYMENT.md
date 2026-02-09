@@ -96,3 +96,52 @@ Replace `/path/to/stadium` with the actual workspace path (e.g. `$WORKSPACE` or 
 
 - **Railway:** Dashboard → Deployments → select a previous deployment → “Redeploy” (or use Railway’s rollback if available).
 - **Vercel:** Dashboard → Deployments → select a previous deployment → “Promote to Production”.
+
+---
+
+## Step-by-step: Deploy latest to production
+
+Use this checklist so the latest code and DB are live and working.
+
+### 1. Git
+
+- [ ] All changes you want in prod are committed.
+- [ ] Push to the branch production uses (e.g. `main`):  
+  `git push origin main`
+
+### 2. Server (Railway)
+
+- [ ] From repo root: `cd server && railway status`  
+  Confirm **Environment: production** (and correct project/service).
+- [ ] Deploy: `railway up --detach`
+- [ ] In [Railway dashboard](https://railway.app) → your project → **Deployments**:  
+  Latest deployment is **Success** and logs show the server listening (e.g. “Listening on port …”).
+
+### 3. Client (Vercel)
+
+- [ ] From repo root: `cd client && vercel --prod`
+- [ ] Build finishes without errors; CLI shows **Production** URL.
+- [ ] In [Vercel dashboard](https://vercel.com) → your project → **Deployments**:  
+  Latest production deployment is **Ready**.
+
+### 4. Database (Supabase)
+
+- [ ] **Option A – CLI:** `supabase migration list` shows remote = local (all applied).  
+  If not: `supabase db push` to apply pending migrations.
+- [ ] **Option B – Manual:** If you use the SQL script, run `supabase/manual_fix_schema.sql` in Supabase Dashboard → **SQL Editor**.  
+  Then in **Table Editor** → **projects**: confirm `live_url` exists (and **payments**: `bounty_name`, `paid_date` if you use them).
+
+### 5. Config / env
+
+- [ ] **Railway:** Project **Variables** include `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PORT` (and any others the server needs).
+- [ ] **Vercel:** Project **Settings** → **Environment Variables**: production has `VITE_API_BASE_URL` set to your **Railway API URL** (e.g. `https://your-app.up.railway.app`).
+
+### 6. Smoke test on live app
+
+- [ ] Open your **production frontend URL** (Vercel production or custom domain).
+- [ ] Homepage loads; project list or search works.
+- [ ] Open a project that has a **live URL**; confirm the live link appears and works.
+- [ ] **Program Overview** (M2) loads and shows the expected projects (main track, in program only).
+- [ ] If something fails: check browser Network tab (API errors?) and Railway logs (server errors?).
+
+When all steps are checked, the latest version is deployed to production.
