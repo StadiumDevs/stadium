@@ -12,6 +12,7 @@ const transformProject = (row) => {
         projectRepo: row.project_repo,
         demoUrl: row.demo_url,
         slidesUrl: row.slides_url,
+        liveUrl: row.live_url,
         techStack: row.tech_stack || [],
         categories: row.categories || [],
         donationAddress: row.donation_address,
@@ -75,7 +76,9 @@ const transformProject = (row) => {
             milestone: p.milestone,
             amount: p.amount,
             currency: p.currency,
-            transactionProof: p.transaction_proof
+            transactionProof: p.transaction_proof,
+            bountyName: p.bounty_name,
+            paidDate: p.paid_date
         }))
     };
 };
@@ -90,6 +93,7 @@ const toSupabaseProject = (data) => {
     if (data.projectRepo !== undefined) row.project_repo = data.projectRepo;
     if (data.demoUrl !== undefined) row.demo_url = data.demoUrl;
     if (data.slidesUrl !== undefined) row.slides_url = data.slidesUrl;
+    if (data.liveUrl !== undefined) row.live_url = data.liveUrl;
     if (data.techStack !== undefined) row.tech_stack = data.techStack;
     if (data.categories !== undefined) row.categories = data.categories;
     if (data.donationAddress !== undefined) row.donation_address = data.donationAddress;
@@ -462,7 +466,9 @@ class ProjectRepository {
                         milestone: p.milestone,
                         amount: p.amount,
                         currency: p.currency,
-                        transaction_proof: p.transactionProof
+                        transaction_proof: p.transactionProof,
+                        bounty_name: p.bountyName || null,
+                        paid_date: p.paidDate || null
                     })));
                 if (paymentError) throw paymentError;
             }
