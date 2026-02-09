@@ -26,11 +26,14 @@ This single command:
 3. ✅ Updates Symbiosis M2 status:
    - Sets main-track winners to `m2_status='building'` (for Program Overview)
    - Sets completed projects to `m2_status='completed'` (for Recently Shipped)
-4. ✅ Deploys Railway server (`railway up --detach`)
-5. ✅ Deploys Vercel client (`vercel --prod`)
-6. ✅ Quick verification (API/frontend reachable)
+4. ✅ Applies Symbiosis payouts:
+   - Updates `payments` table with M1/M2/BOUNTY payments
+   - Updates project `m2_status` and `completion_date` based on payouts
+5. ✅ Deploys Railway server (`railway up --detach`)
+6. ✅ Deploys Vercel client (`vercel --prod`)
+7. ✅ Quick verification (API/frontend reachable)
 
-**Note:** Step 3 requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your environment. If not set, it will skip with a warning (projects may already be updated).
+**Note:** Steps 3-4 require `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your environment. If not set, they will skip with a warning (projects may already be updated).
 
 **After it finishes**, wait 1-2 minutes for Railway build, then run:
 
