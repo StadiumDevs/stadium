@@ -382,7 +382,9 @@ const ProjectDetailsPage = () => {
     await web3Enable('Hackathonia');
     const accounts = await web3Accounts();
     if (accounts.length > 0) {
-      setConnectedAddress(accounts[0].address);
+      // Prefer admin account if available, otherwise use first account
+      const adminAccount = accounts.find(a => checkIsAdmin(a.address));
+      setConnectedAddress(adminAccount ? adminAccount.address : accounts[0].address);
     } else {
       toast({ title: 'No wallet found', description: 'Please install Polkadot{.js} extension or Talisman.' });
     }

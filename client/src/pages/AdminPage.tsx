@@ -142,7 +142,7 @@ const AdminPage = () => {
       loadData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, projects]);
+  }, [isAuthenticated]);
 
   const checkExtension = async () => {
     try {
