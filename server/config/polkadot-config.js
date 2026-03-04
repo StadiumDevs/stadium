@@ -6,6 +6,8 @@
  */
 
 import dotenv from 'dotenv';
+import { decodeAddress } from '@polkadot/util-crypto';
+import { u8aToHex } from '@polkadot/util';
 
 dotenv.config();
 
@@ -63,17 +65,21 @@ export function getAuthorizedAddresses() {
 
 /**
  * Check if an address is authorized to sign for the multisig
- * 
+ * Compares decoded public keys so different SS58 prefixes (e.g. 42 vs 0) still match.
+ *
  * @param {string} address - SS58 address to check
  * @returns {boolean} - True if authorized
  */
 export function isAuthorizedSigner(address) {
   if (!address) return false;
-  
-  const normalizedAddress = address.toLowerCase();
-  const authorizedAddresses = getAuthorizedAddresses().map(a => a.toLowerCase());
-  
-  return authorizedAddresses.includes(normalizedAddress);
+  try {
+    const pubkey = u8aToHex(decodeAddress(address));
+    return getAuthorizedAddresses().some(authorized => {
+      try {
+        return u8aToHex(decodeAddress(authorized)) === pubkey;
+      } catch { return false; }
+    });
+  } catch { return false; }
 }
 
 /**
