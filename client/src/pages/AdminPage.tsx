@@ -38,6 +38,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { api } from "@/lib/api";
 import { useMemo } from "react";
 import { isAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
+import { SiwsMessage } from '@talismn/siws';
+import { generateSiwsStatement, type SiwsContext } from '@/lib/siwsUtils';
 import { M2ProjectsTable } from "@/components/admin/M2ProjectsTable";
 import { WinnersTable } from "@/components/admin/WinnersTable";
 import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
@@ -122,18 +124,34 @@ const AdminPage = () => {
     checkExtension();
 
     // Restore session if admin account exists in sessionStorage
-    const sessionAccount = sessionStorage.getItem("admin_session_account");
-    if (sessionAccount) {
-      const account = JSON.parse(sessionAccount);
-      if (isAdmin(account.address)) {
-        setWalletState((prev) => ({
-          ...prev,
-          selectedAccount: account,
-          isConnected: true,
-        }));
-        setIsAuthenticated(true);
+    const restoreSession = async () => {
+      const sessionAccount = sessionStorage.getItem("admin_session_account");
+      if (sessionAccount) {
+        const account = JSON.parse(sessionAccount);
+        if (isAdmin(account.address)) {
+          try {
+            const { web3Enable, web3FromSource } = await import("@polkadot/extension-dapp");
+            await web3Enable("Hackathonia Admin");
+            const injector = await web3FromSource(account.meta.source);
+            setWalletState((prev) => ({
+              ...prev,
+              selectedAccount: account,
+              isConnected: true,
+              injector,
+            }));
+          } catch {
+            // If injector restore fails, still allow read-only session
+            setWalletState((prev) => ({
+              ...prev,
+              selectedAccount: account,
+              isConnected: true,
+            }));
+          }
+          setIsAuthenticated(true);
+        }
       }
-    }
+    };
+    restoreSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -285,10 +303,12 @@ const AdminPage = () => {
     if (!selectedProject) return;
 
     try {
+      const authHeader = await signAdminAction('admin-action');
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-siws-auth': authHeader,
         },
         credentials: 'include',
         body: JSON.stringify(data),
@@ -329,10 +349,12 @@ const AdminPage = () => {
     if (!selectedProject) return;
 
     try {
+      const authHeader = await signAdminAction('admin-action');
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-siws-auth': authHeader,
         },
         credentials: 'include',
         body: JSON.stringify(data),
@@ -385,6 +407,33 @@ const AdminPage = () => {
     sessionStorage.removeItem("admin_session_account");
   };
 
+  const signAdminAction = async (action: SiwsContext['action'] = 'admin-action'): Promise<string> => {
+    const account = walletState.selectedAccount;
+    let injector = walletState.injector;
+    if (!account) throw new Error('Wallet not connected');
+
+    // Re-acquire injector if missing (e.g. after session restore)
+    if (!injector) {
+      const { web3Enable, web3FromSource } = await import("@polkadot/extension-dapp");
+      await web3Enable("Hackathonia Admin");
+      injector = await web3FromSource(account.meta.source);
+      setWalletState(prev => ({ ...prev, injector }));
+    }
+
+    const siws = new SiwsMessage({
+      domain: window.location.hostname,
+      uri: window.location.origin,
+      address: account.address,
+      nonce: Math.random().toString(36).slice(2),
+      statement: generateSiwsStatement({ action }),
+    });
+    const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
+    const messageStr = typeof signed.message === 'string' && signed.message
+      ? signed.message
+      : (siws as unknown as { toString: () => string }).toString();
+    return btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+  };
+
   // Filter projects under review for M2
   const projectsUnderReview = useMemo(() => {
     return projects.filter((p) => p.m2Status === 'under_review');
@@ -429,7 +478,8 @@ const AdminPage = () => {
     }
 
     try {
-      await api.webzeroApprove(projectId);
+      const authHeader = await signAdminAction('approve-project');
+      await api.webzeroApprove(projectId, authHeader);
       
       // Update local state
       setProjects((prev) =>
@@ -463,13 +513,14 @@ const AdminPage = () => {
       under_review: 'Under Review',
       completed: 'Completed (ready for payment)'
     };
-    
+
     if (!confirm(`Change project status to ${statusLabels[newStatus]}?`)) {
       return;
     }
-    
+
     try {
-      await api.updateProjectStatus(projectId, newStatus);
+      const authHeader = await signAdminAction('admin-action');
+      await api.updateProjectStatus(projectId, newStatus, authHeader);
       
       toast({
         title: 'Status Updated',
