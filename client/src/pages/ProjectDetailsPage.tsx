@@ -45,6 +45,7 @@ import { M2SubmissionTimeline } from "@/components/M2SubmissionTimeline";
 import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModal";
 import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
+import { addressInList } from "@/lib/addressUtils";
 import { Edit } from "lucide-react";
 
 /** Normalize URL for server (must start with www or http(s)://) */
@@ -431,10 +432,7 @@ const ProjectDetailsPage = () => {
   // Check if connected wallet is a team member
   const isTeamMember = useMemo(() => {
     if (!connectedAddress || !project?.teamMembers) return false;
-    
-    return project.teamMembers.some(
-      (member) => member.walletAddress?.toLowerCase() === connectedAddress.toLowerCase()
-    );
+    return addressInList(connectedAddress, project.teamMembers);
   }, [connectedAddress, project?.teamMembers]);
 
   // Check if connected wallet is an admin (use shared constants)
@@ -839,12 +837,12 @@ const ProjectDetailsPage = () => {
       const accounts = await web3Accounts();
       const account = accounts[0];
       if (!account) throw new Error("No wallet found");
-      // New schema: require signer to be a team member (server also enforces via SIWS)
-      const isTeamMember = Array.isArray(project.teamMembers) && project.teamMembers.some(
-        (m: ApiTeamMember) => (m.walletAddress || '').toLowerCase() === account.address.toLowerCase()
-      );
-      if (!isTeamMember) {
-        setFormError("You must sign in with a team member wallet to submit deliverables (or use an admin wallet).");
+      // Require signer to be a team member or admin (server also enforces via SIWS)
+      const isTeamMemberForSubmit = Array.isArray(project.teamMembers) &&
+        addressInList(account.address, project.teamMembers);
+      const isAdminForSubmit = checkIsAdmin(account.address);
+      if (!isTeamMemberForSubmit && !isAdminForSubmit) {
+        setFormError("You must sign in with a team member or admin wallet to submit deliverables.");
         setFormLoading(false);
         return;
       }

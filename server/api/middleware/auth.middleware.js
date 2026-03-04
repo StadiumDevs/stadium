@@ -4,7 +4,6 @@ import { SiwsMessage } from '@talismn/siws';
 import chalk from 'chalk';
 import { decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
-import { supabase } from '../../db.js';
 import projectService from '../services/project.service.js';
 import { getAuthorizedAddresses, isAuthorizedSigner, CURRENT_MULTISIG, NETWORK_CONFIG } from '../../config/polkadot-config.js';
 
@@ -167,58 +166,6 @@ export const requireAdmin = async (req, res, next) => {
     logError(`SIWS signature verification failed. Error: ${e.message}`);
     logError(`Received payload for debugging: ${JSON.stringify(signedPayload)}`);
     return res.status(403).json({ status: "error", message: "SIWS signature verification failed", error: e.message });
-  }
-};
-
-export const requireProjectWriteAccess = async (req, res, next) => {
-  const actor = requireSignature(req, res);
-  if (!actor) return; // response already sent
-
-  const authorizedAddresses = getAuthorizedAddresses();
-  const isAdmin = authorizedAddresses.includes(actor.address.toLowerCase());
-  if (isAdmin) {
-    req.auth = { address: actor.address, isAdmin: true };
-    return next();
-  }
-
-  const { projectId } = req.params || {};
-  if (!projectId) {
-    return res.status(400).json({ status: 'error', message: 'Missing projectId in route' });
-  }
-
-  try {
-    const { data: teamMembers, error } = await supabase
-      .from('team_members')
-      .select('wallet_address')
-      .eq('project_id', projectId);
-
-    if (error) throw error;
-
-    if (!teamMembers || teamMembers.length === 0) {
-      // Check if project exists
-      const { data: project } = await supabase
-        .from('projects')
-        .select('id')
-        .eq('id', projectId)
-        .single();
-
-      if (!project) {
-        return res.status(404).json({ status: 'error', message: 'Project not found' });
-      }
-    }
-
-    const actorLower = actor.address.toLowerCase();
-    const hasAccess = (teamMembers || []).some(m => (m.wallet_address || '').toLowerCase() === actorLower);
-
-    if (!hasAccess) {
-      return res.status(403).json({ status: 'error', message: 'Not authorized to modify this project' });
-    }
-
-    req.auth = { address: actor.address, isAdmin: false };
-    next();
-  } catch (err) {
-    console.error('❌ Auth middleware failed:', err);
-    return res.status(500).json({ status: 'error', message: 'Authorization check failed' });
   }
 };
 

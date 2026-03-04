@@ -44,6 +44,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { api, type ApiProject } from "@/lib/api";
+import { addressInList } from "@/lib/addressUtils";
 import { getProjectUrl, getCurrentProgramWeek } from "@/lib/projectUtils";
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
@@ -203,12 +204,9 @@ const M2ProgramPage = () => {
     if (viewFilter === 'my-teams') {
       // Filter projects where connected wallet address matches any team member's walletAddress
       if (connectedAddress) {
-        const addressLower = connectedAddress.toLowerCase();
-        filtered = filtered.filter(p => {
-          return p.teamMembers?.some(
-            member => member.walletAddress?.toLowerCase() === addressLower
-          ) ?? false;
-        });
+        filtered = filtered.filter(p =>
+          addressInList(connectedAddress, p.teamMembers || [])
+        );
       } else {
         // If no wallet connected, show no results
         filtered = [];
