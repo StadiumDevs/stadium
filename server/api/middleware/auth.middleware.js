@@ -2,7 +2,10 @@ import dotenv from 'dotenv';
 import { verifySIWS } from '@talismn/siws';
 import { SiwsMessage } from '@talismn/siws';
 import chalk from 'chalk';
+import { decodeAddress } from '@polkadot/util-crypto';
+import { u8aToHex } from '@polkadot/util';
 import { supabase } from '../../db.js';
+import projectService from '../services/project.service.js';
 import { getAuthorizedAddresses, isAuthorizedSigner, CURRENT_MULTISIG, NETWORK_CONFIG } from '../../config/polkadot-config.js';
 
 dotenv.config();
@@ -138,7 +141,7 @@ export const requireAdmin = async (req, res, next) => {
       log('Domain check disabled (DISABLE_SIWS_DOMAIN_CHECK=true)');
     }
 
-    const signerAddress = siwsMessage.address.toLowerCase();
+    const signerAddress = siwsMessage.address;
     log(`Checking if signer address can sign for multisig. Address: ${signerAddress}`);
 
     if (!isAuthorizedSigner(signerAddress)) {
@@ -273,12 +276,12 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     return res.status(403).json({ status: "error", message: "SIWS verification failed", error: e.message });
   }
 
-  const signerAddress = siwsMessage.address.toLowerCase();
+  const signerAddress = siwsMessage.address;
   log(`Checking authorization for signer: ${signerAddress}`);
 
   if (isAuthorizedSigner(signerAddress)) {
     logSuccess(`Signer ${signerAddress} is authorized for multisig. Granting access.`);
-    req.user = { 
+    req.user = {
       address: siwsMessage.address,
       multisig: CURRENT_MULTISIG,
       network: NETWORK_CONFIG.environment
@@ -286,31 +289,29 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     return next();
   }
   log(`Signer ${signerAddress} is not a multisig signer. Checking project team membership...`);
-  
-  try {
-    // Check if project exists
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .single();
 
-    if (projectError || !project) {
+  try {
+    const project = await projectService.getProjectById(projectId);
+
+    if (!project) {
       logError(`Authorization failed: Project with ID ${projectId} not found.`);
       return res.status(404).json({ status: 'error', message: 'Project not found' });
     }
 
-    // Get team members
-    const { data: teamMembers, error: teamError } = await supabase
-      .from('team_members')
-      .select('wallet_address')
-      .eq('project_id', projectId);
+    let signerPubkey;
+    try {
+      signerPubkey = u8aToHex(decodeAddress(signerAddress));
+    } catch {
+      logError(`Invalid SS58 address: ${signerAddress}`);
+      return res.status(400).json({ status: 'error', message: 'Invalid wallet address' });
+    }
 
-    if (teamError) throw teamError;
-
-    const isTeamMember = (teamMembers || []).some(
-      (member) => member.wallet_address && member.wallet_address.toLowerCase() === signerAddress
-    );
+    const isTeamMember = (project.teamMembers || []).some(member => {
+      if (!member.walletAddress) return false;
+      try {
+        return u8aToHex(decodeAddress(member.walletAddress)) === signerPubkey;
+      } catch { return false; }
+    });
 
     if (isTeamMember) {
       logSuccess(`Signer ${signerAddress} is a team member of project ${projectId}. Granting access.`);
