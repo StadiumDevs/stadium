@@ -267,7 +267,13 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     }
 
     logError(`Authorization failed: Signer ${signerAddress} is not a team member of project ${projectId}.`);
-    return res.status(403).json({ status: 'error', message: 'User is not authorized to perform this action' });
+    return res.status(403).json({
+      status: 'error',
+      message: 'User is not authorized to perform this action',
+      detail: ADMIN_WALLETS.length === 0
+        ? 'No authorized signers configured on server. Set AUTHORIZED_SIGNERS env var.'
+        : 'Address is not an authorized signer or team member of this project.'
+    });
 
   } catch (error) {
     logError(`Database error while checking team membership: ${error.message}`);
