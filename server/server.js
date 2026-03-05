@@ -3,6 +3,7 @@ import cors from "cors";
 import connectToSupabase, { supabase } from "./db.js";
 import m2ProgramRoutes from './api/routes/m2-program.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
+import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
 const app = express();
 const PORT = process.env.PORT || 2000;
@@ -54,7 +55,15 @@ app.get("/", (req, res) => {
 
 // Health check
 app.get("/api/health", (req, res) => {
-    res.status(200).json({ status: 'OK', message: "Server is running", timestamp: new Date().toISOString() });
+    res.status(200).json({
+        status: 'OK',
+        message: "Server is running",
+        timestamp: new Date().toISOString(),
+        authConfig: {
+            authorizedSigners: getAuthorizedAddresses().length,
+            network: NETWORK_CONFIG.networkName,
+        }
+    });
 });
 
 // Health check that verifies Railway → Supabase (GET /api/health/db)

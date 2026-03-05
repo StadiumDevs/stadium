@@ -293,6 +293,52 @@ class ProjectController {
     }
 
     /**
+     * Approve M2 deliverables (admin only)
+     */
+    async approveM2(req, res) {
+        try {
+            const { projectId } = req.params;
+            const updated = await projectService.updateProject(projectId, {
+                m2Status: 'completed',
+                webzeroApproved: true,
+                webzeroApprovalDate: new Date().toISOString(),
+            });
+            if (!updated) {
+                return res.status(404).json({ status: "error", message: "Project not found" });
+            }
+            res.status(200).json({ status: "success", data: updated });
+        } catch (error) {
+            console.error("❌ Error approving M2:", error);
+            res.status(500).json({ status: "error", message: "Failed to approve M2" });
+        }
+    }
+
+    /**
+     * Request changes on M2 deliverables (admin only)
+     */
+    async requestChanges(req, res) {
+        try {
+            const { projectId } = req.params;
+            const { feedback } = req.body || {};
+            if (!feedback) {
+                return res.status(422).json({ status: "error", message: "Feedback is required" });
+            }
+            const updated = await projectService.updateProject(projectId, {
+                m2Status: 'building',
+                changeRequestFeedback: feedback,
+                changeRequestDate: new Date().toISOString(),
+            });
+            if (!updated) {
+                return res.status(404).json({ status: "error", message: "Project not found" });
+            }
+            res.status(200).json({ status: "success", data: updated });
+        } catch (error) {
+            console.error("❌ Error requesting changes:", error);
+            res.status(500).json({ status: "error", message: "Failed to request changes" });
+        }
+    }
+
+    /**
      * Confirm payment for M1, M2, or BOUNTY
      * Admin only - records payment with transaction proof
      */
