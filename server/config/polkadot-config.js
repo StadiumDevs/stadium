@@ -44,8 +44,16 @@ export const CURRENT_MULTISIG = NETWORK_ENV === 'mainnet'
  */
 export const AUTHORIZED_SIGNERS = (process.env.AUTHORIZED_SIGNERS || '')
   .split(',')
-  .map(s => s.trim())
+  .map(s => s.replace(/\s+/g, ''))
   .filter(Boolean);
+
+AUTHORIZED_SIGNERS.forEach((addr, i) => {
+  try {
+    decodeAddress(addr);
+  } catch (e) {
+    console.warn(`Warning: AUTHORIZED_SIGNERS[${i}] is not a valid SS58 address: "${addr}"`);
+  }
+});
 
 /**
  * Legacy admin wallets support (backward compatibility)
@@ -53,7 +61,7 @@ export const AUTHORIZED_SIGNERS = (process.env.AUTHORIZED_SIGNERS || '')
  */
 const LEGACY_ADMIN_WALLETS = (process.env.ADMIN_WALLETS || '')
   .split(',')
-  .map(s => s.trim())
+  .map(s => s.replace(/\s+/g, ''))
   .filter(Boolean);
 
 /**
