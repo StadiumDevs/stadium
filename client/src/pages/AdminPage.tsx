@@ -427,11 +427,18 @@ const AdminPage = () => {
       nonce: Math.random().toString(36).slice(2),
       statement: generateSiwsStatement({ action }),
     });
-    const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-    const messageStr = typeof signed.message === 'string' && signed.message
-      ? signed.message
-      : (siws as unknown as { toString: () => string }).toString();
-    return btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
+
+    const signRaw = injector?.signer?.signRaw;
+    if (!signRaw) throw new Error('Wallet does not support message signing');
+
+    const message = siws.prepareMessage();
+    const { signature } = await signRaw({
+      address: account.address,
+      data: message,
+      type: 'bytes',
+    });
+
+    return btoa(JSON.stringify({ message, signature, address: account.address }));
   };
 
   // Filter projects under review for M2
@@ -858,10 +865,11 @@ const AdminPage = () => {
             </p>
           </div>
         </div>
-        <WinnersTable 
-          projects={projects} 
+        <WinnersTable
+          projects={projects}
           onRefresh={loadData}
           connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0] : walletState.selectedAccount?.address}
+          signAdminAction={signAdminAction}
         />
       </section>
 

@@ -57,13 +57,11 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
-import { SiwsMessage } from '@talismn/siws';
-import { generateSiwsStatement } from '@/lib/siwsUtils';
 
 interface BountyPrize {
   name: string;
   amount: number;
+  currency?: 'USDC' | 'DOT';
   hackathonWonAtId: string;
   txHash?: string;
 }
@@ -98,11 +96,12 @@ interface WinnersTableProps {
   projects: any[];
   onRefresh: () => void;
   connectedAddress?: string;
+  signAdminAction: (action?: string) => Promise<string>;
 }
 
 type WinnerFilter = "all" | "main-track" | "bounty";
 
-export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersTableProps) {
+export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminAction }: WinnersTableProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState<string | null>(null);
   const [winnerFilter, setWinnerFilter] = useState<WinnerFilter>("all");
@@ -116,51 +115,6 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     return project.bountyPrize?.some((b: BountyPrize) => 
       b.name.toLowerCase().includes("main track")
     ) || false;
-  };
-
-  // Helper to get SIWS auth header for admin actions
-  const getSiwsAuthHeader = async (): Promise<string> => {
-    if (!connectedAddress) {
-      throw new Error("Please connect your wallet first.");
-    }
-    
-    await web3Enable('Hackathonia');
-    const accounts = await web3Accounts();
-    const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-    
-    // DEV MODE: If no wallet available in development, use bypass
-    if (!account) {
-      if (import.meta.env.DEV) {
-        console.log('[DEV] Using dev-bypass auth header');
-        return 'dev-bypass';
-      }
-      throw new Error("No wallet found. Please connect your wallet extension.");
-    }
-    
-    const siws = new SiwsMessage({
-      domain: window.location.hostname,
-      uri: window.location.origin,
-      address: account.address,
-      nonce: Math.random().toString(36).slice(2),
-      statement: generateSiwsStatement({ action: 'admin-action' }),
-    });
-    
-    const injector = await web3FromSource(account.meta.source!);
-    const signRaw = injector?.signer?.signRaw;
-    if (!signRaw) throw new Error("Wallet does not support signing");
-    
-    const message = siws.prepareMessage();
-    const { signature } = await signRaw({
-      address: account.address,
-      data: message,
-      type: 'bytes',
-    });
-    
-    return JSON.stringify({
-      message,
-      signature,
-      address: account.address,
-    });
   };
 
   // Filter: show only projects with bountyPrize entries (winners from CSV)
@@ -214,6 +168,19 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     return project.bountyPrize.reduce((sum: number, b: BountyPrize) => sum + b.amount, 0);
   };
 
+  // Format amount with correct currency symbol
+  const formatAmount = (amount: number, currency?: string) => {
+    if (currency === 'DOT') return `${amount.toLocaleString()} DOT`;
+    return `$${amount.toLocaleString()}`;
+  };
+
+  // Get dominant currency for a project's bounty prizes
+  const getProjectCurrency = (project: any): string | undefined => {
+    const currencies = (project.bountyPrize || []).map((b: BountyPrize) => b.currency || 'USDC');
+    const unique = [...new Set(currencies)];
+    return unique.length === 1 ? unique[0] as string : undefined;
+  };
+
   // Open manage modal with project data
   const openManageModal = (project: any) => {
     const bounty = project.bountyPrize?.[0];
@@ -254,7 +221,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     setSaving("status");
     
     try {
-      const authHeader = await getSiwsAuthHeader();
+      const authHeader = await signAdminAction('admin-action');
       
       const updateData: Record<string, any> = {
         projectState: manageModal.projectState,
@@ -290,7 +257,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     setSaving("agreement");
     
     try {
-      const authHeader = await getSiwsAuthHeader();
+      const authHeader = await signAdminAction('admin-action');
       
       // Parse line-separated strings into arrays
       const agreedFeatures = manageModal.agreedFeatures
@@ -348,7 +315,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     setSaving("deliverables");
     
     try {
-      const authHeader = await getSiwsAuthHeader();
+      const authHeader = await signAdminAction('admin-action');
       
       // Validate
       if (!manageModal.repoUrl) {
@@ -401,7 +368,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     setSaving("payment");
     
     try {
-      const authHeader = await getSiwsAuthHeader();
+      const authHeader = await signAdminAction('admin-action');
       
       // Validate
       if (!manageModal.paymentAmount || manageModal.paymentAmount <= 0) {
@@ -452,7 +419,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     let failCount = 0;
     
     try {
-      const authHeader = await getSiwsAuthHeader();
+      const authHeader = await signAdminAction('admin-action');
       
       for (const project of unpaidProjects) {
         try {
@@ -590,11 +557,11 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
                         stored in the schema yet. See issue #26. */}
                     <TableCell>
                       <div className="space-y-1">
-                        <p className="font-semibold">${totalBounty.toLocaleString()}</p>
+                        <p className="font-semibold">{formatAmount(totalBounty, getProjectCurrency(project))}</p>
                         {project.bountyPrize.length > 1 && (
                           <div className="text-xs text-muted-foreground">
                             {project.bountyPrize.map((b: BountyPrize, idx: number) => (
-                              <div key={idx}>${b.amount.toLocaleString()}</div>
+                              <div key={idx}>{formatAmount(b.amount, b.currency)}</div>
                             ))}
                           </div>
                         )}
@@ -988,7 +955,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
               {unpaidProjects.slice(0, 20).map((p) => (
                 <div key={p.id} className="text-sm py-1 flex justify-between">
                   <span>{p.projectName}</span>
-                  <span className="text-muted-foreground">${getTotalBounty(p).toLocaleString()}</span>
+                  <span className="text-muted-foreground">{formatAmount(getTotalBounty(p), getProjectCurrency(p))}</span>
                 </div>
               ))}
               {unpaidProjects.length > 20 && (

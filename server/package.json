@@ -4,7 +4,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "test:api-db": "node scripts/test-api-db-read.js",
     "verify:production": "node scripts/verify-production.js",
     "verify:main-deployed": "node scripts/verify-main-deployed.js",
@@ -54,6 +54,7 @@
     "@polkadot/keyring": "^13.5.8",
     "@polkadot/util": "^13.5.8",
     "@polkadot/util-crypto": "^13.5.8",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "vitest": "^4.1.0"
   }
 }
