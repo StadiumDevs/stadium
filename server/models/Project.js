@@ -39,6 +39,7 @@ const ProjectSchema = new mongoose.Schema({
   bountyPrize: [{
     name: { type: String, required: true },
     amount: { type: Number, required: true },
+    currency: { type: String, enum: ['USDC', 'DOT'], default: 'USDC' },
     hackathonWonAtId: { type: String, required: true },
   }],
   donationAddress: { type: String, required: false },

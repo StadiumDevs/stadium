@@ -210,7 +210,7 @@ const migrate = async () => {
             updatedAt: new Date(),
             updatedBy: "migration",
           }] : [],
-          bountyPrize: project.winner ? [{ name: project.winner, amount: 2500, hackathonWonAtId: hackathon.id }] : [],
+          bountyPrize: project.winner ? [{ name: project.winner, amount: payoutInfo ? parseFloat(payoutInfo['Total Prize (USDC)']) || 2500 : 2500, hackathonWonAtId: hackathon.id }] : [],
           donationAddress: project.donationAddress || "",
           projectState: projectState,
           bountiesProcessed: bountiesProcessed,
