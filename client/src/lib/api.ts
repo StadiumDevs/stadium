@@ -63,7 +63,7 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
     try {
       const body = await response.json();
       if (body && typeof body.message === "string" && body.message.trim()) {
-        message = body.message;
+        message = body.error ? `${body.message}: ${body.error}` : body.message;
       }
     } catch {
       // ignore non-JSON or empty body

@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
-import { verifySIWS } from '@talismn/siws';
+import { verifySIWS, parseMessage } from '@talismn/siws';
 import { SiwsMessage } from '@talismn/siws';
 import chalk from 'chalk';
-import { decodeAddress } from '@polkadot/util-crypto';
+import { cryptoWaitReady, decodeAddress, signatureVerify } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import projectService from '../services/project.service.js';
 import { getAuthorizedAddresses, isAuthorizedSigner, CURRENT_MULTISIG, NETWORK_CONFIG } from '../../config/polkadot-config.js';
@@ -117,8 +117,18 @@ export const requireAdmin = async (req, res, next) => {
 
   try {
     log(`Verifying SIWS for address: ${address}`);
-    const siwsMessage = await verifySIWS(message, signature, address);
-    logSuccess('SIWS signature verified successfully.');
+
+    await cryptoWaitReady();
+    const verification = signatureVerify(message, signature, address);
+    if (!verification?.isValid) {
+      logError(`Signature invalid. crypto: ${verification?.crypto}, isWrapped: ${verification?.isWrapped}`);
+      logError(`Message length: ${message.length}, Signature length: ${signature.length}`);
+      logError(`Message starts with: ${message.substring(0, 80)}`);
+      return res.status(403).json({ status: 'error', message: 'SIWS signature verification failed', error: 'Invalid signature' });
+    }
+    logSuccess(`SIWS signature verified (crypto: ${verification.crypto}).`);
+
+    const siwsMessage = parseMessage(message);
 
     log(`Checking statement. Received: "${siwsMessage.statement}"`);
     if (!validateSiwsStatement(siwsMessage.statement)) {
@@ -133,7 +143,7 @@ export const requireAdmin = async (req, res, next) => {
       log(`Checking domain. Expected: "${EXPECTED_DOMAIN}"`);
       if (siwsMessage.domain !== EXPECTED_DOMAIN) {
         logError(`Invalid domain. Received: "${siwsMessage.domain}". Expected: "${EXPECTED_DOMAIN}"`);
-        return res.status(403).json({ status: 'error', message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.` });
+        return res.status(403).json({ status: 'error', message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.`, error: `Domain mismatch: got '${siwsMessage.domain}'` });
       }
       logSuccess('Domain matches.');
     } else {
@@ -146,8 +156,8 @@ export const requireAdmin = async (req, res, next) => {
     if (!isAuthorizedSigner(signerAddress)) {
       logError(`Authorization failed: Address ${signerAddress} is not authorized to sign for multisig ${CURRENT_MULTISIG}`);
       logError(`Authorized signers: ${ADMIN_WALLETS.join(', ')}`);
-      return res.status(403).json({ 
-        status: 'error', 
+      return res.status(403).json({
+        status: 'error',
         message: 'Address is not authorized to sign for the multisig',
         multisig: CURRENT_MULTISIG,
         network: NETWORK_CONFIG.networkName
@@ -155,7 +165,7 @@ export const requireAdmin = async (req, res, next) => {
     }
 
     logSuccess(`Authorized signer ${signerAddress} can sign for multisig ${CURRENT_MULTISIG}`);
-    req.user = { 
+    req.user = {
       address: siwsMessage.address,
       multisig: CURRENT_MULTISIG,
       network: NETWORK_CONFIG.environment
@@ -164,6 +174,7 @@ export const requireAdmin = async (req, res, next) => {
 
   } catch (e) {
     logError(`SIWS signature verification failed. Error: ${e.message}`);
+    logError(`Stack: ${e.stack}`);
     logError(`Received payload for debugging: ${JSON.stringify(signedPayload)}`);
     return res.status(403).json({ status: "error", message: "SIWS signature verification failed", error: e.message });
   }
@@ -205,8 +216,19 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     }
 
     log(`Verifying SIWS for address: ${address}`);
-    siwsMessage = await verifySIWS(message, signature, address);
-    logSuccess('SIWS signature verified successfully.');
+
+    // Inline verification with granular error reporting
+    await cryptoWaitReady();
+    const verification = signatureVerify(message, signature, address);
+    if (!verification?.isValid) {
+      logError(`Signature invalid. crypto: ${verification?.crypto}, isWrapped: ${verification?.isWrapped}`);
+      logError(`Message length: ${message.length}, Signature length: ${signature.length}`);
+      logError(`Message starts with: ${message.substring(0, 80)}`);
+      return res.status(403).json({ status: 'error', message: 'SIWS verification failed', error: 'Invalid signature' });
+    }
+    logSuccess(`SIWS signature verified (crypto: ${verification.crypto}).`);
+
+    siwsMessage = parseMessage(message);
 
     // Validate statement with context-aware validation
     log(`Checking statement. Received: "${siwsMessage.statement}"`);
@@ -219,6 +241,7 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
 
   } catch (e) {
     logError(`SIWS verification failed. Error: ${e.message}`);
+    logError(`Stack: ${e.stack}`);
     logError(`Decoded string for debugging: ${decodedString}`);
     return res.status(403).json({ status: "error", message: "SIWS verification failed", error: e.message });
   }

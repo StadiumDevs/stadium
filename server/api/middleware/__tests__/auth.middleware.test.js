@@ -3,10 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock dependencies before importing the module under test
 vi.mock('@talismn/siws', () => ({
   verifySIWS: vi.fn(),
+  parseMessage: vi.fn(),
   SiwsMessage: vi.fn(),
 }));
 
 vi.mock('@polkadot/util-crypto', () => ({
+  cryptoWaitReady: vi.fn().mockResolvedValue(true),
+  signatureVerify: vi.fn(),
   decodeAddress: vi.fn(),
 }));
 
@@ -40,8 +43,8 @@ vi.mock('../../services/project.service.js', () => ({
 }));
 
 // Now import what we need
-import { verifySIWS } from '@talismn/siws';
-import { decodeAddress } from '@polkadot/util-crypto';
+import { verifySIWS, parseMessage } from '@talismn/siws';
+import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import { isAuthorizedSigner } from '../../../config/polkadot-config.js';
 import projectService from '../../services/project.service.js';
@@ -151,7 +154,8 @@ describe('requireAdmin', () => {
   });
 
   it('returns 403 for valid signature but invalid statement', async () => {
-    verifySIWS.mockResolvedValue({
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
       statement: 'Some invalid statement',
       address: '5FakeAdmin1',
       domain: 'localhost',
@@ -171,7 +175,8 @@ describe('requireAdmin', () => {
   });
 
   it('returns 403 for valid signature + valid statement but unauthorized address', async () => {
-    verifySIWS.mockResolvedValue({
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
       statement: 'Perform administrative action on Stadium',
       address: '5FakeAdmin1',
       domain: 'localhost',
@@ -192,7 +197,8 @@ describe('requireAdmin', () => {
   });
 
   it('calls next() and sets req.user for fully valid request', async () => {
-    verifySIWS.mockResolvedValue({
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
       statement: 'Perform administrative action on Stadium',
       address: '5FakeAdmin1',
       domain: 'localhost',
@@ -254,7 +260,8 @@ describe('requireTeamMemberOrAdmin', () => {
   });
 
   it('calls next() when signer is an authorized admin', async () => {
-    verifySIWS.mockResolvedValue({
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
       statement: 'Perform administrative action on Stadium',
       address: '5FakeAdmin1',
       domain: 'localhost',
@@ -280,7 +287,8 @@ describe('requireTeamMemberOrAdmin', () => {
 
   it('calls next() when signer is a team member (public key match)', async () => {
     const teamPubkey = '0xabcdef1234567890';
-    verifySIWS.mockResolvedValue({
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
       statement: 'Perform administrative action on Stadium',
       address: '5TeamMember1',
       domain: 'localhost',
@@ -306,7 +314,8 @@ describe('requireTeamMemberOrAdmin', () => {
   });
 
   it('returns 403 when signer is neither admin nor team member', async () => {
-    verifySIWS.mockResolvedValue({
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
       statement: 'Perform administrative action on Stadium',
       address: '5Stranger',
       domain: 'localhost',
