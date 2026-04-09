@@ -64,7 +64,9 @@ const HomePage = () => {
   const [selectedHackathon, setSelectedHackathon] = useState<string>("all");
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [hackathons, setHackathons] = useState<{ id: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [allProjects, setAllProjects] = useState<ApiProject[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const { toast } = useToast();
@@ -75,6 +77,8 @@ const HomePage = () => {
       try {
         const response = await api.getProjects({ limit: 2000, sortBy: "updatedAt", sortOrder: "desc" });
         const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
+        setAllProjects(apiProjects);
+        setStatsLoading(false);
         const unique = new Map<string, string>();
         for (const p of apiProjects) {
           if (p.hackathon?.id) {
@@ -240,15 +244,15 @@ const HomePage = () => {
     return filtered.map(convertToProjectCard);
   }, [projects, searchQuery, showWinnersOnly, activeFilters, selectedHackathon]);
 
-  // Calculate stats (m2Graduates = main track completed only, per M2 program scope)
+  // Calculate stats from all projects (not affected by hackathon filter)
   const stats = useMemo(() => {
-    const totalProjects = projects.length;
-    const winners = projects.filter((p) => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0).length;
-    const m2Graduates = projects.filter(
+    const totalProjects = allProjects.length;
+    const winners = allProjects.filter((p) => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0).length;
+    const m2Graduates = allProjects.filter(
       (p) => p.m2Status === "completed" && isMainTrackWinner(p)
     ).length;
     return { totalProjects, winners, m2Graduates };
-  }, [projects]);
+  }, [allProjects]);
 
   // Recently completed M2 projects (main track only), sorted by completion date, newest first
   const recentlyShipped = useMemo(() => {
@@ -376,7 +380,11 @@ const HomePage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Total Projects</p>
-                    <p className="text-3xl font-bold">{stats.totalProjects}</p>
+                    {statsLoading ? (
+                      <div className="h-9 w-16 rounded bg-primary/10 animate-pulse" />
+                    ) : (
+                      <p className="text-3xl font-bold">{stats.totalProjects}</p>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                     <FolderOpen className="h-6 w-6 text-primary" />
@@ -397,7 +405,11 @@ const HomePage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Winners</p>
-                    <p className="text-3xl font-bold">{stats.winners}</p>
+                    {statsLoading ? (
+                      <div className="h-9 w-12 rounded bg-yellow-500/10 animate-pulse" />
+                    ) : (
+                      <p className="text-3xl font-bold">{stats.winners}</p>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
                     <Trophy className="h-6 w-6 text-yellow-500" />
@@ -418,7 +430,11 @@ const HomePage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">M2 Graduates</p>
-                    <p className="text-3xl font-bold">{stats.m2Graduates}</p>
+                    {statsLoading ? (
+                      <div className="h-9 w-12 rounded bg-green-500/10 animate-pulse" />
+                    ) : (
+                      <p className="text-3xl font-bold">{stats.m2Graduates}</p>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
                     <Users className="h-6 w-6 text-green-500" />
