@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh api:*)",
+      "Bash(gh auth status)",
+      "Bash(gh --version)",
+      "Bash(cd server && npm test)",
+      "Bash(cd server && npm test:*)",
+      "Bash(cd client && npm run build)",
+      "Bash(cd client && npm run lint)",
+      "Bash(cd client && npm run dev:*)",
+      "Bash(git status)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git checkout:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git commit --no-verify:*)",
+      "Bash(cd server && npm run db:purge:*)",
+      "Bash(cd server && npm run db:migrate:fresh:*)",
+      "Bash(cd server && npm run db:reset:*)",
+      "Bash(npm run db:purge:*)",
+      "Bash(rm -rf:*)"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+# Stadium codeowners
+#
+# The agent (Claude) is NEVER a codeowner. Merging any PR — including agent-opened PRs —
+# requires review and approval from a human listed below. Do not add bot accounts here.
+#
+# See CLAUDE.md §6 "Workflow contract" for the full rule.
+
+*                  @salansky
+
+# Extra protection on agent config and CI: only a human owner can change how the
+# agent operates, what it's allowed to do, or how PRs are gated.
+/CLAUDE.md         @salansky
+/.claude/          @salansky
+/.github/          @salansky
+/docs/AGENT_GUIDE.md @salansky
