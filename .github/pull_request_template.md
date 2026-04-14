@@ -11,6 +11,12 @@ Closes #
 - [ ] `cd client && npm run lint` — pass
 - [ ] Manual verification (describe):
 
+## Preview
+
+- **Vercel preview URL**: <!-- Vercel bot will post this below; paste it here -->
+- [ ] Preview opens and renders the changed feature (runs on mock data per `VITE_USE_MOCK_DATA=true`)
+- [ ] No console errors on the preview
+
 ## Invariants verified
 
 - [ ] `BYPASS_ADMIN_CHECK` still `false` in `AdminPage.tsx`

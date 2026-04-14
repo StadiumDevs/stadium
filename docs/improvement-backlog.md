@@ -24,6 +24,12 @@ Do **not** manually edit `- **Promoted**` lines.
 
 <!-- entries start below this line -->
 
+## [2026-04-14] Admin confirm-payment bypasses the api wrapper
+- **Severity**: minor
+- **File(s)**: `client/src/pages/AdminPage.tsx:305,351`, `client/src/components/admin/M2BuildingProjectsTable.tsx:64`
+- **Observed during**: wiring VITE_USE_MOCK_DATA preview flag
+- **Suggestion**: three admin-side `fetch('/api/m2-program/.../confirm-payment')` calls bypass `client/src/lib/api.ts`. They're SIWS-gated so they can't execute in preview without a wallet signature (low preview risk), but they also dodge the mock-mode plumbing and any future cross-cutting concerns (retry, logging, error mapping). Refactor them to call `api.confirmPayment()` which already has a mock branch.
+
 ## [2026-04-14] Client lint currently fails with 90 errors / 8 warnings
 - **Severity**: minor
 - **File(s)**: `client/src/pages/AdminPage.tsx`, `client/src/pages/HomePage.tsx`, `client/src/pages/ProjectDetailsPage.tsx`, `client/tailwind.config.ts`

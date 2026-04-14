@@ -154,6 +154,12 @@ While working, you will notice things that are wrong or could be better but are 
 - **Local Mongo tooling** (only if you're running `npm run seed:dev` / `db:*` / `list:winners-zero-paid`) additionally needs `MONGO_URI` and a local `mongosh`.
 - Copy `client/.env.example` → `client/.env` and `server/.env.example` → `server/.env`. Never commit real secrets.
 
+### Vercel preview deployments
+
+Every branch pushed to `origin` gets an automatic Vercel preview URL for the client. Previews run in **mock mode** — `VITE_USE_MOCK_DATA=true` must be set on the **Preview** environment in the Vercel dashboard (scope = Preview only, not Production). When this flag is on, `client/src/lib/api.ts` serves fixtures from `src/lib/mockWinners.ts` for reads and simulates writes in `localStorage` / in-memory mock objects. Production must leave the flag unset or `false`.
+
+Use the preview URL for visual review before approving a `/ship-issue` PR. Real-API end-to-end testing happens in the Railway staging / production environment, not from a branch preview.
+
 ---
 
 ## 9. Subagents and slash commands
