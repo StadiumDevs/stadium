@@ -1,0 +1,113 @@
+---
+description: Ship a GitHub issue end-to-end — explore, plan, wait for approval, implement, test, open draft PR. Never merges.
+argument-hint: <issue-number>
+---
+
+You have been asked to ship GitHub issue **#$ARGUMENTS** in this repo.
+
+This command is the full agentic workflow. Follow it exactly. Do not skip steps.
+
+## 0. Preflight
+
+- Confirm `gh` is installed: `gh --version`. If not, stop and tell the user to install it (`brew install gh`).
+- Confirm the working tree is clean: `git status`. If dirty, stop and ask.
+- Confirm you are NOT on `main` or `develop`. If you are, create a feature branch first: `git checkout -b feat/issue-$ARGUMENTS` (or a descriptive name based on the issue title).
+- Read `CLAUDE.md` and `docs/AGENT_GUIDE.md` if you have not already in this session.
+
+## 1. Read the issue
+
+```bash
+gh issue view $ARGUMENTS --json number,title,body,labels,url
+```
+
+Extract: goal, acceptance criteria, files hinted, out-of-scope notes. If any of these are missing and the issue is non-trivial, stop and ask the user to flesh out the issue using the feature-request template.
+
+## 2. Explore
+
+Use the `stadium-explorer` subagent with thoroughness matching issue scope (quick / medium / very thorough). Goal: map which files will be touched and which existing utilities to reuse.
+
+## 3. Plan
+
+Write a plan covering:
+- Goal restated in your own words
+- Files to change (paths, not placeholders)
+- New files to create (if any)
+- Utilities you will reuse (paths)
+- Tests to add (paths)
+- Invariants at risk and how you'll preserve them
+- Out-of-scope items you noticed (will go to backlog)
+
+Post the plan to the user. **Stop and wait for explicit approval.** Do not write code until the user says go. Phrases like "looks good", "ship it", "approved", "proceed" count as approval; anything else does not.
+
+## 4. Implement
+
+Delegate to the `stadium-implementer` subagent with the approved plan. It will:
+- Make the minimal diff
+- Reuse existing utilities
+- Preserve invariants
+- Add tests
+
+## 5. Review
+
+Run the `stadium-reviewer` subagent against the diff. Address any **Blockers** before continuing. Record **Backlog** items via `/log-improvement`.
+
+## 6. Pre-PR check
+
+Run `/pre-pr-check`. It executes:
+- `cd server && npm test`
+- `cd client && npm run build`
+- `cd client && npm run lint`
+
+If any fail, fix the code. Never skip, never use `--no-verify`.
+
+## 7. Commit and push
+
+Create a commit (or small series of commits) with a clear message referencing the issue:
+
+```
+<type>: <short summary>
+
+Closes #$ARGUMENTS
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+```
+
+Push the branch: `git push -u origin <branch>`.
+
+## 8. Open draft PR
+
+```bash
+gh pr create --draft --base develop \
+  --title "<type>: <summary>" \
+  --body "$(cat <<'EOF'
+## Summary
+<1-3 bullets>
+
+Closes #$ARGUMENTS
+
+## Test plan
+- [x] `cd server && npm test` — pass
+- [x] `cd client && npm run build` — pass
+- [x] `cd client && npm run lint` — pass
+
+## Backlog items logged
+- <list or "none">
+
+## Invariants verified
+- [ ] BYPASS_ADMIN_CHECK still false
+- [ ] Admin routes still use auth.middleware.js
+- [ ] No new console.log in client
+- [ ] No new Supabase imports
+
+🤖 Generated with Claude Code
+EOF
+)"
+```
+
+Report the PR URL to the user.
+
+## 9. Stop
+
+You are done. **Do not merge.** Do not flip the PR out of draft. A human CODEOWNER reviews and merges.
+
+If you noticed improvements along the way and logged them to `docs/improvement-backlog.md`, mention that in your final message.
