@@ -23,3 +23,15 @@ Do **not** manually edit `- **Promoted**` lines.
 ---
 
 <!-- entries start below this line -->
+
+## [2026-04-14] Client lint currently fails with 90 errors / 8 warnings
+- **Severity**: minor
+- **File(s)**: `client/src/pages/AdminPage.tsx`, `client/src/pages/HomePage.tsx`, `client/src/pages/ProjectDetailsPage.tsx`, `client/tailwind.config.ts`
+- **Observed during**: repo cleanup pass (running `npm run lint` as part of verification)
+- **Suggestion**: `npm run lint` fails pre-existing — mostly `@typescript-eslint/no-explicit-any`, a few `no-useless-escape` in a regex, and a `require()` in tailwind config. `CLAUDE.md` §6 says lint must pass for PRs, but baseline is broken. Clean these in a dedicated PR before the first `/ship-issue` run touches one of those files (otherwise `/pre-pr-check` will block work that didn't cause the errors).
+
+## [2026-04-14] Flatten the Supabase↔Mongo dual data layer
+- **Severity**: minor
+- **File(s)**: `server/db.js`, `server/api/repositories/project.repository.js`, `server/scripts/*.js`, `server/models/*.js`
+- **Observed during**: repo cleanup pass (CLAUDE.md correction)
+- **Suggestion**: the API runs on Supabase while `server/scripts/` still use Mongo/Mongoose as an offline staging layer. This split is a footgun — future agents may reach for the wrong layer. Consider porting the remaining useful scripts (seed-dev, migration.js, fix-bounty-amounts, list-winners-zero-paid, set-live-urls, set-m2-final-submissions) to Supabase directly, then dropping `mongoose` and `server/models/`. Not urgent, but worth flagging before the next large refactor.
