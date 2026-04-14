@@ -106,7 +106,19 @@ EOF
 
 Report the PR URL to the user.
 
-## 9. Stop
+## 9. Wait for preview
+
+Vercel auto-builds a preview for every pushed branch. After pushing, wait ~1–3 minutes for the Vercel GitHub bot to post a preview URL on the PR:
+
+```bash
+gh pr view <pr-number> --comments | grep -i "vercel\|preview"
+```
+
+Once found, paste the preview URL into the PR body under the `## Preview` section (replacing the placeholder). Previews run with `VITE_USE_MOCK_DATA=true`, so fixtures from `client/src/lib/mockWinners.ts` stand in for the real API — confirm the feature renders on the preview before handing off.
+
+If the preview doesn't show the feature correctly because the mock data is missing a case (e.g. a new field you added), either extend `mockWinners.ts` as part of this PR or log a backlog entry and note the preview gap in the PR body.
+
+## 10. Stop
 
 You are done. **Do not merge.** Do not flip the PR out of draft. A human CODEOWNER reviews and merges.
 
