@@ -96,12 +96,6 @@ You can run a small script or use the admin/API to set `m2Status` and `completio
 
 ---
 
-## Setting Plata Mia to “Under review”
+## Setting Plata Mia to "Under review"
 
-Run:
-
-```bash
-cd server && node scripts/set-plata-mia-under-review.js
-```
-
-This sets **`m2Status: 'under_review'`** for the project named “Plata Mia” in the DB.
+*Note: the dedicated one-shot script (`set-plata-mia-under-review.js`) was removed in the 2026-04-14 cleanup. To set `m2Status: 'under_review'` for a specific project now, update via the admin UI or run an ad-hoc query against the repository layer in `server/api/repositories/project.repository.js`.*
