@@ -35,4 +35,4 @@ npx --yes playwright install chromium
 echo
 echo "✓ stadium-tester is ready. Smoke test:"
 echo "    cd client && VITE_USE_MOCK_DATA=true npm run dev   # in another terminal"
-echo "    /stadium-tester http://localhost:5173 \"- [ ] On /, page loads → header contains \\\"Stadium\\\"\""
+echo "    /stadium-tester http://localhost:8080 \"- [ ] On /, page loads → header contains \\\"Stadium\\\"\""
