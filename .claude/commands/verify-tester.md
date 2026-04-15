@@ -1,41 +1,76 @@
 ---
-description: One-shot sanity check that the Playwright MCP server is loaded and stadium-tester can drive a browser. Run once after any change to .mcp.json or on a fresh machine.
+description: One-shot health check that the stadium-tester Skill is wired up correctly — Playwright + Chromium installed, runner script reachable, scope guards intact. Run after any change to the skill or on a fresh clone.
 ---
 
-Verify the `stadium-tester` + Playwright MCP wiring is live in this session. No PRs, no commits — just a health check.
+Verify the `stadium-tester` Skill is ready. No PRs, no commits — just a health check.
 
 ## Steps
 
-1. **Check MCP tools are loaded.**
-   Look for tool names starting with `mcp__playwright__` in this session. If none are visible, stop and tell the user: `.mcp.json` requires a Claude Code restart in this project directory, plus approval of the Playwright server on first launch. Do not proceed.
+### 1. Toolchain present
 
-2. **Confirm Playwright runs.**
-   ```bash
-   npx @playwright/mcp@latest --help
-   ```
-   Should return usage text. If it fails, check Node version and network.
+```bash
+node --version           # any LTS (>=18) is fine
+npx --version
+```
 
-3. **Start a local target.**
-   ```bash
-   cd client && VITE_USE_MOCK_DATA=true npm run dev
-   ```
-   (Ask the user to run this in another terminal if the current session can't hold a long-running process.)
+If either is missing, stop and tell the user to install Node.
 
-4. **Invoke `stadium-tester`** with these trivial scenarios against `http://localhost:5173`:
-   - On `/`, page loads → `<title>` or visible header contains "Stadium"
-   - On `/winners`, page loads → at least one winner row is visible in the DOM
-   - Preview-mode sanity → `window.__STADIUM_MOCK__` evaluates to `true`
+### 2. Playwright installed locally
 
-5. **Expected output**: `stadium-tester` returns a pass/fail table with 3 scenarios, `__STADIUM_MOCK__ = true`, zero console errors.
+```bash
+test -d client/node_modules/@playwright/test && echo "OK: @playwright/test installed" \
+  || { echo "Installing..."; bash .claude/skills/stadium-tester/setup.sh; }
+```
 
-## Pass criteria
+Confirm Chromium binary is present:
 
-- All three scenarios PASS
-- Tester reports `__STADIUM_MOCK__ = true`
-- No MCP-related errors
+```bash
+cd client && npx playwright --version
+```
 
-If any step fails, report the exact error to the user. Common failures:
-- `.mcp.json` not picked up → restart Claude Code
-- Chromium download timing out → retry; first run is ~150MB
-- MCP server not approved → user must approve on first launch dialog
-- Local dev server not on 5173 → Vite may have picked another port; check terminal output and retry with that URL
+### 3. Runner reachable
+
+```bash
+node .claude/skills/stadium-tester/scripts/run-playwright.mjs --target X --spec Y 2>&1 | head -3
+```
+
+Should print a usage error including `--target` and `--spec` (or a `spec-not-found` JSON). That confirms the driver itself runs.
+
+### 4. Production guard works
+
+Confirm the runner refuses production:
+
+```bash
+node .claude/skills/stadium-tester/scripts/run-playwright.mjs \
+  --target https://stadium.joinwebzero.com \
+  --spec /tmp/never-runs.spec.mjs ; echo "exit=$?"
+```
+
+Expected: prints `{"error":"production-target-blocked", ...}` and exits with `3`. If it doesn't, the guardrail is broken — stop and report.
+
+### 5. Live smoke test (requires user to start dev server)
+
+Tell the user to run in another terminal:
+
+```bash
+cd client && VITE_USE_MOCK_DATA=true npm run dev
+```
+
+Wait for `Local: http://localhost:5173/`. Then invoke the Skill:
+
+```
+/stadium-tester http://localhost:5173 "- [ ] On /, page loads → header text contains \"Stadium\""
+```
+
+### 6. Pass criteria
+
+- Toolchain check: PASS
+- Playwright install: PASS
+- Runner reachable: usage error printed, runner runs
+- Production guard: exit code `3`, error JSON
+- Live smoke test: 1 scenario PASS, 0 console errors, runner exit `0`
+
+If all six pass, the tester is live. If any fails, paste the exact error to the user. Common failures:
+- Chromium download timing out → retry; first run is large
+- `npx playwright` not found → `setup.sh` failed; run it manually and check npm logs
+- Local dev server not on 5173 → Vite picked another port; check terminal output and retry against that URL

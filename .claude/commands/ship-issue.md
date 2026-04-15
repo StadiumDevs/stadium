@@ -70,19 +70,19 @@ Extract the `## Test scenarios` section from the issue (`gh issue view $ARGUMENT
 - **Scenarios exist** — proceed.
 
 Preflight the tester:
-- Confirm `.mcp.json` at repo root lists the `playwright` server.
-- Confirm the Playwright MCP tools are loaded in this session (tool names starting with `mcp__playwright__` should be visible; if not, tell the user the session needs a Claude Code restart to pick up `.mcp.json` and stop).
+- Run `bash .claude/skills/stadium-tester/setup.sh` if `client/node_modules/@playwright/test` doesn't exist. The script is idempotent — safe to run every time.
 
 Decide target URL:
 - Preferred: the Vercel preview URL for the current branch (after push). Must have `window.__STADIUM_MOCK__ === true`.
 - Fallback: local dev (`http://localhost:5173`) started with `cd client && VITE_USE_MOCK_DATA=true npm run dev` so the mock dataset is in use.
 
-Invoke `stadium-tester` with:
-- Target URL
-- The scenario bullets verbatim
-- This PR number (if a PR exists yet)
+Invoke the `stadium-tester` Skill:
 
-Interpret the tester's output:
+```
+/stadium-tester <target-url> "<scenarios markdown verbatim>"
+```
+
+Interpret the Skill's output:
 - **All PASS** — continue to step 7.
 - **Any FAIL** — return to the `stadium-implementer` with the failing scenarios + the tester's root-cause hints. Re-run `/pre-pr-check` and `stadium-tester` after the fix. **Do not open the PR with failing UI verifications. No exceptions.**
 - **SKIPPED (needs-auth-harness)** — OK to proceed, but the PR body must list every skipped scenario and note that manual verification is required for SIWS-gated flows.

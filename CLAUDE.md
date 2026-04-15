@@ -163,14 +163,17 @@ Use the preview URL for visual review before approving a `/ship-issue` PR. Real-
 
 ---
 
-## 9. Subagents and slash commands
+## 9. Subagents, skills, and slash commands
 
 Subagents (`.claude/agents/`):
 
 - `stadium-explorer` — codebase search tuned to this layout
 - `stadium-implementer` — writes the code per the approved plan
 - `stadium-reviewer` — pre-PR check against repo invariants
-- `stadium-tester` — drives the Vercel preview / dev server via the Playwright MCP server, verifies each issue's `## Test scenarios`
+
+Skills (`.claude/skills/`):
+
+- `stadium-tester` — drives a real headless Chromium against the Vercel preview / dev server and verifies each issue's `## Test scenarios`. Invoke as `/stadium-tester <target-url> "<scenarios>"`. Auto-loads when the agent is verifying UI behavior.
 
 Slash commands (`.claude/commands/`):
 
@@ -180,6 +183,6 @@ Slash commands (`.claude/commands/`):
 - `/log-improvement <desc>` — append to backlog
 - `/promote-backlog` — convert backlog entries to GH issues (asks first)
 - `/pre-pr-check` — run server tests + client build + client lint
-- `/verify-tester` — one-shot health check that the Playwright MCP server is loaded and `stadium-tester` can drive a browser
+- `/verify-tester` — one-shot health check that the `stadium-tester` Skill is wired up correctly (Playwright + Chromium installed, runner reachable, prod guard intact)
 
-The tester relies on the Playwright MCP server configured in `.mcp.json` at repo root. First run on a fresh machine downloads Chromium (~150MB).
+The tester is project-scoped: it lives at `.claude/skills/stadium-tester/` and uses local Playwright (installed into `client/node_modules` via `bash .claude/skills/stadium-tester/setup.sh`). First run on a fresh machine downloads Chromium (~150MB).

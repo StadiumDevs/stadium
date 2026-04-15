@@ -24,6 +24,12 @@ Do **not** manually edit `- **Promoted**` lines.
 
 <!-- entries start below this line -->
 
+## [2026-04-15] Migrate slash commands to Skills
+- **Severity**: nit
+- **File(s)**: `.claude/commands/*.md`
+- **Observed during**: switching `stadium-tester` from MCP/subagent to a project-scoped Skill
+- **Suggestion**: per the Claude Code skills doc, `.claude/commands/foo.md` and `.claude/skills/foo/SKILL.md` create the same `/foo` slash command, but skills add auto-invocation, supporting files, subagent forking, and ecosystem sharing. When time allows, lift each of `ship-issue`, `triage-issue`, `address-review`, `log-improvement`, `promote-backlog`, `pre-pr-check`, `verify-tester` into a `SKILL.md` directory. No behavior change required, just packaging.
+
 ## [2026-04-15] Audit `eslint-disable react-hooks/exhaustive-deps` suppressions in AdminPage.tsx
 - **Severity**: minor
 - **File(s)**: `client/src/pages/AdminPage.tsx` (develop has two; workflow branches may have more)
@@ -32,8 +38,8 @@ Do **not** manually edit `- **Promoted**` lines.
 
 ## [2026-04-15] SIWS test-wallet harness for stadium-tester
 - **Severity**: minor
-- **File(s)**: `.claude/agents/stadium-tester.md`, `client/src/lib/siwsUtils.ts`, `server/api/middleware/auth.middleware.js`
-- **Observed during**: building the `stadium-tester` agent
+- **File(s)**: `.claude/skills/stadium-tester/SKILL.md`, `client/src/lib/siwsUtils.ts`, `server/api/middleware/auth.middleware.js`
+- **Observed during**: building the `stadium-tester` skill
 - **Suggestion**: `stadium-tester` currently skips SIWS-gated live flows because there's no way to sign a SIWS message programmatically from a headless browser. Options: (a) mount a test wallet via a Playwright extension harness, (b) add a preview-only signed-request bypass keyed to an ephemeral secret, (c) stub the SIWS verification in preview-mode server. None are trivial — pick one when SIWS coverage becomes load-bearing.
 
 ## [2026-04-14] Admin confirm-payment bypasses the api wrapper
