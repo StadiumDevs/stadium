@@ -24,6 +24,11 @@ const transformProject = (row) => {
             eventStartedAt: row.hackathon_event_started_at
         },
         m2Status: row.m2_status,
+        m2Entitlement: (row.m2_milestone_1_amount !== null || row.m2_milestone_2_amount !== null) ? {
+            milestone1Amount: row.m2_milestone_1_amount,
+            milestone2Amount: row.m2_milestone_2_amount,
+            currency: row.m2_currency
+        } : undefined,
         m2Agreement: row.m2_status ? {
             mentorName: row.m2_mentor_name,
             agreedDate: row.m2_agreed_date,
@@ -106,6 +111,11 @@ const toSupabaseProject = (data) => {
 
     // M2 fields
     if (data.m2Status !== undefined) row.m2_status = data.m2Status;
+    if (data.m2Entitlement) {
+        if (data.m2Entitlement.milestone1Amount !== undefined) row.m2_milestone_1_amount = data.m2Entitlement.milestone1Amount;
+        if (data.m2Entitlement.milestone2Amount !== undefined) row.m2_milestone_2_amount = data.m2Entitlement.milestone2Amount;
+        if (data.m2Entitlement.currency !== undefined) row.m2_currency = data.m2Entitlement.currency;
+    }
     if (data.m2Agreement) {
         if (data.m2Agreement.mentorName !== undefined) row.m2_mentor_name = data.m2Agreement.mentorName;
         if (data.m2Agreement.agreedDate !== undefined) row.m2_agreed_date = data.m2Agreement.agreedDate;

@@ -208,6 +208,18 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
     return project.bountyPrize.reduce((sum: number, b: BountyPrize) => sum + b.amount, 0);
   };
 
+  // Calculate total M2 entitlement (M1 + M2 grants)
+  const getM2Entitlement = (project: any) => {
+    const entitlement = project.m2Entitlement;
+    if (!entitlement) return 0;
+    return (entitlement.milestone1Amount || 0) + (entitlement.milestone2Amount || 0);
+  };
+
+  // Check if project is in M2 program
+  const isM2Project = (project: any) => {
+    return project.m2Status || project.m2Entitlement;
+  };
+
   // Open manage modal with project data
   const openManageModal = (project: any) => {
     const bounty = project.bountyPrize?.[0];
@@ -588,6 +600,11 @@ export function WinnersTable({ projects, onRefresh, connectedAddress }: WinnersT
                             {project.bountyPrize.map((b: BountyPrize, idx: number) => (
                               <div key={idx}>${b.amount.toLocaleString()}</div>
                             ))}
+                          </div>
+                        )}
+                        {isM2Project(project) && getM2Entitlement(project) > 0 && (
+                          <div className="text-xs text-green-600 font-medium">
+                            + ${getM2Entitlement(project).toLocaleString()} M2 grant
                           </div>
                         )}
                       </div>
