@@ -29,4 +29,11 @@ What happens instead. Include error messages, screenshots, console output if rel
 
 - `client/src/...` or `server/api/...`
 
+## Test scenarios
+
+White-box checks the `stadium-tester` agent runs against the Vercel preview before the PR is opened. Describe the *fixed* behavior as verifiable steps. Format: `On <route>, <action> → <expected state>`.
+
+- [ ] On `/<route>`, reproduce the bug's precondition → UI shows fixed state (not the broken one)
+- [ ] ...
+
 ## Notes

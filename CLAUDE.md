@@ -128,9 +128,10 @@ When you ship an issue, follow this loop. It is enforced by slash commands in `.
 2. **Plan** — produce a written plan: files to change, tests to add, invariants to respect. Post it for the user.
 3. **Wait for approval** — do not write code until the user (or a CODEOWNER in CI) approves the plan. This is non-negotiable.
 4. **Implement** — smallest diff that satisfies the issue. Reuse utilities. No scope creep.
-5. **Verify** — run `/pre-pr-check` (server tests + client build + client lint). Must pass.
+5. **Verify** — run `/pre-pr-check` (server tests + client build + client lint), then `stadium-tester` against the Vercel preview / local dev server using the issue's `## Test scenarios`. Both must pass.
 6. **Draft PR** — always open as **draft** targeting `develop`. Link the issue. Summary + test plan + any backlog entries created.
-7. **Stop** — never merge. A human CODEOWNER reviews and merges. The agent is never a CODEOWNER.
+7. **Iterate on review** — when the reviewer leaves comments, use `/address-review <pr>` to fetch them, classify (CODE / REPLY / REJECT), wait for user approval of the classification, then push fixes and reply.
+8. **Stop** — never merge. A human CODEOWNER reviews and merges. The agent is never a CODEOWNER.
 
 If any step fails, stop and report. Do not bypass with `--no-verify`, do not disable tests, do not force-push shared branches.
 
@@ -164,10 +165,20 @@ Use the preview URL for visual review before approving a `/ship-issue` PR. Real-
 
 ## 9. Subagents and slash commands
 
-See `.claude/agents/` and `.claude/commands/`. Headline commands:
+Subagents (`.claude/agents/`):
 
-- `/ship-issue <number>` — the full flow above for a single issue
+- `stadium-explorer` — codebase search tuned to this layout
+- `stadium-implementer` — writes the code per the approved plan
+- `stadium-reviewer` — pre-PR check against repo invariants
+- `stadium-tester` — drives the Vercel preview / dev server via the Playwright MCP server, verifies each issue's `## Test scenarios`
+
+Slash commands (`.claude/commands/`):
+
+- `/ship-issue <number>` — full workflow for a single issue (explore → plan → approve → implement → verify → tester → draft PR)
 - `/triage-issue <number>` — plan only, posted as a comment
+- `/address-review <pr>` — fetch PR review comments, classify, address, push, and reply
 - `/log-improvement <desc>` — append to backlog
 - `/promote-backlog` — convert backlog entries to GH issues (asks first)
 - `/pre-pr-check` — run server tests + client build + client lint
+
+The tester relies on the Playwright MCP server configured in `.mcp.json` at repo root. First run on a fresh machine downloads Chromium (~150MB).

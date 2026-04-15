@@ -60,6 +60,19 @@ Run `/pre-pr-check`. It executes:
 
 If any fail, fix the code. Never skip, never use `--no-verify`.
 
+## 6b. UI verification (stadium-tester)
+
+Extract the `## Test scenarios` section from the issue (read with `gh issue view $ARGUMENTS --json body`). If the issue has zero scenarios listed, pause and ask the user to add them — do not invent scenarios. If scenarios exist, start the local dev server (or wait for Vercel preview if the branch is pushed) and invoke the `stadium-tester` subagent with:
+
+- Target URL (preview URL if available, else `http://localhost:5173`)
+- The scenario bullets verbatim
+- This PR number (if a PR exists yet)
+
+Interpret the tester's output:
+- **All PASS** — continue.
+- **Any FAIL** — return to the `stadium-implementer` with the failing scenarios + the tester's root-cause hints. Re-run `/pre-pr-check` and `stadium-tester` after the fix. Do not open the PR with failing UI verifications.
+- **SKIPPED (needs-auth-harness)** — OK to proceed; note it in the PR body.
+
 ## 7. Commit and push
 
 Create a commit (or small series of commits) with a clear message referencing the issue:
@@ -68,9 +81,9 @@ Create a commit (or small series of commits) with a clear message referencing th
 <type>: <short summary>
 
 Closes #$ARGUMENTS
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 ```
+
+Do NOT add a `Co-Authored-By` trailer — it's not wanted in this repo.
 
 Push the branch: `git push -u origin <branch>`.
 
@@ -89,6 +102,7 @@ Closes #$ARGUMENTS
 - [x] `cd server && npm test` — pass
 - [x] `cd client && npm run build` — pass
 - [x] `cd client && npm run lint` — pass
+- [x] `stadium-tester` — <N scenarios pass, M skipped>
 
 ## Backlog items logged
 - <list or "none">
@@ -98,8 +112,6 @@ Closes #$ARGUMENTS
 - [ ] Admin routes still use auth.middleware.js
 - [ ] No new console.log in client
 - [ ] No new Supabase imports
-
-🤖 Generated with Claude Code
 EOF
 )"
 ```

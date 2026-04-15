@@ -28,6 +28,13 @@ What **not** to touch. Prevents scope creep.
 
 - ...
 
+## Test scenarios
+
+White-box checks the `stadium-tester` agent runs against the Vercel preview before the PR is opened. Format: `On <route>, <action> → <expected state>`. Keep scenarios to public routes or preview-mocked admin views — SIWS-gated live flows are skipped automatically.
+
+- [ ] On `/`, page loads → header shows "Stadium"
+- [ ] On `/<route>`, <action> → <expected state>
+
 ## Notes / context
 
 Links to designs, related issues, prior art.
