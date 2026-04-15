@@ -24,6 +24,18 @@ Do **not** manually edit `- **Promoted**` lines.
 
 <!-- entries start below this line -->
 
+## [2026-04-15] Audit `eslint-disable react-hooks/exhaustive-deps` suppressions in AdminPage.tsx
+- **Severity**: minor
+- **File(s)**: `client/src/pages/AdminPage.tsx` (develop has two; workflow branches may have more)
+- **Observed during**: PR #29 review — found an infinite `useEffect` fetch loop that the disabled lint rule would have caught
+- **Suggestion**: Walk each `eslint-disable-next-line react-hooks/exhaustive-deps` in the file, justify or fix it. Prefer the fix: either include the missing dep (and memoize callbacks if needed) or move the logic so the dep isn't required. Leaving the suppression in place masks real bugs like the one PR #29 had to patch.
+
+## [2026-04-15] SIWS test-wallet harness for stadium-tester
+- **Severity**: minor
+- **File(s)**: `.claude/agents/stadium-tester.md`, `client/src/lib/siwsUtils.ts`, `server/api/middleware/auth.middleware.js`
+- **Observed during**: building the `stadium-tester` agent
+- **Suggestion**: `stadium-tester` currently skips SIWS-gated live flows because there's no way to sign a SIWS message programmatically from a headless browser. Options: (a) mount a test wallet via a Playwright extension harness, (b) add a preview-only signed-request bypass keyed to an ephemeral secret, (c) stub the SIWS verification in preview-mode server. None are trivial — pick one when SIWS coverage becomes load-bearing.
+
 ## [2026-04-14] Admin confirm-payment bypasses the api wrapper
 - **Severity**: minor
 - **File(s)**: `client/src/pages/AdminPage.tsx:305,351`, `client/src/components/admin/M2BuildingProjectsTable.tsx:64`
