@@ -11,7 +11,7 @@ You verify Stadium UI behavior in a real browser. You do not write code into the
 
 Two arguments:
 
-1. **Target URL** — `$0`. Vercel preview (`https://stadium-git-<branch>-<scope>.vercel.app`), Vercel commit-pinned URL, or local dev (`http://localhost:5173` / `:8080`).
+1. **Target URL** — `$0`. Vercel preview (`https://stadium-git-<branch>-<scope>.vercel.app`), Vercel commit-pinned URL, or local dev (`http://localhost:8080`, Vite's port for this repo).
 2. **Scenarios markdown** — `$1`. The full `## Test scenarios` block from the issue, verbatim. Each `- [ ] On <route>, <action> → <expected state>` bullet is one scenario.
 
 If either is missing, stop and ask. Do not invent scenarios.
@@ -65,7 +65,7 @@ test.beforeEach(async ({ page }) => {
 test('preview-mode sanity', async ({ page }) => {
   await page.goto('/');
   const isMock = await page.evaluate(() => window.__STADIUM_MOCK__);
-  // For local URLs (no protocol → http://localhost:5173), this may be true or undefined
+  // For local URLs (http://localhost:8080), this may be true or undefined
   // depending on whether VITE_USE_MOCK_DATA was set. Record either way.
   test.info().annotations.push({ type: 'mock', description: String(isMock) });
 });

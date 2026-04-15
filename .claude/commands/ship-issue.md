@@ -74,7 +74,7 @@ Preflight the tester:
 
 Decide target URL:
 - Preferred: the Vercel preview URL for the current branch (after push). Must have `window.__STADIUM_MOCK__ === true`.
-- Fallback: local dev (`http://localhost:5173`) started with `cd client && VITE_USE_MOCK_DATA=true npm run dev` so the mock dataset is in use.
+- Fallback: local dev (`http://localhost:8080`) started with `cd client && VITE_USE_MOCK_DATA=true npm run dev` so the mock dataset is in use.
 
 Invoke the `stadium-tester` Skill:
 

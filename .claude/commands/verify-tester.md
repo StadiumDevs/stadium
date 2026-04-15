@@ -56,10 +56,10 @@ Tell the user to run in another terminal:
 cd client && VITE_USE_MOCK_DATA=true npm run dev
 ```
 
-Wait for `Local: http://localhost:5173/`. Then invoke the Skill:
+Wait for `Local: http://localhost:8080/`. Then invoke the Skill:
 
 ```
-/stadium-tester http://localhost:5173 "- [ ] On /, page loads → header text contains \"Stadium\""
+/stadium-tester http://localhost:8080 "- [ ] On /, page loads → header text contains \"Stadium\""
 ```
 
 ### 6. Pass criteria
@@ -73,4 +73,4 @@ Wait for `Local: http://localhost:5173/`. Then invoke the Skill:
 If all six pass, the tester is live. If any fails, paste the exact error to the user. Common failures:
 - Chromium download timing out → retry; first run is large
 - `npx playwright` not found → `setup.sh` failed; run it manually and check npm logs
-- Local dev server not on 5173 → Vite picked another port; check terminal output and retry against that URL
+- Local dev server not on 8080 → Vite picked another port (rare, but `vite.config.ts` fixes it at 8080); check terminal output and retry against that URL
