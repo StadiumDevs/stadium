@@ -128,8 +128,8 @@ When you ship an issue, follow this loop. It is enforced by slash commands in `.
 2. **Plan** — produce a written plan: files to change, tests to add, invariants to respect. Post it for the user.
 3. **Wait for approval** — do not write code until the user (or a CODEOWNER in CI) approves the plan. This is non-negotiable.
 4. **Implement** — smallest diff that satisfies the issue. Reuse utilities. No scope creep.
-5. **Verify** — run `/pre-pr-check` (server tests + client build + client lint), then `stadium-tester` against the Vercel preview / local dev server using the issue's `## Test scenarios`. Both must pass.
-6. **Draft PR** — always open as **draft** targeting `develop`. Link the issue. Summary + test plan + any backlog entries created.
+5. **Verify** — run `/pre-pr-check` (server tests + client build + client lint), then `stadium-tester` against the Vercel preview / local dev server using the issue's `## Test scenarios`. Both must pass. **If the issue has zero scenarios, stop and ask the author to add them — no PR is opened without scenarios. If any scenario FAILs, return to the implementer — no PR on failures. The tester's report must be pasted into the PR body.**
+6. **Draft PR** — always open as **draft** targeting `develop`. Link the issue. Summary + test plan + `stadium-tester` report + any backlog entries created.
 7. **Iterate on review** — when the reviewer leaves comments, use `/address-review <pr>` to fetch them, classify (CODE / REPLY / REJECT), wait for user approval of the classification, then push fixes and reply.
 8. **Stop** — never merge. A human CODEOWNER reviews and merges. The agent is never a CODEOWNER.
 
@@ -180,5 +180,6 @@ Slash commands (`.claude/commands/`):
 - `/log-improvement <desc>` — append to backlog
 - `/promote-backlog` — convert backlog entries to GH issues (asks first)
 - `/pre-pr-check` — run server tests + client build + client lint
+- `/verify-tester` — one-shot health check that the Playwright MCP server is loaded and `stadium-tester` can drive a browser
 
 The tester relies on the Playwright MCP server configured in `.mcp.json` at repo root. First run on a fresh machine downloads Chromium (~150MB).

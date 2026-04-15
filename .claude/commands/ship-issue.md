@@ -60,18 +60,34 @@ Run `/pre-pr-check`. It executes:
 
 If any fail, fix the code. Never skip, never use `--no-verify`.
 
-## 6b. UI verification (stadium-tester)
+## 6b. UI verification (stadium-tester) — mandatory
 
-Extract the `## Test scenarios` section from the issue (read with `gh issue view $ARGUMENTS --json body`). If the issue has zero scenarios listed, pause and ask the user to add them — do not invent scenarios. If scenarios exist, start the local dev server (or wait for Vercel preview if the branch is pushed) and invoke the `stadium-tester` subagent with:
+**This step is required before any PR is opened. No scenarios = no PR.**
 
-- Target URL (preview URL if available, else `http://localhost:5173`)
+Extract the `## Test scenarios` section from the issue (`gh issue view $ARGUMENTS --json body | jq -r .body`).
+
+- **Zero scenarios** — stop. Comment on the issue (`gh issue comment $ARGUMENTS --body "…"`) asking the author to add scenarios using the template format. Do not invent scenarios. Do not open the PR.
+- **Scenarios exist** — proceed.
+
+Preflight the tester:
+- Confirm `.mcp.json` at repo root lists the `playwright` server.
+- Confirm the Playwright MCP tools are loaded in this session (tool names starting with `mcp__playwright__` should be visible; if not, tell the user the session needs a Claude Code restart to pick up `.mcp.json` and stop).
+
+Decide target URL:
+- Preferred: the Vercel preview URL for the current branch (after push). Must have `window.__STADIUM_MOCK__ === true`.
+- Fallback: local dev (`http://localhost:5173`) started with `cd client && VITE_USE_MOCK_DATA=true npm run dev` so the mock dataset is in use.
+
+Invoke `stadium-tester` with:
+- Target URL
 - The scenario bullets verbatim
 - This PR number (if a PR exists yet)
 
 Interpret the tester's output:
-- **All PASS** — continue.
-- **Any FAIL** — return to the `stadium-implementer` with the failing scenarios + the tester's root-cause hints. Re-run `/pre-pr-check` and `stadium-tester` after the fix. Do not open the PR with failing UI verifications.
-- **SKIPPED (needs-auth-harness)** — OK to proceed; note it in the PR body.
+- **All PASS** — continue to step 7.
+- **Any FAIL** — return to the `stadium-implementer` with the failing scenarios + the tester's root-cause hints. Re-run `/pre-pr-check` and `stadium-tester` after the fix. **Do not open the PR with failing UI verifications. No exceptions.**
+- **SKIPPED (needs-auth-harness)** — OK to proceed, but the PR body must list every skipped scenario and note that manual verification is required for SIWS-gated flows.
+
+Paste the tester's full markdown report into the PR body under `## UI verification` (step 8).
 
 ## 7. Commit and push
 
@@ -102,7 +118,11 @@ Closes #$ARGUMENTS
 - [x] `cd server && npm test` — pass
 - [x] `cd client && npm run build` — pass
 - [x] `cd client && npm run lint` — pass
-- [x] `stadium-tester` — <N scenarios pass, M skipped>
+
+## UI verification (stadium-tester)
+<Paste the tester's full markdown report here. Scenarios column must match
+the issue's `## Test scenarios` bullets verbatim. PR cannot be opened
+without this section populated.>
 
 ## Backlog items logged
 - <list or "none">

@@ -17,6 +17,15 @@ Closes #
 - [ ] Preview opens and renders the changed feature (runs on mock data per `VITE_USE_MOCK_DATA=true`)
 - [ ] No console errors on the preview
 
+## UI verification (stadium-tester) — required
+
+Paste the tester's full markdown report below. **Every scenario from the linked issue's `## Test scenarios` section must appear here with a PASS or a documented SKIPPED (needs-auth-harness) outcome. A PR without this section filled in is not eligible for merge.**
+
+<!-- Paste stadium-tester report (table of scenario / result / notes) -->
+
+- [ ] All scenarios PASS or are explicitly SKIPPED with a reason
+- [ ] `window.__STADIUM_MOCK__` was `true` on the target URL when the tester ran
+
 ## Invariants verified
 
 - [ ] `BYPASS_ADMIN_CHECK` still `false` in `AdminPage.tsx`
