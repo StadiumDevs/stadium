@@ -4,6 +4,18 @@ A full-stack web application for managing and reviewing Web3 projects submitted 
 
 ---
 
+## For contributors (human or agent)
+
+This repo is set up for an agentic workflow. Before you file an issue or open a PR, read these in order:
+
+1. **[CLAUDE.md](./CLAUDE.md)** — architecture, invariants, and the contract every contributor follows.
+2. **[docs/AGENTIC_WORKFLOW.md](./docs/AGENTIC_WORKFLOW.md)** — step-by-step guide: one-time setup, the `/ship-issue` loop, UI/UX testing specifics, and what never to do.
+3. **[docs/AGENT_GUIDE.md](./docs/AGENT_GUIDE.md)** — deeper reference: data flow, SIWS auth, testing patterns, deployment.
+
+Issues use templates that include a mandatory `## Test scenarios` section — the `stadium-tester` Skill drives a real browser against those scenarios before a PR is allowed to open.
+
+---
+
 ## Project Structure
 
 ```
@@ -11,6 +23,8 @@ A full-stack web application for managing and reviewing Web3 projects submitted 
 ├── client/        # Frontend (React + Vite + TypeScript)
 ├── server/        # Backend (Node.js + Express)
 ├── hackathonia/   # Ink! smart contracts (Rust)
+├── .claude/       # Subagents, skills, slash commands for the agentic workflow
+└── docs/          # Architecture reference + improvement backlog
 ```
 
 ---
