@@ -159,6 +159,8 @@ const AdminPage = () => {
     if (isAuthenticated && !BYPASS_ADMIN_CHECK) {
       loadData();
     }
+    // loadData writes `projects` via setProjects, so including it in deps
+    // produces an infinite re-fetch loop (loading never settles to false).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 

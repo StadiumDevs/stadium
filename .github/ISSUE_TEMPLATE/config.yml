@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Agent workflow docs
+    url: https://github.com/StadiumDevs/stadium/blob/develop/CLAUDE.md
+    about: How the Claude agent ships issues in this repo.

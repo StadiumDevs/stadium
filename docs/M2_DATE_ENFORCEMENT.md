@@ -345,11 +345,7 @@ Each project must have `hackathon.endDate` set:
 ```
 
 ### **Migration Script:**
-If existing projects don't have `hackathon.endDate`, run:
-```bash
-cd server
-node update-m2-dates.js
-```
+The one-shot `update-m2-dates.js` script was removed in the 2026-04-14 cleanup after it ran. If projects ever need their `hackathon.endDate` patched again, restore it from git history (`git show 62928dd^:server/scripts/update-m2-dates.js`) or apply the update directly via the repository layer in `server/api/repositories/project.repository.js`.
 
 ---
 

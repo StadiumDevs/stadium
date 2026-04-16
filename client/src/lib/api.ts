@@ -10,8 +10,14 @@ if (typeof window !== "undefined") {
   (window as unknown as { __STADIUM_API_BASE__?: string }).__STADIUM_API_BASE__ = API_BASE_URL;
 }
 
-// TEMPORARY: Mock mode flag - set to true when server is down
-const USE_MOCK_DATA = false; // Set to false when server is back up
+// Mock mode: when true, reads return fixtures from ./mockWinners and writes are
+// simulated (localStorage + in-memory). Controlled by VITE_USE_MOCK_DATA — set to
+// "true" in Vercel Preview so branch previews never call the production API.
+// Expose for console debugging: window.__STADIUM_MOCK__
+const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
+if (typeof window !== "undefined") {
+  (window as unknown as { __STADIUM_MOCK__?: boolean }).__STADIUM_MOCK__ = USE_MOCK_DATA;
+}
 
 class ApiError extends Error {
   status: number;
@@ -120,11 +126,16 @@ export type ApiProject = {
 };
 
 export const api = {
-  submitEntry: (data: unknown) =>
-    request("/entry", {
+  submitEntry: async (data: unknown) => {
+    if (USE_MOCK_DATA) {
+      await new Promise((r) => setTimeout(r, 300));
+      return { success: true, data };
+    }
+    return request("/entry", {
       method: "POST",
       body: JSON.stringify(data),
-    }),
+    });
+  },
 
   getProjects: async (params?: GetProjectsParams) => {
     // TEMPORARY: Return mock data when server is down
@@ -195,19 +206,35 @@ export const api = {
     return request(`/m2-program/${id}`);
   },
 
-  updateProjectTeam: (projectId: string, teamMembers: Array<{ name: string; walletAddress?: string; customUrl?: string }>, authHeader: string) =>
-    request(`/m2-program/${projectId}/team`, {
+  updateProjectTeam: async (projectId: string, teamMembers: Array<{ name: string; walletAddress?: string; customUrl?: string }>, authHeader: string) => {
+    if (USE_MOCK_DATA) {
+      await new Promise((r) => setTimeout(r, 300));
+      const { mockWinningProjects } = await import("./mockWinners");
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject) (mockProject as unknown as { teamMembers: unknown }).teamMembers = teamMembers;
+      return { success: true };
+    }
+    return request(`/m2-program/${projectId}/team`, {
       method: "POST",
       headers: { "x-siws-auth": authHeader },
       body: JSON.stringify({ teamMembers }),
-    }),
+    });
+  },
 
-  updateProjectCategories: (projectId: string, categories: string[], authHeader: string) =>
-    request(`/m2-program/${projectId}`, {
+  updateProjectCategories: async (projectId: string, categories: string[], authHeader: string) => {
+    if (USE_MOCK_DATA) {
+      await new Promise((r) => setTimeout(r, 300));
+      const { mockWinningProjects } = await import("./mockWinners");
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject) (mockProject as unknown as { categories: string[] }).categories = categories;
+      return { success: true };
+    }
+    return request(`/m2-program/${projectId}`, {
       method: "PATCH",
       headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
       body: JSON.stringify({ categories }),
-    }),
+    });
+  },
 
   submitForReview: async (projectId: string, submission: {
     repoUrl: string;

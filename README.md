@@ -1,701 +1,236 @@
-# 🛠️ Blockspace Stadium
+# 🏟️ Blockspace Stadium
 
-A full-stack web application for managing and reviewing Web3 projects submitted through the Stadium platform.
+A full-stack Web3 app for managing and reviewing projects submitted through the WebZero hackathon & M2 incubator program on Polkadot.
+
+- **Client**: React 18 + Vite + TypeScript + Tailwind + shadcn/ui → deployed to Vercel
+- **Server**: Express 5 (ESM) + Supabase (Postgres) → deployed to Railway
+- **Contracts**: Rust + ink! (under `hackathonia/`, out of scope for most app work)
+- **Auth**: Polkadot-JS extension + SIWS (Sign-In With Substrate) on admin routes
+
+Live site: <https://stadium.joinwebzero.com>
 
 ---
 
-## Project Structure
+## For contributors (human or agent)
+
+This repo runs an agentic workflow. Before you file an issue or open a PR, read these in order:
+
+1. **[CLAUDE.md](./CLAUDE.md)** — architecture, invariants, and the contract every contributor follows.
+2. **[docs/AGENTIC_WORKFLOW.md](./docs/AGENTIC_WORKFLOW.md)** — step-by-step guide: one-time setup, the `/ship-issue` loop, UI/UX testing specifics, and what never to do.
+3. **[docs/AGENT_GUIDE.md](./docs/AGENT_GUIDE.md)** — deeper reference: data flow, SIWS auth, testing patterns, deployment.
+
+Issues use templates with a mandatory `## Test scenarios` section — the `stadium-tester` Skill drives a real browser against those scenarios before a PR is allowed to open.
+
+---
+
+## Project structure
 
 ```
 .
-├── client/        # Frontend (React + Vite + TypeScript)
-├── server/        # Backend (Node.js + Express)
-├── hackathonia/   # Ink! smart contracts (Rust)
+├── client/        Frontend (React + Vite + TypeScript) → Vercel
+├── server/        Backend (Express + Supabase)         → Railway
+├── hackathonia/   Ink! smart contracts (Rust)
+├── supabase/      SQL migrations for the live DB
+├── .claude/       Subagents, skills, slash commands (agentic workflow)
+├── .github/       Issue/PR templates, CODEOWNERS, CI
+└── docs/          Architecture, deployment, design docs, improvement backlog
 ```
 
 ---
 
-## Getting Started
-
-### 🐳 Quick Start with Docker (Recommended)
-
-The easiest way to get started is using Docker Compose:
-
-```bash
-# Start MongoDB and Server
-docker compose up -d
-
-# Wait a few seconds for MongoDB to initialize, then populate the database
-cd server
-node migration.js
-
-# Verify the server is running
-curl http://localhost:2000/api/health
-```
-
-Your server will be running at `http://localhost:2000` with MongoDB on port `27017`.
-
-**To stop the containers:**
-```bash
-docker compose down
-
-# To stop and remove all data (fresh start)
-docker compose down -v
-```
-
----
-
-### 💻 Local Development Setup
-
-#### Prerequisites
-- Node.js v20+
-- Docker (for MongoDB)
-- npm or yarn
-
-#### 1. Start MongoDB with Docker
-
-```bash
-# Start only MongoDB in Docker
-docker compose up mongodb -d
-```
-
-#### 2. Setup Backend (Server)
-
-```bash
-cd server
-
-# Install dependencies
-npm install
-
-# Make sure your .env file has the correct MongoDB connection
-# Should contain: MONGO_URI=mongodb://admin:password@localhost:27017/blockspace?authSource=admin&directConnection=true
-
-# Start the development server
-npm run dev
-```
-
-Server runs on `http://localhost:2000`.
-
-#### 3. Populate Database with Sample Data
-
-**Important:** The database needs to be populated with projects for the frontend to display data.
-
-```bash
-# From the server directory
-node migration.js
-```
-
-This will import:
-- **84 hackathon projects** from Synergy 2025 and Symmetry 2024
-- **16 winning projects** with bounty/prize information
-- **Payout and milestone data** from CSV files
-
-**Verify the migration:**
-```bash
-curl http://localhost:2000/api/m2-program | jq '.meta'
-# Should show: { "total": 84, "count": 10, "limit": 10, "page": 1 }
-```
-
-#### 4. Setup Frontend (Client)
-
-```bash
-cd client
-
-# Install dependencies
-npm install
-
-# Create .env file
-cat > .env << 'EOF'
-# API Configuration
-VITE_API_BASE_URL=http://localhost:2000/api
-
-# Admin Wallet Addresses (comma-separated)
-# Add your wallet address(es) that should have admin privileges
-VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
-EOF
-
-# Start the development server
-npm run dev
-```
-
-Frontend runs on `http://localhost:8080`.
-
-**⚠️ Important:** After creating or modifying `.env`, you **must restart** the dev server for changes to take effect.
-
----
-
-### 🔄 Development Workflow
-
-**Option 1: Docker for Backend + Local Frontend**
-```bash
-# Terminal 1: Start backend services
-docker compose up -d
-cd server && node migration.js
-
-# Terminal 2: Start frontend
-cd client && npm run dev
-```
-
-**Option 2: All Local (MongoDB in Docker)**
-```bash
-# Terminal 1: Start MongoDB only
-docker compose up mongodb -d
-
-# Terminal 2: Start backend
-cd server && npm run dev
-
-# Terminal 3: Start frontend
-cd client && npm run dev
-
-# One-time: Populate database
-cd server && node migration.js
-```
-
----
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **React 18** with TypeScript
-- **Vite** for fast development and building
-- **Tailwind CSS** for styling
-- **Radix UI** (shadcn/ui) components
-- **Polkadot API** integration
-- **Talisman SIWS** for Web3 authentication
-- **React Query** for state management
-
-### Backend
-- **Node.js v20** with Express
-- **MongoDB 7.0** with Mongoose
-- **Polkadot API** integration
-- **SIWS Authentication** middleware
-- **CORS** enabled
-
-### Smart Contracts
-- **Rust** with Ink! framework
-- **Polkadot** ecosystem integration
-
-### Infrastructure
-- **Docker Compose** for orchestration
-- **MongoDB** containerized database
-- **Alpine Linux** base images
-
----
-
-## 🔧 Environment Variables
-
-### Server (.env)
-```bash
-MONGO_URI=mongodb://admin:password@localhost:27017/blockspace?authSource=admin&directConnection=true
-PORT=2000
-NODE_ENV=development
-ADMIN_WALLETS=5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU
-EXPECTED_DOMAIN=
-DISABLE_SIWS_DOMAIN_CHECK=true
-```
-
-### Client (.env)
-```bash
-# API Configuration
-VITE_API_BASE_URL=http://localhost:2000/api
-
-# Admin Wallet Addresses (comma-separated, lowercase)
-# These wallet addresses will have admin privileges to:
-# - Submit M2 deliverables outside submission window
-# - Edit any project's M2 agreement
-# - Approve/reject M2 submissions
-# - Manage team members and payout addresses
-VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
-
-# Example with multiple admins:
-# VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9,5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU
-```
-
-**Note:** `VITE_ADMIN_ADDRESSES` must match `ADMIN_WALLETS` in the server `.env` for consistency.
-
----
-
-## 📊 Database Migration
-
-The migration script (`server/migration.js`) imports project data from JSON files in `server/migration-data/`:
-
-- `synergy-2025.json` - Synergy 2025 hackathon projects
-- `symmetry-2024.json` - Symmetry 2024 hackathon projects  
-- `payouts.csv` - Bounty payout information
-
-**Run migration:**
-```bash
-cd server
-node migration.js
-```
-
-**What gets migrated:**
-- 84 total projects
-- 16 winning projects with bounty prizes
-- Team member information
-- Tech stacks and categories
-- Milestone data
-- Payout addresses
-
-**Re-run migration (fresh data):**
-```bash
-cd server
-node migration.js  # Automatically clears existing data first
-```
-
-**Add M2 test projects:**
-```bash
-cd server
-node seed-m2-projects.js
-```
-
-This adds 2 M2 Incubator projects for testing:
-- **Polkadot Portfolio Tracker** (status: `building`) - Active development
-- **Decentralized Voting DAO** (status: `under_review`) - Submitted for review
-
-**Update M2 dates for testing (LOCAL ONLY):**
-```bash
-cd server
-node update-m2-dates.js
-```
-
-⚠️ **WARNING:** This script is for **LOCAL TESTING ONLY**! It updates test projects with realistic dates so you can test M2 time-based features (roadmap editing, submission windows). It has a built-in safety check and will refuse to run if `NODE_ENV=production`.
-
-What it does:
-- Sets Polkadot Portfolio Tracker to Week 3 (can edit roadmap)
-- Sets Decentralized Voting DAO to Week 6 (can submit deliverables)
-- Enables testing of date enforcement features
-
----
-
-## 🚀 API Endpoints
-
-### Public Endpoints
-- `GET /api/health` - Health check
-- `GET /api/m2-program` - List all M2 program projects (supports filtering, search, pagination)
-- `GET /api/m2-program/:id` - Get single M2 project
-
-### Protected Endpoints (Require SIWS Authentication)
-- `POST /api/m2-program` - Create project (Admin only)
-- `PATCH /api/m2-program/:id` - Update project (Admin or Team Member)
-- `PUT /api/m2-program/:id/team` - Update team members (Team Member)
-- `POST /api/m2-program/:id/submit-review` - Submit M2 deliverables (Team Member)
-
-See [API_DOCS.md](./API_DOCS.md) for full API documentation.
-
----
-
-## 🐛 Troubleshooting
-
-### MongoDB Connection Issues
-
-**Error:** `Authentication failed`
-
-**Solution:** 
-```bash
-# Stop containers and remove volumes
-docker compose down -v
-
-# Restart with fresh MongoDB
-docker compose up -d
-
-# Wait 5 seconds for MongoDB to initialize
-sleep 5
-
-# Run migration
-cd server && node migration.js
-```
-
-### Frontend Shows No Data
-
-**Issue:** Backend database is empty
-
-**Solution:**
-```bash
-# Check if backend is returning data
-curl http://localhost:2000/api/m2-program
-
-# If empty, run migration
-cd server && node migration.js
-
-# Refresh your browser
-```
-
-### Port Already in Use
-
-**Error:** `Port 2000 or 8080 already in use`
-
-**Solution:**
-```bash
-# Find process using the port
-lsof -i :2000
-lsof -i :8080
-
-# Kill the process or stop Docker
-docker compose down
-```
-
-### Wallet Connected But Submit Button Disabled
-
-**Issue:** "Connect your wallet to submit deliverables" shows even after connecting wallet
-
-**Solution:**
-
-This means the frontend doesn't recognize your wallet as an admin or team member.
-
-1. **Create `client/.env` file** (if it doesn't exist):
-   ```bash
-   cd client
-   cat > .env << 'EOF'
-   VITE_API_BASE_URL=http://localhost:2000/api
-   VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
-   EOF
-   ```
-
-2. **Restart the dev server** (critical!):
-   ```bash
-   # Stop current server (Ctrl+C)
-   npm run dev
-   ```
-
-3. **Hard refresh browser:**
-   - Chrome/Edge: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
-   - Firefox: Ctrl+F5 (Windows) or Cmd+Shift+R (Mac)
-
-4. **Verify in browser console:**
-   ```javascript
-   [constants] VITE_ADMIN_ADDRESSES env: 5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
-   [constants] Checking admin access: { isAdmin: true }
-   ```
-
-See [WALLET_CONNECTION_FIX.md](./WALLET_CONNECTION_FIX.md) for detailed troubleshooting.
-
----
-
-## 🚀 Production Deployment
+## Getting started (local development)
 
 ### Prerequisites
-- Node.js v20+ on production server
-- MongoDB Atlas or self-hosted MongoDB
-- Domain with SSL/TLS certificate
-- Environment variables configured
 
-### Backend (Server) Setup
+- Node.js ≥ 20
+- `gh` CLI (`brew install gh` + `gh auth login`) — required by the agentic workflow
+- A Supabase project (URL + service-role key) — or read-only access to the shared dev project
+- Docker (only if you plan to run the Mongo-backed utility scripts in `server/scripts/`)
 
-#### 1. Environment Variables
-
-Create `server/.env` on production server:
+### 1. Clone and install
 
 ```bash
-# MongoDB Connection (use MongoDB Atlas for production)
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/blockspace?retryWrites=true&w=majority
-
-# Server Configuration
-PORT=2000
-NODE_ENV=production
-
-# Admin Wallet Addresses (comma-separated)
-# CRITICAL: Keep these secure and only add trusted addresses
-ADMIN_WALLETS=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9,5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU
-
-# SIWS Authentication (IMPORTANT for security)
-EXPECTED_DOMAIN=stadium.example.com
-DISABLE_SIWS_DOMAIN_CHECK=false  # MUST be false in production!
-
-# Optional: Logging and monitoring
-LOG_LEVEL=info
+git clone https://github.com/StadiumDevs/stadium.git
+cd stadium
+cd client && npm install && cd ..
+cd server && npm install && cd ..
 ```
 
-#### 2. Build and Start
+### 2. Configure the server
+
+```bash
+cp server/.env.example server/.env
+# Edit server/.env and set:
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   ADMIN_WALLETS          # comma-separated SS58 addresses
+#   EXPECTED_DOMAIN        # e.g. localhost for dev
+```
+
+Start the API:
 
 ```bash
 cd server
-
-# Install production dependencies only
-npm ci --only=production
-
-# Run database migration (one-time setup)
-node migration.js
-
-# Start with PM2 (recommended)
-npm install -g pm2
-pm2 start server.js --name "stadium-backend"
-pm2 save
-pm2 startup
-
-# Or use systemd service
-sudo systemctl start stadium-backend
+npm run dev                # nodemon on http://localhost:2000
 ```
 
-#### 3. Database Migration
-
-**First-time setup:**
-```bash
-node migration.js
-node seed-m2-projects.js  # Optional: Add M2 test projects
-```
-
-**⚠️ DO NOT run `update-m2-dates.js` in production!** It's for testing only.
-
-### Frontend (Client) Setup
-
-#### 1. Environment Variables
-
-Create `client/.env.production`:
+### 3. Configure the client
 
 ```bash
-# Production API URL
-VITE_API_BASE_URL=https://api.stadium.example.com/api
-
-# Admin Wallet Addresses (MUST match server ADMIN_WALLETS)
-VITE_ADMIN_ADDRESSES=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9,5DAAnuX2qToh7223z2J5tV6a2UqXG1nS1g4G2g1eZA1Lz9aU
+cp client/.env.example client/.env
+# Edit client/.env and set:
+#   VITE_API_BASE_URL=http://localhost:2000/api
+#   VITE_ADMIN_ADDRESSES=<your-ss58-address>
+#   VITE_USE_MOCK_DATA=false    # set true to run on fixtures, no backend needed
 ```
 
-#### 2. Build for Production
+Start the dev server:
 
 ```bash
 cd client
-
-# Install dependencies
-npm ci
-
-# Build optimized production bundle
-npm run build
-
-# Output will be in client/dist/
+npm run dev                # Vite on http://localhost:8080
 ```
 
-#### 3. Serve with Nginx
+### 4. (Optional) Mock-mode: no Supabase, no backend
 
-**Example Nginx configuration:**
-
-```nginx
-# Frontend
-server {
-    listen 80;
-    listen [::]:80;
-    server_name stadium.example.com;
-    
-    # Redirect to HTTPS
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name stadium.example.com;
-    
-    # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/stadium.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/stadium.example.com/privkey.pem;
-    
-    # Frontend static files
-    root /var/www/stadium/client/dist;
-    index index.html;
-    
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-    
-    # API proxy
-    location /api {
-        proxy_pass http://localhost:2000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-
-# Backend API (optional separate subdomain)
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name api.stadium.example.com;
-    
-    ssl_certificate /etc/letsencrypt/live/stadium.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/stadium.example.com/privkey.pem;
-    
-    location / {
-        proxy_pass http://localhost:2000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-#### 4. Deploy
-
-```bash
-# Copy build to web server
-scp -r client/dist/* user@server:/var/www/stadium/client/dist/
-
-# Restart Nginx
-sudo systemctl restart nginx
-```
-
-### Database (MongoDB) Setup
-
-#### Option 1: MongoDB Atlas (Recommended)
-
-1. Create account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-2. Create a new cluster
-3. Add IP whitelist (0.0.0.0/0 for production server)
-4. Create database user with read/write permissions
-5. Get connection string and update `MONGO_URI` in server `.env`
-
-#### Option 2: Self-Hosted MongoDB
-
-```bash
-# Install MongoDB 7.0
-wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | sudo apt-key add -
-echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-sudo apt update
-sudo apt install -y mongodb-org
-
-# Start MongoDB
-sudo systemctl start mongod
-sudo systemctl enable mongod
-
-# Create admin user
-mongosh
-use admin
-db.createUser({
-  user: "admin",
-  pwd: "secure_password_here",
-  roles: ["root"]
-})
-exit
-
-# Update server/.env with connection string
-MONGO_URI=mongodb://admin:secure_password_here@localhost:27017/blockspace?authSource=admin
-```
-
-### Security Checklist
-
-- [ ] `NODE_ENV=production` in server
-- [ ] `DISABLE_SIWS_DOMAIN_CHECK=false` in server
-- [ ] `EXPECTED_DOMAIN` set to actual domain
-- [ ] Strong MongoDB password
-- [ ] Admin wallet addresses kept secure
-- [ ] HTTPS enabled (SSL certificates)
-- [ ] Firewall configured (only ports 80/443 open)
-- [ ] MongoDB not exposed to public internet
-- [ ] Regular backups configured
-- [ ] Error logging set up (Sentry, LogRocket, etc.)
-- [ ] Rate limiting enabled (nginx limit_req or express-rate-limit)
-- [ ] CORS configured for production domain only
-
-### Monitoring
-
-#### PM2 Monitoring
-
-```bash
-# View logs
-pm2 logs stadium-backend
-
-# Monitor CPU/Memory
-pm2 monit
-
-# Restart if needed
-pm2 restart stadium-backend
-```
-
-#### Health Checks
-
-```bash
-# Check backend health
-curl https://api.stadium.example.com/api/health
-
-# Should return:
-# {"status":"OK","message":"Server is running","timestamp":"..."}
-```
-
-### Backup Strategy
-
-#### MongoDB Backup
-
-```bash
-# Daily backup script
-#!/bin/bash
-DATE=$(date +%Y%m%d)
-mongodump --uri="$MONGO_URI" --out=/backups/mongodb-$DATE
-tar -czf /backups/mongodb-$DATE.tar.gz /backups/mongodb-$DATE
-rm -rf /backups/mongodb-$DATE
-
-# Keep only last 7 days
-find /backups -name "mongodb-*.tar.gz" -mtime +7 -delete
-```
-
-Add to crontab:
-```bash
-crontab -e
-# Add: 0 2 * * * /path/to/backup-script.sh
-```
-
-### Updates and Maintenance
-
-#### Updating Server
-
-```bash
-cd server
-git pull
-npm ci --only=production
-pm2 restart stadium-backend
-```
-
-#### Updating Client
+If you only need the UI up and don't want to wire a backend:
 
 ```bash
 cd client
-git pull
-npm ci
-npm run build
-# Copy dist/ to web server
+VITE_USE_MOCK_DATA=true npm run dev
 ```
 
-#### Database Migrations
+The client then serves fixtures from `client/src/lib/mockWinners.ts` (159 sanitized production projects) and simulates writes in `localStorage`. This is the same mode every Vercel preview runs in.
 
-If schema changes:
+### 5. (Optional) Mongo-backed scripts
+
+A handful of utility scripts in `server/scripts/` (seed-dev, migration, fix-bounty-amounts, list-winners-zero-paid, etc.) use MongoDB via Mongoose as an offline staging layer — **not** for the API. If you need them:
+
 ```bash
+docker compose up mongodb -d     # start Mongo on :27017
+# Set MONGO_URI in server/.env
 cd server
-node migration.js  # Re-run migration if needed
-# Or create custom migration scripts for schema updates
+npm run seed:dev                 # example — also: db:migrate, db:reset, list:winners-zero-paid
 ```
 
----
-
-## 📚 Additional Documentation
-
-### Setup & Configuration
-- [Wallet Connection Fix](./WALLET_CONNECTION_FIX.md) - Troubleshooting admin wallet connection
-- [M2 Testing Guide](./M2_TESTING_GUIDE.md) - Complete M2 submission testing guide
-- [M2 Date Enforcement](./M2_DATE_ENFORCEMENT.md) - Week-based restrictions and timeline
-
-### API & Development
-- [API Documentation](./API_DOCS.md) - Complete API reference
-- [Data Schema](./DATA_SCHEMA.md) - MongoDB schema and data model
-- [Admin Review Guide](./ADMIN-REVIEW.md) - Code review checklist
+Mongo is **not** required to run the API. If you're doing normal feature work, skip this.
 
 ---
 
-## 🤝 Contributing
+## Key commands
 
-1. Ensure all tests pass
-2. Follow the existing code style
-3. Update documentation for any new features
-4. Run the migration script to test with real data
+**Client (`cd client`):**
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on `:8080` |
+| `npm run build` | `tsc && vite build` (this is the typecheck) |
+| `npm run lint` | ESLint with `--max-warnings 0` |
+
+**Server (`cd server`):**
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Nodemon on `:2000` |
+| `npm start` | Production start |
+| `npm test` | Vitest |
+| `npm run seed:dev` | Destructive: reset local Mongo + seed fixture projects |
+| `npm run db:migrate` | Import historical projects into local Mongo |
+| `npm run list:winners-zero-paid` | Report on winners with zero confirmed payments |
+
+See `server/package.json` for the full list. Anything under `db:*` / `seed:*` hits the **local Mongo staging DB**, not the live Supabase DB.
 
 ---
 
-## 📄 License
+## Environment variables
 
-See [LICENSE](./LICENSE) for details.
+### Server (`server/.env`)
 
+| Name | Required | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | yes | API runtime data layer |
+| `SUPABASE_SERVICE_ROLE_KEY` | yes | API runtime data layer |
+| `ADMIN_WALLETS` | yes | Comma-separated SS58 addresses allowed on admin routes |
+| `EXPECTED_DOMAIN` | yes | SIWS domain binding |
+| `NETWORK_ENV` | yes | `testnet` or `mainnet` |
+| `AUTHORIZED_SIGNERS` | yes (admin flows) | Multisig signer list |
+| `NODE_ENV` | yes | `development` / `production` |
+| `MONGO_URI` | no | Only needed for `server/scripts/*.js` utility tools |
+
+### Client (`client/.env`)
+
+| Name | Required | Purpose |
+|---|---|---|
+| `VITE_API_BASE_URL` | yes | e.g. `http://localhost:2000/api` for dev |
+| `VITE_ADMIN_ADDRESSES` | yes | Comma-separated SS58 addresses (must match server `ADMIN_WALLETS`) |
+| `VITE_USE_MOCK_DATA` | no | `true` on Vercel Preview; unset/`false` in prod |
+
+---
+
+## API
+
+See **[docs/API_DOCS.md](./docs/API_DOCS.md)** for the full endpoint reference and **[docs/DATA_SCHEMA.md](./docs/DATA_SCHEMA.md)** for the project schema.
+
+Routes are defined in `server/api/routes/` and served under `/api/`. Admin-only and team-member routes use `server/api/middleware/auth.middleware.js` (SIWS verification).
+
+---
+
+## Deployment
+
+- **Client** → **Vercel**. `npm run build` output, deployed automatically on push to `develop` (preview) and merge to `main` (production). Preview deployments run with `VITE_USE_MOCK_DATA=true` (configured in Vercel dashboard) so branch previews never touch production data.
+- **Server** → **Railway**. See `server/railway.json` and `server/Dockerfile`. Env vars (`SUPABASE_*`, `ADMIN_WALLETS`, `NETWORK_ENV`, `AUTHORIZED_SIGNERS`, etc.) live in the Railway dashboard.
+- **Database** → **Supabase**. SQL migrations are under `supabase/migrations/`.
+
+Full production notes: **[docs/PRODUCTION_DEPLOYMENT.md](./docs/PRODUCTION_DEPLOYMENT.md)**.
+
+Wallet configuration in production: **[docs/ADMIN_WALLET_PRODUCTION.md](./docs/ADMIN_WALLET_PRODUCTION.md)**.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause / fix |
+|---|---|
+| Frontend shows no projects | `VITE_API_BASE_URL` points nowhere, or the backend isn't running. Check `window.__STADIUM_MOCK__` in devtools — if you're in mock mode it should be `true`. |
+| Admin panel stuck on "Loading admin panel…" | Ensure you've signed in with an admin wallet (in `VITE_ADMIN_ADDRESSES`). The infinite-fetch loop this used to hide was fixed in `AdminPage.tsx`. |
+| Wallet connected but admin actions disabled | `VITE_ADMIN_ADDRESSES` doesn't include your address, or you didn't restart the dev server after editing `.env`. Vite needs a restart to pick up env changes. |
+| Port already in use (2000 / 8080) | `lsof -i :2000 -i :8080` to find the process; kill it or change the port in `vite.config.ts` / `server.js`. |
+| `gh auth status` says logged out | Run `gh auth login` — the agentic workflow needs it. |
+| First run of `/stadium-tester` times out | Chromium is downloading (~150MB). Run `bash .claude/skills/stadium-tester/setup.sh` manually to watch progress. |
+
+---
+
+## Documentation index
+
+- **[CLAUDE.md](./CLAUDE.md)** — the repo's agent briefing / contributor contract
+- **[docs/AGENTIC_WORKFLOW.md](./docs/AGENTIC_WORKFLOW.md)** — step-by-step contributor guide
+- **[docs/AGENT_GUIDE.md](./docs/AGENT_GUIDE.md)** — deep reference: data flow, SIWS, testing
+- **[docs/API_DOCS.md](./docs/API_DOCS.md)** — API endpoint reference
+- **[docs/DATA_SCHEMA.md](./docs/DATA_SCHEMA.md)** — Supabase schema
+- **[docs/PRODUCTION_DEPLOYMENT.md](./docs/PRODUCTION_DEPLOYMENT.md)** — Railway + Vercel deploy notes
+- **[docs/ADMIN_WALLET_PRODUCTION.md](./docs/ADMIN_WALLET_PRODUCTION.md)** — admin wallet setup
+- **[docs/M2-PHASES-DB-FIELDS.md](./docs/M2-PHASES-DB-FIELDS.md)** — M2 program phases & DB fields
+- **[docs/M2_DATE_ENFORCEMENT.md](./docs/M2_DATE_ENFORCEMENT.md)** — week-based restrictions
+- **[docs/TEAM_PAYMENT_IMPLEMENTATION.md](./docs/TEAM_PAYMENT_IMPLEMENTATION.md)** — payment flow
+- **[docs/DEBUG_UI_PROJECTS.md](./docs/DEBUG_UI_PROJECTS.md)** — UI data troubleshooting
+- **[docs/ADMIN-REVIEW.md](./docs/ADMIN-REVIEW.md)** — admin UX review checklist
+- **[docs/stadium-shadcn-design-guide.md](./docs/stadium-shadcn-design-guide.md)** — design system
+- **[docs/improvement-backlog.md](./docs/improvement-backlog.md)** — open items for contributors
+
+---
+
+## Contributing
+
+Start with `docs/AGENTIC_WORKFLOW.md`. The short version:
+
+1. File an issue using the template — include `## Test scenarios` (mandatory).
+2. `/ship-issue <number>` in Claude Code, or tackle it manually.
+3. Both gates must pass: `/pre-pr-check` and `/stadium-tester`.
+4. PR opens as **draft** targeting `develop`. Never directly to `main`.
+5. A human CODEOWNER reviews and merges. The agent is never in `CODEOWNERS`.
+
+---
+
+## License
+
+See [LICENSE](./LICENSE).

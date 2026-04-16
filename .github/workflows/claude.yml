@@ -1,0 +1,96 @@
+name: Claude agent
+
+# Guardrails:
+#  - No `push` or `pull_request` triggers. The agent never runs automatically on code changes.
+#  - `workflow_dispatch` is manual (UI-only) — a human starts the job.
+#  - `issue_comment` trigger is gated below by author_association, so only repo
+#    owners/maintainers can summon the agent via "@claude ship" on an issue.
+#  - The workflow only opens DRAFT PRs. Merging requires CODEOWNERS approval.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "GitHub issue number to ship"
+        required: true
+        type: string
+      base_branch:
+        description: "Base branch for the PR"
+        required: false
+        default: "develop"
+        type: string
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  ship-issue:
+    # Only run when:
+    #  - manual workflow_dispatch, OR
+    #  - issue_comment containing "@claude ship" from a repo OWNER/MEMBER/COLLABORATOR
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        contains(github.event.comment.body, '@claude ship') &&
+        (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR'
+        )
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail fast if ANTHROPIC_API_KEY missing
+        run: |
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret is not set. Add it in repo settings → Secrets."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd server && npm ci
+          cd ../client && npm ci
+
+      - name: Determine issue number
+        id: issue
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ github.event.inputs.issue_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Run the `/ship-issue ${{ steps.issue.outputs.number }}` workflow
+            as defined in `.claude/commands/ship-issue.md`.
+
+            Hard constraints:
+            - Create a new feature branch. Do not push to main or develop.
+            - Open the PR as DRAFT against `${{ github.event.inputs.base_branch || 'develop' }}`.
+            - Never merge. Never mark the PR ready-for-review.
+            - Obey every invariant in CLAUDE.md and docs/AGENT_GUIDE.md.
+            - If anything is unclear, stop and comment on the issue asking for clarification.

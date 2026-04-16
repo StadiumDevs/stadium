@@ -29,6 +29,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -509,7 +515,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                 <TableHead className={connectedAddress ? "w-[18%]" : "w-[22%]"}>Project</TableHead>
                 <TableHead className={connectedAddress ? "w-[12%]" : "w-[15%]"}>Event</TableHead>
                 <TableHead className={connectedAddress ? "w-[20%]" : "w-[24%]"}>Track/Bounty</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Amount</TableHead>
+                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Bounty amount</TableHead>
                 <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>M2 Status</TableHead>
                 <TableHead className={connectedAddress ? "w-[10%]" : "w-[15%]"}>Payment</TableHead>
                 {connectedAddress && <TableHead className="w-[20%] text-right">Actions</TableHead>}
@@ -546,7 +552,9 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                       </div>
                     </TableCell>
 
-                    {/* Amount */}
+                    {/* Bounty amount (sum of bountyPrize[].amount from schema).
+                        M2 program grant is NOT included here — entitlement is not
+                        stored in the schema yet. See issue #26. */}
                     <TableCell>
                       <div className="space-y-1">
                         <p className="font-semibold">{formatAmount(totalBounty, getProjectCurrency(project))}</p>
@@ -556,6 +564,23 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                               <div key={idx}>{formatAmount(b.amount, b.currency)}</div>
                             ))}
                           </div>
+                        )}
+                        {project.m2Status && (
+                          <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-[10px] font-normal cursor-help">
+                                  + M2 grant
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p className="text-xs">
+                                  This team is in the M2 program and is owed an additional grant beyond the bounty shown.
+                                  The M2 entitlement is not yet stored in the schema per project — tracked in issue #26.
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                       </div>
                     </TableCell>
