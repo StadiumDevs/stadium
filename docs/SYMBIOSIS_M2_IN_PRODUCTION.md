@@ -1,5 +1,7 @@
 # Why Symbiosis M2 winners don’t show (and how to fix it)
 
+> **Historical context** — this doc documents a production incident that was resolved. The one-shot scripts referenced below (`migrate-mongo-to-supabase.js`, `seed-symbiosis-to-supabase.js`, `set-symbiosis-m2-building.js`, etc.) were removed in the 2026-04-14 cleanup after they ran. The doc is kept for the recurrence playbook, not as runnable steps. If a similar incident happens, port the relevant logic back as needed.
+
 ## Why they might not show
 
 ### 1. Data not in production Supabase
