@@ -61,6 +61,10 @@ const ProjectSchema = new mongoose.Schema({
     lastUpdatedBy: { type: String, enum: ['team', 'admin'] },
     lastUpdatedDate: { type: Date }
   },
+  // M1 and M2 Grant fields
+  m1Grant: { type: Number, default: 0 },
+  m2Grant: { type: Number, default: 0 },
+  grantCurrency: { type: String, default: 'USDC' },
   finalSubmission: {
     repoUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
     demoUrl: { type: String, required: function() { return this.m2Status === 'under_review' || this.m2Status === 'completed'; } },
@@ -87,7 +91,6 @@ const ProjectSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false, toJSON: { virtuals: true, transform: (_doc, ret) => {
   ret.id = ret._id;
   delete ret._id;
-  delete ret.createdAt;
   return ret;
 }}, toObject: { virtuals: true } });
 
