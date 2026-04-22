@@ -1,7 +1,8 @@
 import projectService from '../services/project.service.js';
+import projectUpdateService from '../services/project-update.service.js';
 import paymentService from '../services/payment.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
-import { validateSS58, validateM2Submission, validateSimpleUrl } from '../utils/validation.js';
+import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
@@ -537,6 +538,56 @@ class ProjectController {
                 error: 'Test payment failed',
                 details: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
+        }
+    }
+
+    // --- Phase 1 revamp: project updates (#39) ---
+
+    async getProjectUpdates(req, res) {
+        try {
+            const { projectId } = req.params;
+            // Ensure the project exists — avoid revealing non-existent IDs via empty arrays.
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+            const updates = await projectUpdateService.listByProject(projectId);
+            res.status(200).json({ status: 'success', data: updates });
+        } catch (error) {
+            console.error('❌ Error fetching project updates:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to fetch project updates' });
+        }
+    }
+
+    async postProjectUpdate(req, res) {
+        try {
+            const { projectId } = req.params;
+            const raw = req.body || {};
+            const body = typeof raw.body === 'string' ? raw.body.trim() : raw.body;
+            const linkUrl = typeof raw.linkUrl === 'string' ? raw.linkUrl.trim() : raw.linkUrl;
+
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+
+            const { valid, error: validationError } = validateProjectUpdate({ body, linkUrl });
+            if (!valid) {
+                return res.status(422).json({ status: 'error', message: validationError });
+            }
+
+            const createdBy = req.user?.address || req.auth?.address || 'unknown';
+            const created = await projectUpdateService.create({
+                projectId,
+                body,
+                linkUrl: linkUrl || null,
+                createdBy,
+            });
+
+            res.status(201).json({ status: 'success', data: created });
+        } catch (error) {
+            console.error('❌ Error posting project update:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to post project update' });
         }
     }
 }

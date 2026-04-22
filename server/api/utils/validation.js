@@ -200,7 +200,34 @@ export const validateM2Submission = (data) => {
   if (!validateLength(summary, 10, 1000)) {
     return { valid: false, error: 'Summary must be between 10 and 1000 characters' };
   }
-  
+
+  return { valid: true };
+};
+
+/**
+ * Validate project update data (Phase 1 revamp, #39).
+ * @param {Object} data - { body: string, linkUrl?: string }
+ * @returns {Object} - { valid: boolean, error: string }
+ */
+export const validateProjectUpdate = (data) => {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: 'Update payload must be an object' };
+  }
+  const { body, linkUrl } = data;
+
+  if (typeof body !== 'string') {
+    return { valid: false, error: 'body is required and must be a string' };
+  }
+  if (!validateLength(body, 1, 2000)) {
+    return { valid: false, error: 'body must be between 1 and 2000 characters' };
+  }
+
+  if (linkUrl !== undefined && linkUrl !== null && linkUrl !== '') {
+    if (typeof linkUrl !== 'string' || !validateSimpleUrl(linkUrl)) {
+      return { valid: false, error: 'linkUrl, when provided, must start with www or http' };
+    }
+  }
+
   return { valid: true };
 };
 
