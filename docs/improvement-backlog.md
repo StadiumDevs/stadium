@@ -77,3 +77,15 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/scripts/*.js`, `CLAUDE.md` §4
 - **Observed during**: writing `server/scripts/fix-plata-mia-bounties.js` for issue #27.
 - **Suggestion**: `CLAUDE.md` says `server/scripts/` is Mongo-only, but precedent for Supabase-touching scripts exists (`deploy-all.js` and the since-deleted `fix-bounty-amounts-supabase.js`). The rule is therefore already inaccurate. Either (a) update CLAUDE.md to acknowledge the mixed layer and specify when each is appropriate, or (b) move Supabase scripts into a sibling dir like `server/scripts/supabase/` and enforce the original rule. Paired with the existing "Flatten the Supabase↔Mongo dual data layer" entry above.
+
+## [2026-04-22] Per-bounty source-of-truth CSVs missing for synergy-2025 and symmetry-2024
+- **Severity**: minor
+- **File(s)**: `server/migration-data/payouts.csv`, `server/migration-data/prizes-symbiosis-2025.csv`
+- **Observed during**: writing `reconcile-bounty-amounts-supabase.js` for issue #28. The symbiosis-2025 CSV is the only per-bounty source of truth in the repo. `payouts.csv` has a single `Total Prize (USDC)` column for synergy-2025 and symmetry-2024, which is not enough to reconcile multi-track winners or verify individual bounty names/amounts.
+- **Suggestion**: ask WebZero for the same-shaped screenshot / spreadsheet for synergy-2025 and symmetry-2024 (project, track, total prize, currency). Transcribe to `prizes-synergy-2025.csv` and `prizes-symmetry-2024.csv`, register them in `CSV_PATHS` in the reconciliation script, re-run. Until then, those two events are accepted as-is (their existing DB rows may be inaccurate in ways we can't verify).
+
+## [2026-04-22] Five symbiosis-2025 Marketing-track winners missing from `projects` table
+- **Severity**: minor
+- **File(s)**: Supabase `projects` table, `server/migration-data/prizes-symbiosis-2025.csv`
+- **Observed during**: reconciliation for issue #28. The CSV lists five Marketing 1 / Marketing 2 winners (Right of the DOTty, Khoj, Pointillism, Connected by the Dots, Crypto Therapy | Polkadot) that have no `projects` row at all — not just missing bounty rows. Reconciliation script skipped them because the project records don't exist.
+- **Suggestion**: open a follow-up issue to add these projects. Needs project-level data (name, description, team wallets, categories) beyond what's in the prize CSV — likely a separate source-of-truth fetch from WebZero before implementation. Not blocking for Phase 1 alpha (Marketing projects aren't M2 incubator candidates).
