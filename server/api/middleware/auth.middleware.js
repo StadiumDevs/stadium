@@ -41,7 +41,10 @@ const VALID_STATEMENTS = [
   // Phase 1 revamp statements
   "Post an update on Stadium",
   "Update funding signal on Stadium",
-  "Apply to program on Stadium"
+  "Apply to program on Stadium",
+  "Create program on Stadium",
+  "Update program on Stadium",
+  "Review application on Stadium"
 ];
 
 const EXPECTED_DOMAIN = process.env.EXPECTED_DOMAIN || 'localhost';

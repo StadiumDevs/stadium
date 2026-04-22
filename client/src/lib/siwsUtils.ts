@@ -3,7 +3,7 @@
  */
 
 export interface SiwsContext {
-  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project' | 'post-update' | 'update-funding-signal' | 'apply-to-program';
+  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project' | 'post-update' | 'update-funding-signal' | 'apply-to-program' | 'create-program' | 'update-program' | 'review-application';
   projectId?: string;
   projectTitle?: string;
   programTitle?: string;
@@ -58,6 +58,14 @@ export function generateSiwsStatement(context: SiwsContext): string {
     // Phase 1 revamp (#44): apply project to program
     case 'apply-to-program':
       return `Apply project ${context.projectTitle || ''} to program ${context.programTitle || ''} on ${baseDomain}`;
+
+    // Phase 1 revamp (#46/#47): admin program management
+    case 'create-program':
+      return `Create program on ${baseDomain}`;
+    case 'update-program':
+      return `Update program on ${baseDomain}`;
+    case 'review-application':
+      return `Review application on ${baseDomain}`;
 
     default:
       return `Sign in to ${baseDomain}`;

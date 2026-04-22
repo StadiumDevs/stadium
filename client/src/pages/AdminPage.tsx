@@ -906,7 +906,7 @@ const AdminPage = () => {
       </section>
 
       <section className="mb-8">
-        <ProgramsTable />
+        <ProgramsTable connectedAddress={walletState.selectedAccount?.address} />
       </section>
 
       {/* M1 Payout Modal */}
