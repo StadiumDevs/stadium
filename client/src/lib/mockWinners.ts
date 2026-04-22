@@ -227,8 +227,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Polkadot main track",
-        "amount": 2500,
+        "name": "IDEA-THON main track",
+        "amount": 4000,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -316,8 +316,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Polkadot main track",
-        "amount": 2500,
+        "name": "SHIP-A-THON main track",
+        "amount": 4000,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -404,8 +404,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Polkadot main track",
-        "amount": 2500,
+        "name": "SHIP-A-THON main track",
+        "amount": 4000,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -4919,8 +4919,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Hyperbridge bounty",
-        "amount": 2500,
+        "name": "Hyperbridge",
+        "amount": 1500,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -5045,8 +5045,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Kusama bounty",
-        "amount": 2500,
+        "name": "Kusama",
+        "amount": 500,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -5252,8 +5252,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "xx Network bounty",
-        "amount": 2500,
+        "name": "xx Network",
+        "amount": 3000,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -6620,7 +6620,13 @@ export const mockWinningProjects: MockApiProject[] = [
         "linkedin": null
       }
     ],
-    "bountyPrize": [],
+    "bountyPrize": [
+      {
+        "name": "xx Network",
+        "amount": 250,
+        "hackathonWonAtId": "symbiosis-2025"
+      }
+    ],
     "milestones": [],
     "totalPaid": []
   },
@@ -6901,8 +6907,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Kusama bounty",
-        "amount": 2500,
+        "name": "Kusama",
+        "amount": 1500,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -6957,8 +6963,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "xx Network bounty",
-        "amount": 2500,
+        "name": "xx Network",
+        "amount": 2000,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
@@ -7198,8 +7204,8 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Kusama bounty",
-        "amount": 2500,
+        "name": "Kusama",
+        "amount": 3000,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
