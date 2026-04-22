@@ -12,6 +12,7 @@ import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 import WinnersPage from "./pages/WinnersPage";
+import ProgramsPage from "./pages/ProgramsPage";
 
 // Redirect component for old project routes
 const ProjectRedirect = () => {
@@ -54,6 +55,7 @@ const App = () => {
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
                 <Route path="m2-program" element={<M2ProgramPage />} />
+                <Route path="programs" element={<ProgramsPage />} />
                 {/* Redirect old past-projects route to homepage */}
                 <Route path="past-projects" element={<Navigate to="/" replace />} />
                 <Route path="admin" element={<AdminPage />} />
