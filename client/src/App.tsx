@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 import WinnersPage from "./pages/WinnersPage";
 import ProgramsPage from "./pages/ProgramsPage";
+import ProgramDetailPage from "./pages/ProgramDetailPage";
 
 // Redirect component for old project routes
 const ProjectRedirect = () => {
@@ -63,6 +64,7 @@ const App = () => {
                 <Route path="projects" element={<Navigate to="/m2-program" replace />} />
               </Route>
               <Route path="m2-program/:id" element={<ProjectDetailsPage />} />
+              <Route path="programs/:slug" element={<ProgramDetailPage />} />
               <Route path="winners/:hackathon" element={<WinnersPage />} />
               {/* Redirect old project detail route */}
               <Route path="projects/:id" element={<ProjectRedirect />} />
