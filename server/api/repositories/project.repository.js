@@ -477,6 +477,33 @@ class ProjectRepository {
         // Fetch and return updated project
         return await this.getProjectById(projectId);
     }
+
+    /**
+     * Phase 1 revamp (#44): find all projects where the given wallet address
+     * appears on the team roster. Returns projects ordered by updated_at DESC
+     * so "the most-recently-updated project" is the default selection in the
+     * Apply modal.
+     */
+    async findByTeamWallet(walletAddress) {
+        if (!walletAddress) return [];
+        // Two-step: first, get project ids where the wallet is a team member.
+        const { data: teamRows, error: teamErr } = await supabase
+            .from('team_members')
+            .select('project_id')
+            .eq('wallet_address', walletAddress);
+        if (teamErr) throw teamErr;
+        const projectIds = [...new Set((teamRows || []).map((r) => r.project_id))];
+        if (projectIds.length === 0) return [];
+
+        // Second: fetch the projects with their joined relations.
+        const { data, error } = await supabase
+            .from('projects')
+            .select('*, team_members(*), bounty_prizes(*), milestones(*), payments(*)')
+            .in('id', projectIds)
+            .order('updated_at', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(transformProject);
+    }
 }
 
 export default new ProjectRepository();

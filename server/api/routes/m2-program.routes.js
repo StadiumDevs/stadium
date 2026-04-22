@@ -7,6 +7,9 @@ const router = Router();
 
 // --- Public, Read-Only Routes ---
 router.get('/', projectController.getAllProjects);
+// Phase 1 revamp (#44): projects a given wallet is on the team of.
+// MUST be declared before /:projectId so the path doesn't collide with it.
+router.get('/by-team/:address', projectController.getProjectsByTeamWallet);
 router.get('/:projectId', projectController.getProjectById);
 
 // --- Admin-Only, Write Routes ---
