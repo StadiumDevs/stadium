@@ -43,6 +43,7 @@ import { WalletConnectionBanner } from "@/components/WalletConnectionBanner";
 import { TeamPaymentSection } from "@/components/TeamPaymentSection";
 import { M2SubmissionTimeline } from "@/components/M2SubmissionTimeline";
 import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModal";
+import { ProjectUpdatesTab } from "@/components/project/ProjectUpdatesTab";
 import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
 import { addressInList } from "@/lib/addressUtils";
@@ -1041,10 +1042,11 @@ const ProjectDetailsPage = () => {
 
             {/* Tabs Section */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="milestones">Milestones</TabsTrigger>
                 <TabsTrigger value="team">Team & Payments</TabsTrigger>
+                <TabsTrigger value="updates">Updates</TabsTrigger>
               </TabsList>
 
               {/* Overview Tab */}
@@ -1282,6 +1284,11 @@ const ProjectDetailsPage = () => {
                   isConnected={!!connectedAddress}
                   onSave={handleTeamPaymentSave}
                 />
+              </TabsContent>
+
+              {/* Updates Tab — Phase 1 revamp #40 */}
+              <TabsContent value="updates" className="space-y-6 mt-6">
+                <ProjectUpdatesTab projectId={project.id} />
               </TabsContent>
             </Tabs>
 
