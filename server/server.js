@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import connectToSupabase, { supabase } from "./db.js";
 import m2ProgramRoutes from './api/routes/m2-program.routes.js';
+import programRoutes from './api/routes/program.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
 import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
@@ -35,6 +36,7 @@ app.use(requestLogger);
 
 // API Routes
 app.use('/api/m2-program', m2ProgramRoutes);
+app.use('/api/programs', programRoutes);
 
 // Backward compatibility: Keep old /api/projects route as alias
 // TODO: Remove after frontend migration is stable
@@ -49,6 +51,7 @@ app.get("/", (req, res) => {
             health: '/api/health',
             healthDb: '/api/health/db',
             projects: '/api/m2-program (or /api/projects)',
+            programs: '/api/programs',
         },
     });
 });
