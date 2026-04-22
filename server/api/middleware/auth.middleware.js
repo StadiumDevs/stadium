@@ -39,7 +39,8 @@ const VALID_STATEMENTS = [
   "Approve project on Stadium",
   "Reject project on Stadium",
   // Phase 1 revamp statements
-  "Post an update on Stadium"
+  "Post an update on Stadium",
+  "Update funding signal on Stadium"
 ];
 
 const EXPECTED_DOMAIN = process.env.EXPECTED_DOMAIN || 'localhost';
@@ -68,7 +69,9 @@ function validateSiwsStatement(statement) {
     /^Approve project .+ on Stadium$/,
     /^Reject project .+ on Stadium$/,
     // Phase 1 revamp: project updates (#41)
-    /^Post an update to .+ on Stadium$/
+    /^Post an update to .+ on Stadium$/,
+    // Phase 1 revamp: funding signal (#42)
+    /^Update funding signal for .+ on Stadium$/
   ];
   
   return projectPatterns.some(pattern => pattern.test(statement));

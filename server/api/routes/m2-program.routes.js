@@ -24,6 +24,10 @@ router.post('/:projectId/submit-m2', requireTeamMemberOrAdmin, projectController
 router.get('/:projectId/updates', projectController.getProjectUpdates);
 router.post('/:projectId/updates', requireTeamMemberOrAdmin, projectController.postProjectUpdate);
 
+// --- Phase 1 revamp: funding signal (#42) ---
+router.get('/:projectId/funding-signal', projectController.getFundingSignal);
+router.patch('/:projectId/funding-signal', requireTeamMemberOrAdmin, projectController.updateFundingSignal);
+
 // --- Admin M2 approval ---
 router.post('/:projectId/approve', requireAdmin, projectController.approveM2);
 

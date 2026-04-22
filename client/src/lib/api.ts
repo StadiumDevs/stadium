@@ -125,6 +125,18 @@ export type ApiProject = {
   }>;
 };
 
+/** Shape of a row in `project_funding_signals` (Phase 1 revamp, #42). */
+export type ApiFundingSignal = {
+  id?: string;
+  projectId: string;
+  isSeeking: boolean;
+  fundingType?: "grant" | "bounty" | "pre_seed" | "seed" | "other" | null;
+  amountRange?: string | null;
+  description?: string | null;
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+};
+
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
 export type ApiProgram = {
   id: string;
@@ -714,6 +726,59 @@ export const api = {
     }
     return request(`/m2-program/${encodeURIComponent(projectId)}/updates`, {
       method: "POST",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Phase 1 revamp: funding signal (#42).
+   */
+  getFundingSignal: async (projectId: string): Promise<{ status: string; data: ApiFundingSignal }> => {
+    if (USE_MOCK_DATA) {
+      const { mockFundingSignals } = await import("./mockFundingSignals");
+      const signal = mockFundingSignals[projectId] || {
+        projectId,
+        isSeeking: false,
+        fundingType: null,
+        amountRange: null,
+        description: null,
+        updatedBy: null,
+        updatedAt: null,
+      };
+      return { status: "success", data: signal };
+    }
+    return request(`/m2-program/${encodeURIComponent(projectId)}/funding-signal`);
+  },
+
+  updateFundingSignal: async (
+    projectId: string,
+    payload: {
+      isSeeking: boolean;
+      fundingType?: ApiFundingSignal["fundingType"];
+      amountRange?: string | null;
+      description?: string | null;
+    },
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiFundingSignal }> => {
+    if (USE_MOCK_DATA) {
+      const { mockFundingSignals } = await import("./mockFundingSignals");
+      const updated: ApiFundingSignal = {
+        projectId,
+        isSeeking: payload.isSeeking,
+        fundingType: payload.fundingType || null,
+        amountRange: payload.amountRange ?? null,
+        description: payload.description ?? null,
+        updatedBy: "mock-wallet",
+        updatedAt: new Date().toISOString(),
+      };
+      mockFundingSignals[projectId] = updated;
+      return { status: "success", data: updated };
+    }
+    return request(`/m2-program/${encodeURIComponent(projectId)}/funding-signal`, {
+      method: "PATCH",
       headers: authHeader
         ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
         : { "Content-Type": "application/json" },
