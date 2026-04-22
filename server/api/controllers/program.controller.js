@@ -73,6 +73,57 @@ class ProgramController {
     }
   }
 
+  /**
+   * Phase 1 revamp (#47): admin review of a single application.
+   * Accepts a status transition + optional review notes. Review metadata
+   * (reviewed_by, reviewed_at) is stamped by the repository.
+   */
+  async updateApplicationStatus(req, res) {
+    try {
+      const { slug, applicationId } = req.params;
+      const { status, reviewNotes } = req.body || {};
+
+      const ALLOWED = ['submitted', 'accepted', 'rejected', 'withdrawn'];
+      if (!ALLOWED.includes(status)) {
+        return res.status(422).json({
+          status: 'error',
+          message: `status must be one of: ${ALLOWED.join(', ')}`,
+        });
+      }
+      if (reviewNotes !== undefined && reviewNotes !== null) {
+        if (typeof reviewNotes !== 'string' || reviewNotes.length > 2000) {
+          return res.status(422).json({
+            status: 'error',
+            message: 'reviewNotes must be a string with 2000 characters or fewer',
+          });
+        }
+      }
+
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+
+      const reviewedBy = req.user?.address || req.auth?.address || 'unknown';
+      const updated = await programApplicationService.updateStatus({
+        id: applicationId,
+        status,
+        reviewedBy,
+        reviewNotes: typeof reviewNotes === 'string' ? reviewNotes.trim() : null,
+      });
+
+      // updateStatus uses .single() which throws if no row matched; translate
+      // to 404 via the Postgres PGRST116 code we see on not-found.
+      res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+      if (error?.code === 'PGRST116' || /no rows/i.test(error?.message || '')) {
+        return res.status(404).json({ status: 'error', message: 'Application not found' });
+      }
+      console.error('❌ Error updating application status:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to update application' });
+    }
+  }
+
   async updateProgram(req, res) {
     try {
       const { slug } = req.params;

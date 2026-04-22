@@ -7,7 +7,13 @@ vi.mock('../../services/project.service.js', () => ({
   default: { getProjectById: vi.fn() },
 }));
 vi.mock('../../services/program-application.service.js', () => ({
-  default: { listByProgram: vi.fn(), listByProject: vi.fn(), findOne: vi.fn(), create: vi.fn() },
+  default: {
+    listByProgram: vi.fn(),
+    listByProject: vi.fn(),
+    findOne: vi.fn(),
+    create: vi.fn(),
+    updateStatus: vi.fn(),
+  },
 }));
 
 const programService = (await import('../../services/program.service.js')).default;
@@ -172,5 +178,72 @@ describe('ProgramController.createApplication', () => {
     const res = mockRes();
     await programController.createApplication(req, res);
     expect(res.status).toHaveBeenCalledWith(409);
+  });
+});
+
+describe('ProgramController.updateApplicationStatus', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 422 for invalid status', async () => {
+    const req = { params: { slug: 's', applicationId: 'a' }, body: { status: 'bogus' }, user: { address: 'x' } };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(422);
+  });
+
+  it('returns 422 for reviewNotes too long', async () => {
+    const req = {
+      params: { slug: 's', applicationId: 'a' },
+      body: { status: 'accepted', reviewNotes: 'x'.repeat(2001) },
+      user: { address: 'x' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(422);
+  });
+
+  it('returns 404 when program is unknown', async () => {
+    programService.findBySlug.mockResolvedValue(null);
+    const req = {
+      params: { slug: 'nope', applicationId: 'a' },
+      body: { status: 'accepted' },
+      user: { address: 'x' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('updates on valid payload', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1' });
+    applicationService.updateStatus.mockResolvedValue({ id: 'a1', status: 'accepted' });
+    const req = {
+      params: { slug: 's', applicationId: 'a1' },
+      body: { status: 'accepted', reviewNotes: '  looks great  ' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(applicationService.updateStatus).toHaveBeenCalledWith({
+      id: 'a1',
+      status: 'accepted',
+      reviewedBy: 'admin',
+      reviewNotes: 'looks great',
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('maps PostgREST no-rows error to 404', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1' });
+    const err = Object.assign(new Error('no rows'), { code: 'PGRST116' });
+    applicationService.updateStatus.mockRejectedValue(err);
+    const req = {
+      params: { slug: 's', applicationId: 'missing' },
+      body: { status: 'rejected' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 });
