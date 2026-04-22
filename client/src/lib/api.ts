@@ -919,6 +919,35 @@ export const api = {
     });
   },
 
+  updateApplicationStatus: async (
+    slug: string,
+    applicationId: string,
+    patch: { status: ApiProgramApplication["status"]; reviewNotes?: string | null },
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgramApplication }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramApplications } = await import("./mockProgramApplications");
+      const idx = mockProgramApplications.findIndex((a) => a.id === applicationId);
+      if (idx === -1) throw new ApiError("Application not found", 404);
+      const updated: ApiProgramApplication = {
+        ...mockProgramApplications[idx],
+        status: patch.status,
+        reviewedBy: "mock-admin",
+        reviewedAt: new Date().toISOString(),
+        reviewNotes: patch.reviewNotes ?? null,
+      };
+      mockProgramApplications[idx] = updated;
+      return { status: "success", data: updated };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/applications/${encodeURIComponent(applicationId)}`, {
+      method: "PATCH",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  },
+
   applyToProgram: async (
     slug: string,
     payload: { project_id: string; application_fields: Record<string, unknown> },
