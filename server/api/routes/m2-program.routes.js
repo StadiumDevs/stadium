@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import projectController from '../controllers/project.controller.js';
+import programController from '../controllers/program.controller.js';
 import requireAdmin, { requireTeamMemberOrAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -27,6 +28,9 @@ router.post('/:projectId/updates', requireTeamMemberOrAdmin, projectController.p
 // --- Phase 1 revamp: funding signal (#42) ---
 router.get('/:projectId/funding-signal', projectController.getFundingSignal);
 router.patch('/:projectId/funding-signal', requireTeamMemberOrAdmin, projectController.updateFundingSignal);
+
+// --- Phase 1 revamp: per-project application list (#43) ---
+router.get('/:projectId/applications', programController.listApplicationsForProject);
 
 // --- Admin M2 approval ---
 router.post('/:projectId/approve', requireAdmin, projectController.approveM2);

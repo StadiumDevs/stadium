@@ -40,7 +40,8 @@ const VALID_STATEMENTS = [
   "Reject project on Stadium",
   // Phase 1 revamp statements
   "Post an update on Stadium",
-  "Update funding signal on Stadium"
+  "Update funding signal on Stadium",
+  "Apply to program on Stadium"
 ];
 
 const EXPECTED_DOMAIN = process.env.EXPECTED_DOMAIN || 'localhost';
@@ -71,7 +72,9 @@ function validateSiwsStatement(statement) {
     // Phase 1 revamp: project updates (#41)
     /^Post an update to .+ on Stadium$/,
     // Phase 1 revamp: funding signal (#42)
-    /^Update funding signal for .+ on Stadium$/
+    /^Update funding signal for .+ on Stadium$/,
+    // Phase 1 revamp: apply project X to program Y (#44)
+    /^Apply project .+ to program .+ on Stadium$/
   ];
   
   return projectPatterns.some(pattern => pattern.test(statement));
@@ -309,6 +312,27 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     logError(`Database error while checking team membership: ${error.message}`);
     return res.status(500).json({ status: 'error', message: 'Internal server error during authorization' });
   }
+};
+
+/**
+ * Variant of requireTeamMemberOrAdmin that reads the project id from the
+ * request body instead of the URL param. Used by routes whose URL is keyed
+ * to a different resource (e.g. POST /api/programs/:slug/applications, where
+ * :slug identifies the program and body.project_id identifies the project).
+ *
+ * Reuses requireTeamMemberOrAdmin unchanged — it just sets req.params.projectId
+ * so the downstream logic works.
+ */
+export const requireTeamMemberOrAdminByBodyProject = async (req, res, next) => {
+  const projectId = req.body?.project_id;
+  if (!projectId || typeof projectId !== 'string') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'project_id is required in request body for this endpoint',
+    });
+  }
+  req.params = { ...req.params, projectId };
+  return requireTeamMemberOrAdmin(req, res, next);
 };
 
 export default requireAdmin;
