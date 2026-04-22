@@ -46,6 +46,7 @@ import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModa
 import { ProjectUpdatesTab } from "@/components/project/ProjectUpdatesTab";
 import { FundingSignalBadge } from "@/components/project/FundingSignalBadge";
 import { EditFundingSignalModal } from "@/components/project/EditFundingSignalModal";
+import { ProjectProgramsSection } from "@/components/project/ProjectProgramsSection";
 import type { ApiFundingSignal } from "@/lib/api";
 import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
@@ -1091,6 +1092,9 @@ const ProjectDetailsPage = () => {
                     )}
                   </div>
                 )}
+
+                {/* Programs section — Phase 1 revamp (#45) */}
+                <ProjectProgramsSection projectId={project.id} />
 
                 {/* Final Deliverables */}
                 {project.finalSubmission && (
