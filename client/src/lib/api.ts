@@ -125,6 +125,25 @@ export type ApiProject = {
   }>;
 };
 
+/** Shape of a row in the `programs` table (Phase 1 revamp). */
+export type ApiProgram = {
+  id: string;
+  name: string;
+  slug: string;
+  programType: "dogfooding" | "pitch_off" | "hackathon" | "m2_incubator";
+  description?: string | null;
+  status: "draft" | "open" | "closed" | "completed";
+  owner: string;
+  applicationsOpenAt?: string | null;
+  applicationsCloseAt?: string | null;
+  eventStartsAt?: string | null;
+  eventEndsAt?: string | null;
+  location?: string | null;
+  maxApplicants?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export const api = {
   submitEntry: async (data: unknown) => {
     if (USE_MOCK_DATA) {
@@ -623,6 +642,32 @@ export const api = {
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
+  },
+
+  /**
+   * Phase 1 revamp: programs (Dogfooding, M2, etc.). See
+   * docs/stadium-revamp-phase-1-spec.md §4.1.
+   */
+  listPrograms: async (params?: { status?: ApiProgram["status"] }): Promise<{ status: string; data: ApiProgram[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockPrograms } = await import("./mockPrograms");
+      const filtered = params?.status
+        ? mockPrograms.filter((p) => p.status === params.status)
+        : mockPrograms;
+      return { status: "success", data: filtered };
+    }
+    const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : "";
+    return request(`/programs${qs}`);
+  },
+
+  getProgramBySlug: async (slug: string): Promise<{ status: string; data: ApiProgram }> => {
+    if (USE_MOCK_DATA) {
+      const { mockPrograms } = await import("./mockPrograms");
+      const program = mockPrograms.find((p) => p.slug === slug);
+      if (!program) throw new ApiError("Program not found", 404);
+      return { status: "success", data: program };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}`);
   },
 };
 

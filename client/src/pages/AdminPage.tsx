@@ -42,6 +42,7 @@ import { SiwsMessage } from '@talismn/siws';
 import { generateSiwsStatement, type SiwsContext } from '@/lib/siwsUtils';
 import { M2ProjectsTable } from "@/components/admin/M2ProjectsTable";
 import { WinnersTable } from "@/components/admin/WinnersTable";
+import { ProgramsTable } from "@/components/admin/ProgramsTable";
 import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
 import { ConfirmM1PayoutModal } from "@/components/admin/ConfirmM1PayoutModal";
 import { TestPaymentModal } from "@/components/admin/TestPaymentModal";
@@ -898,10 +899,14 @@ const AdminPage = () => {
             </Select>
           </div>
         </div>
-        <M2ProjectsTable 
-          projects={sortedProjects || []} 
+        <M2ProjectsTable
+          projects={sortedProjects || []}
           onPaymentClick={handlePaymentClick}
         />
+      </section>
+
+      <section className="mb-8">
+        <ProgramsTable />
       </section>
 
       {/* M1 Payout Modal */}
