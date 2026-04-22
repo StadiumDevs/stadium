@@ -801,6 +801,69 @@ export const api = {
   },
 
   /**
+   * Phase 1 revamp: admin program management (Block F, issue #46).
+   */
+  createProgram: async (
+    payload: Partial<ApiProgram> & { name: string; slug: string; programType: ApiProgram["programType"]; status: ApiProgram["status"] },
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgram }> => {
+    if (USE_MOCK_DATA) {
+      const { mockPrograms } = await import("./mockPrograms");
+      if (mockPrograms.some((p) => p.slug === payload.slug)) {
+        throw new ApiError("A program with that slug already exists.", 409);
+      }
+      const created: ApiProgram = {
+        id: payload.id || `mock-${Date.now()}`,
+        owner: "webzero",
+        description: payload.description ?? null,
+        applicationsOpenAt: payload.applicationsOpenAt ?? null,
+        applicationsCloseAt: payload.applicationsCloseAt ?? null,
+        eventStartsAt: payload.eventStartsAt ?? null,
+        eventEndsAt: payload.eventEndsAt ?? null,
+        location: payload.location ?? null,
+        maxApplicants: payload.maxApplicants ?? null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...payload,
+      };
+      mockPrograms.unshift(created);
+      return { status: "success", data: created };
+    }
+    return request(`/programs`, {
+      method: "POST",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateProgram: async (
+    slug: string,
+    patch: Partial<ApiProgram>,
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgram }> => {
+    if (USE_MOCK_DATA) {
+      const { mockPrograms } = await import("./mockPrograms");
+      const idx = mockPrograms.findIndex((p) => p.slug === slug);
+      if (idx === -1) throw new ApiError("Program not found", 404);
+      if (patch.slug && patch.slug !== slug && mockPrograms.some((p) => p.slug === patch.slug)) {
+        throw new ApiError("A program with that slug already exists.", 409);
+      }
+      const merged = { ...mockPrograms[idx], ...patch, updatedAt: new Date().toISOString() };
+      mockPrograms[idx] = merged;
+      return { status: "success", data: merged };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  },
+
+  /**
    * Phase 1 revamp: program applications (Block D, issues #43–#44).
    */
 

@@ -2,6 +2,8 @@ import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
 import projectService from '../services/project.service.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
+import { validateProgram } from '../utils/validation.js';
+import { randomUUID } from 'node:crypto';
 
 class ProgramController {
   async list(req, res) {
@@ -29,6 +31,86 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error fetching program:', error);
       res.status(500).json({ status: 'error', message: 'Failed to fetch program' });
+    }
+  }
+
+  // --- Phase 1 revamp: admin create/edit (#46) ---
+
+  async createProgram(req, res) {
+    try {
+      const payload = req.body || {};
+      const { valid, error: validationError } = validateProgram(payload, { partial: false });
+      if (!valid) {
+        return res.status(422).json({ status: 'error', message: validationError });
+      }
+
+      // Slug uniqueness pre-check (DB also enforces UNIQUE)
+      const existing = await programService.findBySlug(payload.slug);
+      if (existing) {
+        return res.status(409).json({
+          status: 'error',
+          message: `A program with slug "${payload.slug}" already exists.`,
+          code: 'slug_conflict',
+        });
+      }
+
+      const created = await programService.create({
+        id: payload.id || randomUUID(),
+        owner: 'webzero',
+        ...payload,
+      });
+      res.status(201).json({ status: 'success', data: created });
+    } catch (error) {
+      if (error?.code === '23505') {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Slug conflict (race).',
+          code: 'slug_conflict',
+        });
+      }
+      console.error('❌ Error creating program:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to create program' });
+    }
+  }
+
+  async updateProgram(req, res) {
+    try {
+      const { slug } = req.params;
+      const patch = req.body || {};
+      const { valid, error: validationError } = validateProgram(patch, { partial: true });
+      if (!valid) {
+        return res.status(422).json({ status: 'error', message: validationError });
+      }
+
+      const existing = await programService.findBySlug(slug);
+      if (!existing) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+
+      // If the slug is being changed, enforce uniqueness.
+      if (patch.slug && patch.slug !== slug) {
+        const collision = await programService.findBySlug(patch.slug);
+        if (collision) {
+          return res.status(409).json({
+            status: 'error',
+            message: `A program with slug "${patch.slug}" already exists.`,
+            code: 'slug_conflict',
+          });
+        }
+      }
+
+      const updated = await programService.updateBySlug(slug, patch);
+      res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+      if (error?.code === '23505') {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Slug conflict (race).',
+          code: 'slug_conflict',
+        });
+      }
+      console.error('❌ Error updating program:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to update program' });
     }
   }
 
