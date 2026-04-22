@@ -59,3 +59,21 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/db.js`, `server/api/repositories/project.repository.js`, `server/scripts/*.js`, `server/models/*.js`
 - **Observed during**: repo cleanup pass (CLAUDE.md correction)
 - **Suggestion**: the API runs on Supabase while `server/scripts/` still use Mongo/Mongoose as an offline staging layer. This split is a footgun — future agents may reach for the wrong layer. Consider porting the remaining useful scripts (seed-dev, migration.js, fix-bounty-amounts, list-winners-zero-paid, set-live-urls, set-m2-final-submissions) to Supabase directly, then dropping `mongoose` and `server/models/`. Not urgent, but worth flagging before the next large refactor.
+
+## [2026-04-22] Add currency column to `bounty_prizes`
+- **Severity**: minor
+- **File(s)**: `supabase/migrations/*`, `server/api/repositories/project.repository.js`, `client/src/components/admin/WinnersTable.tsx`
+- **Observed during**: fixing issue #27 (Plata Mia bounty split). Source of truth in `server/migration-data/prizes-symbiosis-2025.csv` differentiates USDC vs xx-token bounties. The schema has no currency column, so xx-network-denominated bounties get stored as bare NUMERIC amounts and misread as USDC when totalled alongside real USDC rows.
+- **Suggestion**: add `bounty_prizes.currency` (CHECK `IN 'USDC','DOT','xx','other'`), backfill existing rows to `USDC` (the de-facto denomination today), update `transformProject` in the repository, and teach WinnersTable to render the currency per row. Not urgent — Phase 1 of the revamp explicitly defers this per the "additive only" principle. Revisit alongside issue #26.
+
+## [2026-04-22] WinnersTable.openManageModal reads only `bountyPrize[0]`
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/WinnersTable.tsx:186,211`
+- **Observed during**: fixing issue #27 (Plata Mia bounty split). After splitting her concatenated row into three, the table display renders all three (the component iterates, see line 547), but `openManageModal` prefills its state from `bountyPrize?.[0]` only — so the Manage modal loses access to bounties 2..N.
+- **Suggestion**: rework the Manage modal to either (a) let the admin pick which bounty row to edit, or (b) show all bounties in an editable list. Not urgent — affects admin UX only, on projects with multiple bounty rows (Plata Mia is currently the only such row once #27 lands). Log once Phase 1 rehearsal exposes whether this actually blocks anything operational.
+
+## [2026-04-22] Reconcile `server/scripts/` Supabase-vs-Mongo convention
+- **Severity**: minor
+- **File(s)**: `server/scripts/*.js`, `CLAUDE.md` §4
+- **Observed during**: writing `server/scripts/fix-plata-mia-bounties.js` for issue #27.
+- **Suggestion**: `CLAUDE.md` says `server/scripts/` is Mongo-only, but precedent for Supabase-touching scripts exists (`deploy-all.js` and the since-deleted `fix-bounty-amounts-supabase.js`). The rule is therefore already inaccurate. Either (a) update CLAUDE.md to acknowledge the mixed layer and specify when each is appropriate, or (b) move Supabase scripts into a sibling dir like `server/scripts/supabase/` and enforce the original rule. Paired with the existing "Flatten the Supabase↔Mongo dual data layer" entry above.
