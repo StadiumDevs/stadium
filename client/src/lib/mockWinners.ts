@@ -130,8 +130,18 @@ export const mockWinningProjects: MockApiProject[] = [
     ],
     "bountyPrize": [
       {
-        "name": "Polkadot main track, xx Network bounty, Hyperbridge bounty",
-        "amount": 2500,
+        "name": "IDEA-THON main track",
+        "amount": 4000,
+        "hackathonWonAtId": "symbiosis-2025"
+      },
+      {
+        "name": "Hyperbridge",
+        "amount": 500,
+        "hackathonWonAtId": "symbiosis-2025"
+      },
+      {
+        "name": "xx Network",
+        "amount": 1000,
         "hackathonWonAtId": "symbiosis-2025"
       }
     ],
