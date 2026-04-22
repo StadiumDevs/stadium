@@ -1286,9 +1286,14 @@ const ProjectDetailsPage = () => {
                 />
               </TabsContent>
 
-              {/* Updates Tab — Phase 1 revamp #40 */}
+              {/* Updates Tab — Phase 1 revamp #40 / #41 */}
               <TabsContent value="updates" className="space-y-6 mt-6">
-                <ProjectUpdatesTab projectId={project.id} />
+                <ProjectUpdatesTab
+                  projectId={project.id}
+                  projectTitle={project.projectName}
+                  canPost={(isTeamMember || isAdmin) && Boolean(connectedAddress)}
+                  connectedAddress={connectedAddress || undefined}
+                />
               </TabsContent>
             </Tabs>
 
