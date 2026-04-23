@@ -144,6 +144,16 @@ export type ApiProgram = {
   updatedAt?: string;
 };
 
+/** Shape of a row in `project_updates` (Phase 1 revamp, #39). */
+export type ApiProjectUpdate = {
+  id: string;
+  projectId: string;
+  body: string;
+  linkUrl?: string | null;
+  createdBy: string;
+  createdAt: string;
+};
+
 export const api = {
   submitEntry: async (data: unknown) => {
     if (USE_MOCK_DATA) {
@@ -668,6 +678,47 @@ export const api = {
       return { status: "success", data: program };
     }
     return request(`/programs/${encodeURIComponent(slug)}`);
+  },
+
+  /**
+   * Phase 1 revamp: project updates (Block B, issues #39–#41).
+   */
+  getProjectUpdates: async (projectId: string): Promise<{ status: string; data: ApiProjectUpdate[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProjectUpdates } = await import("./mockProjectUpdates");
+      const filtered = mockProjectUpdates
+        .filter((u) => u.projectId === projectId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return { status: "success", data: filtered };
+    }
+    return request(`/m2-program/${encodeURIComponent(projectId)}/updates`);
+  },
+
+  postProjectUpdate: async (
+    projectId: string,
+    payload: { body: string; linkUrl?: string | null },
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProjectUpdate }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProjectUpdates } = await import("./mockProjectUpdates");
+      const created: ApiProjectUpdate = {
+        id: `upd-mock-${Date.now()}`,
+        projectId,
+        body: payload.body.trim(),
+        linkUrl: payload.linkUrl ? payload.linkUrl.trim() : null,
+        createdBy: "mock-wallet",
+        createdAt: new Date().toISOString(),
+      };
+      mockProjectUpdates.unshift(created);
+      return { status: "success", data: created };
+    }
+    return request(`/m2-program/${encodeURIComponent(projectId)}/updates`, {
+      method: "POST",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   },
 };
 

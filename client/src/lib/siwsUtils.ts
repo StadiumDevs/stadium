@@ -3,7 +3,7 @@
  */
 
 export interface SiwsContext {
-  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project';
+  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project' | 'post-update';
   projectId?: string;
   projectTitle?: string;
   additionalContext?: string;
@@ -42,10 +42,14 @@ export function generateSiwsStatement(context: SiwsContext): string {
     
     case 'register-address':
       return `Register team address for ${baseDomain}`;
-    
+
     case 'admin-action':
       return `Perform administrative action on ${baseDomain}`;
-    
+
+    // Phase 1 revamp (#41): project updates
+    case 'post-update':
+      return `Post an update to ${context.projectTitle || 'project'} on ${baseDomain}`;
+
     default:
       return `Sign in to ${baseDomain}`;
   }

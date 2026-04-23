@@ -20,6 +20,10 @@ router.patch('/:projectId/m2-agreement', requireTeamMemberOrAdmin, projectContro
 router.patch('/:projectId/payout-address', requireTeamMemberOrAdmin, projectController.updatePayoutAddress);
 router.post('/:projectId/submit-m2', requireTeamMemberOrAdmin, projectController.submitM2Deliverables);
 
+// --- Phase 1 revamp: project updates (#39) ---
+router.get('/:projectId/updates', projectController.getProjectUpdates);
+router.post('/:projectId/updates', requireTeamMemberOrAdmin, projectController.postProjectUpdate);
+
 // --- Admin M2 approval ---
 router.post('/:projectId/approve', requireAdmin, projectController.approveM2);
 
