@@ -23,6 +23,25 @@ class ProjectController {
         }
     }
 
+    /**
+     * Phase 1 revamp (#44): projects where a given wallet is a team member.
+     * Ordered by updated_at DESC so the Apply modal's default selection is
+     * the most-recently-updated project.
+     */
+    async getProjectsByTeamWallet(req, res) {
+        try {
+            const { address } = req.params;
+            if (!address || typeof address !== 'string') {
+                return res.status(400).json({ status: 'error', message: 'Address is required' });
+            }
+            const projects = await projectService.findByTeamWallet(address);
+            res.status(200).json({ status: 'success', data: projects });
+        } catch (error) {
+            console.error('❌ Error fetching projects by wallet:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to fetch projects for wallet' });
+        }
+    }
+
     async createProject(req, res) {
         try {
             const projectData = req.body || {};

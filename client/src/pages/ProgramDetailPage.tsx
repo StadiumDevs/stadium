@@ -1,11 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Loader2, Wallet } from "lucide-react";
-import { api, type ApiProgram, ApiError } from "@/lib/api";
+import { Calendar, MapPin, Loader2, Wallet, CheckCircle2 } from "lucide-react";
+import { web3Enable, web3Accounts } from "@polkadot/extension-dapp";
+import {
+  api,
+  type ApiProgram,
+  type ApiProject,
+  type ApiProgramApplication,
+  ApiError,
+} from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
   if (!from && !to) return null;
@@ -37,10 +46,19 @@ const programTypeLabel = (t?: ApiProgram["programType"]) => {
 
 const ProgramDetailPage = () => {
   const { slug } = useParams<{ slug: string }>();
+  const { toast } = useToast();
+
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Wallet + my projects state
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [myProjects, setMyProjects] = useState<ApiProject[]>([]);
+  const [myApplications, setMyApplications] = useState<ApiProgramApplication[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -69,11 +87,133 @@ const ProgramDetailPage = () => {
     };
   }, [slug]);
 
+  // Load the wallet's projects whenever the connected address changes.
+  useEffect(() => {
+    if (!connectedAddress) {
+      setMyProjects([]);
+      return;
+    }
+    let active = true;
+    api
+      .getProjectsByTeamWallet(connectedAddress)
+      .then((r) => {
+        if (active) setMyProjects(r.data);
+      })
+      .catch(() => {
+        if (active) setMyProjects([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [connectedAddress]);
+
+  // Load applications this wallet's projects already submitted to THIS program.
+  useEffect(() => {
+    if (!program || myProjects.length === 0) {
+      setMyApplications([]);
+      return;
+    }
+    let active = true;
+    Promise.all(myProjects.map((p) => api.getApplicationsForProject(p.id).catch(() => null)))
+      .then((results) => {
+        if (!active) return;
+        const flat: ApiProgramApplication[] = [];
+        for (const r of results) {
+          if (r?.data) flat.push(...r.data);
+        }
+        setMyApplications(flat.filter((a) => a.programId === program.id));
+      });
+    return () => {
+      active = false;
+    };
+  }, [program, myProjects]);
+
+  const existingApplication = useMemo(() => myApplications[0] || null, [myApplications]);
+
+  const connectWallet = async () => {
+    setConnecting(true);
+    try {
+      await web3Enable("Stadium");
+      const accounts = await web3Accounts();
+      if (accounts.length === 0) {
+        toast({
+          title: "No wallet account found",
+          description: "Install Polkadot-JS or Talisman and create an account first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setConnectedAddress(accounts[0].address);
+    } catch (e) {
+      const err = e as Error;
+      toast({
+        title: "Couldn't connect wallet",
+        description: err?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleApplied = (app: ApiProgramApplication) => {
+    setMyApplications((prev) => [app, ...prev]);
+  };
+
   const applicationsRange = formatDateRange(
     program?.applicationsOpenAt,
     program?.applicationsCloseAt,
   );
   const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt);
+
+  const renderApplyCta = () => {
+    if (!program) return null;
+
+    if (program.status !== "open") {
+      return (
+        <Button disabled className="gap-2">
+          Applications closed
+        </Button>
+      );
+    }
+
+    if (existingApplication) {
+      return (
+        <div className="inline-flex items-center gap-2 rounded-md border bg-muted px-3 py-2 text-sm">
+          <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
+          Applied — status: <Badge variant="secondary">{existingApplication.status}</Badge>
+        </div>
+      );
+    }
+
+    if (!connectedAddress) {
+      return (
+        <Button onClick={connectWallet} disabled={connecting} className="gap-2">
+          <Wallet className="h-4 w-4" aria-hidden="true" />
+          {connecting ? "Connecting…" : "Sign in with wallet to apply"}
+        </Button>
+      );
+    }
+
+    if (myProjects.length === 0) {
+      return (
+        <div className="space-y-1">
+          <Button disabled className="gap-2">
+            Apply
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            You need to be a team member on a Stadium project to apply.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <Button onClick={() => setModalOpen(true)} className="gap-2">
+        Apply with my project
+      </Button>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,19 +288,24 @@ const ProgramDetailPage = () => {
             </Card>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {/*
-                Apply CTA is disabled for unauthenticated visitors. The wallet-
-                connected / team-member flow lands in #44 (Issue 9). Until then
-                it's a read-only signal that an apply path exists.
-              */}
-              <Button disabled className="gap-2">
-                <Wallet className="h-4 w-4" aria-hidden="true" />
-                Sign in with wallet to apply
-              </Button>
-              <p className="text-xs text-muted-foreground sm:ml-2">
-                Applications open to past WebZero winners who are on a Stadium project team.
-              </p>
+              {renderApplyCta()}
+              {!existingApplication && program.status === "open" && (
+                <p className="text-xs text-muted-foreground sm:ml-2">
+                  Applications open to past WebZero winners who are on a Stadium project team.
+                </p>
+              )}
             </div>
+
+            {connectedAddress && myProjects.length > 0 && (
+              <ApplyToProgramModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                program={program}
+                projects={myProjects}
+                connectedAddress={connectedAddress}
+                onApplied={handleApplied}
+              />
+            )}
           </article>
         ) : null}
       </main>

@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import projectController from '../controllers/project.controller.js';
+import programController from '../controllers/program.controller.js';
 import requireAdmin, { requireTeamMemberOrAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
 // --- Public, Read-Only Routes ---
 router.get('/', projectController.getAllProjects);
+// Phase 1 revamp (#44): projects a given wallet is on the team of.
+// MUST be declared before /:projectId so the path doesn't collide with it.
+router.get('/by-team/:address', projectController.getProjectsByTeamWallet);
 router.get('/:projectId', projectController.getProjectById);
 
 // --- Admin-Only, Write Routes ---
@@ -27,6 +31,9 @@ router.post('/:projectId/updates', requireTeamMemberOrAdmin, projectController.p
 // --- Phase 1 revamp: funding signal (#42) ---
 router.get('/:projectId/funding-signal', projectController.getFundingSignal);
 router.patch('/:projectId/funding-signal', requireTeamMemberOrAdmin, projectController.updateFundingSignal);
+
+// --- Phase 1 revamp: per-project application list (#43) ---
+router.get('/:projectId/applications', programController.listApplicationsForProject);
 
 // --- Admin M2 approval ---
 router.post('/:projectId/approve', requireAdmin, projectController.approveM2);

@@ -137,6 +137,20 @@ export type ApiFundingSignal = {
   updatedAt?: string | null;
 };
 
+/** Shape of a row in `program_applications` (Phase 1 revamp, #43). */
+export type ApiProgramApplication = {
+  id: string;
+  programId: string;
+  projectId: string;
+  status: "submitted" | "accepted" | "rejected" | "withdrawn";
+  applicationFields: Record<string, unknown>;
+  submittedBy: string;
+  submittedAt: string;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  reviewNotes?: string | null;
+};
+
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
 export type ApiProgram = {
   id: string;
@@ -779,6 +793,103 @@ export const api = {
     }
     return request(`/m2-program/${encodeURIComponent(projectId)}/funding-signal`, {
       method: "PATCH",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Phase 1 revamp: program applications (Block D, issues #43–#44).
+   */
+
+  /** List projects where the given wallet is a team member. */
+  getProjectsByTeamWallet: async (address: string): Promise<{ status: string; data: ApiProject[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockWinningProjects } = await import("./mockWinners");
+      const matches = mockWinningProjects
+        .filter((p) =>
+          (p.teamMembers || []).some((m) => m.walletAddress && m.walletAddress === address),
+        )
+        .sort((a, b) => {
+          const ua = a.updatedAt || "";
+          const ub = b.updatedAt || "";
+          return ub.localeCompare(ua);
+        });
+      return { status: "success", data: matches as unknown as ApiProject[] };
+    }
+    return request(`/m2-program/by-team/${encodeURIComponent(address)}`);
+  },
+
+  /** List all applications a given project has submitted. */
+  getApplicationsForProject: async (
+    projectId: string,
+  ): Promise<{ status: string; data: ApiProgramApplication[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramApplications } = await import("./mockProgramApplications");
+      return {
+        status: "success",
+        data: mockProgramApplications.filter((a) => a.projectId === projectId),
+      };
+    }
+    return request(`/m2-program/${encodeURIComponent(projectId)}/applications`);
+  },
+
+  /** Admin-only: list all applications for a program. */
+  listProgramApplications: async (
+    slug: string,
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgramApplication[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramApplications } = await import("./mockProgramApplications");
+      const { mockPrograms } = await import("./mockPrograms");
+      const program = mockPrograms.find((p) => p.slug === slug);
+      if (!program) return { status: "success", data: [] };
+      return {
+        status: "success",
+        data: mockProgramApplications.filter((a) => a.programId === program.id),
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/applications`, {
+      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : undefined,
+    });
+  },
+
+  applyToProgram: async (
+    slug: string,
+    payload: { project_id: string; application_fields: Record<string, unknown> },
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgramApplication }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramApplications } = await import("./mockProgramApplications");
+      const { mockPrograms } = await import("./mockPrograms");
+      const program = mockPrograms.find((p) => p.slug === slug);
+      if (!program) throw new ApiError("Program not found", 404);
+      if (
+        mockProgramApplications.some(
+          (a) => a.programId === program.id && a.projectId === payload.project_id,
+        )
+      ) {
+        throw new ApiError("This project has already applied to this program.", 409);
+      }
+      const created: ApiProgramApplication = {
+        id: `app-mock-${Date.now()}`,
+        programId: program.id,
+        projectId: payload.project_id,
+        status: "submitted",
+        applicationFields: payload.application_fields,
+        submittedBy: "mock-wallet",
+        submittedAt: new Date().toISOString(),
+        reviewedBy: null,
+        reviewedAt: null,
+        reviewNotes: null,
+      };
+      mockProgramApplications.unshift(created);
+      return { status: "success", data: created };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/applications`, {
+      method: "POST",
       headers: authHeader
         ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
         : { "Content-Type": "application/json" },
