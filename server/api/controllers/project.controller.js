@@ -1,7 +1,9 @@
 import projectService from '../services/project.service.js';
+import projectUpdateService from '../services/project-update.service.js';
+import fundingSignalService from '../services/funding-signal.service.js';
 import paymentService from '../services/payment.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
-import { validateSS58, validateM2Submission, validateSimpleUrl } from '../utils/validation.js';
+import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
@@ -18,6 +20,25 @@ class ProjectController {
         } catch (error) {
             console.error("❌ Error fetching project:", error);
             res.status(500).json({ status: "error", message: "Server error" });
+        }
+    }
+
+    /**
+     * Phase 1 revamp (#44): projects where a given wallet is a team member.
+     * Ordered by updated_at DESC so the Apply modal's default selection is
+     * the most-recently-updated project.
+     */
+    async getProjectsByTeamWallet(req, res) {
+        try {
+            const { address } = req.params;
+            if (!address || typeof address !== 'string') {
+                return res.status(400).json({ status: 'error', message: 'Address is required' });
+            }
+            const projects = await projectService.findByTeamWallet(address);
+            res.status(200).json({ status: 'success', data: projects });
+        } catch (error) {
+            console.error('❌ Error fetching projects by wallet:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to fetch projects for wallet' });
         }
     }
 
@@ -537,6 +558,120 @@ class ProjectController {
                 error: 'Test payment failed',
                 details: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
+        }
+    }
+
+    // --- Phase 1 revamp: project updates (#39) ---
+
+    async getProjectUpdates(req, res) {
+        try {
+            const { projectId } = req.params;
+            // Ensure the project exists — avoid revealing non-existent IDs via empty arrays.
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+            const updates = await projectUpdateService.listByProject(projectId);
+            res.status(200).json({ status: 'success', data: updates });
+        } catch (error) {
+            console.error('❌ Error fetching project updates:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to fetch project updates' });
+        }
+    }
+
+    async postProjectUpdate(req, res) {
+        try {
+            const { projectId } = req.params;
+            const raw = req.body || {};
+            const body = typeof raw.body === 'string' ? raw.body.trim() : raw.body;
+            const linkUrl = typeof raw.linkUrl === 'string' ? raw.linkUrl.trim() : raw.linkUrl;
+
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+
+            const { valid, error: validationError } = validateProjectUpdate({ body, linkUrl });
+            if (!valid) {
+                return res.status(422).json({ status: 'error', message: validationError });
+            }
+
+            const createdBy = req.user?.address || req.auth?.address || 'unknown';
+            const created = await projectUpdateService.create({
+                projectId,
+                body,
+                linkUrl: linkUrl || null,
+                createdBy,
+            });
+
+            res.status(201).json({ status: 'success', data: created });
+        } catch (error) {
+            console.error('❌ Error posting project update:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to post project update' });
+        }
+    }
+
+    // --- Phase 1 revamp: funding signal (#42) ---
+
+    async getFundingSignal(req, res) {
+        try {
+            const { projectId } = req.params;
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+            const signal = await fundingSignalService.getByProject(projectId);
+            // Return a default shape when no row exists so the client UI is consistent.
+            const payload = signal || {
+                projectId,
+                isSeeking: false,
+                fundingType: null,
+                amountRange: null,
+                description: null,
+                updatedBy: null,
+                updatedAt: null,
+            };
+            res.status(200).json({ status: 'success', data: payload });
+        } catch (error) {
+            console.error('❌ Error fetching funding signal:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to fetch funding signal' });
+        }
+    }
+
+    async updateFundingSignal(req, res) {
+        try {
+            const { projectId } = req.params;
+            const raw = req.body || {};
+            const payload = {
+                isSeeking: Boolean(raw.isSeeking),
+                fundingType: typeof raw.fundingType === 'string' ? raw.fundingType.trim() : raw.fundingType,
+                amountRange: typeof raw.amountRange === 'string' ? raw.amountRange.trim() : raw.amountRange,
+                description: typeof raw.description === 'string' ? raw.description.trim() : raw.description,
+            };
+
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+
+            const { valid, error: validationError } = validateFundingSignal(payload);
+            if (!valid) {
+                return res.status(422).json({ status: 'error', message: validationError });
+            }
+
+            const updatedBy = req.user?.address || req.auth?.address || 'unknown';
+            const updated = await fundingSignalService.upsert({
+                projectId,
+                isSeeking: payload.isSeeking,
+                fundingType: payload.fundingType || null,
+                amountRange: payload.amountRange || null,
+                description: payload.description || null,
+                updatedBy,
+            });
+            res.status(200).json({ status: 'success', data: updated });
+        } catch (error) {
+            console.error('❌ Error updating funding signal:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to update funding signal' });
         }
     }
 }

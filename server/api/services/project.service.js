@@ -5,6 +5,10 @@ class ProjectService {
         return await projectRepository.getProjectById(projectId);
     }
 
+    async findByTeamWallet(walletAddress) {
+        return await projectRepository.findByTeamWallet(walletAddress);
+    }
+
     async createProject(projectData) {
         return await projectRepository.createProject(projectData);
     }

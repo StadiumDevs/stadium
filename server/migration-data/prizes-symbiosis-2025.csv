@@ -1,0 +1,19 @@
+hackathon_id,project,track,total_prize_amount,currency,notes
+symbiosis-2025,Obra Clara,IDEA-THON,4000,USDC,
+symbiosis-2025,Plata Mia,IDEA-THON,4000,USDC,
+symbiosis-2025,Open Arkiv,SHIP-A-THON,4000,USDC,
+symbiosis-2025,Kleo Protocol,SHIP-A-THON,4000,USDC,
+symbiosis-2025,Infinite conspiracy,Kusama,3000,USDC,
+symbiosis-2025,Unblind for Polkadot,Kusama,1500,USDC,
+symbiosis-2025,Chiri App,Kusama,500,USDC,
+symbiosis-2025,Plata Mia,Hyperbridge,500,USDC,
+symbiosis-2025,Siphon Protocol,Hyperbridge,1500,USDC,"Project stored in Supabase as 'Siphon Protocol' (not 'Siphon')."
+symbiosis-2025,Right of the DOTty,Marketing 1,750,USDC,
+symbiosis-2025,Khoj,Marketing 1,750,USDC,
+symbiosis-2025,Pointillism,Marketing 2,750,USDC,
+symbiosis-2025,Connected by the Dots,Marketing 2,750,USDC,
+symbiosis-2025,Crypto Therapy | Polkadot,Marketing 2,500,USDC,
+symbiosis-2025,Carbon Smart Meter,xx Network,250,xx,"250 USD value denominated in xx tokens"
+symbiosis-2025,The People's Vote,xx Network,3000,xx,"3,000 USD value denominated in xx tokens"
+symbiosis-2025,GhostMesh,xx Network,2000,xx,"2,000 USD value denominated in xx tokens"
+symbiosis-2025,Plata Mia,xx Network,1000,xx,"1,000 USD value denominated in xx tokens"

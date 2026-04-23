@@ -28,3 +28,6 @@ yarn-error.log*
 
 /migration-data/*
 !/migration-data/.gitkeep
+!/migration-data/README.md
+!/migration-data/prizes-symbiosis-2025.csv
+!/migration-data/prizes-symbiosis-2025.source.png
