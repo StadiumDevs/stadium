@@ -231,3 +231,44 @@ export const validateProjectUpdate = (data) => {
   return { valid: true };
 };
 
+/**
+ * Validate funding-signal payload (Phase 1 revamp, #42).
+ * @param {Object} data - { isSeeking, fundingType?, amountRange?, description? }
+ * @returns {Object} - { valid: boolean, error: string }
+ */
+export const ALLOWED_FUNDING_TYPES = ['grant', 'bounty', 'pre_seed', 'seed', 'other'];
+
+export const validateFundingSignal = (data) => {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: 'Funding signal payload must be an object' };
+  }
+  const { isSeeking, fundingType, amountRange, description } = data;
+
+  if (typeof isSeeking !== 'boolean') {
+    return { valid: false, error: 'isSeeking is required and must be a boolean' };
+  }
+
+  if (fundingType !== undefined && fundingType !== null && fundingType !== '') {
+    if (!ALLOWED_FUNDING_TYPES.includes(fundingType)) {
+      return {
+        valid: false,
+        error: `fundingType must be one of: ${ALLOWED_FUNDING_TYPES.join(', ')}`,
+      };
+    }
+  }
+
+  if (amountRange !== undefined && amountRange !== null) {
+    if (typeof amountRange !== 'string' || amountRange.length > 100) {
+      return { valid: false, error: 'amountRange must be a string (max 100 characters)' };
+    }
+  }
+
+  if (description !== undefined && description !== null && description !== '') {
+    if (typeof description !== 'string' || description.length > 500) {
+      return { valid: false, error: 'description must be a string with 500 characters or fewer' };
+    }
+  }
+
+  return { valid: true };
+};
+

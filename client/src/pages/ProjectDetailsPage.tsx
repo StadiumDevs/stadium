@@ -44,6 +44,9 @@ import { TeamPaymentSection } from "@/components/TeamPaymentSection";
 import { M2SubmissionTimeline } from "@/components/M2SubmissionTimeline";
 import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModal";
 import { ProjectUpdatesTab } from "@/components/project/ProjectUpdatesTab";
+import { FundingSignalBadge } from "@/components/project/FundingSignalBadge";
+import { EditFundingSignalModal } from "@/components/project/EditFundingSignalModal";
+import type { ApiFundingSignal } from "@/lib/api";
 import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
 import { addressInList } from "@/lib/addressUtils";
@@ -170,6 +173,9 @@ const ProjectDetailsPage = () => {
   const [isSubmitM2ModalOpen, setIsSubmitM2ModalOpen] = useState(false);
   const [isEditProjectDetailsOpen, setIsEditProjectDetailsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  // Phase 1 revamp (#42): funding signal
+  const [fundingSignal, setFundingSignal] = useState<ApiFundingSignal | null>(null);
+  const [fundingModalOpen, setFundingModalOpen] = useState(false);
 
   // Format date utility
   const formatDate = (dateString?: string | Date) => {
@@ -321,6 +327,23 @@ const ProjectDetailsPage = () => {
 
   useEffect(() => {
     fetchProject();
+  }, [id]);
+
+  // Phase 1 revamp (#42): fetch the funding signal alongside the project.
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    api
+      .getFundingSignal(id)
+      .then((r) => {
+        if (active) setFundingSignal(r.data);
+      })
+      .catch(() => {
+        // Funding signal is a progressive enhancement; don't break the page on failure.
+      });
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   // Start editing
@@ -1051,6 +1074,24 @@ const ProjectDetailsPage = () => {
 
               {/* Overview Tab */}
               <TabsContent value="overview" className="space-y-6 mt-6">
+                {/* Funding signal — Phase 1 revamp (#42) */}
+                {(fundingSignal?.isSeeking || (isTeamMember || isAdmin)) && (
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <FundingSignalBadge signal={fundingSignal} />
+                    {(isTeamMember || isAdmin) && connectedAddress && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFundingModalOpen(true)}
+                        className="gap-2"
+                      >
+                        <Edit className="h-3.5 w-3.5" aria-hidden="true" />
+                        {fundingSignal?.isSeeking ? "Edit funding signal" : "Set funding signal"}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 {/* Final Deliverables */}
                 {project.finalSubmission && (
                   <Card>
@@ -1442,6 +1483,19 @@ const ProjectDetailsPage = () => {
             }}
             onSave={handleProjectDetailsUpdate}
           />
+
+          {/* Edit Funding Signal Modal — Phase 1 revamp (#42) */}
+          {(isTeamMember || isAdmin) && connectedAddress && (
+            <EditFundingSignalModal
+              open={fundingModalOpen}
+              onOpenChange={setFundingModalOpen}
+              projectId={project.id}
+              projectTitle={project.projectName}
+              connectedAddress={connectedAddress}
+              current={fundingSignal}
+              onSaved={setFundingSignal}
+            />
+          )}
         </>
       )}
     </div>

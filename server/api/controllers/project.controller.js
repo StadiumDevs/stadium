@@ -1,8 +1,9 @@
 import projectService from '../services/project.service.js';
 import projectUpdateService from '../services/project-update.service.js';
+import fundingSignalService from '../services/funding-signal.service.js';
 import paymentService from '../services/payment.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
-import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate } from '../utils/validation.js';
+import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
@@ -588,6 +589,70 @@ class ProjectController {
         } catch (error) {
             console.error('❌ Error posting project update:', error);
             res.status(500).json({ status: 'error', message: 'Failed to post project update' });
+        }
+    }
+
+    // --- Phase 1 revamp: funding signal (#42) ---
+
+    async getFundingSignal(req, res) {
+        try {
+            const { projectId } = req.params;
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+            const signal = await fundingSignalService.getByProject(projectId);
+            // Return a default shape when no row exists so the client UI is consistent.
+            const payload = signal || {
+                projectId,
+                isSeeking: false,
+                fundingType: null,
+                amountRange: null,
+                description: null,
+                updatedBy: null,
+                updatedAt: null,
+            };
+            res.status(200).json({ status: 'success', data: payload });
+        } catch (error) {
+            console.error('❌ Error fetching funding signal:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to fetch funding signal' });
+        }
+    }
+
+    async updateFundingSignal(req, res) {
+        try {
+            const { projectId } = req.params;
+            const raw = req.body || {};
+            const payload = {
+                isSeeking: Boolean(raw.isSeeking),
+                fundingType: typeof raw.fundingType === 'string' ? raw.fundingType.trim() : raw.fundingType,
+                amountRange: typeof raw.amountRange === 'string' ? raw.amountRange.trim() : raw.amountRange,
+                description: typeof raw.description === 'string' ? raw.description.trim() : raw.description,
+            };
+
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+
+            const { valid, error: validationError } = validateFundingSignal(payload);
+            if (!valid) {
+                return res.status(422).json({ status: 'error', message: validationError });
+            }
+
+            const updatedBy = req.user?.address || req.auth?.address || 'unknown';
+            const updated = await fundingSignalService.upsert({
+                projectId,
+                isSeeking: payload.isSeeking,
+                fundingType: payload.fundingType || null,
+                amountRange: payload.amountRange || null,
+                description: payload.description || null,
+                updatedBy,
+            });
+            res.status(200).json({ status: 'success', data: updated });
+        } catch (error) {
+            console.error('❌ Error updating funding signal:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to update funding signal' });
         }
     }
 }
