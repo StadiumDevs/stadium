@@ -13,6 +13,14 @@ class ProgramService {
   async findBySlug(slug) {
     return await programRepository.findBySlug(slug);
   }
+
+  async create(payload) {
+    return await programRepository.create(payload);
+  }
+
+  async updateBySlug(slug, patch) {
+    return await programRepository.updateBySlug(slug, patch);
+  }
 }
 
 export default new ProgramService();

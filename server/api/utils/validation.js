@@ -272,3 +272,83 @@ export const validateFundingSignal = (data) => {
   return { valid: true };
 };
 
+/**
+ * Validate program payload (Phase 1 revamp, #46).
+ * @param {Object} data
+ * @param {Object} opts - { partial: boolean } — PATCH payloads only include changed fields.
+ * @returns {Object} - { valid: boolean, error: string }
+ */
+export const ALLOWED_PROGRAM_TYPES = ['dogfooding', 'pitch_off', 'hackathon', 'm2_incubator'];
+export const ALLOWED_PROGRAM_STATUSES = ['draft', 'open', 'closed', 'completed'];
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export const validateProgram = (data, { partial = false } = {}) => {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: 'Program payload must be an object' };
+  }
+  const has = (k) => Object.prototype.hasOwnProperty.call(data, k);
+
+  if (!partial || has('name')) {
+    if (typeof data.name !== 'string' || !validateLength(data.name, 1, 200)) {
+      return { valid: false, error: 'name is required (1–200 characters)' };
+    }
+  }
+  if (!partial || has('slug')) {
+    if (typeof data.slug !== 'string' || !SLUG_RE.test(data.slug) || data.slug.length > 100) {
+      return { valid: false, error: 'slug must be kebab-case (a-z, 0-9, hyphens), 1–100 characters' };
+    }
+  }
+  if (!partial || has('programType')) {
+    if (!ALLOWED_PROGRAM_TYPES.includes(data.programType)) {
+      return { valid: false, error: `programType must be one of: ${ALLOWED_PROGRAM_TYPES.join(', ')}` };
+    }
+  }
+  if (!partial || has('status')) {
+    if (!ALLOWED_PROGRAM_STATUSES.includes(data.status)) {
+      return { valid: false, error: `status must be one of: ${ALLOWED_PROGRAM_STATUSES.join(', ')}` };
+    }
+  }
+
+  if (has('description') && data.description !== null) {
+    if (typeof data.description !== 'string' || data.description.length > 4000) {
+      return { valid: false, error: 'description must be a string (max 4000 characters)' };
+    }
+  }
+  if (has('location') && data.location !== null) {
+    if (typeof data.location !== 'string' || data.location.length > 200) {
+      return { valid: false, error: 'location must be a string (max 200 characters)' };
+    }
+  }
+  if (has('maxApplicants') && data.maxApplicants !== null) {
+    const n = Number(data.maxApplicants);
+    if (!Number.isInteger(n) || n < 1) {
+      return { valid: false, error: 'maxApplicants must be a positive integer' };
+    }
+  }
+
+  const isoOrNull = (val) => {
+    if (val === null || val === undefined || val === '') return true;
+    if (typeof val !== 'string') return false;
+    const d = new Date(val);
+    return !Number.isNaN(d.getTime());
+  };
+  for (const key of ['applicationsOpenAt', 'applicationsCloseAt', 'eventStartsAt', 'eventEndsAt']) {
+    if (has(key) && !isoOrNull(data[key])) {
+      return { valid: false, error: `${key} must be a valid ISO date string or null` };
+    }
+  }
+
+  if (has('applicationsOpenAt') && has('applicationsCloseAt') && data.applicationsOpenAt && data.applicationsCloseAt) {
+    if (new Date(data.applicationsOpenAt).getTime() >= new Date(data.applicationsCloseAt).getTime()) {
+      return { valid: false, error: 'applicationsOpenAt must be strictly before applicationsCloseAt' };
+    }
+  }
+  if (has('eventStartsAt') && has('eventEndsAt') && data.eventStartsAt && data.eventEndsAt) {
+    if (new Date(data.eventStartsAt).getTime() > new Date(data.eventEndsAt).getTime()) {
+      return { valid: false, error: 'eventStartsAt must be on or before eventEndsAt' };
+    }
+  }
+
+  return { valid: true };
+};
+
