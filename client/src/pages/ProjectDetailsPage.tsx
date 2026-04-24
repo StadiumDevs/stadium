@@ -63,7 +63,7 @@ function ensureSubmissionUrl(url: string): string {
 
 /** Renders summary text with bullet lines as a proper list */
 function SummaryWithBullets({ text }: { text: string }) {
-  const bulletPattern = /^[\-\•\*·]\s+/;
+  const bulletPattern = /^[-•*·]\s+/;
   const lines = text.split("\n");
   return (
     <ul className="list-disc pl-4 space-y-1 text-sm text-muted-foreground leading-relaxed">
@@ -328,6 +328,9 @@ const ProjectDetailsPage = () => {
 
   useEffect(() => {
     fetchProject();
+    // Adding `fetchProject` to deps would cause a fetch loop — it's redefined
+    // on every render. The effect is intentionally keyed on the route param.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Phase 1 revamp (#42): fetch the funding signal alongside the project.

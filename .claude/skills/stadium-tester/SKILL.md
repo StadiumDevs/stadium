@@ -20,9 +20,23 @@ If either is missing, stop and ask. Do not invent scenarios.
 
 - **Never run against production.** Refuse if the target matches `stadium.joinwebzero.com` or `stadium-production-*.up.railway.app`. The runner script enforces this too — exit code `3` means it tripped that guard.
 - **Mock-mode required on remote targets.** On any non-`localhost` URL, the first test must assert `window.__STADIUM_MOCK__ === true`. If false, fail the entire run with a `mock-mode-not-enabled` reason and stop.
-- **SIWS-gated flows are out of scope.** Any scenario whose action requires a Polkadot wallet signature → mark `SKIPPED (needs-auth-harness)` and continue. Don't try to mock the wallet.
+- **SIWS-gated flows need the test-wallet harness.** A scenario whose action requires a Polkadot wallet signature only runs when the target URL was built with `VITE_USE_TEST_WALLET=true` (see below). If that flag isn't active, mark the scenario `SKIPPED (needs-auth-harness)` and continue. Don't hand-roll a wallet mock.
 - **No destructive admin actions even in mock mode.** `confirmPayment`, `markAllAsPaid`, etc. are SKIPPED until we have an explicit safe path.
 - **No code outside `/tmp`.** Per-run spec files go in `/tmp`, never under `client/` or anywhere else in the repo.
+
+## Test-wallet mode
+
+To exercise SIWS-gated scenarios (post update, edit funding signal, apply to program, create/edit program, review application, update team), the target build must have `VITE_USE_TEST_WALLET=true` set. That flag turns on `client/src/lib/testWalletInjection.ts`, which registers a synthetic `window.injectedWeb3['polkadot-js']` backed by the real //Alice sr25519 keypair. Signatures produced by Alice verify normally through `@polkadot/util-crypto.signatureVerify` — no server-side bypass.
+
+The flag is double-gated: even when set, the injection no-ops in production builds (`import.meta.env.PROD`). Enable it only for local dev (`VITE_USE_TEST_WALLET=true npm run dev`) and Vercel **Preview** envs — never in Production, and never add Alice's address to the server's `ADMIN_WALLETS` / `AUTHORIZED_SIGNERS` on prod (the mnemonic is public).
+
+Alice is seeded as a team member of `plata-mia-15ac43` in `client/src/lib/mockWinners.ts`. For admin-gated scenarios, the Preview deployment's `VITE_ADMIN_ADDRESSES` must include Alice's SS58-42 address (`5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY`). Production must not.
+
+The runner (`scripts/run-playwright.mjs`) forwards `VITE_USE_TEST_WALLET` from the invoking shell into the Playwright spawn env; pass it through when running the tester locally if the dev server was started without it.
+
+A runnable SIWS-gated scenario can assert `window.__TEST_WALLET_ENABLED__ === true` in a preflight check and fall back to `SKIPPED (needs-auth-harness)` if the flag isn't live on the target.
+
+**Still skipped even with the harness**: admin approval / payment flows (`webzeroApprove`, `requestChanges`, `confirmPayment`) have no mock-mode branch in `client/src/lib/api.ts` — they always hit the real API. Those remain `SKIPPED (needs-mock-coverage)` until mocks are added.
 
 ## Procedure
 
