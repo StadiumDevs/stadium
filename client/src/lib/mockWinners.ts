@@ -126,6 +126,15 @@ export const mockWinningProjects: MockApiProject[] = [
         "twitter": "ziginiz",
         "github": null,
         "linkedin": null
+      },
+      {
+        "name": "Test Harness (preview only)",
+        "walletAddress": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+        "customUrl": null,
+        "role": "Team",
+        "twitter": null,
+        "github": null,
+        "linkedin": null
       }
     ],
     "bountyPrize": [

@@ -20,7 +20,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -60,12 +60,32 @@ if (!existsSync(args.spec)) {
   process.exit(2);
 }
 
+// Specs and the generated config both land in /tmp, so bare `@playwright/test`
+// imports can't resolve (ESM walks up from the importer's dir; /tmp has no
+// node_modules). Point every import at the absolute entry file inside
+// client/node_modules instead.
+const PLAYWRIGHT_ENTRY = resolve(CLIENT_DIR, "node_modules/@playwright/test/index.mjs");
+if (!existsSync(PLAYWRIGHT_ENTRY)) {
+  console.error(JSON.stringify({
+    error: "playwright-not-installed",
+    message: `@playwright/test not found at ${PLAYWRIGHT_ENTRY}. Run .claude/skills/stadium-tester/setup.sh first.`,
+  }));
+  process.exit(2);
+}
+
+// --- rewrite `@playwright/test` imports in the spec to absolute paths ---
+const specSrc = readFileSync(args.spec, "utf8");
+const rewritten = specSrc.replace(
+  /(from\s+['"])@playwright\/test(['"])/g,
+  `$1${PLAYWRIGHT_ENTRY}$2`,
+);
+if (rewritten !== specSrc) writeFileSync(args.spec, rewritten);
+
 // --- minimal playwright config so the skill doesn't need to ship one ---
-// Written into /tmp adjacent to the spec so we don't pollute the repo.
 const configPath = args.spec.replace(/\.spec\.mjs$/, ".config.mjs");
 writeFileSync(
   configPath,
-  `import { defineConfig } from '@playwright/test';
+  `import { defineConfig } from '${PLAYWRIGHT_ENTRY}';
 export default defineConfig({
   testDir: '${dirname(args.spec)}',
   testMatch: ['${args.spec.split("/").pop()}'],
@@ -84,10 +104,23 @@ export default defineConfig({
 );
 
 // --- run playwright (resolves @playwright/test from client/node_modules) ---
+// VITE_USE_TEST_WALLET is forwarded if set on the host so the tester can drive
+// SIWS-gated flows against a dev server / preview URL that bundled the flag.
+// The flag is client-side only — the server never sees it.
 const result = spawnSync(
   "npx",
   ["--no-install", "playwright", "test", "--config", configPath],
-  { cwd: CLIENT_DIR, encoding: "utf8", env: { ...process.env, CI: "1" } },
+  {
+    cwd: CLIENT_DIR,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CI: "1",
+      ...(process.env.VITE_USE_TEST_WALLET
+        ? { VITE_USE_TEST_WALLET: process.env.VITE_USE_TEST_WALLET }
+        : {}),
+    },
+  },
 );
 
 // Surface raw reporter output to stderr for debugging

@@ -14,6 +14,7 @@
     "@polkadot/api": "^16.5.1",
     "@polkadot/api-contract": "^16.5.1",
     "@polkadot/extension-dapp": "^0.61.3",
+    "@polkadot/keyring": "^13.5.3",
     "@polkadot/types": "^16.5.1",
     "@polkadot/util": "^13.5.3",
     "@polkadot/util-crypto": "^13.5.3",
@@ -70,6 +71,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.3",
