@@ -112,6 +112,7 @@ Client verification is `npm run build` (tsc + Vite) and `npm run lint`. Both mus
 - `npm run build` output deployed by Vercel.
 - Env vars: `VITE_API_BASE_URL`, `VITE_ADMIN_ADDRESSES` (comma-separated).
 - Preview deployments from PRs work normally.
+- **Preview env only**: `VITE_USE_MOCK_DATA=true` serves fixtures instead of the API. `VITE_USE_TEST_WALLET=true` activates the `//Alice` test-wallet harness so the `stadium-tester` Skill can exercise SIWS-gated flows. Alice's SS58-42 address (`5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY`) must also be in `VITE_ADMIN_ADDRESSES` on Preview for admin flows to pass the client gate. **Production must leave both flags unset** and must never include Alice's address in `VITE_ADMIN_ADDRESSES` or the server's `ADMIN_WALLETS` / `AUTHORIZED_SIGNERS` — the //Alice mnemonic is public.
 
 Do **not** modify Railway/Vercel config from an issue unless the issue explicitly calls for it.
 

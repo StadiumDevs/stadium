@@ -389,8 +389,32 @@ export const api = {
     return teamResult;
   },
 
-  webzeroApprove: async (projectId: string, authHeader?: string) =>
-    request(`/m2-program/${projectId}/approve`, {
+  webzeroApprove: async (projectId: string, authHeader?: string) => {
+    if (USE_MOCK_DATA) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: { id: string }) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].m2Status = 'completed';
+          projects[index].changesRequested = undefined;
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+
+      const { mockWinningProjects } = await import('./mockWinners');
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject) {
+        mockProject.m2Status = 'completed';
+        mockProject.changesRequested = undefined;
+      }
+
+      return { success: true };
+    }
+
+    return request(`/m2-program/${projectId}/approve`, {
       method: "POST",
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -398,17 +422,45 @@ export const api = {
         webzeroApproved: true,
         webzeroApprovalDate: new Date().toISOString(),
       }),
-    }),
+    });
+  },
 
-  requestChanges: async (projectId: string, feedback: string, authHeader?: string) =>
-    request(`/m2-program/${projectId}/request-changes`, {
+  requestChanges: async (projectId: string, feedback: string, authHeader?: string) => {
+    if (USE_MOCK_DATA) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const requestedDate = new Date().toISOString();
+      const changesRequested = { feedback, requestedBy: 'admin', requestedDate };
+
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: { id: string }) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].m2Status = 'building';
+          projects[index].changesRequested = changesRequested;
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+
+      const { mockWinningProjects } = await import('./mockWinners');
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (mockProject) {
+        mockProject.m2Status = 'building';
+        mockProject.changesRequested = changesRequested;
+      }
+
+      return { success: true };
+    }
+
+    return request(`/m2-program/${projectId}/request-changes`, {
       method: "POST",
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
       body: JSON.stringify({
         feedback,
         requestedChangesDate: new Date().toISOString(),
       }),
-    }),
+    });
+  },
 
   submitM2Agreement: async (projectId: string, agreement: {
     mentorName: string;
@@ -668,7 +720,80 @@ export const api = {
     authHeader?: string
   ) => {
     if (USE_MOCK_DATA) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!['M1', 'M2', 'BOUNTY'].includes(data.milestone)) {
+        throw new ApiError('Invalid milestone. Must be M1, M2, or BOUNTY', 400);
+      }
+      if (!data.amount || data.amount <= 0) {
+        throw new ApiError('Invalid amount', 400);
+      }
+      if (!['USDC', 'DOT'].includes(data.currency)) {
+        throw new ApiError('Invalid currency. Must be USDC or DOT', 400);
+      }
+      if (!data.transactionProof || !data.transactionProof.startsWith('http')) {
+        throw new ApiError('Valid transaction proof URL is required', 400);
+      }
+      if (data.milestone === 'BOUNTY' && !data.bountyName) {
+        throw new ApiError('bountyName is required for BOUNTY payments', 400);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const { mockWinningProjects } = await import('./mockWinners');
+      const mockProject = mockWinningProjects.find((p) => p.id === projectId);
+      if (!mockProject) {
+        throw new ApiError('Project not found', 404);
+      }
+
+      const totalPaid = (mockProject.totalPaid as Array<{
+        milestone: string;
+        bountyName?: string;
+      }> | undefined) ?? [];
+      const alreadyPaid =
+        data.milestone === 'BOUNTY'
+          ? totalPaid.some(
+              (p) => p.milestone === 'BOUNTY' && p.bountyName === data.bountyName,
+            )
+          : totalPaid.some((p) => p.milestone === data.milestone);
+      if (alreadyPaid) {
+        throw new ApiError(
+          data.milestone === 'BOUNTY'
+            ? `Bounty "${data.bountyName}" has already been paid`
+            : `${data.milestone} has already been paid`,
+          400,
+        );
+      }
+
+      const paidDate = new Date().toISOString();
+      const paymentEntry: Record<string, unknown> = {
+        milestone: data.milestone,
+        amount: data.amount,
+        currency: data.currency,
+        transactionProof: data.transactionProof,
+        paidDate,
+      };
+      if (data.milestone === 'BOUNTY') paymentEntry.bountyName = data.bountyName;
+
+      const nextTotalPaid = [...totalPaid, paymentEntry];
+      (mockProject as { totalPaid?: unknown }).totalPaid = nextTotalPaid;
+      if (data.milestone === 'M2') {
+        mockProject.m2Status = 'completed';
+        mockProject.completionDate = paidDate;
+      }
+
+      const stored = localStorage.getItem('projects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        const index = projects.findIndex((p: { id: string }) => p.id === projectId);
+        if (index !== -1) {
+          projects[index].totalPaid = nextTotalPaid;
+          if (data.milestone === 'M2') {
+            projects[index].m2Status = 'completed';
+            projects[index].completionDate = paidDate;
+          }
+          localStorage.setItem('projects', JSON.stringify(projects));
+        }
+      }
+
       return { success: true };
     }
     

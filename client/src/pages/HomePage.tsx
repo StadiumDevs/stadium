@@ -95,6 +95,8 @@ const HomePage = () => {
       }
     };
     loadHackathons();
+    // Run once on mount; `toast` is stable across renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load projects when selected hackathon changes
