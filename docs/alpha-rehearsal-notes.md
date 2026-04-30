@@ -2,6 +2,12 @@
 
 *Spec: `docs/stadium-revamp-phase-1-spec.md` §5 Issue 13. Gate: Block G.*
 
+> **Status: provisional baseline (rehearsal not yet run).**
+>
+> As of 2026-04-29, the Plata Mia rehearsal has not been executed against production. Phase 2 planning (`docs/stadium-revamp-phase-2-spec.md`) is proceeding on a presumed-positive baseline — i.e. assuming the Phase 1 surfaces work end-to-end with no major friction — so we can move forward without holding on a human-gated step. Phase 2 priorities are therefore being seeded from the explicit deferred-items list in Phase 1 spec §7 + open issues, not from observed alpha-user friction.
+>
+> When the real rehearsal runs, fill the empty fields below verbatim. If the observed friction conflicts with the Phase 2 priorities already chosen, **reopen the Phase 2 spec rather than proceeding silently** — this baseline is provisional precisely because we know it might be wrong.
+
 The end-to-end walk of Plata Mia's journey, run by a WebZero team member posing as Plata Mia against real data on the production Stadium instance. Capture friction verbatim — copy tone, empty-state feel, modal friction, any "huh, I didn't expect that" moment. This file is the raw input to the Phase 1 retro, not a polished deliverable.
 
 ---
