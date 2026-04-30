@@ -14,11 +14,8 @@ class WalletContactService {
     return toPublic(contact);
   }
 
-  async updateContact(address, { email, notificationsEnabled }) {
-    const contact = await walletContactRepository.upsertByWallet(address, {
-      email,
-      notificationsEnabled: notificationsEnabled !== undefined ? notificationsEnabled : true,
-    });
+  async updateContact(address, fields) {
+    const contact = await walletContactRepository.upsertByWallet(address, fields);
     return toPublic(contact);
   }
 }

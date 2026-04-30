@@ -18,31 +18,31 @@ const getContact = async (req, res) => {
 
 const updateContact = async (req, res) => {
   const { address } = req.params;
-  const { email, notifications_enabled } = req.body;
 
-  let normalisedEmail;
-  if (email !== undefined && email !== null) {
-    const result = validateEmail(email);
-    if (!result.valid) {
-      return res.status(422).json({ status: 'error', message: result.error });
+  const fields = {};
+
+  if ('email' in req.body) {
+    const { email } = req.body;
+    if (email !== undefined && email !== null) {
+      const result = validateEmail(email);
+      if (!result.valid) {
+        return res.status(422).json({ status: 'error', message: result.error });
+      }
+      fields.email = result.normalised;
+    } else {
+      fields.email = email; // null — pass through
     }
-    normalisedEmail = result.normalised;
-  } else {
-    normalisedEmail = email; // null or undefined — pass through
   }
 
-  let notificationsEnabled;
-  if (notifications_enabled !== undefined) {
+  if ('notifications_enabled' in req.body) {
+    const { notifications_enabled } = req.body;
     if (typeof notifications_enabled !== 'boolean') {
       return res.status(422).json({ status: 'error', message: 'notifications_enabled must be a boolean' });
     }
-    notificationsEnabled = notifications_enabled;
+    fields.notificationsEnabled = notifications_enabled;
   }
 
-  const data = await walletContactService.updateContact(address, {
-    email: normalisedEmail,
-    notificationsEnabled,
-  });
+  const data = await walletContactService.updateContact(address, fields);
 
   return res.status(200).json({
     status: 'success',

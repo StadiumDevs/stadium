@@ -385,6 +385,18 @@ export const requireOwnWallet = async (req, res, next) => {
     }
     logSuccess('Statement is valid.');
 
+    // Check domain if not disabled
+    if (!DISABLE_SIWS_DOMAIN_CHECK) {
+      log(`Checking domain. Expected: "${EXPECTED_DOMAIN}"`);
+      if (siwsMessage.domain !== EXPECTED_DOMAIN) {
+        logError(`Invalid domain. Received: "${siwsMessage.domain}". Expected: "${EXPECTED_DOMAIN}"`);
+        return res.status(403).json({ status: 'error', message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.`, error: `Domain mismatch: got '${siwsMessage.domain}'` });
+      }
+      logSuccess('Domain matches.');
+    } else {
+      log('Domain check disabled (DISABLE_SIWS_DOMAIN_CHECK=true)');
+    }
+
     const signerAddress = siwsMessage.address;
 
     // Validate the target address in the route param

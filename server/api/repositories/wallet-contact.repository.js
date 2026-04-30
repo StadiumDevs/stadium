@@ -11,13 +11,6 @@ const transformContact = (row) => {
   };
 };
 
-const toSnakeCase = (address, { email, notificationsEnabled }) => ({
-  wallet_address: address,
-  email: email !== undefined ? email : null,
-  notifications_enabled: notificationsEnabled !== undefined ? notificationsEnabled : true,
-  updated_at: new Date().toISOString(),
-});
-
 class WalletContactRepository {
   async findByWallet(address) {
     const { data, error } = await supabase
@@ -29,11 +22,22 @@ class WalletContactRepository {
     return transformContact(data);
   }
 
-  async upsertByWallet(address, { email, notificationsEnabled }) {
-    const row = toSnakeCase(address, { email, notificationsEnabled });
+  async upsertByWallet(walletAddress, fields) {
+    // fields shape: { email?: string|null, notificationsEnabled?: boolean }
+    // Only the keys present in fields are updated; absent keys retain the existing value.
+    const existing = await this.findByWallet(walletAddress);
+    const next = {
+      wallet_address: walletAddress,
+      email: 'email' in fields ? fields.email : (existing?.email ?? null),
+      notifications_enabled:
+        'notificationsEnabled' in fields
+          ? fields.notificationsEnabled
+          : (existing?.notificationsEnabled ?? true),
+      updated_at: new Date().toISOString(),
+    };
     const { data, error } = await supabase
       .from('wallet_contacts')
-      .upsert(row, { onConflict: 'wallet_address' })
+      .upsert(next, { onConflict: 'wallet_address' })
       .select('*')
       .single();
     if (error) throw error;

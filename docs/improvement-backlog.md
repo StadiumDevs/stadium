@@ -24,6 +24,12 @@ Do **not** manually edit `- **Promoted**` lines.
 
 <!-- entries start below this line -->
 
+## [2026-04-23] `requireTeamMemberOrAdmin` missing SIWS domain check
+- **Severity**: minor
+- **File(s)**: `server/api/middleware/auth.middleware.js` (`requireTeamMemberOrAdmin`)
+- **Observed during**: PR #73 review — fixing Blocker 1 (domain check added to `requireOwnWallet`)
+- **Suggestion**: `requireAdmin` and `requireOwnWallet` both gate on `DISABLE_SIWS_DOMAIN_CHECK`/`EXPECTED_DOMAIN` immediately after statement validation; `requireTeamMemberOrAdmin` skips this check entirely. Add the same domain-check block in a dedicated hardening pass.
+
 ## [2026-04-15] Migrate slash commands to Skills
 - **Severity**: nit
 - **File(s)**: `.claude/commands/*.md`

@@ -139,10 +139,13 @@ describe('walletContactController.updateContact', () => {
     await controller.updateContact(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    // email was not in req.body so it must not appear in the fields passed to service
     expect(walletContactService.updateContact).toHaveBeenCalledWith('5Alice', {
-      email: undefined,
       notificationsEnabled: false,
     });
+    expect(walletContactService.updateContact.mock.calls[0][1]).not.toHaveProperty('email');
+    // validateEmail must not have been called when email is absent from the body
+    expect(validateEmail).not.toHaveBeenCalled();
   });
 
   it('returns 422 when notifications_enabled is not boolean', async () => {
@@ -156,5 +159,27 @@ describe('walletContactController.updateContact', () => {
 
     expect(res.status).toHaveBeenCalledWith(422);
     expect(res.json.mock.calls[0][0].status).toBe('error');
+  });
+
+  it('partial PUT with only email does not pass notificationsEnabled to service', async () => {
+    // Regression: PUT { email } must not silently default notificationsEnabled.
+    validateEmail.mockReturnValue({ valid: true, normalised: 'new@example.com' });
+    walletContactService.updateContact.mockResolvedValue({
+      emailSet: true,
+      notificationsEnabled: false,
+    });
+    const req = {
+      params: { address: '5Alice' },
+      body: { email: 'new@example.com' },
+    };
+    const res = mockRes();
+
+    await controller.updateContact(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const calledFields = walletContactService.updateContact.mock.calls[0][1];
+    // notificationsEnabled must not be present — the repo will handle preservation
+    expect(calledFields).not.toHaveProperty('notificationsEnabled');
+    expect(calledFields).toHaveProperty('email', 'new@example.com');
   });
 });

@@ -187,6 +187,28 @@ describe('requireOwnWallet', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('returns 403 with domain mismatch message when domain check is enabled and domain is wrong', async () => {
+    process.env.DISABLE_SIWS_DOMAIN_CHECK = 'false';
+    process.env.EXPECTED_DOMAIN = 'stadium.app';
+
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      statement: 'Update notification preferences for wallet on Stadium',
+      address: '5Alice',
+      domain: 'evil.com',
+    });
+
+    const req = makeReq({ headers: { 'x-siws-auth': encodePayload(VALID_PAYLOAD) } });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireOwnWallet(req, res, next);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/Invalid domain/i);
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('returns 400 with message Invalid wallet address when route param is invalid SS58', async () => {
     signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
     parseMessage.mockReturnValue({
