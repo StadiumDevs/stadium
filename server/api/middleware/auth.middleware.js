@@ -44,7 +44,9 @@ const VALID_STATEMENTS = [
   "Apply to program on Stadium",
   "Create program on Stadium",
   "Update program on Stadium",
-  "Review application on Stadium"
+  "Review application on Stadium",
+  // Phase 2 revamp: wallet contacts (#67)
+  "Update notification preferences for wallet on Stadium"
 ];
 
 const EXPECTED_DOMAIN = process.env.EXPECTED_DOMAIN || 'localhost';
@@ -326,6 +328,113 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
  * Reuses requireTeamMemberOrAdmin unchanged — it just sets req.params.projectId
  * so the downstream logic works.
  */
+export const requireOwnWallet = async (req, res, next) => {
+  log(`Initiating own-wallet verification for ${req.method} ${req.originalUrl}`);
+
+  const authHeader = req.headers['x-siws-auth'];
+
+  // DEV MODE BYPASS
+  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
+    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for own-wallet'));
+    req.user = { address: req.params.address };
+    return next();
+  }
+
+  if (!authHeader) {
+    logError('Verification failed: Missing x-siws-auth header.');
+    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
+  }
+
+  let decodedString;
+  try {
+    decodedString = atob(authHeader);
+  } catch (e) {
+    logError(`Verification failed: Could not decode Base64. Error: ${e.message}`);
+    return res.status(400).json({ status: 'error', message: 'Invalid Base64 in auth header' });
+  }
+
+  let signedPayload;
+  try {
+    signedPayload = JSON.parse(decodedString);
+  } catch (e) {
+    logError(`Verification failed: Could not parse JSON. Error: ${e.message}`);
+    return res.status(400).json({ status: 'error', message: 'Malformed SIWS payload in header' });
+  }
+
+  const { message, signature, address } = signedPayload;
+  if (!message || !signature || !address) {
+    logError('Verification failed: Payload is missing message, signature, or address.');
+    return res.status(400).json({ status: 'error', message: 'Incomplete SIWS payload' });
+  }
+
+  try {
+    await cryptoWaitReady();
+    const verification = signatureVerify(message, signature, address);
+    if (!verification?.isValid) {
+      logError(`Signature invalid. crypto: ${verification?.crypto}, isWrapped: ${verification?.isWrapped}`);
+      return res.status(403).json({ status: 'error', message: 'SIWS signature verification failed', error: 'Invalid signature' });
+    }
+    logSuccess(`SIWS signature verified (crypto: ${verification.crypto}).`);
+
+    const siwsMessage = parseMessage(message);
+
+    log(`Checking statement. Received: "${siwsMessage.statement}"`);
+    if (!validateSiwsStatement(siwsMessage.statement)) {
+      logError(`Invalid statement. Received: "${siwsMessage.statement}"`);
+      return res.status(403).json({ status: 'error', message: 'Invalid statement in SIWS message.' });
+    }
+    logSuccess('Statement is valid.');
+
+    // Check domain if not disabled
+    if (!DISABLE_SIWS_DOMAIN_CHECK) {
+      log(`Checking domain. Expected: "${EXPECTED_DOMAIN}"`);
+      if (siwsMessage.domain !== EXPECTED_DOMAIN) {
+        logError(`Invalid domain. Received: "${siwsMessage.domain}". Expected: "${EXPECTED_DOMAIN}"`);
+        return res.status(403).json({ status: 'error', message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.`, error: `Domain mismatch: got '${siwsMessage.domain}'` });
+      }
+      logSuccess('Domain matches.');
+    } else {
+      log('Domain check disabled (DISABLE_SIWS_DOMAIN_CHECK=true)');
+    }
+
+    const signerAddress = siwsMessage.address;
+
+    // Validate the target address in the route param
+    let targetPubkey;
+    try {
+      targetPubkey = u8aToHex(decodeAddress(req.params.address));
+    } catch {
+      logError(`Invalid SS58 in route param: ${req.params.address}`);
+      return res.status(400).json({ status: 'error', message: 'Invalid wallet address' });
+    }
+
+    let signerPubkey;
+    try {
+      signerPubkey = u8aToHex(decodeAddress(signerAddress));
+    } catch {
+      logError(`Invalid SS58 signer address: ${signerAddress}`);
+      return res.status(400).json({ status: 'error', message: 'Invalid wallet address' });
+    }
+
+    if (signerPubkey !== targetPubkey) {
+      logError(`Signer ${signerAddress} does not match target wallet ${req.params.address}`);
+      return res.status(403).json({
+        status: 'error',
+        message: 'Signer does not match the target wallet',
+        reason: 'not-your-wallet',
+      });
+    }
+
+    logSuccess(`Signer ${signerAddress} matches target wallet ${req.params.address}`);
+    req.user = { address: signerAddress };
+    return next();
+
+  } catch (e) {
+    logError(`SIWS verification failed. Error: ${e.message}`);
+    return res.status(403).json({ status: 'error', message: 'SIWS signature verification failed', error: e.message });
+  }
+};
+
 export const requireTeamMemberOrAdminByBodyProject = async (req, res, next) => {
   const projectId = req.body?.project_id;
   if (!projectId || typeof projectId !== 'string') {

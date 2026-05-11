@@ -273,6 +273,24 @@ export const validateFundingSignal = (data) => {
 };
 
 /**
+ * Validate email address (Phase 2 revamp, #67).
+ * @param {string} email
+ * @returns {Object} - { valid: boolean, error?: string, normalised?: string }
+ */
+export const validateEmail = (email) => {
+  if (typeof email !== 'string') return { valid: false, error: 'email must be a string' };
+  const trimmed = email.trim().toLowerCase();
+  if (trimmed.length === 0 || trimmed.length > 254) {
+    return { valid: false, error: 'email must be 1–254 characters' };
+  }
+  const emailRe = /^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$/;
+  if (!emailRe.test(trimmed)) {
+    return { valid: false, error: 'email must be a valid email address' };
+  }
+  return { valid: true, normalised: trimmed };
+};
+
+/**
  * Validate program payload (Phase 1 revamp, #46).
  * @param {Object} data
  * @param {Object} opts - { partial: boolean } — PATCH payloads only include changed fields.
