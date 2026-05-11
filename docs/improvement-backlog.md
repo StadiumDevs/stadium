@@ -95,3 +95,21 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: Supabase `projects` table, `server/migration-data/prizes-symbiosis-2025.csv`
 - **Observed during**: reconciliation for issue #28. The CSV lists five Marketing 1 / Marketing 2 winners (Right of the DOTty, Khoj, Pointillism, Connected by the Dots, Crypto Therapy | Polkadot) that have no `projects` row at all — not just missing bounty rows. Reconciliation script skipped them because the project records don't exist.
 - **Suggestion**: open a follow-up issue to add these projects. Needs project-level data (name, description, team wallets, categories) beyond what's in the prize CSV — likely a separate source-of-truth fetch from WebZero before implementation. Not blocking for Phase 1 alpha (Marketing projects aren't M2 incubator candidates).
+
+## [2026-05-11] Distinguish "no contact row" vs "row with null email" in notification skips
+- **Severity**: nit
+- **File(s)**: `server/api/services/notification.service.js:9`
+- **Observed during**: issue #68 (revamp-P2-02 notifications dispatcher) — reviewer flagged
+- **Suggestion**: `notify()` collapses two distinct audit states into `error='no_contact'` — (a) wallet has never registered an email, (b) wallet had a row that was cleared. The `notifications` audit log loses this distinction. If Phase 3 adds retry logic or analytics over the table, the two states want separate reasons (e.g. `no_contact_row` vs `no_email_set`). Not blocking for P2-02; the spec does not mandate splitting them.
+
+## [2026-05-11] `notification.repository.insertOrGetExisting` does not validate `status` before insert
+- **Severity**: nit
+- **File(s)**: `server/api/repositories/notification.repository.js:20`
+- **Observed during**: issue #68 (revamp-P2-02 notifications dispatcher) — reviewer flagged
+- **Suggestion**: caller-supplied `status` is written straight to Supabase; the DB `CHECK` constraint catches illegal values but the caller gets an opaque Postgres error rather than an `Error('invalid_status')`. Consider an in-process whitelist (`queued | sent | failed | skipped`) at the repo entry point. Consistent with the existing `wallet-contact.repository.js` pattern (no in-process validation), so deferring is fine; revisit when Issue 3 wires Resend.
+
+## [2026-05-11] `notification.service.notify()` lacks a JSDoc contract block
+- **Severity**: nit
+- **File(s)**: `server/api/services/notification.service.js`
+- **Observed during**: issue #68 (revamp-P2-02 notifications dispatcher) — reviewer flagged
+- **Suggestion**: the four-argument signature and the "writes status=queued, does NOT call the provider yet" contract are implied. P2-04 implementers wiring `notify(...)` into admin controllers will benefit from a one-line JSDoc above the method documenting (args, return shape, idempotency via `(recipient, eventType, sourceId)`).
