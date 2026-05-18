@@ -113,3 +113,15 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/services/notification.service.js`
 - **Observed during**: issue #68 (revamp-P2-02 notifications dispatcher) — reviewer flagged
 - **Suggestion**: the four-argument signature and the "writes status=queued, does NOT call the provider yet" contract are implied. P2-04 implementers wiring `notify(...)` into admin controllers will benefit from a one-line JSDoc above the method documenting (args, return shape, idempotency via `(recipient, eventType, sourceId)`).
+
+## [2026-05-18] Warn at startup when RESEND_API_KEY is set but RESEND_FROM_EMAIL is not
+- **Severity**: nit
+- **File(s)**: `server/api/services/email-transport.js`, `server/server.js`
+- **Observed during**: issue #69 (revamp-P2-03 Resend integration) — reviewer flagged
+- **Suggestion**: if `RESEND_API_KEY` is configured but `RESEND_FROM_EMAIL` is unset, `notify()` passes `from: undefined` to Resend, which returns a 4xx that is caught and marks the row `failed`. The send silently fails with an opaque reason. Add a one-time startup check (or a guard inside `_trySend`) that surfaces a clear `from_email_not_configured` error instead of an opaque provider 4xx.
+
+## [2026-05-18] No length guard on admin feedback in the m2-changes-requested email body
+- **Severity**: nit
+- **File(s)**: `server/api/services/notification-templates/m2-changes-requested.js`
+- **Observed during**: issue #69 (revamp-P2-03 Resend integration) — reviewer flagged
+- **Suggestion**: `payload.feedback` is rendered into the email body verbatim (now HTML-escaped). Very long admin feedback produces an oversized email. Consider truncating with a "see the full feedback on your project page" link once P2-05 ships the project-page feedback surface.
