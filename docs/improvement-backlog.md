@@ -125,3 +125,9 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/services/notification-templates/m2-changes-requested.js`
 - **Observed during**: issue #69 (revamp-P2-03 Resend integration) — reviewer flagged
 - **Suggestion**: `payload.feedback` is rendered into the email body verbatim (now HTML-escaped). Very long admin feedback produces an oversized email. Consider truncating with a "see the full feedback on your project page" link once P2-05 ships the project-page feedback surface.
+
+## [2026-05-18] Pre-existing console.log calls in project.controller.js
+- **Severity**: nit
+- **File(s)**: `server/api/controllers/project.controller.js:75`, `server/api/controllers/project.controller.js:188`
+- **Observed during**: issue #70 (revamp-P2-04 notify trigger wiring) — reviewer flagged
+- **Suggestion**: two pre-existing `console.log` calls (a debug payload preview in `updateProject`, and an M2-agreement confirmation log) predate Phase 2 and were left untouched. Server code elsewhere uses the `logger` utility (`server/api/utils/logger.js`). Convert these to `logger.debug`/`logger.info` (or remove the debug preview) in a dedicated cleanup pass — out of scope for #70's minimal diff.

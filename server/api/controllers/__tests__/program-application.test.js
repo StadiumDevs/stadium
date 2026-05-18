@@ -8,6 +8,7 @@ vi.mock('../../services/project.service.js', () => ({
 }));
 vi.mock('../../services/program-application.service.js', () => ({
   default: {
+    getById: vi.fn(),
     listByProgram: vi.fn(),
     listByProject: vi.fn(),
     findOne: vi.fn(),
@@ -15,10 +16,14 @@ vi.mock('../../services/program-application.service.js', () => ({
     updateStatus: vi.fn(),
   },
 }));
+vi.mock('../../services/notification.service.js', () => ({
+  default: { notifyProjectTeam: vi.fn() },
+}));
 
 const programService = (await import('../../services/program.service.js')).default;
 const projectService = (await import('../../services/project.service.js')).default;
 const applicationService = (await import('../../services/program-application.service.js')).default;
+const notificationService = (await import('../../services/notification.service.js')).default;
 const programController = (await import('../program.controller.js')).default;
 
 const mockRes = () => {
@@ -215,8 +220,10 @@ describe('ProgramController.updateApplicationStatus', () => {
   });
 
   it('updates on valid payload', async () => {
-    programService.findBySlug.mockResolvedValue({ id: 'p1' });
-    applicationService.updateStatus.mockResolvedValue({ id: 'a1', status: 'accepted' });
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding' });
+    applicationService.getById.mockResolvedValue({ id: 'a1', status: 'submitted' });
+    applicationService.updateStatus.mockResolvedValue({ id: 'a1', status: 'accepted', projectId: 'proj-1' });
+    notificationService.notifyProjectTeam.mockResolvedValue([]);
     const req = {
       params: { slug: 's', applicationId: 'a1' },
       body: { status: 'accepted', reviewNotes: '  looks great  ' },
@@ -234,7 +241,8 @@ describe('ProgramController.updateApplicationStatus', () => {
   });
 
   it('maps PostgREST no-rows error to 404', async () => {
-    programService.findBySlug.mockResolvedValue({ id: 'p1' });
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding' });
+    applicationService.getById.mockResolvedValue({ id: 'missing', status: 'submitted' });
     const err = Object.assign(new Error('no rows'), { code: 'PGRST116' });
     applicationService.updateStatus.mockRejectedValue(err);
     const req = {
@@ -245,5 +253,94 @@ describe('ProgramController.updateApplicationStatus', () => {
     const res = mockRes();
     await programController.updateApplicationStatus(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('calls notifyProjectTeam with application_accepted when submitted → accepted', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
+    applicationService.getById.mockResolvedValue({ id: 'app-1', status: 'submitted' });
+    applicationService.updateStatus.mockResolvedValue({ id: 'app-1', status: 'accepted', projectId: 'proj-1' });
+    notificationService.notifyProjectTeam.mockResolvedValue([]);
+    const req = {
+      params: { slug: 'dogfooding-2026', applicationId: 'app-1' },
+      body: { status: 'accepted' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(notificationService.notifyProjectTeam).toHaveBeenCalledWith(
+      'proj-1',
+      'application_accepted',
+      'app-1',
+      expect.objectContaining({ programName: 'Dogfooding 2026', programSlug: 'dogfooding-2026' }),
+    );
+  });
+
+  it('calls notifyProjectTeam with application_rejected when submitted → rejected', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
+    applicationService.getById.mockResolvedValue({ id: 'app-2', status: 'submitted' });
+    applicationService.updateStatus.mockResolvedValue({ id: 'app-2', status: 'rejected', projectId: 'proj-2' });
+    notificationService.notifyProjectTeam.mockResolvedValue([]);
+    const req = {
+      params: { slug: 'dogfooding-2026', applicationId: 'app-2' },
+      body: { status: 'rejected' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(notificationService.notifyProjectTeam).toHaveBeenCalledWith(
+      'proj-2',
+      'application_rejected',
+      'app-2',
+      expect.objectContaining({ programName: 'Dogfooding 2026', programSlug: 'dogfooding-2026' }),
+    );
+  });
+
+  it('does not call notifyProjectTeam when new status is submitted (no real transition)', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
+    applicationService.getById.mockResolvedValue({ id: 'app-3', status: 'submitted' });
+    applicationService.updateStatus.mockResolvedValue({ id: 'app-3', status: 'submitted', projectId: 'proj-3' });
+    const req = {
+      params: { slug: 'dogfooding-2026', applicationId: 'app-3' },
+      body: { status: 'submitted' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(notificationService.notifyProjectTeam).not.toHaveBeenCalled();
+  });
+
+  it('still returns 200 even when notifyProjectTeam rejects', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
+    applicationService.getById.mockResolvedValue({ id: 'app-4', status: 'submitted' });
+    applicationService.updateStatus.mockResolvedValue({ id: 'app-4', status: 'accepted', projectId: 'proj-4' });
+    notificationService.notifyProjectTeam.mockRejectedValue(new Error('boom'));
+    const req = {
+      params: { slug: 'dogfooding-2026', applicationId: 'app-4' },
+      body: { status: 'accepted' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('still updates and returns 200 when the prior-status lookup (getById) fails', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
+    applicationService.getById.mockRejectedValue(new Error('supabase transport error'));
+    applicationService.updateStatus.mockResolvedValue({ id: 'app-5', status: 'accepted', projectId: 'proj-5' });
+    const req = {
+      params: { slug: 'dogfooding-2026', applicationId: 'app-5' },
+      body: { status: 'accepted' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    // The status update still succeeds; getById failure only skips the notify gate.
+    expect(applicationService.updateStatus).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(notificationService.notifyProjectTeam).not.toHaveBeenCalled();
   });
 });
