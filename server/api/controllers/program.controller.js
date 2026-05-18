@@ -1,9 +1,11 @@
 import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
 import projectService from '../services/project.service.js';
+import notificationService from '../services/notification.service.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
 import { validateProgram } from '../utils/validation.js';
 import { randomUUID } from 'node:crypto';
+import logger from '../utils/logger.js';
 
 class ProgramController {
   async list(req, res) {
@@ -104,6 +106,16 @@ class ProgramController {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
 
+      // Prior-status lookup feeds only the notification gate below — a failure
+      // here must not break the status update or change the HTTP response.
+      let prevStatus;
+      try {
+        const existing = await programApplicationService.getById(applicationId);
+        prevStatus = existing?.status;
+      } catch (err) {
+        logger.error('Failed to read application prior status for notification gating:', err);
+      }
+
       const reviewedBy = req.user?.address || req.auth?.address || 'unknown';
       const updated = await programApplicationService.updateStatus({
         id: applicationId,
@@ -115,6 +127,20 @@ class ProgramController {
       // updateStatus uses .single() which throws if no row matched; translate
       // to 404 via the Postgres PGRST116 code we see on not-found.
       res.status(200).json({ status: 'success', data: updated });
+
+      if (prevStatus === 'submitted' && (updated.status === 'accepted' || updated.status === 'rejected')) {
+        const eventType = updated.status === 'accepted' ? 'application_accepted' : 'application_rejected';
+        try {
+          await notificationService.notifyProjectTeam(
+            updated.projectId,
+            eventType,
+            updated.id,
+            { programName: program.name, programSlug: req.params.slug },
+          );
+        } catch (err) {
+          logger.error('notifyProjectTeam failed for application status change:', err);
+        }
+      }
     } catch (error) {
       if (error?.code === 'PGRST116' || /no rows/i.test(error?.message || '')) {
         return res.status(404).json({ status: 'error', message: 'Application not found' });

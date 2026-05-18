@@ -2,8 +2,29 @@ import walletContactRepository from '../repositories/wallet-contact.repository.j
 import notificationRepository from '../repositories/notification.repository.js';
 import { getEmailTransport } from './email-transport.js';
 import { renderEmail } from './notification-templates/index.js';
+import projectService from './project.service.js';
 
 class NotificationService {
+  async notifyProjectTeam(projectId, eventType, sourceId, payload) {
+    try {
+      const project = await projectService.getProjectById(projectId);
+      if (!project || !Array.isArray(project.teamMembers) || project.teamMembers.length === 0) {
+        return [];
+      }
+      const enrichedPayload = { projectName: project.projectName, ...payload };
+      const results = [];
+      for (const member of project.teamMembers) {
+        if (member.walletAddress) {
+          const row = await this.notify(member.walletAddress, eventType, sourceId, enrichedPayload);
+          results.push(row);
+        }
+      }
+      return results;
+    } catch {
+      return [];
+    }
+  }
+
   async notify(walletAddress, eventType, sourceId, payload) {
     const contact = await walletContactRepository.findByWallet(walletAddress);
 

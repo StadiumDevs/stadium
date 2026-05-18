@@ -2,6 +2,7 @@ import projectService from '../services/project.service.js';
 import projectUpdateService from '../services/project-update.service.js';
 import fundingSignalService from '../services/funding-signal.service.js';
 import paymentService from '../services/payment.service.js';
+import notificationService from '../services/notification.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
 import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
@@ -328,6 +329,11 @@ class ProjectController {
                 return res.status(404).json({ status: "error", message: "Project not found" });
             }
             res.status(200).json({ status: "success", data: updated });
+            try {
+                await notificationService.notifyProjectTeam(projectId, 'm2_approved', projectId, {});
+            } catch (err) {
+                logger.error('notifyProjectTeam failed for m2_approved:', err);
+            }
         } catch (error) {
             console.error("❌ Error approving M2:", error);
             res.status(500).json({ status: "error", message: "Failed to approve M2" });
@@ -344,15 +350,26 @@ class ProjectController {
             if (!feedback) {
                 return res.status(422).json({ status: "error", message: "Feedback is required" });
             }
+            const changeRequestDate = new Date().toISOString();
             const updated = await projectService.updateProject(projectId, {
                 m2Status: 'building',
                 changeRequestFeedback: feedback,
-                changeRequestDate: new Date().toISOString(),
+                changeRequestDate,
             });
             if (!updated) {
                 return res.status(404).json({ status: "error", message: "Project not found" });
             }
             res.status(200).json({ status: "success", data: updated });
+            try {
+                await notificationService.notifyProjectTeam(
+                    projectId,
+                    'm2_changes_requested',
+                    `${projectId}:${changeRequestDate}`,
+                    { feedback },
+                );
+            } catch (err) {
+                logger.error('notifyProjectTeam failed for m2_changes_requested:', err);
+            }
         } catch (error) {
             console.error("❌ Error requesting changes:", error);
             res.status(500).json({ status: "error", message: "Failed to request changes" });
