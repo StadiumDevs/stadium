@@ -5,19 +5,28 @@ vi.mock('../../repositories/wallet-contact.repository.js', () => ({
 }));
 
 vi.mock('../../repositories/notification.repository.js', () => ({
-  default: { insertOrGetExisting: vi.fn() },
+  default: {
+    insertOrGetExisting: vi.fn(),
+    markSent: vi.fn(),
+    markFailed: vi.fn(),
+  },
+}));
+
+vi.mock('../email-transport.js', () => ({
+  getEmailTransport: vi.fn(),
 }));
 
 const walletContactRepo = (await import('../../repositories/wallet-contact.repository.js')).default;
 const notificationRepo = (await import('../../repositories/notification.repository.js')).default;
+const { getEmailTransport } = await import('../email-transport.js');
 const service = (await import('../notification.service.js')).default;
 
 const WALLET = '5Alice';
 const EVENT_TYPE = 'application_accepted';
 const SOURCE_ID = 'proj-1';
-const PAYLOAD = { projectName: 'Test' };
+const PAYLOAD = { projectName: 'Test', programName: 'Dogfooding' };
 
-const existingRow = {
+const queuedRow = {
   id: 'uuid-1',
   recipientWallet: WALLET,
   eventType: EVENT_TYPE,
@@ -30,12 +39,21 @@ const existingRow = {
   sentAt: null,
 };
 
+const sentRow = { ...queuedRow, status: 'sent', providerMessageId: 'res_test_default' };
+
+const mockTransport = { send: vi.fn().mockResolvedValue({ id: 'res_test_default' }) };
+
 describe('NotificationService.notify', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getEmailTransport.mockResolvedValue(mockTransport);
+    notificationRepo.markSent.mockResolvedValue(sentRow);
+    notificationRepo.markFailed.mockResolvedValue({ ...queuedRow, status: 'failed' });
+  });
 
   it('inserts with status skipped and error no_contact when no wallet_contacts row exists', async () => {
     walletContactRepo.findByWallet.mockResolvedValue(null);
-    notificationRepo.insertOrGetExisting.mockResolvedValue({ ...existingRow, status: 'skipped', error: 'no_contact' });
+    notificationRepo.insertOrGetExisting.mockResolvedValue({ ...queuedRow, status: 'skipped', error: 'no_contact' });
 
     await service.notify(WALLET, EVENT_TYPE, SOURCE_ID, PAYLOAD);
 
@@ -57,7 +75,7 @@ describe('NotificationService.notify', () => {
       email: 'a@b.com',
       notificationsEnabled: false,
     });
-    notificationRepo.insertOrGetExisting.mockResolvedValue({ ...existingRow, status: 'skipped', error: 'opted_out' });
+    notificationRepo.insertOrGetExisting.mockResolvedValue({ ...queuedRow, status: 'skipped', error: 'opted_out' });
 
     await service.notify(WALLET, EVENT_TYPE, SOURCE_ID, PAYLOAD);
 
@@ -75,7 +93,7 @@ describe('NotificationService.notify', () => {
       email: 'a@b.com',
       notificationsEnabled: true,
     });
-    notificationRepo.insertOrGetExisting.mockResolvedValue(existingRow);
+    notificationRepo.insertOrGetExisting.mockResolvedValue(queuedRow);
 
     await service.notify(WALLET, EVENT_TYPE, SOURCE_ID, PAYLOAD);
 
@@ -87,21 +105,28 @@ describe('NotificationService.notify', () => {
     );
   });
 
-  it('returns the row from insertOrGetExisting on duplicate notify calls (repo dedupes)', async () => {
+  it('does not re-send on a duplicate notify call — repo dedupe returns an already-sent row', async () => {
     walletContactRepo.findByWallet.mockResolvedValue({
       walletAddress: WALLET,
       email: 'a@b.com',
       notificationsEnabled: true,
     });
-    notificationRepo.insertOrGetExisting.mockResolvedValue(existingRow);
+    // First call: a fresh queued row → triggers a send.
+    // Second call: the repo's unique index dedupes and hands back the
+    // already-sent row → notify() must return it without sending again.
+    notificationRepo.insertOrGetExisting
+      .mockResolvedValueOnce(queuedRow)
+      .mockResolvedValueOnce(sentRow);
 
     const first = await service.notify(WALLET, EVENT_TYPE, SOURCE_ID, PAYLOAD);
     const second = await service.notify(WALLET, EVENT_TYPE, SOURCE_ID, PAYLOAD);
 
-    // Service calls insertOrGetExisting once per notify invocation
     expect(notificationRepo.insertOrGetExisting).toHaveBeenCalledTimes(2);
-    // Both calls return the same existing row (repo-layer idempotency)
-    expect(first).toEqual(existingRow);
-    expect(second).toEqual(existingRow);
+    // The send + markSent fire exactly once, on the first call only.
+    expect(mockTransport.send).toHaveBeenCalledTimes(1);
+    expect(notificationRepo.markSent).toHaveBeenCalledTimes(1);
+    expect(first.status).toBe('sent');
+    expect(second.status).toBe('sent');
+    expect(second).toBe(sentRow);
   });
 });

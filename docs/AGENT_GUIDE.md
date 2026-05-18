@@ -36,6 +36,10 @@ React component
 
 The repository owns all `.from('projects').select(...)` style calls. A controller should never import the Supabase client directly.
 
+### Notifications
+
+`notification.service.js` is the dispatcher. Call `notify(walletAddress, eventType, sourceId, payload)` to write an audit row to the `notifications` table and, for eligible recipients (contact row present, email set, `notificationsEnabled` not false), send a transactional email via Resend. The four valid event types are `application_accepted`, `application_rejected`, `m2_approved`, and `m2_changes_requested`. To disable email locally, unset `RESEND_API_KEY` — sends become `failed` / `provider_not_configured` but the server still runs. Under `NODE_ENV=test` a mock transport (`__tests__/mock-resend.js`) is used automatically and no network call fires.
+
 ### SIWS admin auth flow
 
 **Client side** (`client/src/lib/siwsUtils.ts` + `AdminPage.tsx`):
