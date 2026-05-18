@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Loader2, Wallet, CheckCircle2 } from "lucide-react";
+import { Calendar, MapPin, Loader2, Wallet, CheckCircle2, RotateCw } from "lucide-react";
 import { web3Enable, web3Accounts } from "@polkadot/extension-dapp";
 import {
   api,
@@ -108,7 +108,7 @@ const ProgramDetailPage = () => {
   }, [connectedAddress]);
 
   // Load applications this wallet's projects already submitted to THIS program.
-  useEffect(() => {
+  const refetchApplications = useCallback(() => {
     if (!program || myProjects.length === 0) {
       setMyApplications([]);
       return;
@@ -127,6 +127,18 @@ const ProgramDetailPage = () => {
       active = false;
     };
   }, [program, myProjects]);
+
+  useEffect(() => {
+    const cleanup = refetchApplications();
+    return cleanup;
+  }, [refetchApplications]);
+
+  useEffect(() => {
+    window.addEventListener("focus", refetchApplications);
+    return () => {
+      window.removeEventListener("focus", refetchApplications);
+    };
+  }, [refetchApplications]);
 
   const existingApplication = useMemo(() => myApplications[0] || null, [myApplications]);
 
@@ -182,6 +194,15 @@ const ProgramDetailPage = () => {
         <div className="inline-flex items-center gap-2 rounded-md border bg-muted px-3 py-2 text-sm">
           <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
           Applied — status: <Badge variant="secondary">{existingApplication.status}</Badge>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={refetchApplications}
+            aria-label="Refresh application status"
+          >
+            <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
         </div>
       );
     }
