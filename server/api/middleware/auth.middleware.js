@@ -200,9 +200,10 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
   }
 
-  // Domain is intentionally NOT checked here (preserves prior behavior — team
-  // members may sign from preview/staging origins).
-  const auth = await authenticateRequest(authHeader, { checkDomain: false });
+  // Domain is verified here too, consistent with requireAdmin / requireOwnWallet.
+  // Preview/staging origins are handled by DISABLE_SIWS_DOMAIN_CHECK, not by
+  // skipping the check.
+  const auth = await authenticateRequest(authHeader, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
   }
