@@ -1,6 +1,7 @@
 /**
  * Validation utility functions for Stadium backend
  */
+import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
 
 /**
  * Validate SS58 address format (Polkadot/Substrate)
@@ -288,6 +289,80 @@ export const validateEmail = (email) => {
     return { valid: false, error: 'email must be a valid email address' };
   }
   return { valid: true, normalised: trimmed };
+};
+
+/**
+ * Validate project creation payload (Phase 2 revamp, #80).
+ * @param {Object} data
+ * @returns {Object} - { valid: boolean, errors: Record<string,string> }
+ */
+export const validateProject = (data) => {
+  const errors = {};
+
+  if (!data || typeof data !== 'object') {
+    return { valid: false, errors: { _root: 'Project payload must be an object' } };
+  }
+
+  // projectName is required
+  if (!data.projectName || typeof data.projectName !== 'string' || !validateLength(data.projectName, 1, 200)) {
+    errors.projectName = 'projectName is required (1–200 characters)';
+  }
+
+  if (data.description !== undefined && data.description !== null) {
+    if (typeof data.description !== 'string' || !validateLength(data.description, 0, 5000)) {
+      errors.description = 'description must be a string (max 5000 characters)';
+    }
+  }
+
+  for (const urlField of ['projectRepo', 'demoUrl', 'slidesUrl', 'liveUrl']) {
+    if (data[urlField] !== undefined && data[urlField] !== null && data[urlField] !== '') {
+      if (!validateSimpleUrl(data[urlField])) {
+        errors[urlField] = `${urlField} must start with www or http`;
+      }
+    }
+  }
+
+  if (data.donationAddress !== undefined && data.donationAddress !== null && data.donationAddress !== '') {
+    if (!validateSS58(data.donationAddress)) {
+      errors.donationAddress = 'donationAddress must be a valid SS58 address';
+    }
+  }
+
+  if (data.categories !== undefined && data.categories !== null) {
+    if (!Array.isArray(data.categories)) {
+      errors.categories = 'categories must be an array';
+    } else {
+      const bad = data.categories.filter(c => !ALLOWED_CATEGORIES.includes(String(c)));
+      if (bad.length > 0) {
+        errors.categories = `Invalid categories: ${bad.join(', ')}`;
+      }
+    }
+  }
+
+  if (data.teamMembers !== undefined && data.teamMembers !== null) {
+    if (!Array.isArray(data.teamMembers)) {
+      errors.teamMembers = 'teamMembers must be an array';
+    } else {
+      for (let i = 0; i < data.teamMembers.length; i++) {
+        const result = validateTeamMember(data.teamMembers[i]);
+        if (!result.valid) {
+          errors[`teamMembers[${i}]`] = result.error;
+        }
+      }
+    }
+  }
+
+  if (data.hackathon !== undefined && data.hackathon !== null) {
+    if (typeof data.hackathon !== 'object' || Array.isArray(data.hackathon)) {
+      errors.hackathon = 'hackathon must be an object';
+    } else if (data.hackathon.name !== undefined && data.hackathon.name !== null) {
+      if (typeof data.hackathon.name !== 'string' || !validateLength(data.hackathon.name, 1, 200)) {
+        errors['hackathon.name'] = 'hackathon.name must be a string (1–200 characters)';
+      }
+    }
+  }
+
+  return { valid: Object.keys(errors).length === 0, errors };
 };
 
 /**

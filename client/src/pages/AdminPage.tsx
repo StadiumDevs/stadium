@@ -7,6 +7,7 @@ import {
   Wallet,
   AlertCircle,
   CheckCircle,
+  Plus,
 } from "lucide-react";
 import {
   Card,
@@ -46,6 +47,7 @@ import { ProgramsTable } from "@/components/admin/ProgramsTable";
 import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
 import { ConfirmM1PayoutModal } from "@/components/admin/ConfirmM1PayoutModal";
 import { TestPaymentModal } from "@/components/admin/TestPaymentModal";
+import { CreateProjectModal } from "@/components/admin/CreateProjectModal";
 
 const formatAddress = (address = "") =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -93,6 +95,7 @@ const AdminPage = () => {
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [showM1PayoutModal, setShowM1PayoutModal] = useState(false);
   const [showTestPaymentModal, setShowTestPaymentModal] = useState(false);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [sortBy, setSortBy] = useState<'eventStartedAt' | 'projectName' | 'newest'>('eventStartedAt');
   const { toast } = useToast();
 
@@ -702,8 +705,18 @@ const AdminPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
+          {isAuthenticated && !!walletState.selectedAccount?.address && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCreateProjectModal(true)}
+            >
+              <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+              Create Project
+            </Button>
+          )}
+          <Button
+            variant="outline"
             onClick={() => setShowTestPaymentModal(true)}
             className="border-yellow-500 text-yellow-600 hover:bg-yellow-500/10"
           >
@@ -933,6 +946,14 @@ const AdminPage = () => {
       <TestPaymentModal
         open={showTestPaymentModal}
         onOpenChange={setShowTestPaymentModal}
+      />
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        open={showCreateProjectModal}
+        onOpenChange={setShowCreateProjectModal}
+        connectedAddress={walletState.selectedAccount?.address}
+        onSaved={(project) => setProjects((prev) => [project, ...prev])}
       />
       </div>
     </div>

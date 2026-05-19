@@ -246,18 +246,28 @@ export const api = {
     if (USE_MOCK_DATA) {
       const { mockWinningProjects } = await import("./mockWinners");
       const mockProject = mockWinningProjects.find((p) => p.id === id);
-      
+
       if (mockProject) {
         return Promise.resolve({
           status: "success",
           data: mockProject
         });
       }
-      
+
+      // Fall back to localStorage-persisted projects (e.g. created via createProject in mock mode)
+      const stored = localStorage.getItem("projects");
+      if (stored) {
+        const lsProjects: ApiProject[] = JSON.parse(stored);
+        const lsProject = lsProjects.find((p) => p.id === id);
+        if (lsProject) {
+          return Promise.resolve({ status: "success", data: lsProject });
+        }
+      }
+
       // If project not found in mock data, return 404-like response
       throw new ApiError("Project not found", 404);
     }
-    
+
     return request(`/m2-program/${id}`);
   },
 
@@ -985,6 +995,50 @@ export const api = {
         ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
         : { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
+    });
+  },
+
+  /**
+   * Phase 2 revamp: admin create project (issue #80).
+   */
+  createProject: async (
+    payload: Partial<ApiProject> & { projectName: string },
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProject }> => {
+    if (USE_MOCK_DATA) {
+      const { mockWinningProjects } = await import("./mockWinners");
+      const id =
+        payload.id ||
+        payload.projectName
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 100) +
+          `-${Date.now()}`;
+      const created: ApiProject = {
+        description: "",
+        ...payload,
+        id,
+      };
+      (mockWinningProjects as ApiProject[]).unshift(created);
+
+      // Persist to localStorage so the project survives a module reload
+      const stored = localStorage.getItem("projects");
+      const lsProjects: ApiProject[] = stored ? JSON.parse(stored) : [];
+      lsProjects.unshift(created);
+      localStorage.setItem("projects", JSON.stringify(lsProjects));
+
+      return { status: "success", data: created };
+    }
+    return request(`/m2-program`, {
+      method: "POST",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
   },
 

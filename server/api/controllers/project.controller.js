@@ -4,7 +4,7 @@ import fundingSignalService from '../services/funding-signal.service.js';
 import paymentService from '../services/payment.service.js';
 import notificationService from '../services/notification.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
-import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal } from '../utils/validation.js';
+import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal, validateProject } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
@@ -46,6 +46,11 @@ class ProjectController {
     async createProject(req, res) {
         try {
             const projectData = req.body || {};
+            const { valid, errors } = validateProject(projectData);
+            if (!valid) {
+                const firstError = Object.values(errors)[0] || 'Invalid project data';
+                return res.status(400).json({ status: 'error', message: firstError, errors });
+            }
             const created = await projectService.createProject(projectData);
             res.status(201).json({ status: "success", data: created });
         } catch (error) {
