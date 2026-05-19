@@ -29,12 +29,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   Tabs,
   TabsContent,
   TabsList,
@@ -515,7 +509,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                 <TableHead className={connectedAddress ? "w-[18%]" : "w-[22%]"}>Project</TableHead>
                 <TableHead className={connectedAddress ? "w-[12%]" : "w-[15%]"}>Event</TableHead>
                 <TableHead className={connectedAddress ? "w-[20%]" : "w-[24%]"}>Track/Bounty</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Bounty amount</TableHead>
+                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Amount</TableHead>
                 <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>M2 Status</TableHead>
                 <TableHead className={connectedAddress ? "w-[10%]" : "w-[15%]"}>Payment</TableHead>
                 {connectedAddress && <TableHead className="w-[20%] text-right">Actions</TableHead>}
@@ -524,6 +518,12 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
             <TableBody>
               {sortedProjects.map((project) => {
                 const totalBounty = getTotalBounty(project);
+                // M2 program grant (issue #26) — schema-backed entitlement,
+                // only present on M2 projects.
+                const m2Grant = project.m2Entitlement
+                  ? (project.m2Entitlement.milestone1Amount || 0) + (project.m2Entitlement.milestone2Amount || 0)
+                  : 0;
+                const totalAmount = totalBounty + m2Grant;
                 const isSaving = saving === project.id;
 
                 return (
@@ -552,35 +552,20 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                       </div>
                     </TableCell>
 
-                    {/* Bounty amount (sum of bountyPrize[].amount from schema).
-                        M2 program grant is NOT included here — entitlement is not
-                        stored in the schema yet. See issue #26. */}
+                    {/* Amount — bounty sum + M2 program grant. The M2
+                        entitlement is schema-backed per project (issue #26). */}
                     <TableCell>
                       <div className="space-y-1">
-                        <p className="font-semibold">{formatAmount(totalBounty, getProjectCurrency(project))}</p>
-                        {project.bountyPrize.length > 1 && (
+                        <p className="font-semibold">{formatAmount(totalAmount, getProjectCurrency(project))}</p>
+                        {(project.bountyPrize.length > 1 || m2Grant > 0) && (
                           <div className="text-xs text-muted-foreground">
                             {project.bountyPrize.map((b: BountyPrize, idx: number) => (
-                              <div key={idx}>{formatAmount(b.amount, b.currency)}</div>
+                              <div key={idx}>Bounty: {formatAmount(b.amount, b.currency)}</div>
                             ))}
+                            {m2Grant > 0 && (
+                              <div>M2 grant: {formatAmount(m2Grant, project.m2Entitlement?.currency)}</div>
+                            )}
                           </div>
-                        )}
-                        {project.m2Status && (
-                          <TooltipProvider delayDuration={100}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge variant="outline" className="text-[10px] font-normal cursor-help">
-                                  + M2 grant
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">
-                                <p className="text-xs">
-                                  This team is in the M2 program and is owed an additional grant beyond the bounty shown.
-                                  The M2 entitlement is not yet stored in the schema per project — tracked in issue #26.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
                         )}
                       </div>
                     </TableCell>
