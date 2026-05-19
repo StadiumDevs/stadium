@@ -129,5 +129,8 @@ mongodb-data/
 # Supabase CLI cache
 supabase/.temp/
 
+# Playwright MCP session artifacts (console logs + page snapshots)
+.playwright-mcp/
+
 # Generated descriptors (optional: uncomment if not needed in repo)
 # server/.papi/

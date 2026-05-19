@@ -1,17 +1,48 @@
-import { addressInList } from './addressUtils'
-
-// Get admin addresses from environment variable
-const adminAddressesEnv = import.meta.env.VITE_ADMIN_ADDRESSES || ''
-
-export const ADMIN_ADDRESSES = adminAddressesEnv
-  .split(',')
-  .map(addr => addr.trim())
-  .filter(addr => addr.length > 0)
+import { addressesEqual, type AddrChain } from './addressUtils'
 
 /**
- * Check if wallet address has admin access.
- * Compares decoded public keys so different SS58 prefixes still match.
+ * Admin wallet configuration.
+ *
+ * `VITE_ADMIN_ADDRESSES` is a comma-separated list. Each entry is either
+ * `chain:address` or a bare address (bare ⇒ substrate, so existing config
+ * keeps working). Example:
+ *   VITE_ADMIN_ADDRESSES=5Grw...,ethereum:0xAbC...
  */
-export const isAdmin = (walletAddress?: string): boolean => {
-  return addressInList(walletAddress, ADMIN_ADDRESSES)
+
+export interface AdminEntry {
+  chain: AddrChain
+  address: string
+}
+
+const CHAINS: AddrChain[] = ['substrate', 'ethereum', 'solana']
+
+function parseEntry(raw: string): AdminEntry | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const colon = trimmed.indexOf(':')
+  if (colon > 0) {
+    const tag = trimmed.slice(0, colon).toLowerCase() as AddrChain
+    if (CHAINS.includes(tag)) {
+      return { chain: tag, address: trimmed.slice(colon + 1).trim() }
+    }
+  }
+  return { chain: 'substrate', address: trimmed }
+}
+
+const adminAddressesEnv = import.meta.env.VITE_ADMIN_ADDRESSES || ''
+
+export const ADMIN_ADDRESSES: AdminEntry[] = adminAddressesEnv
+  .split(',')
+  .map(parseEntry)
+  .filter((entry): entry is AdminEntry => entry !== null)
+
+/**
+ * Check if a wallet address has admin access on the given chain.
+ * An address only matches an admin entry on the same chain.
+ */
+export const isAdmin = (walletAddress?: string, chain: AddrChain = 'substrate'): boolean => {
+  if (!walletAddress) return false
+  return ADMIN_ADDRESSES.some(
+    entry => entry.chain === chain && addressesEqual(entry.address, walletAddress, chain)
+  )
 }

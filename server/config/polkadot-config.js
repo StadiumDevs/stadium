@@ -48,6 +48,9 @@ export const AUTHORIZED_SIGNERS = (process.env.AUTHORIZED_SIGNERS || '')
   .filter(Boolean);
 
 AUTHORIZED_SIGNERS.forEach((addr, i) => {
+  // Chain-tagged entries (e.g. "ethereum:0x..", "solana:..") are validated
+  // per-chain by server/api/auth/authorizedSigners.js — skip them here.
+  if (/^(ethereum|solana|substrate):/i.test(addr)) return;
   try {
     decodeAddress(addr);
   } catch (e) {

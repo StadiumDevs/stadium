@@ -18,6 +18,30 @@ export const validateSS58 = (address) => {
   return ss58Regex.test(address);
 };
 
+/** Wallet chains supported for sign-in and address storage. */
+export const ALLOWED_WALLET_CHAINS = ['substrate', 'ethereum', 'solana'];
+
+/**
+ * Validate a wallet address for a given chain.
+ * @param {string} chain - 'substrate' | 'ethereum' | 'solana'
+ * @param {string} address
+ * @returns {boolean} - True if the address is valid for the chain
+ */
+export const validateAddress = (chain, address) => {
+  if (!address || typeof address !== 'string') return false;
+  const trimmed = address.trim();
+  switch (chain) {
+    case 'ethereum':
+      return /^0x[a-fA-F0-9]{40}$/.test(trimmed);
+    case 'solana':
+      // base58 public key — 32-byte keys encode to 32-44 base58 characters.
+      return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed);
+    case 'substrate':
+    default:
+      return validateSS58(trimmed);
+  }
+};
+
 /**
  * Validate URL format
  * @param {string} url - URL to validate
@@ -96,8 +120,12 @@ export const validateTeamMember = (member) => {
     return { valid: false, error: 'Team member name must be 1-100 characters' };
   }
   
-  if (member.walletAddress && !validateSS58(member.walletAddress)) {
-    return { valid: false, error: `Invalid SS58 address format: ${member.walletAddress}` };
+  if (member.walletChain !== undefined && !ALLOWED_WALLET_CHAINS.includes(member.walletChain)) {
+    return { valid: false, error: `Invalid walletChain: ${member.walletChain}` };
+  }
+  const memberWalletChain = member.walletChain || 'substrate';
+  if (member.walletAddress && !validateAddress(memberWalletChain, member.walletAddress)) {
+    return { valid: false, error: `Invalid ${memberWalletChain} address format: ${member.walletAddress}` };
   }
   
   if (member.role && !validateLength(member.role, 0, 50)) {
@@ -322,9 +350,13 @@ export const validateProject = (data) => {
     }
   }
 
+  if (data.donationChain !== undefined && !ALLOWED_WALLET_CHAINS.includes(data.donationChain)) {
+    errors.donationChain = `donationChain must be one of: ${ALLOWED_WALLET_CHAINS.join(', ')}`;
+  }
   if (data.donationAddress !== undefined && data.donationAddress !== null && data.donationAddress !== '') {
-    if (!validateSS58(data.donationAddress)) {
-      errors.donationAddress = 'donationAddress must be a valid SS58 address';
+    const donationChain = data.donationChain || 'substrate';
+    if (!validateAddress(donationChain, data.donationAddress)) {
+      errors.donationAddress = `donationAddress must be a valid ${donationChain} address`;
     }
   }
 

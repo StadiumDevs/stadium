@@ -99,7 +99,7 @@ describe('requireOwnWallet', () => {
     await requireOwnWallet(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.user).toEqual({ address: '5Alice' });
+    expect(req.user).toEqual({ address: '5Alice', chain: 'substrate' });
   });
 
   it('returns 400 for invalid base64', async () => {
@@ -154,7 +154,7 @@ describe('requireOwnWallet', () => {
     await requireOwnWallet(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.user).toEqual({ address: '5Alice' });
+    expect(req.user).toEqual({ address: '5Alice', chain: 'substrate' });
   });
 
   it('returns 403 with reason not-your-wallet when signer does not match target', async () => {

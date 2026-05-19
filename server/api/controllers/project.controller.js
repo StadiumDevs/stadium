@@ -4,7 +4,7 @@ import fundingSignalService from '../services/funding-signal.service.js';
 import paymentService from '../services/payment.service.js';
 import notificationService from '../services/notification.service.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
-import { validateSS58, validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal, validateProject } from '../utils/validation.js';
+import { validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal, validateProject, validateAddress, ALLOWED_WALLET_CHAINS } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
@@ -35,7 +35,9 @@ class ProjectController {
             if (!address || typeof address !== 'string') {
                 return res.status(400).json({ status: 'error', message: 'Address is required' });
             }
-            const projects = await projectService.findByTeamWallet(address);
+            // Optional ?chain= selects the wallet ecosystem; defaults to substrate.
+            const chain = typeof req.query.chain === 'string' ? req.query.chain : 'substrate';
+            const projects = await projectService.findByTeamWallet(address, chain);
             res.status(200).json({ status: 'success', data: projects });
         } catch (error) {
             console.error('❌ Error fetching projects by wallet:', error);
@@ -202,6 +204,7 @@ class ProjectController {
         try {
             const { projectId } = req.params;
             const { donationAddress } = req.body;
+            const donationChain = req.body.donationChain || 'substrate';
             const userWallet = req.user?.address;
 
             // Validation
@@ -212,11 +215,18 @@ class ProjectController {
                 });
             }
 
-            // Validate SS58 format
-            if (!validateSS58(donationAddress)) {
+            if (!ALLOWED_WALLET_CHAINS.includes(donationChain)) {
                 return res.status(400).json({
                     status: "error",
-                    message: "Invalid SS58 address format. Must be a valid Polkadot/Substrate address (47-48 characters)."
+                    message: `Invalid donationChain. Must be one of: ${ALLOWED_WALLET_CHAINS.join(', ')}`
+                });
+            }
+
+            // Validate the address for its chain
+            if (!validateAddress(donationChain, donationAddress)) {
+                return res.status(400).json({
+                    status: "error",
+                    message: `Invalid ${donationChain} payout address format.`
                 });
             }
 
@@ -233,7 +243,7 @@ class ProjectController {
             logger.security(`  By: ${userWallet}`);
 
             // Update payout address
-            const updated = await projectService.updateProject(projectId, { donationAddress });
+            const updated = await projectService.updateProject(projectId, { donationAddress, donationChain });
 
             if (!updated) {
                 return res.status(404).json({ status: "error", message: "Project not found" });

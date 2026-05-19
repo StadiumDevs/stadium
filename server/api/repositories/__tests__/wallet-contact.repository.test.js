@@ -57,6 +57,7 @@ describe('WalletContactRepository.findByWallet', () => {
     const result = await repo.findByWallet('5Alice');
     expect(result).toEqual({
       walletAddress: '5Alice',
+      walletChain: 'substrate',
       email: 'alice@example.com',
       notificationsEnabled: true,
       createdAt: '2026-04-23T00:00:00Z',
@@ -106,7 +107,7 @@ describe('WalletContactRepository.upsertByWallet', () => {
         notifications_enabled: true,
         updated_at: expect.any(String),
       }),
-      { onConflict: 'wallet_address' },
+      { onConflict: 'wallet_chain,wallet_address' },
     );
     const row = upsertFn.mock.calls[0][0];
     expect(() => new Date(row.updated_at)).not.toThrow();
@@ -126,6 +127,7 @@ describe('WalletContactRepository.upsertByWallet', () => {
     const result = await repo.upsertByWallet('5Alice', { email: 'alice@example.com', notificationsEnabled: false });
     expect(result).toEqual({
       walletAddress: '5Alice',
+      walletChain: 'substrate',
       email: 'alice@example.com',
       notificationsEnabled: false,
       createdAt: '2026-04-23T00:00:00Z',
@@ -159,7 +161,7 @@ describe('WalletContactRepository.upsertByWallet', () => {
         email: 'new@x.com',
         notifications_enabled: false,
       }),
-      { onConflict: 'wallet_address' },
+      { onConflict: 'wallet_chain,wallet_address' },
     );
     expect(result.notificationsEnabled).toBe(false);
     expect(result.email).toBe('new@x.com');
@@ -188,7 +190,7 @@ describe('WalletContactRepository.upsertByWallet', () => {
         email: 'keep@x.com',
         notifications_enabled: false,
       }),
-      { onConflict: 'wallet_address' },
+      { onConflict: 'wallet_chain,wallet_address' },
     );
   });
 });

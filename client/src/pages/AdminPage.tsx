@@ -12,21 +12,9 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -39,8 +27,9 @@ import { EmptyState } from "@/components/EmptyState";
 import { api } from "@/lib/api";
 import { useMemo } from "react";
 import { isAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
-import { SiwsMessage } from '@talismn/siws';
-import { generateSiwsStatement, type SiwsContext } from '@/lib/siwsUtils';
+import { useWalletAuth } from "@/lib/auth/useWalletAuth";
+import { getProvider } from "@/lib/auth/registry";
+import { ChainPicker } from "@/components/auth/ChainPicker";
 import { M2ProjectsTable } from "@/components/admin/M2ProjectsTable";
 import { WinnersTable } from "@/components/admin/WinnersTable";
 import { ProgramsTable } from "@/components/admin/ProgramsTable";
@@ -52,41 +41,12 @@ import { CreateProjectModal } from "@/components/admin/CreateProjectModal";
 const formatAddress = (address = "") =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
 
-type M2Project = {
-  id: string;
-  projectName: string;
-  teamMembers?: Array<{
-    name: string;
-    walletAddress?: string;
-    role?: string;
-    twitter?: string;
-    github?: string;
-    linkedin?: string;
-  }>;
-  m2Status?: 'building' | 'under_review' | 'completed';
-  finalSubmission?: {
-    repoUrl: string;
-    demoUrl: string;
-    docsUrl: string;
-    summary?: string;
-    submittedDate: string;
-  };
-  submittedDate?: string;
-};
-
 const AdminPage = () => {
   const BYPASS_ADMIN_CHECK = false;
-  
-  const [walletState, setWalletState] = useState({
-    isExtensionAvailable: false,
-    isConnected: false,
-    isConnecting: false,
-    accounts: [] as any[],
-    selectedAccount: null as any | null,
-    error: "",
-    errorData: null as any | null,
-    injector: null as any | null,
-  });
+
+  const auth = useWalletAuth();
+  // Admin-not-found details (admin gating is page logic, not the wallet hook's).
+  const [errorData, setErrorData] = useState<any | null>(null);
 
   const [isAuthenticated, setIsAuthenticated] = useState(BYPASS_ADMIN_CHECK);
   const [projects, setProjects] = useState<any[]>([]);
@@ -102,7 +62,7 @@ const AdminPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Fetch ALL projects from MongoDB via API (no pagination)
+      // Fetch ALL projects from the API (no pagination)
       const response = await api.getProjects({ limit: 1000 });
       const projectsData = response?.data || [];
       setProjects(projectsData);
@@ -118,46 +78,22 @@ const AdminPage = () => {
     }
   };
 
+  // Bypass mode loads data directly without a wallet.
   useEffect(() => {
-    // TESTING MODE: Skip wallet check and directly load data
     if (BYPASS_ADMIN_CHECK) {
       loadData();
-      return;
     }
-
-    checkExtension();
-
-    // Restore session if admin account exists in sessionStorage
-    const restoreSession = async () => {
-      const sessionAccount = sessionStorage.getItem("admin_session_account");
-      if (sessionAccount) {
-        const account = JSON.parse(sessionAccount);
-        if (isAdmin(account.address)) {
-          try {
-            const { web3Enable, web3FromSource } = await import("@polkadot/extension-dapp");
-            await web3Enable("Hackathonia Admin");
-            const injector = await web3FromSource(account.meta.source);
-            setWalletState((prev) => ({
-              ...prev,
-              selectedAccount: account,
-              isConnected: true,
-              injector,
-            }));
-          } catch {
-            // If injector restore fails, still allow read-only session
-            setWalletState((prev) => ({
-              ...prev,
-              selectedAccount: account,
-              isConnected: true,
-            }));
-          }
-          setIsAuthenticated(true);
-        }
-      }
-    };
-    restoreSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Authenticate once an admin wallet is connected (covers restored sessions).
+  useEffect(() => {
+    if (BYPASS_ADMIN_CHECK) return;
+    if (auth.account && isAdmin(auth.account.address, auth.account.chain)) {
+      setIsAuthenticated(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.account]);
 
   useEffect(() => {
     if (isAuthenticated && !BYPASS_ADMIN_CHECK) {
@@ -168,132 +104,30 @@ const AdminPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
-  const checkExtension = async () => {
-    try {
-      await waitForExtension();
-      setWalletState((prev) => ({
-        ...prev,
-        isExtensionAvailable: true,
-        error: "",
-      }));
-    } catch {
-      setWalletState((prev) => ({
-        ...prev,
-        isExtensionAvailable: false,
-        error: "Polkadot-JS extension not found. Please install it first.",
-      }));
-    }
-  };
-
-  const waitForExtension = () =>
-    new Promise((resolve, reject) => {
-      let attempts = 0;
-      const maxAttempts = 10;
-      const interval = setInterval(() => {
-        if (
-          window.injectedWeb3 &&
-          Object.keys(window.injectedWeb3).length > 0
-        ) {
-          clearInterval(interval);
-          resolve();
-        } else if (++attempts >= maxAttempts) {
-          clearInterval(interval);
-          reject();
-        }
-      }, 500);
-    });
-
   const connectWallet = async () => {
-    if (!walletState.isExtensionAvailable) return;
-
-    setWalletState((prev) => ({ ...prev, isConnecting: true, error: "" }));
-
+    setErrorData(null);
     try {
-      const { web3Enable, web3Accounts } = await import(
-        "@polkadot/extension-dapp"
-      );
-      const extensions = await web3Enable("Hackathonia Admin");
-      if (!extensions.length)
-        throw new Error("No extension authorization given.");
-
-      const allAccounts = await web3Accounts();
-      if (!allAccounts.length)
-        throw new Error("No accounts found in extension.");
-
-      // Check if admin account is available
-      const adminAccount = allAccounts.find(
-        (account) => isAdmin(account.address)
-      );
+      const found = await auth.connect();
+      const adminAccount = found.find((account) => isAdmin(account.address, account.chain));
 
       if (!adminAccount) {
-        // Store structured error data for better formatting
-        const errorData = {
+        setErrorData({
           message: "Admin account not found. Please ensure you have the correct admin account in your wallet.",
-          walletAddresses: allAccounts.map(a => a.address),
-          expectedAddresses: ADMIN_ADDRESSES,
-          isProduction: import.meta.env.PROD
-        };
-        throw errorData;
+          walletAddresses: found.map((a) => a.address),
+          expectedAddresses: ADMIN_ADDRESSES.filter((e) => e.chain === auth.chain).map((e) => e.address),
+          isProduction: import.meta.env.PROD,
+        });
+        return;
       }
 
-      setWalletState((prev) => ({
-        ...prev,
-        accounts: allAccounts,
-        isConnected: true,
-        isConnecting: false,
-      }));
-
-      // Auto-select admin account
-      selectAccount(adminAccount);
-    } catch (err: any) {
-      // Handle structured error data
-      if (err.walletAddresses && Array.isArray(err.walletAddresses)) {
-        setWalletState((prev) => ({
-          ...prev,
-          error: err.message || "Connection failed",
-          errorData: err,
-          isConnecting: false,
-        }));
-      } else {
-        setWalletState((prev) => ({
-          ...prev,
-          error: `Connection failed: ${err.message}`,
-          errorData: null,
-          isConnecting: false,
-        }));
-      }
-    }
-  };
-
-  const selectAccount = async (account) => {
-    try {
-      if (!isAdmin(account.address)) {
-        throw new Error(
-          "Unauthorized: Only admin account can access this panel."
-        );
-      }
-
-      const { web3FromSource } = await import("@polkadot/extension-dapp");
-      const injector = await web3FromSource(account.meta.source);
-
-      sessionStorage.setItem("admin_session_account", JSON.stringify(account));
-
-      setWalletState((prev) => ({
-        ...prev,
-        selectedAccount: account,
-        injector,
-      }));
+      auth.selectAccount(adminAccount);
       setIsAuthenticated(true);
-
       toast({
         title: "Admin Access Granted",
         description: "Successfully connected as admin.",
       });
-    } catch (err) {
-      setWalletState((prev) => ({
-        ...prev,
-        error: `Authentication failed: ${err.message}`,
-      }));
+    } catch {
+      // auth.error is already set by the wallet hook.
     }
   };
 
@@ -307,7 +141,7 @@ const AdminPage = () => {
     if (!selectedProject) return;
 
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await auth.signAction('admin-action');
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: 'POST',
         headers: {
@@ -323,8 +157,8 @@ const AdminPage = () => {
       if (!response.ok) {
         let errorMessage = 'Failed to confirm M1 payout';
         try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.error || errorData.message || errorMessage;
+          const errData = JSON.parse(responseText);
+          errorMessage = errData.error || errData.message || errorMessage;
         } catch (e) {
           errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
         }
@@ -353,7 +187,7 @@ const AdminPage = () => {
     if (!selectedProject) return;
 
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await auth.signAction('admin-action');
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: 'POST',
         headers: {
@@ -369,8 +203,8 @@ const AdminPage = () => {
       if (!response.ok) {
         let errorMessage = 'Failed to confirm payment';
         try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.error || errorData.message || errorMessage;
+          const errData = JSON.parse(responseText);
+          errorMessage = errData.error || errData.message || errorMessage;
         } catch (e) {
           // If JSON parsing fails, use the text as error message
           errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
@@ -397,52 +231,9 @@ const AdminPage = () => {
   };
 
   const handleLogout = () => {
-      setWalletState({
-        isExtensionAvailable: true,
-        isConnected: false,
-        isConnecting: false,
-        accounts: [],
-        selectedAccount: null,
-        error: "",
-        errorData: null,
-        injector: null,
-      });
+    auth.disconnect();
     setIsAuthenticated(false);
-    sessionStorage.removeItem("admin_session_account");
-  };
-
-  const signAdminAction = async (action: SiwsContext['action'] = 'admin-action'): Promise<string> => {
-    const account = walletState.selectedAccount;
-    let injector = walletState.injector;
-    if (!account) throw new Error('Wallet not connected');
-
-    // Re-acquire injector if missing (e.g. after session restore)
-    if (!injector) {
-      const { web3Enable, web3FromSource } = await import("@polkadot/extension-dapp");
-      await web3Enable("Hackathonia Admin");
-      injector = await web3FromSource(account.meta.source);
-      setWalletState(prev => ({ ...prev, injector }));
-    }
-
-    const siws = new SiwsMessage({
-      domain: window.location.hostname,
-      uri: window.location.origin,
-      address: account.address,
-      nonce: Math.random().toString(36).slice(2),
-      statement: generateSiwsStatement({ action }),
-    });
-
-    const signRaw = injector?.signer?.signRaw;
-    if (!signRaw) throw new Error('Wallet does not support message signing');
-
-    const message = siws.prepareMessage();
-    const { signature } = await signRaw({
-      address: account.address,
-      data: message,
-      type: 'bytes',
-    });
-
-    return btoa(JSON.stringify({ message, signature, address: account.address }));
+    setErrorData(null);
   };
 
   // Filter projects under review for M2
@@ -450,16 +241,10 @@ const AdminPage = () => {
     return projects.filter((p) => p.m2Status === 'under_review');
   }, [projects]);
 
-  // Filter M2 projects
-  const m2Projects = useMemo(() => 
-    projects.filter(p => p.m2Status),
-    [projects]
-  );
-
   // Sort projects based on selected sort option
   const sortedProjects = useMemo(() => {
     const projectsCopy = [...projects];
-    
+
     switch (sortBy) {
       case 'eventStartedAt':
         return projectsCopy.sort((a, b) => {
@@ -468,7 +253,7 @@ const AdminPage = () => {
           return dateB - dateA; // Newest first
         });
       case 'projectName':
-        return projectsCopy.sort((a, b) => 
+        return projectsCopy.sort((a, b) =>
           (a.projectName || '').localeCompare(b.projectName || '')
         );
       case 'newest':
@@ -489,13 +274,13 @@ const AdminPage = () => {
     }
 
     try {
-      const authHeader = await signAdminAction('approve-project');
+      const authHeader = await auth.signAction('approve-project');
       await api.webzeroApprove(projectId, authHeader);
-      
+
       // Update local state
       setProjects((prev) =>
-        prev.map((p) => 
-          p.id === projectId 
+        prev.map((p) =>
+          p.id === projectId
             ? { ...p, m2Status: 'completed' as const }
             : p
         )
@@ -505,7 +290,7 @@ const AdminPage = () => {
         title: "M2 Approved!",
         description: "Payment will be processed.",
       });
-      
+
       loadData();
     } catch (error) {
       const err = error as Error;
@@ -530,14 +315,14 @@ const AdminPage = () => {
     }
 
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await auth.signAction('admin-action');
       await api.updateProjectStatus(projectId, newStatus, authHeader);
-      
+
       toast({
         title: 'Status Updated',
         description: `Status updated to ${statusLabels[newStatus]}`,
       });
-      
+
       // Refresh projects list
       await loadData();
     } catch (error) {
@@ -574,22 +359,26 @@ const AdminPage = () => {
               Connect your admin wallet to access the management panel.
             </p>
 
-            {walletState.error && (
+            <div className="flex justify-center mb-6">
+              <ChainPicker value={auth.chain} onChange={auth.setChain} />
+            </div>
+
+            {(errorData || auth.error) && (
               <div className="space-y-4 mb-6">
                 <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20">
                   <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                   <div className="flex-1 space-y-3">
                     <p className="text-destructive text-sm font-medium">
-                      {walletState.error}
+                      {errorData?.message || auth.error}
                     </p>
-                    
-                    {walletState.errorData && (
+
+                    {errorData && (
                       <div className="space-y-3 pt-2 border-t border-destructive/20">
-                        {walletState.errorData.walletAddresses && walletState.errorData.walletAddresses.length > 0 && (
+                        {errorData.walletAddresses && errorData.walletAddresses.length > 0 && (
                           <div>
                             <p className="text-xs font-semibold text-destructive/80 mb-2">Your wallet addresses:</p>
                             <ul className="space-y-1.5">
-                              {walletState.errorData.walletAddresses.map((addr: string, idx: number) => (
+                              {errorData.walletAddresses.map((addr: string, idx: number) => (
                                 <li key={idx} className="text-xs text-destructive/70 font-mono break-all bg-destructive/5 p-2 rounded border border-destructive/10">
                                   {addr}
                                 </li>
@@ -597,12 +386,12 @@ const AdminPage = () => {
                             </ul>
                           </div>
                         )}
-                        
-                        {walletState.errorData.expectedAddresses && walletState.errorData.expectedAddresses.length > 0 ? (
+
+                        {errorData.expectedAddresses && errorData.expectedAddresses.length > 0 ? (
                           <div>
                             <p className="text-xs font-semibold text-destructive/80 mb-2">Expected admin addresses:</p>
                             <ul className="space-y-1.5">
-                              {walletState.errorData.expectedAddresses.map((addr: string, idx: number) => (
+                              {errorData.expectedAddresses.map((addr: string, idx: number) => (
                                 <li key={idx} className="text-xs text-destructive/70 font-mono break-all bg-destructive/5 p-2 rounded border border-destructive/10">
                                   {addr}
                                 </li>
@@ -612,20 +401,20 @@ const AdminPage = () => {
                         ) : (
                           <div className="bg-yellow-500/10 border border-yellow-500/20 rounded p-3">
                             <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
-                              ⚠️ No admin addresses configured
+                              ⚠️ No admin addresses configured for this chain
                             </p>
                             <p className="text-xs text-yellow-600/80 dark:text-yellow-400/80 mt-1">
-                              {walletState.errorData.isProduction 
+                              {errorData.isProduction
                                 ? "Set VITE_ADMIN_ADDRESSES in Vercel environment variables and redeploy."
                                 : "Add VITE_ADMIN_ADDRESSES to your .env file and restart the dev server."}
                             </p>
                           </div>
                         )}
-                        
-                        {walletState.errorData.expectedAddresses && walletState.errorData.expectedAddresses.length > 0 && (
+
+                        {errorData.expectedAddresses && errorData.expectedAddresses.length > 0 && (
                           <div className="bg-muted/50 border border-border rounded p-3 mt-3">
                             <p className="text-xs text-muted-foreground">
-                              {walletState.errorData.isProduction ? (
+                              {errorData.isProduction ? (
                                 <>
                                   <strong>To fix:</strong> Add one of your wallet addresses to <code className="bg-background px-1 py-0.5 rounded text-[10px]">VITE_ADMIN_ADDRESSES</code> in{" "}
                                   <strong>Vercel Dashboard → Settings → Environment Variables</strong> (Production), then redeploy.
@@ -647,12 +436,10 @@ const AdminPage = () => {
 
             <Button
               onClick={connectWallet}
-              disabled={
-                !walletState.isExtensionAvailable || walletState.isConnecting
-              }
+              disabled={!auth.isAvailable || auth.isConnecting}
               className="w-full"
             >
-              {walletState.isConnecting ? (
+              {auth.isConnecting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Connecting...
@@ -665,9 +452,9 @@ const AdminPage = () => {
               )}
             </Button>
 
-            {!walletState.isExtensionAvailable && (
+            {!auth.isAvailable && (
               <p className="mt-3 text-sm text-muted-foreground">
-                Polkadot extension not detected
+                {getProvider(auth.chain)?.label || "Wallet"} extension not detected
               </p>
             )}
           </CardContent>
@@ -705,7 +492,7 @@ const AdminPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {isAuthenticated && !!walletState.selectedAccount?.address && (
+          {isAuthenticated && !!auth.account?.address && (
             <Button
               variant="outline"
               size="sm"
@@ -723,8 +510,8 @@ const AdminPage = () => {
             🧪 Test Payment
           </Button>
           <span className="text-sm text-muted-foreground">
-            {walletState.selectedAccount?.meta.name || "Admin"} •{" "}
-            {formatAddress(walletState.selectedAccount?.address || "")}
+            {auth.account?.label || "Admin"} •{" "}
+            {formatAddress(auth.account?.address || "")}
           </span>
           <Button variant="outline" onClick={handleLogout}>
             <LogOut className="h-4 w-4 mr-2" />
@@ -736,7 +523,7 @@ const AdminPage = () => {
       {/* Pending Review Section */}
       <div className="glass-panel rounded-lg p-6 mb-6">
         <h2 className="text-2xl font-heading mb-4">Pending Review</h2>
-        
+
         {projectsUnderReview.length === 0 ? (
           <EmptyState
             title="No projects pending review"
@@ -754,14 +541,14 @@ const AdminPage = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2 mb-4">
                   <h4 className="text-sm font-medium font-heading">Deliverables:</h4>
                   <div className="flex gap-4 text-sm flex-wrap">
                     {project.finalSubmission?.repoUrl && (
-                      <a 
-                        href={project.finalSubmission.repoUrl} 
-                        target="_blank" 
+                      <a
+                        href={project.finalSubmission.repoUrl}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
                       >
@@ -769,9 +556,9 @@ const AdminPage = () => {
                       </a>
                     )}
                     {project.finalSubmission?.demoUrl && (
-                      <a 
-                        href={project.finalSubmission.demoUrl} 
-                        target="_blank" 
+                      <a
+                        href={project.finalSubmission.demoUrl}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
                       >
@@ -779,9 +566,9 @@ const AdminPage = () => {
                       </a>
                     )}
                     {project.finalSubmission?.docsUrl && (
-                      <a 
-                        href={project.finalSubmission.docsUrl} 
-                        target="_blank" 
+                      <a
+                        href={project.finalSubmission.docsUrl}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
                       >
@@ -789,9 +576,9 @@ const AdminPage = () => {
                       </a>
                     )}
                     {!project.finalSubmission && project.gitLink && (
-                      <a 
-                        href={project.gitLink} 
-                        target="_blank" 
+                      <a
+                        href={project.gitLink}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
                       >
@@ -799,9 +586,9 @@ const AdminPage = () => {
                       </a>
                     )}
                     {!project.finalSubmission && project.demoLink && (
-                      <a 
-                        href={project.demoLink} 
-                        target="_blank" 
+                      <a
+                        href={project.demoLink}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
                       >
@@ -810,13 +597,13 @@ const AdminPage = () => {
                     )}
                   </div>
                 </div>
-                
+
                 {project.finalSubmission?.summary && (
                   <p className="text-sm mb-4 whitespace-pre-line leading-relaxed">{project.finalSubmission.summary}</p>
                 )}
-                
+
                 <div className="flex gap-2 flex-wrap">
-                  <Button 
+                  <Button
                     onClick={() => {
                       setSelectedProject(project);
                       setShowPayoutModal(true);
@@ -882,8 +669,8 @@ const AdminPage = () => {
         <WinnersTable
           projects={projects}
           onRefresh={loadData}
-          connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0] : walletState.selectedAccount?.address}
-          signAdminAction={signAdminAction}
+          connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0]?.address : auth.account?.address}
+          signAdminAction={auth.signAction}
         />
       </section>
 
@@ -919,7 +706,7 @@ const AdminPage = () => {
       </section>
 
       <section className="mb-8">
-        <ProgramsTable connectedAddress={walletState.selectedAccount?.address} />
+        <ProgramsTable connectedAddress={auth.account?.address} />
       </section>
 
       {/* M1 Payout Modal */}
@@ -952,7 +739,7 @@ const AdminPage = () => {
       <CreateProjectModal
         open={showCreateProjectModal}
         onOpenChange={setShowCreateProjectModal}
-        connectedAddress={walletState.selectedAccount?.address}
+        connectedAddress={auth.account?.address}
         onSaved={(project) => setProjects((prev) => [project, ...prev])}
       />
       </div>

@@ -6,6 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Users, 
   Wallet, 
@@ -25,9 +32,21 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+type WalletChain = 'substrate' | 'ethereum' | 'solana';
+
+const CHAIN_OPTIONS: { value: WalletChain; label: string }[] = [
+  { value: 'substrate', label: 'Polkadot' },
+  { value: 'ethereum', label: 'Ethereum' },
+  { value: 'solana', label: 'Solana' },
+];
+
+const chainLabel = (chain?: WalletChain) =>
+  CHAIN_OPTIONS.find((o) => o.value === (chain || 'substrate'))?.label ?? 'Polkadot';
+
 interface TeamMember {
   name: string;
   walletAddress?: string;
+  walletChain?: WalletChain;
   role?: string;
   twitter?: string;
   github?: string;
@@ -46,17 +65,23 @@ interface Payment {
 interface TeamPaymentSectionProps {
   teamMembers?: TeamMember[];
   donationAddress?: string;
+  donationChain?: WalletChain;
   totalPaid?: Payment[];
   m2Status?: 'building' | 'under_review' | 'completed';
   isTeamMember: boolean;
   isAdmin: boolean;
   isConnected: boolean;
-  onSave: (data: { teamMembers: TeamMember[]; donationAddress: string }) => Promise<void>;
+  onSave: (data: {
+    teamMembers: TeamMember[];
+    donationAddress: string;
+    donationChain: WalletChain;
+  }) => Promise<void>;
 }
 
 export function TeamPaymentSection({
   teamMembers = [],
   donationAddress,
+  donationChain = 'substrate',
   totalPaid = [],
   m2Status,
   isTeamMember,
@@ -72,6 +97,7 @@ export function TeamPaymentSection({
   // Editable state
   const [editedMembers, setEditedMembers] = useState<TeamMember[]>([]);
   const [editedPayoutAddress, setEditedPayoutAddress] = useState("");
+  const [editedPayoutChain, setEditedPayoutChain] = useState<WalletChain>('substrate');
 
   // Determine if user can edit
   const canEdit = isConnected && (isTeamMember || isAdmin);
@@ -81,17 +107,19 @@ export function TeamPaymentSection({
     if (canEdit) {
       setEditedMembers(teamMembers.length > 0 ? [...teamMembers] : [{ name: "", walletAddress: "" }]);
       setEditedPayoutAddress(donationAddress || "");
+      setEditedPayoutChain(donationChain);
     }
-  }, [canEdit, teamMembers, donationAddress]);
+  }, [canEdit, teamMembers, donationAddress, donationChain]);
 
   // Check if there are unsaved changes
   const hasChanges = () => {
     if (!isEditing) return false;
-    
+
     const membersChanged = JSON.stringify(editedMembers) !== JSON.stringify(teamMembers);
     const addressChanged = editedPayoutAddress !== (donationAddress || "");
-    
-    return membersChanged || addressChanged;
+    const chainChanged = editedPayoutChain !== donationChain;
+
+    return membersChanged || addressChanged || chainChanged;
   };
 
   const truncateAddress = (addr: string) => {
@@ -144,8 +172,14 @@ export function TeamPaymentSection({
 
   // Team member editing functions
   const updateMember = (index: number, field: keyof TeamMember, value: string) => {
-    setEditedMembers(prev => prev.map((m, i) => 
+    setEditedMembers(prev => prev.map((m, i) =>
       i === index ? { ...m, [field]: value } : m
+    ));
+  };
+
+  const updateMemberChain = (index: number, chain: WalletChain) => {
+    setEditedMembers(prev => prev.map((m, i) =>
+      i === index ? { ...m, walletChain: chain } : m
     ));
   };
 
@@ -177,6 +211,7 @@ export function TeamPaymentSection({
         teamMembers: validMembers.map(m => ({
           name: m.name.trim(),
           walletAddress: m.walletAddress?.trim() || undefined,
+          walletChain: m.walletChain || 'substrate',
           role: m.role?.trim() || undefined,
           twitter: m.twitter?.trim() || undefined,
           github: m.github?.trim() || undefined,
@@ -184,6 +219,7 @@ export function TeamPaymentSection({
           customUrl: m.customUrl?.trim() || undefined,
         })),
         donationAddress: editedPayoutAddress.trim(),
+        donationChain: editedPayoutChain,
       });
       
       toast({
@@ -202,6 +238,7 @@ export function TeamPaymentSection({
     // Reset to original values
     setEditedMembers(teamMembers.length > 0 ? [...teamMembers] : [{ name: "", walletAddress: "" }]);
     setEditedPayoutAddress(donationAddress || "");
+    setEditedPayoutChain(donationChain);
     setIsEditing(false);
   };
 
@@ -224,6 +261,9 @@ export function TeamPaymentSection({
                 <code className="text-xs text-muted-foreground font-mono">
                   {truncateAddress(member.walletAddress)}
                 </code>
+                <Badge variant="outline" className="text-[10px]">
+                  {chainLabel(member.walletChain)}
+                </Badge>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -305,15 +345,33 @@ export function TeamPaymentSection({
               </div>
             </div>
             
-            {/* Row 2: Wallet Address */}
-            <div>
-              <Label className="text-xs text-muted-foreground">Wallet Address</Label>
-              <Input
-                value={member.walletAddress || ""}
-                onChange={(e) => updateMember(index, 'walletAddress', e.target.value)}
-                placeholder="SS58 address (e.g., 5Abc...)"
-                className="h-9 font-mono text-sm"
-              />
+            {/* Row 2: Wallet Address + chain */}
+            <div className="grid grid-cols-[1fr_auto] gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Wallet Address</Label>
+                <Input
+                  value={member.walletAddress || ""}
+                  onChange={(e) => updateMember(index, 'walletAddress', e.target.value)}
+                  placeholder="Wallet address"
+                  className="h-9 font-mono text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Chain</Label>
+                <Select
+                  value={member.walletChain || 'substrate'}
+                  onValueChange={(v) => updateMemberChain(index, v as WalletChain)}
+                >
+                  <SelectTrigger className="h-9 w-[130px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHAIN_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
             {/* Row 3: Social Links */}
@@ -449,22 +507,43 @@ export function TeamPaymentSection({
           {isEditing ? (
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Payout Wallet Address</Label>
-              <Input
-                value={editedPayoutAddress}
-                onChange={(e) => setEditedPayoutAddress(e.target.value)}
-                placeholder="SS58 address for receiving payments"
-                className="font-mono text-sm"
-              />
+              <div className="grid grid-cols-[1fr_auto] gap-3">
+                <Input
+                  value={editedPayoutAddress}
+                  onChange={(e) => setEditedPayoutAddress(e.target.value)}
+                  placeholder="Address for receiving payments"
+                  className="font-mono text-sm"
+                />
+                <Select
+                  value={editedPayoutChain}
+                  onValueChange={(v) => setEditedPayoutChain(v as WalletChain)}
+                >
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHAIN_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <p className="text-xs text-muted-foreground">
-                This address will receive M2 milestone payments
+                This address will receive M2 milestone payments. Automated payouts
+                run on Polkadot; other chains are settled manually.
               </p>
             </div>
           ) : donationAddress ? (
             <Card className="bg-secondary/50">
               <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Payout Wallet Address
-                </p>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-xs text-muted-foreground">
+                    Payout Wallet Address
+                  </p>
+                  <Badge variant="outline" className="text-[10px]">
+                    {chainLabel(donationChain)}
+                  </Badge>
+                </div>
                 <div className="flex items-center justify-between gap-2">
                   <code className="text-sm font-mono break-all">
                     {donationAddress}
