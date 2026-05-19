@@ -356,9 +356,10 @@ export const api = {
   },
 
   updateTeam: async (projectId: string, data: {
-    teamMembers: Array<{ 
-      name: string; 
+    teamMembers: Array<{
+      name: string;
       walletAddress?: string;
+      walletChain?: 'substrate' | 'ethereum' | 'solana';
       role?: string;
       twitter?: string;
       github?: string;
@@ -366,6 +367,7 @@ export const api = {
       customUrl?: string;
     }>;
     donationAddress?: string;
+    donationChain?: 'substrate' | 'ethereum' | 'solana';
   }, authHeader?: string) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
@@ -400,7 +402,10 @@ export const api = {
       await request(`/m2-program/${projectId}/payout-address`, {
         method: 'PATCH',
         headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
-        body: JSON.stringify({ donationAddress: data.donationAddress })
+        body: JSON.stringify({
+          donationAddress: data.donationAddress,
+          donationChain: data.donationChain || 'substrate',
+        })
       });
     }
 
@@ -650,7 +655,8 @@ export const api = {
   updatePayoutAddress: async (
     projectId: string,
     donationAddress: string,
-    authHeader?: string
+    authHeader?: string,
+    donationChain: 'substrate' | 'ethereum' | 'solana' = 'substrate'
   ) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
@@ -674,7 +680,7 @@ export const api = {
     return request(`/m2-program/${projectId}`, {
       method: 'PATCH',
       headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
-      body: JSON.stringify({ donationAddress })
+      body: JSON.stringify({ donationAddress, donationChain })
     });
   },
 
@@ -1152,13 +1158,18 @@ export const api = {
   /**
    * Phase 2 revamp: wallet contacts / notification preferences (#71).
    */
-  getWalletContact: async (address: string): Promise<{ email_set: boolean; notifications_enabled: boolean }> => {
+  getWalletContact: async (
+    address: string,
+    chain: 'substrate' | 'ethereum' | 'solana' = 'substrate',
+  ): Promise<{ email_set: boolean; notifications_enabled: boolean }> => {
     if (USE_MOCK_DATA) {
       const { mockWalletContacts } = await import("./mockWalletContacts");
       const entry = mockWalletContacts[address];
       return { email_set: !!entry?.email, notifications_enabled: entry?.notificationsEnabled ?? true };
     }
-    const res = await request(`/wallet-contacts/${encodeURIComponent(address)}`);
+    const res = await request(
+      `/wallet-contacts/${encodeURIComponent(address)}?chain=${encodeURIComponent(chain)}`,
+    );
     return res.data;
   },
 
