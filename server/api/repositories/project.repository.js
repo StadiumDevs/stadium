@@ -16,6 +16,7 @@ const transformProject = (row) => {
         techStack: row.tech_stack || [],
         categories: row.categories || [],
         donationAddress: row.donation_address,
+        donationChain: row.donation_chain || 'substrate',
         projectState: row.project_state,
         bountiesProcessed: row.bounties_processed,
         hackathon: {
@@ -54,6 +55,7 @@ const transformProject = (row) => {
         teamMembers: (row.team_members || []).map(m => ({
             name: m.name,
             walletAddress: m.wallet_address,
+            walletChain: m.wallet_chain || 'substrate',
             customUrl: m.custom_url,
             role: m.role,
             twitter: m.twitter,
@@ -97,6 +99,7 @@ const toSupabaseProject = (data) => {
     if (data.techStack !== undefined) row.tech_stack = data.techStack;
     if (data.categories !== undefined) row.categories = data.categories;
     if (data.donationAddress !== undefined) row.donation_address = data.donationAddress;
+    if (data.donationChain !== undefined) row.donation_chain = data.donationChain;
     if (data.projectState !== undefined) row.project_state = data.projectState;
     if (data.bountiesProcessed !== undefined) row.bounties_processed = data.bountiesProcessed;
 
@@ -233,6 +236,7 @@ class ProjectRepository {
                     project_id: projectId,
                     name: m.name,
                     wallet_address: m.walletAddress,
+                    wallet_chain: m.walletChain || 'substrate',
                     custom_url: m.customUrl,
                     role: m.role,
                     twitter: m.twitter,
@@ -297,6 +301,7 @@ class ProjectRepository {
                         project_id: projectId,
                         name: m.name,
                         wallet_address: m.walletAddress,
+                        wallet_chain: m.walletChain || 'substrate',
                         custom_url: m.customUrl,
                         role: m.role,
                         twitter: m.twitter,
@@ -442,6 +447,7 @@ class ProjectRepository {
                         project_id: projectId,
                         name: m.name,
                         wallet_address: m.walletAddress,
+                        wallet_chain: m.walletChain || 'substrate',
                         custom_url: m.customUrl,
                         role: m.role,
                         twitter: m.twitter,
@@ -503,13 +509,14 @@ class ProjectRepository {
      * so "the most-recently-updated project" is the default selection in the
      * Apply modal.
      */
-    async findByTeamWallet(walletAddress) {
+    async findByTeamWallet(walletAddress, chain = 'substrate') {
         if (!walletAddress) return [];
         // Two-step: first, get project ids where the wallet is a team member.
         const { data: teamRows, error: teamErr } = await supabase
             .from('team_members')
             .select('project_id')
-            .eq('wallet_address', walletAddress);
+            .eq('wallet_address', walletAddress)
+            .eq('wallet_chain', chain);
         if (teamErr) throw teamErr;
         const projectIds = [...new Set((teamRows || []).map((r) => r.project_id))];
         if (projectIds.length === 0) return [];

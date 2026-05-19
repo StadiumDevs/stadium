@@ -272,7 +272,7 @@ export const requireOwnWallet = async (req, res, next) => {
   // DEV MODE BYPASS
   if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
     log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for own-wallet'));
-    req.user = { address: req.params.address };
+    req.user = { address: req.params.address, chain: 'substrate' };
     return next();
   }
 
@@ -309,7 +309,7 @@ export const requireOwnWallet = async (req, res, next) => {
   }
 
   logSuccess(`Signer ${auth.parsed.address} matches target wallet ${req.params.address}`);
-  req.user = { address: auth.parsed.address };
+  req.user = { address: auth.parsed.address, chain: auth.chain };
   return next();
 };
 

@@ -1,12 +1,19 @@
 import walletContactService from '../services/wallet-contact.service.js';
-import { validateSS58, validateEmail } from '../utils/validation.js';
+import { validateAddress, validateEmail, ALLOWED_WALLET_CHAINS } from '../utils/validation.js';
 
 const getContact = async (req, res) => {
   const { address } = req.params;
-  if (!validateSS58(address)) {
+  // Optional ?chain= selects the wallet ecosystem; defaults to substrate.
+  const chain = typeof req.query.chain === 'string' ? req.query.chain : 'substrate';
+
+  if (!ALLOWED_WALLET_CHAINS.includes(chain)) {
+    return res.status(400).json({ status: 'error', message: 'Invalid chain' });
+  }
+  if (!validateAddress(chain, address)) {
     return res.status(400).json({ status: 'error', message: 'Invalid wallet address' });
   }
-  const data = await walletContactService.getPublicContact(address);
+
+  const data = await walletContactService.getPublicContact(address, chain);
   return res.status(200).json({
     status: 'success',
     data: {
@@ -18,6 +25,8 @@ const getContact = async (req, res) => {
 
 const updateContact = async (req, res) => {
   const { address } = req.params;
+  // requireOwnWallet verified the signer owns this address on this chain.
+  const chain = req.user?.chain || 'substrate';
 
   const fields = {};
 
@@ -42,7 +51,7 @@ const updateContact = async (req, res) => {
     fields.notificationsEnabled = notifications_enabled;
   }
 
-  const data = await walletContactService.updateContact(address, fields);
+  const data = await walletContactService.updateContact(address, fields, chain);
 
   return res.status(200).json({
     status: 'success',

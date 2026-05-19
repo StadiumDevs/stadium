@@ -6,16 +6,16 @@ const toPublic = (contact) => ({
 });
 
 class WalletContactService {
-  async getPublicContact(address) {
-    const contact = await walletContactRepository.findByWallet(address);
+  async getPublicContact(address, chain = 'substrate') {
+    const contact = await walletContactRepository.findByWallet(address, chain);
     if (!contact) {
       return { emailSet: false, notificationsEnabled: true };
     }
     return toPublic(contact);
   }
 
-  async updateContact(address, fields) {
-    const contact = await walletContactRepository.upsertByWallet(address, fields);
+  async updateContact(address, fields, chain = 'substrate') {
+    const contact = await walletContactRepository.upsertByWallet(address, fields, chain);
     return toPublic(contact);
   }
 }
