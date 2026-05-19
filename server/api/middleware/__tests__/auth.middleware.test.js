@@ -349,4 +349,26 @@ describe('requireTeamMemberOrAdmin', () => {
     expect(res.statusCode).toBe(403);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('returns 403 on domain mismatch', async () => {
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      statement: 'Perform administrative action on Stadium',
+      address: '5FakeAdmin1',
+      domain: 'evil.com',
+    });
+
+    const req = makeReq({
+      params: { projectId: 'proj-1' },
+      headers: { 'x-siws-auth': encodePayload(VALID_PAYLOAD) },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireTeamMemberOrAdmin(req, res, next);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/Invalid domain/i);
+    expect(next).not.toHaveBeenCalled();
+  });
 });
