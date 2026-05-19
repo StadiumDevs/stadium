@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../services/project.service.js', () => ({
-  default: { updateProject: vi.fn(), getProjectById: vi.fn() },
+  default: { updateProject: vi.fn(), getProjectById: vi.fn(), createProject: vi.fn() },
 }));
 vi.mock('../../services/project-update.service.js', () => ({
   default: { listByProject: vi.fn(), create: vi.fn() },
@@ -29,6 +29,45 @@ const mockRes = () => {
   res.json = vi.fn(() => res);
   return res;
 };
+
+describe('ProjectController.createProject', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 201 when payload is valid', async () => {
+    const created = { id: 'test-project', projectName: 'Test Project' };
+    projectService.createProject.mockResolvedValue(created);
+    const req = { body: { projectName: 'Test Project' } };
+    const res = mockRes();
+    await projectController.createProject(req, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ status: 'success', data: created });
+    expect(projectService.createProject).toHaveBeenCalledWith({ projectName: 'Test Project' });
+  });
+
+  it('returns 400 when projectName is missing', async () => {
+    const req = { body: {} };
+    const res = mockRes();
+    await projectController.createProject(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(projectService.createProject).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when teamMembers contains an invalid entry', async () => {
+    const req = { body: { projectName: 'Test Project', teamMembers: [{ name: '' }] } };
+    const res = mockRes();
+    await projectController.createProject(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(projectService.createProject).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when service throws', async () => {
+    projectService.createProject.mockRejectedValue(new Error('db error'));
+    const req = { body: { projectName: 'Test Project' } };
+    const res = mockRes();
+    await projectController.createProject(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
 
 describe('ProjectController.approveM2', () => {
   beforeEach(() => vi.clearAllMocks());

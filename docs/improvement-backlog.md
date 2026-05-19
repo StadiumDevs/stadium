@@ -132,26 +132,8 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: issue #70 (revamp-P2-04 notify trigger wiring) — reviewer flagged
 - **Suggestion**: two pre-existing `console.log` calls (a debug payload preview in `updateProject`, and an M2-agreement confirmation log) predate Phase 2 and were left untouched. Server code elsewhere uses the `logger` utility (`server/api/utils/logger.js`). Convert these to `logger.debug`/`logger.info` (or remove the debug preview) in a dedicated cleanup pass — out of scope for #70's minimal diff.
 
-## [2026-05-19] transformProject gates finalSubmission on repoUrl being truthy
-- **Severity**: nit
-- **File(s)**: `server/api/repositories/project.repository.js` (`transformProject`, ~line 37)
-- **Observed during**: issue #81 (widen project edit form) — reviewer flagged
-- **Suggestion**: `transformProject` only builds the `finalSubmission` object when `final_submission_repo_url` is truthy. A project that has a `final_submission_summary` (or demo/docs URL) but no repo URL reads back as `finalSubmission: undefined`, so the widened edit form re-opens blank for those fields. Relax the gate to check whether *any* of the four `final_submission_*` columns is set.
-
-## [2026-05-19] Repository delete calls swallow Supabase errors
-- **Severity**: nit
-- **File(s)**: `server/api/repositories/project.repository.js` — the `bounty_prizes` delete (added in #81) and the pre-existing `teamMembers` delete in `updateProject`
-- **Observed during**: issue #81 (widen project edit form) — reviewer flagged
-- **Suggestion**: both delete-then-reinsert blocks ignore the Supabase delete error. If a delete fails, the subsequent insert can create duplicates. Propagate the delete error (`if (error) throw error`) in both blocks, in one cleanup pass.
-
-## [2026-05-19] Phantom `txHash` field on the bountyPrize payload type
-- **Severity**: nit
-- **File(s)**: `client/src/lib/api.ts` (`updateProjectDetails` payload type, bountyPrize array)
-- **Observed during**: issue #81 (widen project edit form) — reviewer flagged
-- **Suggestion**: the `updateProjectDetails` payload types `bountyPrize` rows with an optional `txHash?`, but there is no `tx_hash` column on the `bounty_prizes` table — it is silently dropped. Remove `txHash` from the type to prevent future confusion. Pre-existing; not touched by #81 to keep the diff minimal.
-
-## [2026-05-19] Mock-mode project edits don't survive a page reload
+## [2026-05-18] TeamPaymentSection keys team-member rows by wallet address
 - **Severity**: minor
-- **File(s)**: `client/src/lib/api.ts` — `getProject` (~line 252), `updateProjectDetails` and the other project-write mock branches
-- **Observed during**: issue #81 (widen project edit form) — UI verification
-- **Suggestion**: in mock mode, `getProject` reads only the in-memory `mockWinningProjects` seed and never consults `localStorage['projects']`; `updateProjectDetails` only writes `localStorage` *if the store already contains the project* (it never seeds it). Net effect: an edit to a seed project is visible via optimistic React state but is lost on a full reload, so reload-persistence cannot be verified by `stadium-tester`. PR #82 (#80) fixes the create+`getProject` path; the update path for seed projects has the same gap. Fix holistically: seed `localStorage['projects']` from the fixtures on first read, upsert on every mock write, and have `getProject`/`getProjects` prefer the localStorage store. Real-API persistence is unaffected — this is purely a mock-harness fidelity gap.
+- **File(s)**: `client/src/components/TeamPaymentSection.tsx:210`
+- **Observed during**: full user-journey test pass (team-member journeys, Team & Payments tab)
+- **Suggestion**: team-member cards render with `key={member.walletAddress || index}`. Wallet address is not guaranteed unique across a project's team members — in the mock dataset two Plata Mia members share the redacted address `5MockWalletAddressRedactedForPreviewPurposes00000`, so React logs "Encountered two children with the same key" (3× per Team & Payments render). The `|| index` fallback only triggers on a *falsy* address, so a non-empty-but-duplicate address still collides. Production addresses are normally distinct so it does not surface there, but keying on a non-unique field is fragile. Key by a stable unique member id, or always fold in the index (e.g. `` key={`${member.walletAddress}-${index}`} ``).
