@@ -84,10 +84,11 @@ function SummaryWithBullets({ text }: { text: string }) {
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  type ApiTeamMember = { 
-    name: string; 
-    customUrl?: string; 
+  type ApiTeamMember = {
+    name: string;
+    customUrl?: string;
     walletAddress?: string;
+    walletChain?: 'substrate' | 'ethereum' | 'solana';
     role?: string;
     twitter?: string;
     github?: string;
@@ -110,6 +111,7 @@ const ProjectDetailsPage = () => {
     milestones?: ApiMilestone[];
     bountyPrize?: ApiBounty[];
     donationAddress?: string;
+    donationChain?: 'substrate' | 'ethereum' | 'solana';
     winner?: string; // legacy
     hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
     eventStartedAt?: string; // legacy - use hackathon.eventStartedAt instead
@@ -579,17 +581,19 @@ const ProjectDetailsPage = () => {
   };
 
   // Handle inline team & payment save
-  const handleTeamPaymentSave = async (data: { 
+  const handleTeamPaymentSave = async (data: {
     teamMembers: Array<{
       name: string;
       walletAddress?: string;
+      walletChain?: 'substrate' | 'ethereum' | 'solana';
       role?: string;
       twitter?: string;
       github?: string;
       linkedin?: string;
       customUrl?: string;
-    }>; 
-    donationAddress: string 
+    }>;
+    donationAddress: string;
+    donationChain?: 'substrate' | 'ethereum' | 'solana';
   }) => {
     if (!project || !connectedAddress) {
       toast({
@@ -612,6 +616,7 @@ const ProjectDetailsPage = () => {
         teamMembers: data.teamMembers.map(m => ({
           name: m.name,
           walletAddress: m.walletAddress || undefined,
+          walletChain: m.walletChain || 'substrate',
           role: m.role || undefined,
           twitter: m.twitter || undefined,
           github: m.github || undefined,
@@ -619,14 +624,16 @@ const ProjectDetailsPage = () => {
           customUrl: m.customUrl || undefined,
         })),
         donationAddress: data.donationAddress,
+        donationChain: data.donationChain || 'substrate',
       }, authHeader);
-      
+
       // Update local project state
       setProject((prev: ApiProject | null) => (prev ? {
         ...prev,
         teamMembers: data.teamMembers.map(m => ({
           name: m.name.trim(),
           walletAddress: m.walletAddress?.trim() || undefined,
+          walletChain: m.walletChain || 'substrate',
           role: m.role?.trim() || undefined,
           twitter: m.twitter?.trim() || undefined,
           github: m.github?.trim() || undefined,
@@ -634,6 +641,7 @@ const ProjectDetailsPage = () => {
           customUrl: m.customUrl?.trim() || undefined,
         })),
         donationAddress: data.donationAddress.trim(),
+        donationChain: data.donationChain || 'substrate',
       } as ApiProject : prev));
       
       // Toast is shown by TeamPaymentSection
@@ -1209,6 +1217,7 @@ const ProjectDetailsPage = () => {
                 <TeamPaymentSection
                   teamMembers={project.teamMembers || []}
                   donationAddress={project.donationAddress}
+                  donationChain={project.donationChain}
                   totalPaid={project.totalPaid}
                   m2Status={project.m2Status}
                   isTeamMember={isTeamMember}

@@ -5,15 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Bell, Loader2 } from "lucide-react";
-import { web3Enable, web3Accounts, web3FromSource } from "@polkadot/extension-dapp";
-import { SiwsMessage } from "@talismn/siws";
-import { generateSiwsStatement } from "@/lib/siwsUtils";
+import { useWalletAuth } from "@/lib/auth/useWalletAuth";
 import { api } from "@/lib/api";
 import { validateEmail } from "@/lib/validation";
 import { useToast } from "@/hooks/use-toast";
 
 export function NotificationsCard({ connectedAddress }: { connectedAddress: string }) {
   const { toast } = useToast();
+  const auth = useWalletAuth();
 
   const [loading, setLoading] = useState(true);
   const [emailSet, setEmailSet] = useState(false);
@@ -27,7 +26,7 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
     let active = true;
     setLoading(true);
     api
-      .getWalletContact(connectedAddress)
+      .getWalletContact(connectedAddress, auth.account?.chain ?? 'substrate')
       .then((data) => {
         if (!active) return;
         setEmailSet(data.email_set);
@@ -43,7 +42,7 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
     return () => {
       active = false;
     };
-  }, [connectedAddress]);
+  }, [connectedAddress, auth.account?.chain]);
 
   // Only reachable from the confirmation view, which is gated on an email
   // already being on file — so this path intentionally skips email validation.
@@ -51,27 +50,7 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
     setNotificationsEnabled(checked);
     setSubmitting(true);
     try {
-      await web3Enable("Stadium");
-      const accounts = await web3Accounts();
-      const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet account found");
-
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({ action: "update-notifications" }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = (await siws.sign(injector)) as unknown as { signature: string; message?: string };
-      const messageStr =
-        typeof signed.message === "string" && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(
-        JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }),
-      );
+      const authHeader = await auth.signAction("update-notifications");
 
       const res = await api.updateWalletContact(connectedAddress, { notificationsEnabled: checked }, authHeader);
       setNotificationsEnabled(res.notifications_enabled);
@@ -98,27 +77,7 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
 
     setSubmitting(true);
     try {
-      await web3Enable("Stadium");
-      const accounts = await web3Accounts();
-      const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet account found");
-
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({ action: "update-notifications" }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = (await siws.sign(injector)) as unknown as { signature: string; message?: string };
-      const messageStr =
-        typeof signed.message === "string" && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(
-        JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }),
-      );
+      const authHeader = await auth.signAction("update-notifications");
 
       const res = await api.updateWalletContact(
         connectedAddress,
