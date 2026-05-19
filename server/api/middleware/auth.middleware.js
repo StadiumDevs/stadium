@@ -21,6 +21,7 @@ import { parsePayload } from '../auth/parsePayload.js';
 import { getVerifier } from '../auth/verifiers/index.js';
 import { validateStatement } from '../auth/statements.js';
 import { normalizeAddress } from '../auth/normalize.js';
+import { consumeNonce } from '../auth/nonceStore.js';
 
 dotenv.config();
 
@@ -121,6 +122,50 @@ async function authenticateRequest(authHeader, { checkDomain }) {
         },
       };
     }
+  }
+
+  // Reject stale messages and consume the nonce — single-use, anti-replay (#88).
+  const expiresAtMs = parsed.expirationTime ? new Date(parsed.expirationTime).getTime() : NaN;
+  if (!Number.isFinite(expiresAtMs)) {
+    logError('Sign-in message has no expiration time.');
+    return {
+      ok: false,
+      status: 403,
+      body: { status: 'error', message: 'Sign-in message must include an expiration time' },
+    };
+  }
+  if (expiresAtMs <= Date.now()) {
+    logError('Sign-in message has expired.');
+    return {
+      ok: false,
+      status: 403,
+      body: { status: 'error', message: 'Sign-in message has expired' },
+    };
+  }
+
+  let nonceResult;
+  try {
+    nonceResult = await consumeNonce(parsed.nonce, expiresAtMs);
+  } catch (e) {
+    logError(`Nonce store error: ${e.message}`);
+    return {
+      ok: false,
+      status: 500,
+      body: { status: 'error', message: 'Internal error during authentication' },
+    };
+  }
+  if (!nonceResult.ok) {
+    logError(`Nonce rejected (${nonceResult.reason}).`);
+    return {
+      ok: false,
+      status: 403,
+      body: {
+        status: 'error',
+        message: nonceResult.reason === 'replay'
+          ? 'Sign-in message has already been used'
+          : 'Sign-in message must include a nonce',
+      },
+    };
   }
 
   logSuccess(`${chain} sign-in verified for ${parsed.address}.`);

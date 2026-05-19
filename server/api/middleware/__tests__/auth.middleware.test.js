@@ -46,12 +46,17 @@ vi.mock('../../services/project.service.js', () => ({
   },
 }));
 
+vi.mock('../../auth/nonceStore.js', () => ({
+  consumeNonce: vi.fn(),
+}));
+
 // Now import what we need
 import { verifySIWS, parseMessage } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import { isAuthorizedSigner } from '../../auth/authorizedSigners.js';
 import projectService from '../../services/project.service.js';
+import { consumeNonce } from '../../auth/nonceStore.js';
 
 // Import middleware under test
 const { requireAdmin, requireTeamMemberOrAdmin } = await import('../auth.middleware.js');
@@ -95,6 +100,7 @@ describe('requireAdmin', () => {
     // Default: non-production
     process.env.NODE_ENV = 'test';
     process.env.DISABLE_SIWS_DOMAIN_CHECK = 'true';
+    consumeNonce.mockResolvedValue({ ok: true });
   });
 
   it('returns 401 when auth header is missing', async () => {
@@ -184,6 +190,7 @@ describe('requireAdmin', () => {
       statement: 'Perform administrative action on Stadium',
       address: '5FakeAdmin1',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     isAuthorizedSigner.mockReturnValue(false);
 
@@ -206,6 +213,7 @@ describe('requireAdmin', () => {
       statement: 'Perform administrative action on Stadium',
       address: '5FakeAdmin1',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     isAuthorizedSigner.mockReturnValue(true);
 
@@ -224,6 +232,49 @@ describe('requireAdmin', () => {
       network: 'development',
     });
   });
+
+  it('returns 403 when the sign-in message has expired', async () => {
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      statement: 'Perform administrative action on Stadium',
+      address: '5FakeAdmin1',
+      domain: 'localhost',
+      expirationTime: new Date(Date.now() - 60000).toISOString(),
+    });
+    isAuthorizedSigner.mockReturnValue(true);
+
+    const req = makeReq({ headers: { 'x-siws-auth': encodePayload(VALID_PAYLOAD) } });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireAdmin(req, res, next);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/expired/i);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when the nonce has already been used (replay)', async () => {
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      statement: 'Perform administrative action on Stadium',
+      address: '5FakeAdmin1',
+      domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
+    });
+    isAuthorizedSigner.mockReturnValue(true);
+    consumeNonce.mockResolvedValue({ ok: false, reason: 'replay' });
+
+    const req = makeReq({ headers: { 'x-siws-auth': encodePayload(VALID_PAYLOAD) } });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireAdmin(req, res, next);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/already been used/i);
+    expect(next).not.toHaveBeenCalled();
+  });
 });
 
 // ─── requireTeamMemberOrAdmin ────────────────────────────────
@@ -233,6 +284,7 @@ describe('requireTeamMemberOrAdmin', () => {
     vi.clearAllMocks();
     process.env.NODE_ENV = 'test';
     process.env.DISABLE_SIWS_DOMAIN_CHECK = 'true';
+    consumeNonce.mockResolvedValue({ ok: true });
   });
 
   it('returns 400 when projectId is missing', async () => {
@@ -269,6 +321,7 @@ describe('requireTeamMemberOrAdmin', () => {
       statement: 'Perform administrative action on Stadium',
       address: '5FakeAdmin1',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     isAuthorizedSigner.mockReturnValue(true);
 
@@ -296,6 +349,7 @@ describe('requireTeamMemberOrAdmin', () => {
       statement: 'Perform administrative action on Stadium',
       address: '5TeamMember1',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     isAuthorizedSigner.mockReturnValue(false);
     decodeAddress.mockReturnValue(new Uint8Array([0xab, 0xcd]));
@@ -323,6 +377,7 @@ describe('requireTeamMemberOrAdmin', () => {
       statement: 'Perform administrative action on Stadium',
       address: '5Stranger',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     isAuthorizedSigner.mockReturnValue(false);
     decodeAddress.mockImplementation((addr) => {
