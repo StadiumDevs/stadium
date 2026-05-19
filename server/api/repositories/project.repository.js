@@ -35,6 +35,12 @@ const transformProject = (row) => {
             lastUpdatedBy: row.m2_last_updated_by,
             lastUpdatedDate: row.m2_last_updated_date
         } : undefined,
+        // Planned M2 program grant (issue #26) — only meaningful for M2 projects.
+        m2Entitlement: row.m2_status ? {
+            milestone1Amount: row.m2_milestone_1_amount,
+            milestone2Amount: row.m2_milestone_2_amount,
+            currency: row.m2_currency
+        } : undefined,
         finalSubmission: row.final_submission_repo_url ? {
             repoUrl: row.final_submission_repo_url,
             demoUrl: row.final_submission_demo_url,
@@ -121,6 +127,11 @@ const toSupabaseProject = (data) => {
         if (data.m2Agreement.successCriteria !== undefined) row.m2_success_criteria = data.m2Agreement.successCriteria;
         if (data.m2Agreement.lastUpdatedBy !== undefined) row.m2_last_updated_by = data.m2Agreement.lastUpdatedBy;
         if (data.m2Agreement.lastUpdatedDate !== undefined) row.m2_last_updated_date = data.m2Agreement.lastUpdatedDate;
+    }
+    if (data.m2Entitlement) {
+        if (data.m2Entitlement.milestone1Amount !== undefined) row.m2_milestone_1_amount = data.m2Entitlement.milestone1Amount;
+        if (data.m2Entitlement.milestone2Amount !== undefined) row.m2_milestone_2_amount = data.m2Entitlement.milestone2Amount;
+        if (data.m2Entitlement.currency !== undefined) row.m2_currency = data.m2Entitlement.currency;
     }
 
     // Final submission
