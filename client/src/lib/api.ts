@@ -1127,6 +1127,44 @@ export const api = {
     });
   },
 
+  /**
+   * Phase 2 revamp: wallet contacts / notification preferences (#71).
+   */
+  getWalletContact: async (address: string): Promise<{ email_set: boolean; notifications_enabled: boolean }> => {
+    if (USE_MOCK_DATA) {
+      const { mockWalletContacts } = await import("./mockWalletContacts");
+      const entry = mockWalletContacts[address];
+      return { email_set: !!entry?.email, notifications_enabled: entry?.notificationsEnabled ?? true };
+    }
+    const res = await request(`/wallet-contacts/${encodeURIComponent(address)}`);
+    return res.data;
+  },
+
+  updateWalletContact: async (
+    address: string,
+    payload: { email?: string | null; notificationsEnabled?: boolean },
+    authHeader?: string,
+  ): Promise<{ email_set: boolean; notifications_enabled: boolean }> => {
+    if (USE_MOCK_DATA) {
+      const { mockWalletContacts } = await import("./mockWalletContacts");
+      const existing = mockWalletContacts[address];
+      mockWalletContacts[address] = {
+        email: payload.email !== undefined ? payload.email : (existing?.email ?? null),
+        notificationsEnabled: payload.notificationsEnabled !== undefined ? payload.notificationsEnabled : (existing?.notificationsEnabled ?? true),
+      };
+      const updated = mockWalletContacts[address];
+      return { email_set: !!updated.email, notifications_enabled: updated.notificationsEnabled };
+    }
+    const res = await request(`/wallet-contacts/${encodeURIComponent(address)}`, {
+      method: "PUT",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: payload.email, notifications_enabled: payload.notificationsEnabled }),
+    });
+    return res.data;
+  },
+
   applyToProgram: async (
     slug: string,
     payload: { project_id: string; application_fields: Record<string, unknown> },

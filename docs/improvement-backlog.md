@@ -132,14 +132,8 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: issue #70 (revamp-P2-04 notify trigger wiring) — reviewer flagged
 - **Suggestion**: two pre-existing `console.log` calls (a debug payload preview in `updateProject`, and an M2-agreement confirmation log) predate Phase 2 and were left untouched. Server code elsewhere uses the `logger` utility (`server/api/utils/logger.js`). Convert these to `logger.debug`/`logger.info` (or remove the debug preview) in a dedicated cleanup pass — out of scope for #70's minimal diff.
 
-## [2026-05-19] project.controller.js uses bare console.error in catch blocks
-- **Severity**: nit
-- **File(s)**: `server/api/controllers/project.controller.js` (catch blocks ~lines 22, 41, 57, 67)
-- **Observed during**: issue #80 (admin Create Project UI) — reviewer flagged
-- **Suggestion**: several controller methods log errors with bare `console.error` while later methods in the same file use the `logger` utility (`server/api/utils/logger.js`). Pre-existing; pairs with the existing "[2026-05-18] Pre-existing console.log calls" entry. Standardise the whole file on `logger` in one cleanup pass.
-
-## [2026-05-19] No admin surface lists all projects (newly-created projects have no admin home)
+## [2026-05-18] TeamPaymentSection keys team-member rows by wallet address
 - **Severity**: minor
-- **File(s)**: `client/src/pages/AdminPage.tsx`
-- **Observed during**: issue #80 (admin Create Project UI) — UI verification
-- **Suggestion**: the `/admin` landing page has only winners / M2-projects / pending-review tables — all scoped. A project freshly created via the new "Create Project" modal (no winner status, no `m2Status`) appears in none of them. It is reachable at `/m2-program/:id` and via the public list, but an admin has no in-admin-panel surface to confirm or browse it. Consider an "All projects" admin table (searchable) so the create→manage loop is fully visible on `/admin`.
+- **File(s)**: `client/src/components/TeamPaymentSection.tsx:210`
+- **Observed during**: full user-journey test pass (team-member journeys, Team & Payments tab)
+- **Suggestion**: team-member cards render with `key={member.walletAddress || index}`. Wallet address is not guaranteed unique across a project's team members — in the mock dataset two Plata Mia members share the redacted address `5MockWalletAddressRedactedForPreviewPurposes00000`, so React logs "Encountered two children with the same key" (3× per Team & Payments render). The `|| index` fallback only triggers on a *falsy* address, so a non-empty-but-duplicate address still collides. Production addresses are normally distinct so it does not surface there, but keying on a non-unique field is fragile. Key by a stable unique member id, or always fold in the index (e.g. `` key={`${member.walletAddress}-${index}`} ``).
