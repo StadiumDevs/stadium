@@ -1,5 +1,6 @@
 import { decodeAddress } from '@polkadot/util-crypto'
 import { u8aToHex } from '@polkadot/util'
+import bs58 from 'bs58'
 
 export type AddrChain = 'substrate' | 'ethereum' | 'solana'
 
@@ -7,7 +8,7 @@ export type AddrChain = 'substrate' | 'ethereum' | 'solana'
  * Reduce an address to its canonical comparison form for the given chain:
  *   - substrate: decoded public key hex (cross-prefix safe)
  *   - ethereum:  lowercased 0x address (EIP-55 checksum is display-only)
- *   - solana:    not yet normalized (Phase C) — returns null, callers fall back
+ *   - solana:    canonical base58 of the 32-byte ed25519 public key
  *
  * Returns null when the address is invalid for the chain.
  */
@@ -18,7 +19,12 @@ export function normalizeAddr(address?: string | null, chain: AddrChain = 'subst
     return /^0x[a-fA-F0-9]{40}$/.test(eth) ? eth.toLowerCase() : null
   }
   if (chain === 'solana') {
-    return null
+    try {
+      const decoded = bs58.decode(address.trim())
+      return decoded.length === 32 ? bs58.encode(decoded) : null
+    } catch {
+      return null
+    }
   }
   // substrate — SS58 is base58, never 0x-prefixed hex
   if (/^0x/i.test(address.trim())) return null

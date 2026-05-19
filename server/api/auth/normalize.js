@@ -12,6 +12,7 @@
 
 import { decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
+import bs58 from 'bs58';
 
 /**
  * @param {string} chain - 'substrate' | 'ethereum' | 'solana'
@@ -36,6 +37,15 @@ export function normalizeAddress(chain, address) {
       // EIP-55 checksum is display-only; lowercase is the canonical compare form.
       const eth = String(address).trim();
       return /^0x[a-fA-F0-9]{40}$/.test(eth) ? eth.toLowerCase() : null;
+    }
+    case 'solana': {
+      // Canonical base58 of the 32-byte ed25519 public key.
+      try {
+        const decoded = bs58.decode(String(address).trim());
+        return decoded.length === 32 ? bs58.encode(decoded) : null;
+      } catch {
+        return null;
+      }
     }
     default:
       return null;

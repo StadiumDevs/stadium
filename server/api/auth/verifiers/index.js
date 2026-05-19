@@ -2,17 +2,18 @@
  * Sign-in verifier registry.
  *
  * Each verifier exposes `verify({ message, signature, address })` resolving to
- * `{ valid, parsed, normalizedAddress, ... }`. The Solana verifier is added in
- * Phase C — until then `getVerifier('solana')` returns `null` and the caller
- * responds 400.
+ * `{ valid, parsed, normalizedAddress, ... }`. `getVerifier` returns `null` for
+ * an unsupported chain and the caller responds 400.
  */
 
 import { substrateVerifier } from './substrate.verifier.js';
 import { ethereumVerifier } from './ethereum.verifier.js';
+import { solanaVerifier } from './solana.verifier.js';
 
 const verifiers = {
   substrate: substrateVerifier,
   ethereum: ethereumVerifier,
+  solana: solanaVerifier,
 };
 
 /**
