@@ -116,6 +116,14 @@ export type ApiProject = {
   submittedDate?: string;
   updatedAt?: string;
   hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+  finalSubmission?: {
+    repoUrl?: string;
+    demoUrl?: string;
+    docsUrl?: string;
+    summary?: string;
+    submittedDate?: string;
+    submittedBy?: string;
+  };
   totalPaid?: Array<{
     milestone: "M1" | "M2" | "BOUNTY";
     amount: number;
@@ -679,6 +687,20 @@ export const api = {
         hackathonWonAtId: string;
         txHash?: string;
       }>;
+      finalSubmission?: {
+        repoUrl?: string;
+        demoUrl?: string;
+        docsUrl?: string;
+        summary?: string;
+        submittedDate?: string;
+        submittedBy?: string;
+      };
+      hackathon?: {
+        id?: string;
+        name?: string;
+        endDate?: string;
+        eventStartedAt?: string;
+      };
     },
     authHeader?: string
   ) => {

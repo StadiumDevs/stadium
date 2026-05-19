@@ -63,9 +63,52 @@ const formSchema = z.object({
     .max(500, "URL must be less than 500 characters")
     .optional()
     .or(z.literal("")),
+  // Final submission fields
+  finalSubmissionRepoUrl: z
+    .string()
+    .max(500, "URL must be less than 500 characters")
+    .optional()
+    .or(z.literal("")),
+  finalSubmissionDemoUrl: z
+    .string()
+    .max(500, "URL must be less than 500 characters")
+    .optional()
+    .or(z.literal("")),
+  finalSubmissionDocsUrl: z
+    .string()
+    .max(500, "URL must be less than 500 characters")
+    .optional()
+    .or(z.literal("")),
+  finalSubmissionSummary: z
+    .string()
+    .max(2000, "Summary must be less than 2000 characters")
+    .optional()
+    .or(z.literal("")),
+  // Hackathon fields
+  hackathonId: z
+    .string()
+    .max(200, "ID must be less than 200 characters")
+    .optional()
+    .or(z.literal("")),
+  hackathonName: z
+    .string()
+    .max(200, "Name must be less than 200 characters")
+    .optional()
+    .or(z.literal("")),
+  hackathonEndDate: z
+    .string()
+    .max(100, "Date must be less than 100 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+interface BountyPrizeRow {
+  name: string;
+  amount: number;
+  hackathonWonAtId: string;
+}
 
 interface EditProjectDetailsModalProps {
   open: boolean;
@@ -80,6 +123,25 @@ interface EditProjectDetailsModalProps {
     liveUrl?: string;
     categories?: string[];
     techStack?: string[];
+    finalSubmission?: {
+      repoUrl?: string;
+      demoUrl?: string;
+      docsUrl?: string;
+      summary?: string;
+      submittedDate?: string;
+      submittedBy?: string;
+    };
+    hackathon?: {
+      id?: string;
+      name?: string;
+      endDate?: string;
+      eventStartedAt?: string;
+    };
+    bountyPrize?: Array<{
+      name: string;
+      amount: number;
+      hackathonWonAtId: string;
+    }>;
   };
   onSave: (data: {
     projectName: string;
@@ -90,6 +152,22 @@ interface EditProjectDetailsModalProps {
     liveUrl?: string;
     categories: string[];
     techStack: string[];
+    finalSubmission?: {
+      repoUrl?: string;
+      demoUrl?: string;
+      docsUrl?: string;
+      summary?: string;
+    };
+    hackathon?: {
+      id?: string;
+      name?: string;
+      endDate?: string;
+    };
+    bountyPrize?: Array<{
+      name: string;
+      amount: number;
+      hackathonWonAtId: string;
+    }>;
   }) => Promise<void>;
 }
 
@@ -103,6 +181,14 @@ export function EditProjectDetailsModal({
   const [techStackInput, setTechStackInput] = useState("");
   const [techStack, setTechStack] = useState<string[]>([]);
 
+  // Bounty prize editor state
+  const [bountyPrizes, setBountyPrizes] = useState<BountyPrizeRow[]>([]);
+  const [bountyNameInput, setBountyNameInput] = useState("");
+  const [bountyAmountInput, setBountyAmountInput] = useState("");
+  const [bountyHackathonIdInput, setBountyHackathonIdInput] = useState("");
+  // Track whether the admin interacted with the bounty editor
+  const [bountyEditorTouched, setBountyEditorTouched] = useState(false);
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -112,6 +198,13 @@ export function EditProjectDetailsModal({
       demoUrl: "",
       slidesUrl: "",
       liveUrl: "",
+      finalSubmissionRepoUrl: "",
+      finalSubmissionDemoUrl: "",
+      finalSubmissionDocsUrl: "",
+      finalSubmissionSummary: "",
+      hackathonId: "",
+      hackathonName: "",
+      hackathonEndDate: "",
     },
   });
 
@@ -125,9 +218,27 @@ export function EditProjectDetailsModal({
         demoUrl: project.demoUrl || "",
         slidesUrl: project.slidesUrl || "",
         liveUrl: project.liveUrl || "",
+        finalSubmissionRepoUrl: project.finalSubmission?.repoUrl || "",
+        finalSubmissionDemoUrl: project.finalSubmission?.demoUrl || "",
+        finalSubmissionDocsUrl: project.finalSubmission?.docsUrl || "",
+        finalSubmissionSummary: project.finalSubmission?.summary || "",
+        hackathonId: project.hackathon?.id || "",
+        hackathonName: project.hackathon?.name || "",
+        hackathonEndDate: project.hackathon?.endDate || "",
       });
       setSelectedCategories(project.categories || []);
       setTechStack(project.techStack || []);
+      setBountyPrizes(
+        (project.bountyPrize || []).map((b) => ({
+          name: b.name,
+          amount: b.amount,
+          hackathonWonAtId: b.hackathonWonAtId,
+        }))
+      );
+      setBountyEditorTouched(false);
+      setBountyNameInput("");
+      setBountyAmountInput("");
+      setBountyHackathonIdInput("");
     }
   }, [open, project, form]);
 
@@ -158,7 +269,48 @@ export function EditProjectDetailsModal({
     }
   };
 
+  const addBountyPrize = () => {
+    const name = bountyNameInput.trim();
+    const amount = parseFloat(bountyAmountInput);
+    const hackathonWonAtId = bountyHackathonIdInput.trim();
+    if (!name || isNaN(amount) || !hackathonWonAtId) return;
+    setBountyPrizes([...bountyPrizes, { name, amount, hackathonWonAtId }]);
+    setBountyNameInput("");
+    setBountyAmountInput("");
+    setBountyHackathonIdInput("");
+    setBountyEditorTouched(true);
+  };
+
+  const removeBountyPrize = (index: number) => {
+    setBountyPrizes(bountyPrizes.filter((_, i) => i !== index));
+    setBountyEditorTouched(true);
+  };
+
   const onSubmit = async (data: FormData) => {
+    // Assemble finalSubmission — omit if all blank
+    const fsRepoUrl = data.finalSubmissionRepoUrl || undefined;
+    const fsDemoUrl = data.finalSubmissionDemoUrl || undefined;
+    const fsDocsUrl = data.finalSubmissionDocsUrl || undefined;
+    const fsSummary = data.finalSubmissionSummary || undefined;
+    const finalSubmission =
+      fsRepoUrl || fsDemoUrl || fsDocsUrl || fsSummary
+        ? { repoUrl: fsRepoUrl, demoUrl: fsDemoUrl, docsUrl: fsDocsUrl, summary: fsSummary }
+        : undefined;
+
+    // Assemble hackathon — omit if all blank
+    const hId = data.hackathonId || undefined;
+    const hName = data.hackathonName || undefined;
+    const hEndDate = data.hackathonEndDate || undefined;
+    const hackathon =
+      hId || hName || hEndDate
+        ? { id: hId, name: hName, endDate: hEndDate }
+        : undefined;
+
+    // Include bountyPrize only if the project already had bounties or the admin touched the editor
+    const hadBounties = (project.bountyPrize || []).length > 0;
+    const bountyPrize =
+      hadBounties || bountyEditorTouched ? bountyPrizes : undefined;
+
     try {
       await onSave({
         projectName: data.projectName,
@@ -169,10 +321,14 @@ export function EditProjectDetailsModal({
         liveUrl: data.liveUrl || undefined,
         categories: selectedCategories,
         techStack: techStack,
+        finalSubmission,
+        hackathon,
+        bountyPrize,
       });
       onOpenChange(false);
-    } catch (error) {
-      console.error("Failed to save project details:", error);
+    } catch {
+      // onSave failures are surfaced by the caller (it shows its own toast);
+      // keep the modal open so the admin can retry.
     }
   };
 
@@ -368,6 +524,186 @@ export function EditProjectDetailsModal({
             )}
             <p className="text-xs text-muted-foreground">
               Press Enter or click + to add technologies
+            </p>
+          </div>
+
+          {/* Final Submission */}
+          <div className="space-y-3 border-t pt-4">
+            <Label className="text-base font-semibold">Final Submission</Label>
+            <div className="space-y-2">
+              <Label htmlFor="finalSubmissionRepoUrl">Repo URL</Label>
+              <Input
+                id="finalSubmissionRepoUrl"
+                {...form.register("finalSubmissionRepoUrl")}
+                placeholder="https://github.com/username/project"
+                className="font-mono text-sm"
+              />
+              {form.formState.errors.finalSubmissionRepoUrl && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.finalSubmissionRepoUrl.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="finalSubmissionDemoUrl">Demo URL</Label>
+              <Input
+                id="finalSubmissionDemoUrl"
+                {...form.register("finalSubmissionDemoUrl")}
+                placeholder="https://youtube.com/watch?v=..."
+                className="font-mono text-sm"
+              />
+              {form.formState.errors.finalSubmissionDemoUrl && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.finalSubmissionDemoUrl.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="finalSubmissionDocsUrl">Docs URL</Label>
+              <Input
+                id="finalSubmissionDocsUrl"
+                {...form.register("finalSubmissionDocsUrl")}
+                placeholder="https://docs.myproject.com"
+                className="font-mono text-sm"
+              />
+              {form.formState.errors.finalSubmissionDocsUrl && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.finalSubmissionDocsUrl.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="finalSubmissionSummary">Summary</Label>
+                <span
+                  className={`text-xs ${
+                    (form.watch("finalSubmissionSummary")?.length || 0) > 2000
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {form.watch("finalSubmissionSummary")?.length || 0}/2000
+                </span>
+              </div>
+              <Textarea
+                id="finalSubmissionSummary"
+                {...form.register("finalSubmissionSummary")}
+                placeholder="Describe the final project outcome..."
+                rows={3}
+                className="resize-none"
+              />
+              {form.formState.errors.finalSubmissionSummary && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.finalSubmissionSummary.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Hackathon */}
+          <div className="space-y-3 border-t pt-4">
+            <Label className="text-base font-semibold">Hackathon</Label>
+            <div className="space-y-2">
+              <Label htmlFor="hackathonId">Hackathon ID</Label>
+              <Input
+                id="hackathonId"
+                {...form.register("hackathonId")}
+                placeholder="e.g., funkhaus-2024"
+                className="font-mono text-sm"
+              />
+              {form.formState.errors.hackathonId && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.hackathonId.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hackathonName">Hackathon Name</Label>
+              <Input
+                id="hackathonName"
+                {...form.register("hackathonName")}
+                placeholder="e.g., Symmetry 2024"
+              />
+              {form.formState.errors.hackathonName && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.hackathonName.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hackathonEndDate">Hackathon End Date</Label>
+              <Input
+                id="hackathonEndDate"
+                {...form.register("hackathonEndDate")}
+                placeholder="e.g., 2024-11-30"
+                className="font-mono text-sm"
+              />
+              {form.formState.errors.hackathonEndDate && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.hackathonEndDate.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Bounty Prizes */}
+          <div className="space-y-3 border-t pt-4">
+            <Label className="text-base font-semibold">Bounty Prizes</Label>
+            <div className="flex gap-2 flex-wrap">
+              <Input
+                value={bountyNameInput}
+                onChange={(e) => setBountyNameInput(e.target.value)}
+                placeholder="Prize name"
+                className="flex-1 min-w-[140px]"
+              />
+              <Input
+                type="number"
+                value={bountyAmountInput}
+                onChange={(e) => setBountyAmountInput(e.target.value)}
+                placeholder="Amount"
+                className="w-28"
+              />
+              <Input
+                value={bountyHackathonIdInput}
+                onChange={(e) => setBountyHackathonIdInput(e.target.value)}
+                placeholder="Hackathon ID"
+                className="flex-1 min-w-[140px] font-mono text-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={addBountyPrize}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            {bountyPrizes.length > 0 && (
+              <div className="space-y-2 mt-2">
+                {bountyPrizes.map((prize, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between gap-2 p-2 bg-muted/40 rounded-md"
+                  >
+                    <div className="text-sm flex-1 min-w-0">
+                      <span className="font-medium">{prize.name}</span>
+                      <span className="text-muted-foreground mx-2">·</span>
+                      <span>{prize.amount}</span>
+                      <span className="text-muted-foreground mx-2">·</span>
+                      <span className="font-mono text-xs text-muted-foreground truncate">
+                        {prize.hackathonWonAtId}
+                      </span>
+                    </div>
+                    <X
+                      className="h-4 w-4 cursor-pointer shrink-0 hover:text-destructive"
+                      onClick={() => removeBountyPrize(index)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Fill all three fields and click + to add a prize row
             </p>
           </div>
 
