@@ -1,233 +1,164 @@
-/* Typography Fonts */
-/* Space Mono for headings (weights: 400, 700) */
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
-/* Inter for body text (weights: 400, 500, 600, 700) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-/* JetBrains Mono for code (weights: 400, 500, 600) */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
-/* Righteous for hero title - edgy, italic, graffiti style */
-@import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
-/* Orbitron for display title - bold, angular, tech-forward */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap');
-
-/* Legacy fonts */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
-@import url("./fonts.css");
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Surfaces — all grayscale (S=0). These are set dynamically by the brightness controller.
+     The values here are the dark-mode baseline (brightness = 0). */
+  --shell: 0 0% 4%;
+  --panel-light: 0 0% 10%;
+  --panel-mid: 0 0% 8%;
+  --panel-dark: 0 0% 4%;
+  --panel-deep: 0 0% 2%;
+  --hairline: 0 0% 16%;
+  --hairline-subtle: 0 0% 10%;
+  --display: 0 0% 98%;
+  --display-dim: 0 0% 87%;
+  --body: 0 0% 67%;
+  --label-mid: 0 0% 87%;
+  --label-dim: 0 0% 53%;
 
+  /* The only color in the system */
+  --led: 142 71% 58%;
 
-@layer base {
-  :root {
-    /* Font Variables */
-    --font-display: 'Orbitron', 'system-ui', 'sans-serif';
+  /* shadcn token aliases — pointed at our hardware tokens so all shadcn components inherit correctly */
+  --background: var(--shell);
+  --foreground: var(--display);
+  --card: var(--panel-mid);
+  --card-foreground: var(--display);
+  --popover: var(--panel-light);
+  --popover-foreground: var(--display);
+  --primary: var(--display);
+  --primary-foreground: var(--shell);
+  --secondary: var(--panel-dark);
+  --secondary-foreground: var(--display);
+  --muted: var(--panel-dark);
+  --muted-foreground: var(--label-dim);
+  --accent: var(--display-dim);
+  --accent-foreground: var(--shell);
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: var(--hairline);
+  --input: var(--panel-dark);
+  --ring: var(--led);
 
-    /* Light Mode Colors */
-    --background: 0 0% 98%;           /* #FAFAFA - Light background */
-    --foreground: 240 10% 10%;        /* Dark text */
+  /* Hardware radius — 2px, just enough to not look like ASCII */
+  --radius: 0.125rem;
 
-    --card: 0 0% 100%;                /* White cards */
-    --card-foreground: 240 10% 10%;   /* Dark card text */
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
-
-    --primary: 271 81% 56%;           /* #9333EA - Keep purple */
-    --primary-foreground: 0 0% 100%;  /* White on purple */
-
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 10% 10%;
-
-    --muted: 240 5% 96%;              /* Light muted bg */
-    --muted-foreground: 240 4% 40%;   /* Medium gray text */
-
-    --accent: 240 5% 96%;
-    --accent-foreground: 240 10% 10%;
-
-    --destructive: 0 84% 60%;         /* Red for errors */
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 240 6% 90%;             /* Light borders */
-    --input: 240 6% 90%;
-    --ring: 271 81% 56%;              /* Purple focus */
-
-    --chart-1: 271 81% 56%;           /* Purple */
-    --chart-2: 270 70% 74%;           /* Light purple */
-    --chart-3: 280 60% 60%;           /* Purple variant */
-    --chart-4: 262 83% 58%;           /* Purple variant */
-    --chart-5: 278 75% 65%;           /* Purple variant */
-
-    --success: 271 81% 56%;           /* Purple for success */
-    --success-foreground: 0 0% 100%;
-
-    --warning: 43 96% 56%;            /* Gold/Yellow */
-    --warning-foreground: 0 0% 0%;
-
-    --radius: 0.75rem;
-  }
-
-  .dark {
-    /* Dark Mode Colors */
-    --background: 240 10% 4%;         /* #0A0A0A - Main background */
-    --foreground: 0 0% 100%;          /* #FFFFFF - Primary text */
-
-    --card: 240 6% 8%;                /* #141414 - Card backgrounds */
-    --card-foreground: 0 0% 100%;     /* #FFFFFF - Card text */
-
-    --popover: 240 7% 10%;            /* #1A1A1A - Elevated surfaces */
-    --popover-foreground: 0 0% 100%;  /* #FFFFFF - Popover text */
-
-    --primary: 271 81% 56%;           /* #9333EA - Main purple */
-    --primary-foreground: 0 0% 100%;  /* #FFFFFF - Text on purple */
-
-    --secondary: 240 5% 16%;          /* #2A2A2A - Secondary surfaces */
-    --secondary-foreground: 0 0% 100%; /* #FFFFFF - Secondary text */
-
-    --muted: 240 5% 16%;              /* #2A2A2A - Muted backgrounds */
-    --muted-foreground: 0 0% 64%;     /* #A3A3A3 - Muted text */
-
-    --accent: 270 70% 74%;            /* #C084FC - Accent purple */
-    --accent-foreground: 271 81% 56%; /* #9333EA - Text on accent */
-
-    --destructive: 0 84% 60%;         /* Red for errors */
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 240 5% 23%;             /* #3A3A3A - Default borders */
-    --input: 240 5% 23%;              /* #3A3A3A - Input borders */
-    --ring: 271 81% 56%;              /* #9333EA - Focus rings */
-
-    --chart-1: 271 81% 56%;           /* Purple */
-    --chart-2: 270 70% 74%;           /* Light purple */
-    --chart-3: 280 60% 60%;           /* Purple variant */
-    --chart-4: 262 83% 58%;           /* Purple variant */
-    --chart-5: 278 75% 65%;           /* Purple variant */
-
-    --success: 271 81% 56%;           /* #9333EA - Purple for success/approved */
-    --success-foreground: 0 0% 100%;  /* #FFFFFF - White text on purple */
-
-    --warning: 43 96% 56%;            /* #F59E0B - Gold/Yellow */
-    --warning-foreground: 0 0% 0%;    /* #000000 - Black text on gold */
-  }
+  /* Scanline opacity — set dynamically by brightness controller */
+  --scanline-opacity: 1;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground font-sans;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-  code, pre {
-    @apply font-mono;
-  }
+* { @apply border-border; }
+
+body {
+  @apply bg-background text-foreground font-sans;
+  font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* CRT scanline effect, more subtle */
-.crt {
-  position: relative;
-}
-.crt::after {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(147,51,234,0.04) 0px,
-    rgba(147,51,234,0.04) 1px,
-    transparent 2px,
-    transparent 4px
-  );
-  z-index: 10;
+code, pre { @apply font-mono; }
+
+@media (prefers-reduced-motion: reduce) {
+  body { transition: none; }
+  *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }
 
-/* Custom Classes for Stadium */
 @layer components {
-  .text-secondary {
-    @apply text-muted-foreground;
+
+  /* === Panel: outer chrome with subtle metallic gradient === */
+  .panel {
+    background: linear-gradient(180deg, hsl(var(--panel-light)) 0%, hsl(var(--panel-mid)) 100%);
+    border: 1px solid hsl(var(--hairline));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 1px 0 rgba(0, 0, 0, 0.6);
+    transition: background 400ms ease, border-color 400ms ease;
   }
-  
-  .text-tertiary {
-    @apply text-muted-foreground/60;
+
+  /* === LCD: recessed display surface === */
+  .lcd {
+    background: hsl(var(--panel-deep));
+    border: 1px solid hsl(var(--hairline-subtle));
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6);
+    transition: background 400ms ease, border-color 400ms ease;
   }
-  
-  .bg-tertiary {
-    @apply bg-secondary/50;
+
+  /* === LCD readout: numbers with subtle pixel-bleed === */
+  .lcd-readout {
+    color: hsl(var(--display));
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    filter: blur(0.3px);
   }
-  
-  .border-subtle {
-    @apply border-border/50;
+
+  /* === Green LED — the ONLY saturated color in the system === */
+  .led {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: hsl(var(--led));
+    border-radius: 50%;
+    box-shadow: 0 0 4px hsl(var(--led)), inset 0 0 1px rgba(0, 0, 0, 0.5);
+    flex-shrink: 0;
   }
-  
-  .purple-glow {
-    box-shadow: 0 4px 24px hsl(var(--primary) / 0.3);
+
+  .led-sm {
+    width: 5px;
+    height: 5px;
+    box-shadow: 0 0 3px hsl(var(--led)), inset 0 0 1px rgba(0, 0, 0, 0.5);
   }
-  
-  .purple-glow-strong {
-    box-shadow: 0 8px 32px hsl(var(--primary) / 0.4),
-                0 0 0 1px hsl(var(--primary) / 0.2);
-  }
-  
-  .glass-panel {
-    @apply bg-popover/60 backdrop-blur-xl border-border/50;
-  }
-  
-  /* Hero title with Orbitron font - bold, angular, tech-forward */
-  .hero-title {
-    font-family: var(--font-display);
-    font-weight: 900;
+
+  /* === Hardware labels: mono caps with wide tracking === */
+  .label-hw {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: hsl(var(--label-mid));
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    letter-spacing: -0.02em;
-    text-shadow: 
-      0 0 20px hsl(var(--primary) / 0.5),
-      0 0 40px hsl(var(--primary) / 0.3),
-      0 0 60px hsl(var(--primary) / 0.2);
   }
-  
-  /* Alternative: More subtle glow effect */
-  .hero-title-subtle {
-    font-family: var(--font-display);
-    font-weight: 900;
+
+  .label-hw-dim {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: hsl(var(--label-dim));
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    letter-spacing: -0.02em;
-    text-shadow: 
-      0 0 10px hsl(var(--primary) / 0.4),
-      0 0 20px hsl(var(--primary) / 0.2);
+  }
+
+  /* === CRT scanlines: applied at root, fade out as brightness rises === */
+  .scanlines::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(255, 255, 255, 0.012) 2px,
+      rgba(255, 255, 255, 0.012) 3px
+    );
+    pointer-events: none;
+    z-index: 100;
+    opacity: var(--scanline-opacity, 1);
+    transition: opacity 400ms ease;
   }
 }
 
-/* Bubble grid layout for PastProjectsPage */
-.bubble-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-  grid-auto-flow: dense;
+/* LED pulse animation — for "active/in review" indicators only */
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
 }
 
-.project-bubble:nth-child(3n) {
-  grid-row: span 2;
+.led-pulse {
+  animation: led-pulse 1.4s ease-in-out infinite;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-.project-bubble {
-  animation: float 6s ease-in-out infinite;
-  /* --index should be set inline for each bubble */
+@media (prefers-reduced-motion: reduce) {
+  .led-pulse { animation: none; }
 }
