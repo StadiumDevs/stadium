@@ -28,9 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
-import { SiwsMessage } from '@talismn/siws';
-import { generateSiwsStatement } from '@/lib/siwsUtils';
+import { useWalletAuth } from '@/lib/auth/useWalletAuth';
 import { Navigation } from "@/components/Navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getCurrentProgramWeek } from "@/lib/projectUtils";
@@ -149,11 +147,10 @@ const ProjectDetailsPage = () => {
   const [notFound, setNotFound] = useState(false);
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const auth = useWalletAuth();
+  const connectedAddress = auth.account?.address ?? null;
   const [editMode, setEditMode] = useState<false | 'updateAddress' | 'edit'>(false);
   const [editFields, setEditFields] = useState<Partial<ApiProject>>({});
-  const [registerAddress, setRegisterAddress] = useState('');
-  const [registerSig, setRegisterSig] = useState('');
   const ALLOWED_CATEGORIES = [
     "Gaming",
     "DeFi",
@@ -371,29 +368,11 @@ const ProjectDetailsPage = () => {
   const saveEdit = async () => {
     try {
       if (project && Array.isArray(editFields.categories)) {
-        // Sign SIWS and persist categories via PATCH (protected route)
-        await web3Enable('Hackathonia');
-        const accounts = await web3Accounts();
-        const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-        if (!account) throw new Error('No wallet found');
-        const siws = new SiwsMessage({
-          domain: window.location.hostname,
-          uri: window.location.origin,
-          address: account.address,
-          nonce: Math.random().toString(36).slice(2),
-          statement: generateSiwsStatement({
-            action: 'update-project',
-            projectTitle: project.projectName,
-            projectId: project.id
-          }),
+        // Sign in and persist categories via PATCH (protected route)
+        const authHeader = await auth.signAction('update-project', {
+          projectTitle: project.projectName,
+          projectId: project.id,
         });
-        const injector = await web3FromSource(account.meta.source);
-        const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-        const messageStr = typeof signed.message === 'string' && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-        const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
-
         await api.updateProjectCategories(project.id, editFields.categories as string[], authHeader);
       }
 
@@ -409,44 +388,17 @@ const ProjectDetailsPage = () => {
 
   // Wallet connect logic
   const connectWallet = async () => {
-    await web3Enable('Hackathonia');
-    const accounts = await web3Accounts();
-    if (accounts.length > 0) {
-      // Prefer admin account if available, otherwise use first account
-      const adminAccount = accounts.find(a => checkIsAdmin(a.address));
-      setConnectedAddress(adminAccount ? adminAccount.address : accounts[0].address);
-    } else {
-      toast({ title: 'No wallet found', description: 'Please install Polkadot{.js} extension or Talisman.' });
-    }
-  };
-
-  const handleRegisterTeamAddress = async () => {
-    if (!registerAddress) {
-      toast({ title: 'Enter an address to register.' });
-      return;
-    }
     try {
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: registerAddress,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'register-address'
-        })
-      });
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === registerAddress);
-      if (!account) {
-        toast({ title: 'Address not found in wallet.' });
+      const found = await auth.connect();
+      if (!found.length) {
+        toast({ title: 'No wallet found', description: 'Please install a wallet extension for the selected chain.' });
         return;
       }
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector);
-      setRegisterSig(signed.signature);
-      toast({ title: 'Address registered (mock)', description: `Signature: ${signed.signature.slice(0, 16)}...` });
-    } catch (err: unknown) {
-      toast({ title: 'Signature failed', description: (err as Error)?.message || String(err) });
+      // Prefer an admin account if present, otherwise use the first account.
+      const adminAccount = found.find(a => checkIsAdmin(a.address, a.chain));
+      auth.selectAccount(adminAccount || found[0]);
+    } catch (e) {
+      toast({ title: 'Connection failed', description: (e as Error)?.message || 'Could not connect wallet.' });
     }
   };
 
@@ -460,14 +412,14 @@ const ProjectDetailsPage = () => {
 
   // Check if connected wallet is a team member
   const isTeamMember = useMemo(() => {
-    if (!connectedAddress || !project?.teamMembers) return false;
-    return addressInList(connectedAddress, project.teamMembers);
-  }, [connectedAddress, project?.teamMembers]);
+    if (!auth.account || !project?.teamMembers) return false;
+    return addressInList(auth.account.address, project.teamMembers, auth.account.chain);
+  }, [auth.account, project?.teamMembers]);
 
   // Check if connected wallet is an admin (use shared constants)
   const isAdmin = useMemo(() => {
-    return checkIsAdmin(connectedAddress);
-  }, [connectedAddress]);
+    return checkIsAdmin(auth.account?.address, auth.account?.chain);
+  }, [auth.account]);
 
   // Check if user can edit (admin or team member)
   const canEdit = isAdmin || isTeamMember;
@@ -490,29 +442,11 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-team',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('update-team', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       // Update team - convert to new API format
       await api.updateTeam(project.id, {
@@ -593,29 +527,11 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-project',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('update-project', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       // Update project details
       await api.updateProjectDetails(project.id, data, authHeader);
@@ -685,29 +601,11 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-team',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('update-team', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       // Update team and payout address via API
       await api.updateTeam(project.id, {
@@ -762,29 +660,11 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'submit-deliverable',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('submit-deliverable', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       await api.submitForReview(project.id, {
         repoUrl: ensureSubmissionUrl(data.repoUrl),
@@ -831,32 +711,10 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error('No wallet found');
-
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'submit-deliverable',
-          projectTitle: project.projectName,
-          projectId: project.id,
-        }),
+      const authHeader = await auth.signAction('submit-deliverable', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      if (!injector?.signer?.signRaw) throw new Error('Wallet does not support signing');
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr =
-        typeof signed.message === 'string' && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(
-        JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address })
-      );
 
       await api.submitForReview(
         project.id,
@@ -891,33 +749,21 @@ const ProjectDetailsPage = () => {
     setFormError("");
     setFormLoading(true);
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts[0];
-      if (!account) throw new Error("No wallet found");
-      // Require signer to be a team member or admin (server also enforces via SIWS)
+      // Require a connected wallet that is a team member or admin
+      // (the server also enforces this when the signed action is sent).
+      if (!auth.account) throw new Error("No wallet found");
       const isTeamMemberForSubmit = Array.isArray(project.teamMembers) &&
-        addressInList(account.address, project.teamMembers);
-      const isAdminForSubmit = checkIsAdmin(account.address);
+        addressInList(auth.account.address, project.teamMembers, auth.account.chain);
+      const isAdminForSubmit = checkIsAdmin(auth.account.address, auth.account.chain);
       if (!isTeamMemberForSubmit && !isAdminForSubmit) {
         setFormError("You must sign in with a team member or admin wallet to submit deliverables.");
         setFormLoading(false);
         return;
       }
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'submit-deliverable',
-          projectTitle: project.projectName,
-          projectId: project.id
-        })
+      await auth.signAction('submit-deliverable', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      await siws.sign(injector);
       // Mock API call to save milestone
       const newMilestone = `${milestoneName}: ${milestoneDesc}\n${deliverables.map((d, i) => `- ${d}`).join("\n")}`;
       setProject((prev: ApiProject | null) => (
@@ -1355,6 +1201,8 @@ const ProjectDetailsPage = () => {
                 <WalletConnectionBanner
                   onConnect={connectWallet}
                   isConnected={!!connectedAddress}
+                  chain={auth.chain}
+                  onChainChange={auth.setChain}
                 />
 
                 {/* Team & Payment Section */}

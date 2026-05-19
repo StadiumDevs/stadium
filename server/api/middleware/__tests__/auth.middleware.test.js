@@ -31,9 +31,13 @@ vi.mock('dotenv', () => ({
 
 vi.mock('../../../config/polkadot-config.js', () => ({
   getAuthorizedAddresses: () => ['5FakeAdmin1'],
-  isAuthorizedSigner: vi.fn(),
   CURRENT_MULTISIG: '5FakeMultisig',
   NETWORK_CONFIG: { networkName: 'testnet', environment: 'development' },
+}));
+
+vi.mock('../../auth/authorizedSigners.js', () => ({
+  isAuthorizedSigner: vi.fn(),
+  authorizedSignerCount: () => 1,
 }));
 
 vi.mock('../../services/project.service.js', () => ({
@@ -46,7 +50,7 @@ vi.mock('../../services/project.service.js', () => ({
 import { verifySIWS, parseMessage } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
-import { isAuthorizedSigner } from '../../../config/polkadot-config.js';
+import { isAuthorizedSigner } from '../../auth/authorizedSigners.js';
 import projectService from '../../services/project.service.js';
 
 // Import middleware under test
