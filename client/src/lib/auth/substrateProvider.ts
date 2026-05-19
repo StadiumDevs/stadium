@@ -57,6 +57,8 @@ export const substrateProvider: WalletProvider = {
       address: account.address,
       nonce: Math.random().toString(36).slice(2),
       statement,
+      // Short-lived — the server rejects expired / nonce-replayed messages.
+      expirationTime: Date.now() + 10 * 60 * 1000,
     })
     const message = siws.prepareMessage()
     const { signature } = await signRaw({

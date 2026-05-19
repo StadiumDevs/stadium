@@ -37,9 +37,14 @@ vi.mock('../../services/project.service.js', () => ({
   default: { getProjectById: vi.fn() },
 }));
 
+vi.mock('../../auth/nonceStore.js', () => ({
+  consumeNonce: vi.fn(),
+}));
+
 import { parseMessage, verifySIWS } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
+import { consumeNonce } from '../../auth/nonceStore.js';
 
 const { requireOwnWallet } = await import('../auth.middleware.js');
 
@@ -78,6 +83,7 @@ describe('requireOwnWallet', () => {
     vi.clearAllMocks();
     process.env.NODE_ENV = 'test';
     process.env.DISABLE_SIWS_DOMAIN_CHECK = 'true';
+    consumeNonce.mockResolvedValue({ ok: true });
   });
 
   it('returns 401 when x-siws-auth header is missing', async () => {
@@ -140,6 +146,7 @@ describe('requireOwnWallet', () => {
       statement: 'Update notification preferences for wallet on Stadium',
       address: '5Alice',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     decodeAddress.mockReturnValue(new Uint8Array([0xab, 0xcd]));
     u8aToHex.mockReturnValue(pubkey);
@@ -163,6 +170,7 @@ describe('requireOwnWallet', () => {
       statement: 'Update notification preferences for wallet on Stadium',
       address: '5Bob',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     decodeAddress.mockImplementation((addr) => {
       if (addr === '5Alice') return new Uint8Array([0x01]);
@@ -215,6 +223,7 @@ describe('requireOwnWallet', () => {
       statement: 'Update notification preferences for wallet on Stadium',
       address: '5Alice',
       domain: 'localhost',
+      expirationTime: new Date(Date.now() + 600000).toISOString(),
     });
     decodeAddress.mockImplementation((addr) => {
       if (addr === 'not-a-wallet') throw new Error('Invalid SS58 address');
