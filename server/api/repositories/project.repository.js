@@ -452,6 +452,25 @@ class ProjectRepository {
             }
         }
 
+        // Handle bounty prizes replacement
+        if (updateData.bountyPrize !== undefined) {
+            // Delete existing bounty prizes
+            await supabase.from('bounty_prizes').delete().eq('project_id', projectId);
+
+            // Insert new bounty prizes
+            if (updateData.bountyPrize.length > 0) {
+                const { error: bountyError } = await supabase
+                    .from('bounty_prizes')
+                    .insert(updateData.bountyPrize.map(b => ({
+                        project_id: projectId,
+                        name: b.name,
+                        amount: b.amount,
+                        hackathon_won_at_id: b.hackathonWonAtId
+                    })));
+                if (bountyError) throw bountyError;
+            }
+        }
+
         // Handle totalPaid (payments) replacement
         if (updateData.totalPaid !== undefined) {
             // Delete existing payments

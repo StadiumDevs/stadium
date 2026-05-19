@@ -566,6 +566,22 @@ const ProjectDetailsPage = () => {
     liveUrl?: string;
     categories: string[];
     techStack: string[];
+    finalSubmission?: {
+      repoUrl?: string;
+      demoUrl?: string;
+      docsUrl?: string;
+      summary?: string;
+    };
+    hackathon?: {
+      id?: string;
+      name?: string;
+      endDate?: string;
+    };
+    bountyPrize?: Array<{
+      name: string;
+      amount: number;
+      hackathonWonAtId: string;
+    }>;
   }) => {
     if (!project || !connectedAddress) {
       toast({
@@ -603,7 +619,7 @@ const ProjectDetailsPage = () => {
 
       // Update project details
       await api.updateProjectDetails(project.id, data, authHeader);
-      
+
       // Update local project state
       setProject((prev: ApiProject | null) => (prev ? {
         ...prev,
@@ -615,6 +631,20 @@ const ProjectDetailsPage = () => {
         liveUrl: data.liveUrl,
         categories: data.categories,
         techStack: data.techStack,
+        ...(data.finalSubmission !== undefined ? { finalSubmission: data.finalSubmission } : {}),
+        ...(data.hackathon !== undefined
+          ? {
+              hackathon: {
+                ...prev.hackathon,
+                // drop undefined sub-fields so a partial edit doesn't blank
+                // already-set hackathon values in local state before reload
+                ...Object.fromEntries(
+                  Object.entries(data.hackathon).filter(([, v]) => v !== undefined),
+                ),
+              },
+            }
+          : {}),
+        ...(data.bountyPrize !== undefined ? { bountyPrize: data.bountyPrize } : {}),
       } as ApiProject : prev));
       
       toast({
@@ -1493,6 +1523,9 @@ const ProjectDetailsPage = () => {
               liveUrl: project.liveUrl,
               categories: project.categories,
               techStack: Array.isArray(project.techStack) ? project.techStack : [],
+              finalSubmission: project.finalSubmission,
+              hackathon: project.hackathon,
+              bountyPrize: project.bountyPrize,
             }}
             onSave={handleProjectDetailsUpdate}
           />
