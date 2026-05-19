@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, RotateCw, Sparkles, ExternalLink } from "lucide-react";
 import { api, type ApiProgram, type ApiProgramApplication } from "@/lib/api";
 
 type Row = ApiProgramApplication & { program?: ApiProgram };
@@ -27,12 +28,14 @@ const statusVariant = (status: ApiProgramApplication["status"]) => {
  * Implementation: fetches applications + all programs in parallel, joins
  * on programId. Small-scale data today; if the programs table grows, this
  * becomes a dedicated per-project-with-program-metadata endpoint.
+ *
+ * Phase 2 revamp (#71): adds focus-refetch and a manual refresh button.
  */
 export function ProjectProgramsSection({ projectId }: { projectId: string }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     let active = true;
     setLoading(true);
     Promise.all([api.getApplicationsForProject(projectId), api.listPrograms()])
@@ -53,6 +56,18 @@ export function ProjectProgramsSection({ projectId }: { projectId: string }) {
       active = false;
     };
   }, [projectId]);
+
+  useEffect(() => {
+    const cleanup = refetch();
+    return cleanup;
+  }, [refetch]);
+
+  useEffect(() => {
+    window.addEventListener("focus", refetch);
+    return () => {
+      window.removeEventListener("focus", refetch);
+    };
+  }, [refetch]);
 
   if (loading) {
     return (
@@ -106,7 +121,18 @@ export function ProjectProgramsSection({ projectId }: { projectId: string }) {
                     <span className="text-sm font-medium">{name}</span>
                   )}
                 </div>
-                <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={refetch}
+                    aria-label="Refresh application status"
+                  >
+                    <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
               </li>
             );
           })}
