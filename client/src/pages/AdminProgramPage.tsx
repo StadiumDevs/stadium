@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { HardwareToggle } from "@/components/hardware-toggle";
@@ -46,6 +46,23 @@ const AdminProgramPage = () => {
   const [isProgramAdmin, setIsProgramAdmin] = useState(false);
   const isAdminWallet = isGlobalAdmin || isProgramAdmin;
 
+  // Stabilize per-action signers so child sections that include
+  // `signAuthHeader` in their effect deps don't loop forever — every render
+  // of this page would otherwise produce a fresh `() => auth.signAction(...)`
+  // arrow and re-trigger the wallet popup. `signAction` itself is memoized
+  // in useWalletAuth against `account`, so these stay stable until the user
+  // disconnects or switches account.
+  const { signAction } = auth;
+  const signAdminAction = useCallback(() => signAction("admin-action"), [signAction]);
+  const signUpdateSponsors = useCallback(
+    () => signAction("update-program-sponsors"),
+    [signAction],
+  );
+  const signImportSignups = useCallback(
+    () => signAction("import-program-signups"),
+    [signAction],
+  );
+
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [applications, setApplications] = useState<ApiProgramApplication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +92,7 @@ const AdminProgramPage = () => {
   const loadApplications = async () => {
     if (!slug || !connectedAddress || !isAdminWallet) return;
     try {
-      const authHeader = await auth.signAction("admin-action");
+      const authHeader = await signAdminAction();
       const res = await api.listProgramApplications(slug, authHeader);
       setApplications(res.data);
     } catch (e) {
@@ -220,18 +237,18 @@ const AdminProgramPage = () => {
               <>
                 <ProgramAdminsSection
                   programSlug={program.slug}
-                  signAuthHeader={() => auth.signAction("admin-action")}
+                  signAuthHeader={signAdminAction}
                   isGlobalAdmin={isGlobalAdmin}
                 />
 
                 <ProgramSponsorsSection
                   programSlug={program.slug}
-                  signAuthHeader={() => auth.signAction("update-program-sponsors")}
+                  signAuthHeader={signUpdateSponsors}
                 />
 
                 <ProgramSignupsSection
                   programSlug={program.slug}
-                  signAuthHeader={() => auth.signAction("import-program-signups")}
+                  signAuthHeader={signImportSignups}
                 />
 
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
