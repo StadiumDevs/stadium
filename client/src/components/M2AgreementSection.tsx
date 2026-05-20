@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  FileText, 
-  Edit, 
-  Lock, 
-  Calendar, 
-  CheckCircle, 
+import {
+  FileText,
+  Edit,
+  Lock,
+  Calendar,
+  CheckCircle,
   Target,
   BookOpen,
   Lightbulb,
@@ -52,22 +50,23 @@ export function M2AgreementSection({
     return (
       <>
         <div className="panel p-8 mb-6 text-center">
-          <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-xl font-heading mb-2">No M2 Roadmap Created Yet</h3>
-          <p className="text-muted-foreground mb-4">
-            Define your 6-week development plan to get started with the M2 Incubator Program
+          <FileText className="w-10 h-10 mx-auto mb-4 text-label-dim" />
+          <span className="label-hw text-display block mb-2">·NO M2 ROADMAP CREATED YET</span>
+          <p className="text-body text-sm mb-5 max-w-md mx-auto">
+            Define your 6-week development plan to get started with the M2 Incubator Program.
           </p>
           {isTeamMember && (
-            <Button 
+            <button
+              type="button"
               onClick={() => setIsEditModalOpen(true)}
-              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim"
+              className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-1.5"
             >
-              <FileText className="w-4 h-4 mr-2" />
+              <FileText className="w-3.5 h-3.5" />
               CREATE YOUR M2 ROADMAP
-            </Button>
+            </button>
           )}
         </div>
-        
+
         <EditM2AgreementModal
           open={isEditModalOpen}
           onOpenChange={setIsEditModalOpen}
@@ -91,49 +90,49 @@ export function M2AgreementSection({
     <>
       <div className="panel p-6 mb-6">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex items-start justify-between mb-5 pb-4 border-b border-hairline-subtle">
           <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <FileText className="w-6 h-6 text-display" />
-              <h2 className="text-2xl font-heading">📋 Your M2 Roadmap</h2>
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="w-4 h-4 text-label-mid" />
+              <span className="label-hw text-display">·YOUR M2 ROADMAP</span>
               {isPastWeek4 && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <Lock className="w-3 h-3" />
+                <span className="inline-flex items-center gap-1 border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase ml-1">
+                  <Lock className="w-2.5 h-2.5" />
                   Locked
-                </Badge>
+                </span>
               )}
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="w-4 h-4" />
-              <span>Last updated: {lastUpdated} by {updatedBy}</span>
+            <div className="flex items-center gap-1.5 label-hw-dim">
+              <Calendar className="w-3 h-3" />
+              <span>LAST UPDATED: {lastUpdated.toUpperCase()} · BY {updatedBy.toUpperCase()}</span>
             </div>
           </div>
-          
+
           {/* Edit Button */}
           {isTeamMember && canEdit && (
-            <Button 
+            <button
+              type="button"
               onClick={() => setIsEditModalOpen(true)}
-              variant="outline"
-              className="ml-4"
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5 ml-4"
             >
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Roadmap
-            </Button>
+              <Edit className="w-3 h-3" />
+              EDIT ROADMAP
+            </button>
           )}
         </div>
 
         {/* Core Features Section */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircle className="w-5 h-5 text-green-500" />
-            <h3 className="text-lg font-semibold">Core Features (must complete)</h3>
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="w-3.5 h-3.5 text-led" />
+            <span className="label-hw text-display">·CORE FEATURES — MUST COMPLETE</span>
           </div>
-          <div className="bg-muted/30 rounded-lg p-4">
+          <div className="lcd p-4">
             <ul className="space-y-2">
               {m2Agreement.agreedFeatures.map((feature, index) => (
                 <li key={index} className="flex items-start gap-2">
-                  <span className="text-display mt-1 flex-shrink-0">•</span>
-                  <span className="flex-1 text-sm leading-relaxed whitespace-pre-line">{feature}</span>
+                  <span className="text-display mt-1 flex-shrink-0 font-mono text-xs">·</span>
+                  <span className="flex-1 text-sm leading-relaxed whitespace-pre-line text-body">{feature}</span>
                 </li>
               ))}
             </ul>
@@ -142,17 +141,17 @@ export function M2AgreementSection({
 
         {/* Documentation Requirements Section */}
         {m2Agreement.documentation && m2Agreement.documentation.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <BookOpen className="w-5 h-5 text-blue-500" />
-              <h3 className="text-lg font-semibold">Documentation Requirements</h3>
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-3.5 h-3.5 text-label-mid" />
+              <span className="label-hw text-display">·DOCUMENTATION REQUIREMENTS</span>
             </div>
-            <div className="bg-muted/30 rounded-lg p-4">
+            <div className="lcd p-4">
               <ul className="space-y-2">
                 {m2Agreement.documentation.map((doc, index) => (
                   <li key={index} className="flex items-start gap-2">
-                    <span className="text-blue-500 mt-1 flex-shrink-0">•</span>
-                    <span className="flex-1 text-sm leading-relaxed whitespace-pre-line">{doc}</span>
+                    <span className="text-label-mid mt-1 flex-shrink-0 font-mono text-xs">·</span>
+                    <span className="flex-1 text-sm leading-relaxed whitespace-pre-line text-body">{doc}</span>
                   </li>
                 ))}
               </ul>
@@ -162,13 +161,13 @@ export function M2AgreementSection({
 
         {/* Success Criteria Section */}
         {m2Agreement.successCriteria && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Target className="w-5 h-5 text-amber-500" />
-              <h3 className="text-lg font-semibold">Success Criteria</h3>
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="w-3.5 h-3.5 text-label-mid" />
+              <span className="label-hw text-display">·SUCCESS CRITERIA</span>
             </div>
-            <div className="bg-muted/30 rounded-lg p-4">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+            <div className="lcd p-4">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-body">
                 {m2Agreement.successCriteria}
               </p>
             </div>
@@ -176,20 +175,16 @@ export function M2AgreementSection({
         )}
 
         {/* Footer Note */}
-        <div className="mt-6 pt-4 border-t border-border/50">
+        <div className="mt-5 pt-4 border-t border-hairline-subtle">
           {!isPastWeek4 ? (
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Lightbulb className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
-              <p>
-                💡 This is YOUR plan agreed with your mentors. Update anytime during Weeks 1-4.
-              </p>
+            <div className="flex items-start gap-2 label-hw-dim">
+              <Lightbulb className="w-3 h-3 mt-0.5 text-label-mid flex-shrink-0" />
+              <p>YOUR PLAN, AGREED WITH MENTORS. UPDATE ANYTIME DURING WEEKS 1–4.</p>
             </div>
           ) : (
-            <div className="flex items-start gap-2 text-sm text-amber-600 bg-amber-500/10 rounded-lg p-3">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>
-                Roadmap locked after Week 4. Contact your mentors in your team chat if you need to make any changes.
-              </p>
+            <div className="flex items-start gap-2 lcd p-3 border-destructive">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-destructive flex-shrink-0" />
+              <p className="label-hw text-destructive">·ROADMAP LOCKED AFTER WEEK 4 — CONTACT YOUR MENTORS IF YOU NEED CHANGES.</p>
             </div>
           )}
         </div>
