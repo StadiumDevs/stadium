@@ -116,6 +116,21 @@ export type ApiProject = {
   submittedDate?: string;
   updatedAt?: string;
   hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+  /**
+   * Canonical event/track row (Phase 1 #93). Populated when the project's
+   * `program_id` resolves to a row in `programs`. `hackathon` above stays
+   * around as the legacy flat-column view for callers not yet migrated.
+   */
+  program?: {
+    id: string;
+    name: string;
+    slug: string;
+    programType: ApiProgram["programType"];
+    status: ApiProgram["status"];
+    eventStartsAt?: string | null;
+    eventEndsAt?: string | null;
+    location?: string | null;
+  } | null;
   finalSubmission?: {
     repoUrl?: string;
     demoUrl?: string;
