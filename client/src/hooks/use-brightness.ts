@@ -11,10 +11,16 @@ interface StoredState {
   mode: Mode;
   manualValue: number | null;
   paletteKey: string;
+  collapsed: boolean;
 }
 
 function readStored(): StoredState {
-  const defaults: StoredState = { mode: 'auto', manualValue: null, paletteKey: DEFAULT_PALETTE_KEY };
+  const defaults: StoredState = {
+    mode: 'auto',
+    manualValue: null,
+    paletteKey: DEFAULT_PALETTE_KEY,
+    collapsed: false,
+  };
   if (typeof window === 'undefined') return defaults;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -25,6 +31,7 @@ function readStored(): StoredState {
       mode: parsed.mode,
       manualValue: typeof parsed.manualValue === 'number' ? parsed.manualValue : null,
       paletteKey: typeof parsed.paletteKey === 'string' ? parsed.paletteKey : DEFAULT_PALETTE_KEY,
+      collapsed: typeof parsed.collapsed === 'boolean' ? parsed.collapsed : false,
     };
   } catch {
     return defaults;
@@ -110,6 +117,15 @@ export function useBrightness() {
     });
   }, []);
 
+  const setCollapsed = useCallback((collapsed: boolean) => {
+    setState((prev) => {
+      if (prev.collapsed === collapsed) return prev;
+      const next: StoredState = { ...prev, collapsed };
+      writeStored(next);
+      return next;
+    });
+  }, []);
+
   return {
     brightness,
     mode: state.mode,
@@ -117,8 +133,10 @@ export function useBrightness() {
     paletteKey: state.paletteKey,
     palettes: PALETTES,
     solarTarget: solarBrightness(),
+    collapsed: state.collapsed,
     setBrightness,
     setAuto,
     setPalette,
+    setCollapsed,
   };
 }
