@@ -24,6 +24,7 @@ type ApiProject = {
   categories?: string[];
   m2Status?: "building" | "under_review" | "completed";
   hackathon?: { id: string; name: string; endDate: string };
+  program?: { id: string; name: string; slug: string } | null;
 };
 
 type Unit = {
@@ -44,7 +45,7 @@ type Unit = {
 const WinnersPage = () => {
   const { hackathon } = useParams<{ hackathon: string }>();
   const [winners, setWinners] = useState<Unit[]>([]);
-  const [hackathonName, setHackathonName] = useState<string>("");
+  const [programName, setProgramName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Unit | null>(null);
   const { toast } = useToast();
@@ -66,14 +67,20 @@ const WinnersPage = () => {
         });
         const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
 
-        if (apiProjects[0]?.hackathon?.name) {
-          setHackathonName(apiProjects[0].hackathon.name);
+        // Phase 2 #94: prefer the canonical program name, then fall back to
+        // the legacy hackathon name, then to a slug-cased pretty-print.
+        const fromProgram = apiProjects.find((p) => p.program?.name)?.program?.name;
+        const fromHackathon = apiProjects.find((p) => p.hackathon?.name)?.hackathon?.name;
+        if (fromProgram) {
+          setProgramName(fromProgram);
+        } else if (fromHackathon) {
+          setProgramName(fromHackathon);
         } else {
           const formatted = hackathon
             .split("-")
             .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
             .join(" ");
-          setHackathonName(formatted);
+          setProgramName(formatted);
         }
 
         setWinners(
@@ -111,8 +118,8 @@ const WinnersPage = () => {
 
   const handleClose = useCallback(() => setSelected(null), []);
 
-  // Drop a "Blockspace" prefix if present — fits the rack-label aesthetic.
-  const displayName = hackathonName.replace(/^Blockspace\s+/i, "");
+  // "Blockspace" was a stale prefix on older event names — strip if present.
+  const displayProgramName = programName.replace(/^Blockspace\s+/i, "");
 
   return (
     <div className="min-h-screen scanlines">
@@ -131,10 +138,10 @@ const WinnersPage = () => {
         <div className="mb-6">
           <div className="label-hw-dim mb-2">·WINNERS / {hackathon?.toUpperCase()}</div>
           <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-2">
-            {displayName || "Winners"}
+            {displayProgramName || "Winners"}
           </h1>
           <p className="text-body text-base max-w-2xl leading-relaxed">
-            Congratulations to the winners of the {hackathonName || "this"} hackathon.
+            Congratulations to the winners of {programName || "this event"}.
           </p>
         </div>
 

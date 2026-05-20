@@ -154,12 +154,12 @@ const M2ProgramPage = () => {
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-4">
-          <div className="label-hw-dim mb-2">·M2 INCUBATOR / PROGRAM OVERVIEW</div>
+          <div className="label-hw-dim mb-2">·M2 INCUBATOR / POST-EVENT TRACK</div>
           <h1 className="font-display text-4xl md:text-5xl uppercase tracking-tight text-display leading-[0.95] mb-2">
-            M2 Program
+            M2 Incubator
           </h1>
           <p className="text-[13px] text-body leading-relaxed max-w-2xl">
-            Six-week incubator for hackathon winners. Teams confirm milestone plans, get matched with mentors, and ship.
+            The post-event track for WebZero winners — keep building what you shipped, with a mentor and a defined Milestone 2.
           </p>
         </div>
 

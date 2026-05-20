@@ -114,6 +114,7 @@ const ProjectDetailsPage = () => {
     donationChain?: 'substrate' | 'ethereum' | 'solana';
     winner?: string; // legacy
     hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+    program?: { id: string; name: string; slug: string } | null;
     eventStartedAt?: string; // legacy - use hackathon.eventStartedAt instead
     m2Status?: 'building' | 'under_review' | 'completed';
     finalSubmission?: {
@@ -887,11 +888,12 @@ const ProjectDetailsPage = () => {
                 </span>
                 <span>·</span>
                 <span>
-                  {(project.hackathon?.eventStartedAt === "funkhaus-2024"
-                    ? "Symmetry 2024"
-                    : project.hackathon?.eventStartedAt === "synergy-hack-2024"
-                    ? "Synergy 2025"
-                    : project.hackathon?.name || "Hackathon").toUpperCase()}
+                  {(project.program?.name
+                    ?? (project.hackathon?.eventStartedAt === "funkhaus-2024"
+                      ? "Symmetry 2024"
+                      : project.hackathon?.eventStartedAt === "synergy-hack-2024"
+                      ? "Synergy 2025"
+                      : project.hackathon?.name || "Event")).toUpperCase()}
                 </span>
                 {project.teamMembers && project.teamMembers.length > 0 && (
                   <>
