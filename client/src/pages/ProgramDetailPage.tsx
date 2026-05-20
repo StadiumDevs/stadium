@@ -5,6 +5,7 @@ import { RotateCw } from "lucide-react";
 import {
   api,
   type ApiProgram,
+  type ApiProgramSponsor,
   type ApiProject,
   type ApiProgramApplication,
   ApiError,
@@ -40,6 +41,7 @@ const ProgramDetailPage = () => {
 
   const [myProjects, setMyProjects] = useState<ApiProject[]>([]);
   const [myApplications, setMyApplications] = useState<ApiProgramApplication[]>([]);
+  const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
@@ -69,6 +71,17 @@ const ProgramDetailPage = () => {
       .catch(() => { if (active) setMyProjects([]); });
     return () => { active = false; };
   }, [connectedAddress]);
+
+  // Load sponsors once we know the program exists.
+  useEffect(() => {
+    if (!slug || !program) { setSponsors([]); return; }
+    let active = true;
+    api
+      .listProgramSponsors(slug)
+      .then((r) => { if (active) setSponsors(r.data); })
+      .catch(() => { if (active) setSponsors([]); });
+    return () => { active = false; };
+  }, [slug, program]);
 
   const refetchApplications = useCallback(() => {
     if (!program || myProjects.length === 0) {
@@ -235,7 +248,7 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
-            {(applicationsRange || eventRange) && (
+            {(applicationsRange || eventRange || program.eventUrl) && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·KEY DATES</div>
                 <div className="space-y-2">
@@ -251,6 +264,62 @@ const ProgramDetailPage = () => {
                       <span className="font-mono text-[12px] text-display">{eventRange}</span>
                     </div>
                   )}
+                  {program.eventUrl && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="label-hw-dim">SIGN UP</span>
+                      <a
+                        href={program.eventUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-[12px] text-display hover:underline break-all max-w-[60%] text-right"
+                      >
+                        {program.eventUrl}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {sponsors.length > 0 && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·SPONSORS &amp; HOW TO APPLY</div>
+                <div className="space-y-3">
+                  {sponsors.map((s) => (
+                    <div key={s.id} className="lcd p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-base tracking-tight text-display uppercase">{s.name}</span>
+                        {typeof s.submissionTarget === "number" && s.submissionTarget > 0 && (
+                          <span className="border border-hairline text-display bg-panel-deep px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase">
+                            TARGET {s.submissionTarget}
+                          </span>
+                        )}
+                        {s.targetProfiles.map((p) => (
+                          <span
+                            key={p}
+                            className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase"
+                          >
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                      {s.applicationInstructions && (
+                        <p className="text-body text-sm leading-relaxed whitespace-pre-line">
+                          {s.applicationInstructions}
+                        </p>
+                      )}
+                      {s.applyUrl && (
+                        <a
+                          href={s.applyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-xs text-display hover:underline break-all"
+                        >
+                          {s.applyUrl} ▸
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

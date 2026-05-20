@@ -38,4 +38,19 @@ router.get('/:slug/admins', requireProgramAdmin('slug'), programController.listA
 router.post('/:slug/admins', requireAdmin, programController.addAdmin);
 router.delete('/:slug/admins/:wallet', requireAdmin, programController.removeAdmin);
 
+// --- Sponsors (per-program) ---
+// Read = public; mutate = program admin or global.
+router.get('/:slug/sponsors', programController.listSponsors);
+router.post('/:slug/sponsors', requireProgramAdmin('slug'), programController.createSponsor);
+router.patch(
+  '/:slug/sponsors/:sponsorId',
+  requireProgramAdmin('slug'),
+  programController.updateSponsor,
+);
+router.delete(
+  '/:slug/sponsors/:sponsorId',
+  requireProgramAdmin('slug'),
+  programController.deleteSponsor,
+);
+
 export default router;

@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { ApplicationCard } from "@/components/admin/ApplicationCard";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
+import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -220,6 +221,11 @@ const AdminProgramPage = () => {
                   programSlug={program.slug}
                   signAuthHeader={() => auth.signAction("admin-action")}
                   isGlobalAdmin={isGlobalAdmin}
+                />
+
+                <ProgramSponsorsSection
+                  programSlug={program.slug}
+                  signAuthHeader={() => auth.signAction("update-program-sponsors")}
                 />
 
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">

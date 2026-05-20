@@ -34,6 +34,7 @@ export const VALID_STATEMENTS = [
   'Create program on Stadium',
   'Update program on Stadium',
   'Review application on Stadium',
+  'Update program sponsors on Stadium',
   // Phase 2 revamp: wallet contacts (#67)
   'Update notification preferences for wallet on Stadium',
 ];

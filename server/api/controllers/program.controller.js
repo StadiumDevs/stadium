@@ -1,10 +1,11 @@
 import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
+import programSponsorService from '../services/program-sponsor.service.js';
 import projectService from '../services/project.service.js';
 import notificationService from '../services/notification.service.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
-import { validateProgram } from '../utils/validation.js';
+import { validateProgram, validateSponsor } from '../utils/validation.js';
 import { randomUUID } from 'node:crypto';
 import logger from '../utils/logger.js';
 
@@ -370,6 +371,84 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error removing program admin:', error);
       res.status(500).json({ status: 'error', message: 'Failed to remove program admin' });
+    }
+  }
+
+  // --- Sponsors (per-program) ---
+
+  async listSponsors(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const sponsors = await programSponsorService.listByProgramId(program.id);
+      res.status(200).json({ status: 'success', data: sponsors });
+    } catch (error) {
+      console.error('❌ Error listing program sponsors:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program sponsors' });
+    }
+  }
+
+  async createSponsor(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const { valid, error } = validateSponsor(req.body);
+      if (!valid) {
+        return res.status(422).json({ status: 'error', message: error });
+      }
+      const created = await programSponsorService.create({ ...req.body, programId: program.id });
+      res.status(201).json({ status: 'success', data: created });
+    } catch (error) {
+      console.error('❌ Error creating program sponsor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to create program sponsor' });
+    }
+  }
+
+  async updateSponsor(req, res) {
+    try {
+      const { slug, sponsorId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const existing = await programSponsorService.findById(sponsorId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Sponsor not found' });
+      }
+      const { valid, error } = validateSponsor(req.body, { partial: true });
+      if (!valid) {
+        return res.status(422).json({ status: 'error', message: error });
+      }
+      const updated = await programSponsorService.update(sponsorId, req.body);
+      res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+      console.error('❌ Error updating program sponsor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to update program sponsor' });
+    }
+  }
+
+  async deleteSponsor(req, res) {
+    try {
+      const { slug, sponsorId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const existing = await programSponsorService.findById(sponsorId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Sponsor not found' });
+      }
+      await programSponsorService.delete(sponsorId);
+      res.status(204).end();
+    } catch (error) {
+      console.error('❌ Error deleting program sponsor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to delete program sponsor' });
     }
   }
 }

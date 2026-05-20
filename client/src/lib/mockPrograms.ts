@@ -9,7 +9,7 @@
  *     so previews mirror the canonical-events backfill migration.
  */
 
-import type { ApiProgram } from "./api";
+import type { ApiProgram, ApiProgramSponsor } from "./api";
 
 export const mockPrograms: ApiProgram[] = [
   {
@@ -135,3 +135,26 @@ export const mockPrograms: ApiProgram[] = [
     updatedAt: "2026-04-22T00:00:00Z",
   },
 ];
+
+/**
+ * Per-program sponsor fixtures, keyed by program slug. Mock writes mutate
+ * this in place so the preview mirrors the real /api/programs/:slug/sponsors
+ * shape closely enough for UI work.
+ */
+export const mockProgramSponsors: Record<string, ApiProgramSponsor[]> = {
+  "bitrefill-2026": [
+    {
+      id: "sponsor-bitrefill-2026-bitrefill",
+      programId: "bitrefill-2026",
+      name: "Bitrefill",
+      submissionTarget: 10,
+      targetProfiles: ["developer", "designer"],
+      applicationInstructions:
+        "Send a 1-paragraph pitch to apply@bitrefill.com with your wallet address and a link to your repo.",
+      followUpNotes: "Send 1-week recap email; confirm winning team has KYC docs ready.",
+      applyUrl: "https://bitrefill.com/apply",
+      createdAt: "2026-05-20T00:00:00Z",
+      updatedAt: "2026-05-20T00:00:00Z",
+    },
+  ],
+};

@@ -85,6 +85,7 @@ export function ProgramFormModal({
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [maxApplicants, setMaxApplicants] = useState("");
+  const [eventUrl, setEventUrl] = useState("");
   const [applicationsOpenAt, setApplicationsOpenAt] = useState("");
   const [applicationsCloseAt, setApplicationsCloseAt] = useState("");
   const [eventStartsAt, setEventStartsAt] = useState("");
@@ -104,6 +105,7 @@ export function ProgramFormModal({
       setDescription(program.description || "");
       setLocation(program.location || "");
       setMaxApplicants(program.maxApplicants ? String(program.maxApplicants) : "");
+      setEventUrl(program.eventUrl || "");
       setApplicationsOpenAt(isoToLocal(program.applicationsOpenAt));
       setApplicationsCloseAt(isoToLocal(program.applicationsCloseAt));
       setEventStartsAt(isoToLocal(program.eventStartsAt));
@@ -117,6 +119,7 @@ export function ProgramFormModal({
       setDescription("");
       setLocation("");
       setMaxApplicants("");
+      setEventUrl("");
       setApplicationsOpenAt("");
       setApplicationsCloseAt("");
       setEventStartsAt("");
@@ -139,6 +142,9 @@ export function ProgramFormModal({
     if (maxApplicants) {
       const n = Number(maxApplicants);
       if (!Number.isInteger(n) || n < 1) e.maxApplicants = "Must be a positive integer.";
+    }
+    if (eventUrl.trim() && !/^https?:\/\//i.test(eventUrl.trim())) {
+      e.eventUrl = "Must start with http:// or https://";
     }
     if (applicationsOpenAt && applicationsCloseAt) {
       if (new Date(applicationsOpenAt).getTime() >= new Date(applicationsCloseAt).getTime()) {
@@ -195,6 +201,7 @@ export function ProgramFormModal({
         description: description.trim() || null,
         location: location.trim() || null,
         maxApplicants: maxApplicants ? Number(maxApplicants) : null,
+        eventUrl: eventUrl.trim() || null,
         applicationsOpenAt: localToIso(applicationsOpenAt),
         applicationsCloseAt: localToIso(applicationsCloseAt),
         eventStartsAt: localToIso(eventStartsAt),
@@ -385,6 +392,22 @@ export function ProgramFormModal({
             />
             {errors.maxApplicants && (
               <p className="label-hw text-destructive">·{errors.maxApplicants.toUpperCase()}</p>
+            )}
+          </div>
+
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label htmlFor="pf-event-url" className="label-hw-dim">·EVENT URL (LUMA / SIGN-UP PAGE)</Label>
+            <Input
+              id="pf-event-url"
+              type="url"
+              placeholder="https://lu.ma/your-event"
+              value={eventUrl}
+              onChange={(e) => setEventUrl(e.target.value)}
+              aria-invalid={errors.eventUrl ? true : undefined}
+              className="font-mono text-sm"
+            />
+            {errors.eventUrl && (
+              <p className="label-hw text-destructive">·{errors.eventUrl.toUpperCase()}</p>
             )}
           </div>
         </div>
