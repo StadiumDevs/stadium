@@ -1,9 +1,11 @@
 import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
 import programSponsorService from '../services/program-sponsor.service.js';
+import programSignupService from '../services/program-signup.service.js';
 import projectService from '../services/project.service.js';
 import notificationService from '../services/notification.service.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
+import programSignupRepository from '../repositories/program-signup.repository.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
 import { validateProgram, validateSponsor } from '../utils/validation.js';
 import { randomUUID } from 'node:crypto';
@@ -449,6 +451,98 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error deleting program sponsor:', error);
       res.status(500).json({ status: 'error', message: 'Failed to delete program sponsor' });
+    }
+  }
+
+  // --- Signups (Luma CSV imports) ---
+
+  async listSignups(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const signups = await programSignupService.listByProgramId(program.id);
+      res.status(200).json({
+        status: 'success',
+        data: signups,
+        meta: { count: signups.length },
+      });
+    } catch (error) {
+      console.error('❌ Error listing program signups:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program signups' });
+    }
+  }
+
+  async importSignups(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+
+      // Accepts the CSV as either a raw text/csv body or as { csv: "..." }
+      // inside a JSON body. The former scales further; the latter is the
+      // path the admin UI uses today because shadcn forms speak JSON.
+      let csvText = '';
+      if (typeof req.body === 'string') {
+        csvText = req.body;
+      } else if (req.body && typeof req.body.csv === 'string') {
+        csvText = req.body.csv;
+      } else {
+        return res.status(422).json({
+          status: 'error',
+          message: 'Missing CSV body. Send Content-Type text/csv or JSON {"csv":"..."}',
+        });
+      }
+      if (!csvText.trim()) {
+        return res.status(422).json({ status: 'error', message: 'CSV body is empty' });
+      }
+
+      const dryRun = req.query.dry_run === 'true' || req.query.dry_run === '1';
+
+      const summary = dryRun
+        ? await programSignupService.planImport(program.id, csvText)
+        : await programSignupService.commitImport(program.id, csvText);
+
+      // Drop the verbose `newRows` array on the wire — the preview slices and
+      // counts are enough for the admin UI to render the summary.
+      const { newRows: _omit, inserted, ...wire } = summary;
+      void _omit;
+      res.status(200).json({
+        status: 'success',
+        data: {
+          dryRun,
+          ...wire,
+          inserted: dryRun ? [] : inserted || [],
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error importing program signups:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to import program signups' });
+    }
+  }
+
+  async deleteSignup(req, res) {
+    try {
+      const { slug, signupId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      // Cross-check program scoping: a signup from program A must not be
+      // deletable via program B's slug. Symmetric with sponsors.
+      const existing = await programSignupRepository.findById(signupId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Signup not found' });
+      }
+      await programSignupService.delete(signupId);
+      res.status(204).end();
+    } catch (error) {
+      console.error('❌ Error deleting program signup:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to delete program signup' });
     }
   }
 }

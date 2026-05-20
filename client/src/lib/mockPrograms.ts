@@ -9,7 +9,7 @@
  *     so previews mirror the canonical-events backfill migration.
  */
 
-import type { ApiProgram, ApiProgramSponsor } from "./api";
+import type { ApiProgram, ApiProgramSignup, ApiProgramSponsor } from "./api";
 
 export const mockPrograms: ApiProgram[] = [
   {
@@ -158,3 +158,115 @@ export const mockProgramSponsors: Record<string, ApiProgramSponsor[]> = {
     },
   ],
 };
+
+/** Per-program signup fixtures (mock mode). */
+export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {};
+
+/**
+ * Tiny CSV parser used only in mock mode so previews can demo the import
+ * flow without a backend. Mirrors the canonical-field synonyms the server
+ * parser supports.
+ */
+const HEADER_SYNONYMS = {
+  email: ["email", "emailaddress", "mail"],
+  name: ["name", "fullname", "attendeename"],
+  wallet: ["wallet", "walletaddress", "address", "cryptowallet", "web3wallet"],
+};
+
+const norm = (s: string) => s.trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i += 1; }
+      else if (ch === '"') inQuotes = false;
+      else cur += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+export function importMockSignups(
+  slug: string,
+  csv: string,
+  dryRun: boolean,
+): {
+  totalParsed: number;
+  skippedNoEmail: number;
+  duplicates: number;
+  newCount: number;
+  newPreview: Array<{ email: string; name?: string | null; wallet?: string | null }>;
+  duplicatePreview: Array<{ email: string; name?: string | null }>;
+} {
+  const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) {
+    return {
+      totalParsed: 0, skippedNoEmail: 0, duplicates: 0, newCount: 0,
+      newPreview: [], duplicatePreview: [],
+    };
+  }
+  const header = parseCsvLine(lines[0]).map((h) => h.trim());
+  const idx = (synonyms: string[]) =>
+    header.findIndex((h) => synonyms.includes(norm(h)));
+  const emailIdx = idx(HEADER_SYNONYMS.email);
+  const nameIdx = idx(HEADER_SYNONYMS.name);
+  const walletIdx = idx(HEADER_SYNONYMS.wallet);
+
+  const existing = mockProgramSignups[slug] || [];
+  const existingEmails = new Set(existing.map((s) => s.email));
+
+  let totalParsed = 0;
+  let skipped = 0;
+  const newRows: Array<{ email: string; name?: string | null; wallet?: string | null }> = [];
+  const duplicates: Array<{ email: string; name?: string | null }> = [];
+
+  for (let i = 1; i < lines.length; i += 1) {
+    totalParsed += 1;
+    const cols = parseCsvLine(lines[i]);
+    const emailRaw = emailIdx >= 0 ? (cols[emailIdx] || "").trim().toLowerCase() : "";
+    if (!emailRaw || !emailRaw.includes("@")) { skipped += 1; continue; }
+    const name = nameIdx >= 0 ? (cols[nameIdx] || "").trim() || null : null;
+    const wallet = walletIdx >= 0 ? (cols[walletIdx] || "").trim() || null : null;
+    if (existingEmails.has(emailRaw)) {
+      duplicates.push({ email: emailRaw, name });
+    } else {
+      newRows.push({ email: emailRaw, name, wallet });
+      existingEmails.add(emailRaw);
+    }
+  }
+
+  if (!dryRun && newRows.length > 0) {
+    const inserted: ApiProgramSignup[] = newRows.map((r, i) => ({
+      id: `mock-signup-${Date.now()}-${i}`,
+      programId: slug,
+      email: r.email,
+      name: r.name,
+      wallet: r.wallet,
+      registeredAt: new Date().toISOString(),
+      source: "luma",
+      createdAt: new Date().toISOString(),
+    }));
+    mockProgramSignups[slug] = [...existing, ...inserted];
+  }
+
+  return {
+    totalParsed,
+    skippedNoEmail: skipped,
+    duplicates: duplicates.length,
+    newCount: newRows.length,
+    newPreview: newRows.slice(0, 5),
+    duplicatePreview: duplicates.slice(0, 5),
+  };
+}

@@ -216,6 +216,31 @@ export type ApiProgramSponsor = {
   updatedAt?: string;
 };
 
+/** Shape of a row in `program_signups` (Luma CSV imports). */
+export type ApiProgramSignup = {
+  id: string;
+  programId: string;
+  email: string;
+  name?: string | null;
+  wallet?: string | null;
+  registeredAt?: string | null;
+  source: string;
+  rawRow?: Record<string, unknown> | null;
+  createdAt?: string;
+};
+
+/** Summary returned by POST /programs/:slug/signups/import. */
+export type ProgramSignupImportSummary = {
+  dryRun: boolean;
+  totalParsed: number;
+  skippedNoEmail: number;
+  duplicates: number;
+  newCount: number;
+  newPreview: Array<{ email: string; name?: string | null; wallet?: string | null }>;
+  duplicatePreview: Array<{ email: string; name?: string | null }>;
+  inserted: ApiProgramSignup[];
+};
+
 /** Shape of a row in `project_updates` (Phase 1 revamp, #39). */
 export type ApiProjectUpdate = {
   id: string;
@@ -1136,6 +1161,68 @@ export const api = {
       return { status: "success" };
     }
     await request(`/programs/${encodeURIComponent(slug)}/sponsors/${encodeURIComponent(sponsorId)}`, {
+      method: "DELETE",
+      headers: authHeader ? { "x-siws-auth": authHeader } : undefined,
+    });
+    return { status: "success" };
+  },
+
+  // --- Program signups (Luma CSV) ---
+
+  listProgramSignups: async (
+    slug: string,
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgramSignup[]; meta: { count: number } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const list = mockProgramSignups[slug] || [];
+      return { status: "success", data: list, meta: { count: list.length } };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/signups`, {
+      headers: authHeader ? { "x-siws-auth": authHeader } : undefined,
+    });
+  },
+
+  importProgramSignups: async (
+    slug: string,
+    csv: string,
+    options: { dryRun: boolean },
+    authHeader?: string,
+  ): Promise<{ status: string; data: ProgramSignupImportSummary }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups, importMockSignups } = await import("./mockPrograms");
+      const summary = importMockSignups(slug, csv, options.dryRun);
+      return {
+        status: "success",
+        data: {
+          dryRun: options.dryRun,
+          ...summary,
+          inserted: options.dryRun ? [] : mockProgramSignups[slug] || [],
+        },
+      };
+    }
+    const qs = options.dryRun ? "?dry_run=true" : "";
+    return request(`/programs/${encodeURIComponent(slug)}/signups/import${qs}`, {
+      method: "POST",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify({ csv }),
+    });
+  },
+
+  deleteProgramSignup: async (
+    slug: string,
+    signupId: string,
+    authHeader?: string,
+  ): Promise<{ status: string }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const list = mockProgramSignups[slug] || [];
+      mockProgramSignups[slug] = list.filter((s) => s.id !== signupId);
+      return { status: "success" };
+    }
+    await request(`/programs/${encodeURIComponent(slug)}/signups/${encodeURIComponent(signupId)}`, {
       method: "DELETE",
       headers: authHeader ? { "x-siws-auth": authHeader } : undefined,
     });
