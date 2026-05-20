@@ -11,6 +11,7 @@ import {
   ApiError,
 } from "@/lib/api";
 import { ApplicationCard } from "@/components/admin/ApplicationCard";
+import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,12 @@ const AdminProgramPage = () => {
   const { toast } = useToast();
   const auth = useWalletAuth();
   const connectedAddress = auth.account?.address ?? null;
-  const isAdminWallet = checkIsAdmin(connectedAddress ?? undefined, auth.account?.chain);
+  // Phase 3 #95: a global admin matches `ADMIN_ADDRESSES`; a per-program
+  // admin matches `program_admins` for THIS program. Both can reach the
+  // page; only global admins see the add/remove controls.
+  const isGlobalAdmin = checkIsAdmin(connectedAddress ?? undefined, auth.account?.chain);
+  const [isProgramAdmin, setIsProgramAdmin] = useState(false);
+  const isAdminWallet = isGlobalAdmin || isProgramAdmin;
 
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [applications, setApplications] = useState<ApiProgramApplication[]>([]);
@@ -81,18 +87,46 @@ const AdminProgramPage = () => {
   };
 
   const connectWallet = async () => {
+    if (!slug) return;
     setErrorData(null);
     try {
       const found = await auth.connect();
-      const admin = found.find((a) => checkIsAdmin(a.address, a.chain));
-      if (!admin) {
+      const globalAdmin = found.find((a) => checkIsAdmin(a.address, a.chain));
+
+      // Global admin shortcut — no server probe needed.
+      if (globalAdmin) {
+        auth.selectAccount(globalAdmin);
+        setIsProgramAdmin(false);
+        return;
+      }
+
+      // Phase 3 #95: probe the program-scoped admins endpoint with the first
+      // available account. A 200 means the wallet is listed in program_admins
+      // for THIS program; a 403 means it's not authorized here.
+      const candidate = found[0];
+      if (!candidate) {
         setErrorData({
-          walletAddresses: found.map((a) => a.address),
+          walletAddresses: [],
           expectedAddresses: ADMIN_ADDRESSES.filter((e) => e.chain === auth.chain).map((e) => e.address),
         });
         return;
       }
-      auth.selectAccount(admin);
+      auth.selectAccount(candidate);
+      try {
+        const authHeader = await auth.signAction("admin-action");
+        await api.listProgramAdmins(slug, authHeader);
+        setIsProgramAdmin(true);
+      } catch (probeErr) {
+        if (probeErr instanceof ApiError && probeErr.status === 403) {
+          setErrorData({
+            walletAddresses: found.map((a) => a.address),
+            expectedAddresses: ADMIN_ADDRESSES.filter((e) => e.chain === auth.chain).map((e) => e.address),
+          });
+          auth.disconnect();
+          return;
+        }
+        throw probeErr;
+      }
     } catch (e) {
       toast({
         title: "Couldn't connect wallet",
@@ -154,8 +188,7 @@ const AdminProgramPage = () => {
               <div className="panel p-6">
                 <div className="label-hw text-display mb-3">·ADMIN WALLET REQUIRED</div>
                 <p className="text-body text-sm mb-4">
-                  Connect a wallet whose address is in <code className="text-display">VITE_ADMIN_ADDRESSES</code> to
-                  review applications.
+                  Connect a global admin wallet, or a wallet that has been assigned to this program via the admins panel.
                 </p>
                 <button
                   type="button"
@@ -183,6 +216,12 @@ const AdminProgramPage = () => {
               </div>
             ) : (
               <>
+                <ProgramAdminsSection
+                  programSlug={program.slug}
+                  signAuthHeader={() => auth.signAction("admin-action")}
+                  isGlobalAdmin={isGlobalAdmin}
+                />
+
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
                   <HardwareToggle
                     options={FILTER_OPTIONS}

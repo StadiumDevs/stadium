@@ -41,6 +41,14 @@ vi.mock('../../auth/nonceStore.js', () => ({
   consumeNonce: vi.fn(),
 }));
 
+vi.mock('../../repositories/program.repository.js', () => ({
+  default: { findBySlug: vi.fn() },
+}));
+
+vi.mock('../../repositories/program-admin.repository.js', () => ({
+  default: { isAdmin: vi.fn() },
+}));
+
 import { parseMessage, verifySIWS } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';

@@ -22,6 +22,8 @@ import { getVerifier } from '../auth/verifiers/index.js';
 import { validateStatement } from '../auth/statements.js';
 import { normalizeAddress } from '../auth/normalize.js';
 import { consumeNonce } from '../auth/nonceStore.js';
+import programRepository from '../repositories/program.repository.js';
+import programAdminRepository from '../repositories/program-admin.repository.js';
 
 dotenv.config();
 
@@ -357,6 +359,82 @@ export const requireOwnWallet = async (req, res, next) => {
   logSuccess(`Signer ${auth.parsed.address} matches target wallet ${req.params.address}`);
   req.user = { address: auth.parsed.address, chain: auth.chain };
   return next();
+};
+
+/**
+ * Per-event admin (Phase 3, #95). The signer must be either a global
+ * authorized signer (ADMIN_WALLETS) OR an entry in `program_admins` for the
+ * program identified by `req.params[slugParam]`.
+ *
+ * @param {string} [slugParam='slug'] - name of the URL param holding the
+ *   program slug. Routes mounted under `/programs/:slug/...` get the default.
+ */
+export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next) => {
+  const slug = req.params?.[slugParam];
+  log(`Initiating program-admin verification for ${req.method} ${req.originalUrl} (slug=${slug})`);
+
+  if (!slug || typeof slug !== 'string') {
+    logError(`Missing ${slugParam} param.`);
+    return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
+  }
+
+  const authHeader = req.headers['x-siws-auth'];
+
+  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
+    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for program admin'));
+    req.user = { address: ADMIN_WALLETS[0] || 'dev-admin', programSlug: slug, isGlobalAdmin: true };
+    return next();
+  }
+
+  if (!authHeader) {
+    logError('Verification failed: Missing x-siws-auth header.');
+    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
+  }
+
+  const auth = await authenticateRequest(authHeader, { checkDomain: true });
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const signerAddress = auth.parsed.address;
+
+  // Global authorized signers always pass.
+  if (isAuthorizedSigner(auth.chain, signerAddress)) {
+    logSuccess(`Global admin ${signerAddress} accessing program "${slug}".`);
+    req.user = { address: signerAddress, chain: auth.chain, programSlug: slug, isGlobalAdmin: true };
+    return next();
+  }
+
+  // Otherwise the signer must be an entry in program_admins for this program.
+  try {
+    const program = await programRepository.findBySlug(slug);
+    if (!program) {
+      logError(`Program "${slug}" not found.`);
+      return res.status(404).json({ status: 'error', message: 'Program not found' });
+    }
+
+    const isProgramAdmin = await programAdminRepository.isAdmin(program.id, auth.chain, signerAddress);
+    if (!isProgramAdmin) {
+      logError(`${signerAddress} is not an admin for program "${slug}".`);
+      return res.status(403).json({
+        status: 'error',
+        message: 'Address is not authorized to administer this program',
+      });
+    }
+
+    logSuccess(`Program admin ${signerAddress} accessing "${slug}".`);
+    req.user = {
+      address: signerAddress,
+      chain: auth.chain,
+      programSlug: slug,
+      programId: program.id,
+      isGlobalAdmin: false,
+    };
+    return next();
+  } catch (err) {
+    logError(`Database error during program-admin check: ${err.message}`);
+    return res.status(500).json({ status: 'error', message: 'Internal server error during authorization' });
+  }
 };
 
 /**

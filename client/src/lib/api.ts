@@ -174,6 +174,14 @@ export type ApiProgramApplication = {
   reviewNotes?: string | null;
 };
 
+/** Shape of a row in the `program_admins` table (Phase 3 #95). */
+export type ApiProgramAdmin = {
+  programId: string;
+  walletChain: "substrate" | "ethereum" | "solana";
+  wallet: string;
+  createdAt: string;
+};
+
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
 export type ApiProgram = {
   id: string;
@@ -1252,6 +1260,60 @@ export const api = {
         : { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+  },
+
+  /**
+   * Per-event admins (Phase 3 #95). Read is gated on requireProgramAdmin
+   * (global admins and per-program admins can list). Add/remove are gated
+   * on requireAdmin (global admins only).
+   */
+  listProgramAdmins: async (
+    slug: string,
+    authHeader: string,
+  ): Promise<{ status: string; data: ApiProgramAdmin[] }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success", data: [] };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins`, {
+      headers: { "x-siws-auth": authHeader },
+    });
+  },
+
+  addProgramAdmin: async (
+    slug: string,
+    payload: { wallet: string; walletChain: ApiProgramAdmin["walletChain"] },
+    authHeader: string,
+  ): Promise<{ status: string; data: ApiProgramAdmin }> => {
+    if (USE_MOCK_DATA) {
+      const created: ApiProgramAdmin = {
+        programId: slug,
+        walletChain: payload.walletChain,
+        wallet: payload.wallet,
+        createdAt: new Date().toISOString(),
+      };
+      return { status: "success", data: created };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins`, {
+      method: "POST",
+      headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  removeProgramAdmin: async (
+    slug: string,
+    wallet: string,
+    walletChain: ApiProgramAdmin["walletChain"],
+    authHeader: string,
+  ): Promise<void> => {
+    if (USE_MOCK_DATA) return;
+    await request(
+      `/programs/${encodeURIComponent(slug)}/admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
+      {
+        method: "DELETE",
+        headers: { "x-siws-auth": authHeader },
+      },
+    );
   },
 };
 
