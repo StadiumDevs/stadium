@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -136,16 +135,18 @@ export function ApplyToProgramModal({
     <Dialog open={open} onOpenChange={(v) => (submitting ? null : onOpenChange(v))}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Apply to {program.name}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-display tracking-tight">
+            APPLY TO {program.name.toUpperCase()}
+          </DialogTitle>
+          <DialogDescription className="text-body">
             Bring the project you already built — we'll pull the rest from its Stadium page.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1">
-            <Label htmlFor="apply-project">Project</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="apply-project" className="label-hw-dim">PROJECT</Label>
             <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger id="apply-project">
+              <SelectTrigger id="apply-project" className="font-mono text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -159,8 +160,10 @@ export function ApplyToProgramModal({
           </div>
 
           {program.programType === "dogfooding" && (
-            <div className="space-y-1">
-              <Label htmlFor="apply-feedback">What do you want feedback on?</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="apply-feedback" className="label-hw-dim">
+                WHAT DO YOU WANT FEEDBACK ON?
+              </Label>
               <Textarea
                 id="apply-feedback"
                 rows={5}
@@ -169,17 +172,18 @@ export function ApplyToProgramModal({
                 onChange={(e) => setFeedbackFocus(e.target.value)}
                 aria-invalid={feedbackError ? true : undefined}
                 aria-describedby="apply-feedback-error apply-feedback-count"
+                className="font-mono text-sm"
               />
-              <div className="flex items-center justify-between text-xs">
-                <span id="apply-feedback-error" className="text-destructive">
-                  {feedbackError || ""}
+              <div className="flex items-center justify-between">
+                <span id="apply-feedback-error" className="label-hw text-destructive">
+                  {feedbackError ? `·${feedbackError.toUpperCase()}` : ""}
                 </span>
                 <span
                   id="apply-feedback-count"
                   className={
                     feedbackFocus.trim().length > FEEDBACK_FOCUS_MAX
-                      ? "text-destructive"
-                      : "text-muted-foreground"
+                      ? "label-hw text-destructive"
+                      : "label-hw-dim"
                   }
                 >
                   {feedbackFocus.trim().length} / {FEEDBACK_FOCUS_MAX}
@@ -189,23 +193,28 @@ export function ApplyToProgramModal({
           )}
         </div>
         <DialogFooter>
-          <Button
-            variant="ghost"
+          <button
+            type="button"
             onClick={() => (submitting ? null : onOpenChange(false))}
             disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
           >
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting || !selectedProject}>
+            CANCEL
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || !selectedProject}
+            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+          >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Submitting…
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> SUBMITTING…
               </>
             ) : (
-              "Submit application"
+              "SUBMIT APPLICATION ▸"
             )}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -10,7 +10,7 @@ import M2ProgramPage from "./pages/M2ProgramPage";
 import ProjectDetailsPage from "./pages/ProjectDetailsPage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
-import { useEffect } from "react";
+import { useBrightness } from "@/hooks/use-brightness";
 import WinnersPage from "./pages/WinnersPage";
 import ProgramsPage from "./pages/ProgramsPage";
 import ProgramDetailPage from "./pages/ProgramDetailPage";
@@ -25,27 +25,9 @@ const ProjectRedirect = () => {
 const queryClient = new QueryClient();
 
 const App = () => {
-  useEffect(() => {
-    const root = document.documentElement;
+  // Drives the grayscale brightness palette (auto-tracks local time-of-day).
+  useBrightness();
 
-    // Remove any existing theme classes
-    root.classList.remove("light", "dark");
-
-    // Add current theme class
-    root.classList.add("dark");
-
-    // Store preference in localStorage
-    localStorage.setItem("theme", "dark");
-
-    // Update meta theme-color for mobile browsers
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute(
-        "content",
-        getComputedStyle(root).getPropertyValue("--background").trim()
-      );
-    }
-  }, []);
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

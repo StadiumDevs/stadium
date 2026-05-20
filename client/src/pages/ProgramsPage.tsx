@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
-import { ProgramCard } from "@/components/ProgramCard";
 import { api, type ApiProgram } from "@/lib/api";
-import { Loader2 } from "lucide-react";
 
 const ProgramsPage = () => {
   const [programs, setPrograms] = useState<ApiProgram[]>([]);
@@ -28,33 +27,45 @@ const ProgramsPage = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen scanlines">
       <Navigation />
-      <main className="container mx-auto px-4 pt-24 pb-16">
-        <header className="mb-8">
-          <h1 className="font-heading text-3xl font-bold md:text-4xl">Programs</h1>
-          <p className="mt-2 text-muted-foreground">
-            Programs currently open for applications from past WebZero winners.
+
+      <main className="container mx-auto px-4 py-6">
+        <div className="mb-6">
+          <div className="label-hw-dim mb-2">·PROGRAMS / OPEN</div>
+          <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-2">
+            Programs
+          </h1>
+          <p className="text-body text-base max-w-2xl leading-relaxed">
+            Open opportunities to build with WebZero — continuation tracks for past winners and upcoming events.
           </p>
-        </header>
+        </div>
+
+        <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
+          <div className="label-hw text-display flex items-center gap-2">
+            <span className="led led-sm" aria-hidden="true" /> ·GRID
+          </div>
+          <div className="label-hw-dim">
+            {loading ? "…" : `${programs.length} ${programs.length === 1 ? "PROGRAM" : "PROGRAMS"}`}
+          </div>
+        </div>
 
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-10">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading programs…
-          </div>
+          <div className="panel px-4 py-10 text-center label-hw-dim">Reading directory…</div>
         ) : error ? (
-          <p className="text-sm text-destructive py-10">{error}</p>
+          <div className="panel px-4 py-10 text-center">
+            <div className="label-hw text-destructive mb-2">·ERROR</div>
+            <p className="label-hw-dim">{error}</p>
+          </div>
         ) : programs.length === 0 ? (
-          <div className="rounded-lg border bg-card p-8 text-center">
-            <p className="text-muted-foreground">
-              Nothing open right now. Check back soon.
-            </p>
+          <div className="panel px-4 py-10 text-center">
+            <div className="label-hw text-display mb-2">·NO PROGRAMS OPEN</div>
+            <p className="label-hw-dim">Nothing open right now. Check back soon.</p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {programs.map((p) => (
-              <ProgramCard key={p.id} program={p} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {programs.map((p, i) => (
+              <ProgramRackCard key={p.id} program={p} number={String(i + 1).padStart(3, "0")} />
             ))}
           </div>
         )}
@@ -62,5 +73,75 @@ const ProgramsPage = () => {
     </div>
   );
 };
+
+const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
+  dogfooding: "DOGFOODING",
+  pitch_off: "PITCH-OFF",
+  hackathon: "HACKATHON",
+  m2_incubator: "M2 INCUBATOR",
+};
+
+// Phase 2 #94: M2 has its own custom destination page. Future custom pages
+// (e.g. /dogfooding) can plug in here; other types fall through to the
+// generic /programs/:slug detail.
+const customRouteForProgramType = (type: ApiProgram["programType"]): string | null => {
+  if (type === "m2_incubator") return "/m2-program";
+  return null;
+};
+
+function ProgramRackCard({ program, number }: { program: ApiProgram; number: string }) {
+  const date = (iso?: string | null) => {
+    if (!iso) return null;
+    try {
+      return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return null;
+    }
+  };
+  const opens = date(program.applicationsOpenAt);
+  const closes = date(program.applicationsCloseAt);
+  const startsAt = date(program.eventStartsAt);
+
+  const href = customRouteForProgramType(program.programType) ?? `/programs/${program.slug}`;
+
+  return (
+    <Link
+      to={href}
+      className="lcd block px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px] relative"
+    >
+      <div className="absolute top-3 right-3 flex items-center gap-1">
+        <span className="led led-sm led-pulse" aria-hidden="true" />
+        <span className="label-hw-dim">OPEN</span>
+      </div>
+
+      <div className="label-hw-dim mb-2">PROGRAM {number}</div>
+      <h3 className="font-display text-2xl uppercase tracking-tight text-display line-clamp-1 mb-1">
+        {program.name}
+      </h3>
+      <div className="label-hw-dim mb-3">{PROGRAM_TYPE_LABEL[program.programType]}</div>
+
+      {program.description && (
+        <p className="text-[12px] text-body leading-[1.65] line-clamp-3 mb-3">{program.description}</p>
+      )}
+
+      <div className="pt-3 border-t border-hairline-subtle space-y-1">
+        {startsAt && (
+          <div className="flex items-center justify-between">
+            <span className="label-hw-dim">EVENT</span>
+            <span className="font-mono text-[11px] text-display">{startsAt}</span>
+          </div>
+        )}
+        {(opens || closes) && (
+          <div className="flex items-center justify-between">
+            <span className="label-hw-dim">APPS</span>
+            <span className="font-mono text-[11px] text-display">
+              {opens && closes ? `${opens} → ${closes}` : opens || closes}
+            </span>
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
 
 export default ProgramsPage;

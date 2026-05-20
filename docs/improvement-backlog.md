@@ -24,6 +24,12 @@ Do **not** manually edit `- **Promoted**` lines.
 
 <!-- entries start below this line -->
 
+## [2026-04-23] `requireTeamMemberOrAdmin` missing SIWS domain check
+- **Severity**: minor
+- **File(s)**: `server/api/middleware/auth.middleware.js` (`requireTeamMemberOrAdmin`)
+- **Observed during**: PR #73 review — fixing Blocker 1 (domain check added to `requireOwnWallet`)
+- **Suggestion**: `requireAdmin` and `requireOwnWallet` both gate on `DISABLE_SIWS_DOMAIN_CHECK`/`EXPECTED_DOMAIN` immediately after statement validation; `requireTeamMemberOrAdmin` skips this check entirely. Add the same domain-check block in a dedicated hardening pass.
+
 ## [2026-04-15] Migrate slash commands to Skills
 - **Severity**: nit
 - **File(s)**: `.claude/commands/*.md`
@@ -89,3 +95,45 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: Supabase `projects` table, `server/migration-data/prizes-symbiosis-2025.csv`
 - **Observed during**: reconciliation for issue #28. The CSV lists five Marketing 1 / Marketing 2 winners (Right of the DOTty, Khoj, Pointillism, Connected by the Dots, Crypto Therapy | Polkadot) that have no `projects` row at all — not just missing bounty rows. Reconciliation script skipped them because the project records don't exist.
 - **Suggestion**: open a follow-up issue to add these projects. Needs project-level data (name, description, team wallets, categories) beyond what's in the prize CSV — likely a separate source-of-truth fetch from WebZero before implementation. Not blocking for Phase 1 alpha (Marketing projects aren't M2 incubator candidates).
+
+## [2026-05-11] Distinguish "no contact row" vs "row with null email" in notification skips
+- **Severity**: nit
+- **File(s)**: `server/api/services/notification.service.js:9`
+- **Observed during**: issue #68 (revamp-P2-02 notifications dispatcher) — reviewer flagged
+- **Suggestion**: `notify()` collapses two distinct audit states into `error='no_contact'` — (a) wallet has never registered an email, (b) wallet had a row that was cleared. The `notifications` audit log loses this distinction. If Phase 3 adds retry logic or analytics over the table, the two states want separate reasons (e.g. `no_contact_row` vs `no_email_set`). Not blocking for P2-02; the spec does not mandate splitting them.
+
+## [2026-05-11] `notification.repository.insertOrGetExisting` does not validate `status` before insert
+- **Severity**: nit
+- **File(s)**: `server/api/repositories/notification.repository.js:20`
+- **Observed during**: issue #68 (revamp-P2-02 notifications dispatcher) — reviewer flagged
+- **Suggestion**: caller-supplied `status` is written straight to Supabase; the DB `CHECK` constraint catches illegal values but the caller gets an opaque Postgres error rather than an `Error('invalid_status')`. Consider an in-process whitelist (`queued | sent | failed | skipped`) at the repo entry point. Consistent with the existing `wallet-contact.repository.js` pattern (no in-process validation), so deferring is fine; revisit when Issue 3 wires Resend.
+
+## [2026-05-11] `notification.service.notify()` lacks a JSDoc contract block
+- **Severity**: nit
+- **File(s)**: `server/api/services/notification.service.js`
+- **Observed during**: issue #68 (revamp-P2-02 notifications dispatcher) — reviewer flagged
+- **Suggestion**: the four-argument signature and the "writes status=queued, does NOT call the provider yet" contract are implied. P2-04 implementers wiring `notify(...)` into admin controllers will benefit from a one-line JSDoc above the method documenting (args, return shape, idempotency via `(recipient, eventType, sourceId)`).
+
+## [2026-05-18] Warn at startup when RESEND_API_KEY is set but RESEND_FROM_EMAIL is not
+- **Severity**: nit
+- **File(s)**: `server/api/services/email-transport.js`, `server/server.js`
+- **Observed during**: issue #69 (revamp-P2-03 Resend integration) — reviewer flagged
+- **Suggestion**: if `RESEND_API_KEY` is configured but `RESEND_FROM_EMAIL` is unset, `notify()` passes `from: undefined` to Resend, which returns a 4xx that is caught and marks the row `failed`. The send silently fails with an opaque reason. Add a one-time startup check (or a guard inside `_trySend`) that surfaces a clear `from_email_not_configured` error instead of an opaque provider 4xx.
+
+## [2026-05-18] No length guard on admin feedback in the m2-changes-requested email body
+- **Severity**: nit
+- **File(s)**: `server/api/services/notification-templates/m2-changes-requested.js`
+- **Observed during**: issue #69 (revamp-P2-03 Resend integration) — reviewer flagged
+- **Suggestion**: `payload.feedback` is rendered into the email body verbatim (now HTML-escaped). Very long admin feedback produces an oversized email. Consider truncating with a "see the full feedback on your project page" link once P2-05 ships the project-page feedback surface.
+
+## [2026-05-18] Pre-existing console.log calls in project.controller.js
+- **Severity**: nit
+- **File(s)**: `server/api/controllers/project.controller.js:75`, `server/api/controllers/project.controller.js:188`
+- **Observed during**: issue #70 (revamp-P2-04 notify trigger wiring) — reviewer flagged
+- **Suggestion**: two pre-existing `console.log` calls (a debug payload preview in `updateProject`, and an M2-agreement confirmation log) predate Phase 2 and were left untouched. Server code elsewhere uses the `logger` utility (`server/api/utils/logger.js`). Convert these to `logger.debug`/`logger.info` (or remove the debug preview) in a dedicated cleanup pass — out of scope for #70's minimal diff.
+
+## [2026-05-18] TeamPaymentSection keys team-member rows by wallet address
+- **Severity**: minor
+- **File(s)**: `client/src/components/TeamPaymentSection.tsx:210`
+- **Observed during**: full user-journey test pass (team-member journeys, Team & Payments tab)
+- **Suggestion**: team-member cards render with `key={member.walletAddress || index}`. Wallet address is not guaranteed unique across a project's team members — in the mock dataset two Plata Mia members share the redacted address `5MockWalletAddressRedactedForPreviewPurposes00000`, so React logs "Encountered two children with the same key" (3× per Team & Payments render). The `|| index` fallback only triggers on a *falsy* address, so a non-empty-but-duplicate address still collides. Production addresses are normally distinct so it does not surface there, but keying on a non-unique field is fragile. Key by a stable unique member id, or always fold in the index (e.g. `` key={`${member.walletAddress}-${index}`} ``).

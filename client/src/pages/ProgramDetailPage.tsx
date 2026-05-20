@@ -1,63 +1,47 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Loader2, Wallet, CheckCircle2 } from "lucide-react";
-import { web3Enable, web3Accounts } from "@polkadot/extension-dapp";
+import { RotateCw } from "lucide-react";
 import {
   api,
   type ApiProgram,
+  type ApiProgramSponsor,
   type ApiProject,
   type ApiProgramApplication,
   ApiError,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWalletAuth } from "@/lib/auth/useWalletAuth";
 import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
   if (!from && !to) return null;
   const fmt = (iso?: string | null) =>
-    iso
-      ? new Date(iso).toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "—";
-  return `${fmt(from)} – ${fmt(to)}`;
+    iso ? new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—";
+  return `${fmt(from)} → ${fmt(to)}`;
 };
 
-const programTypeLabel = (t?: ApiProgram["programType"]) => {
-  switch (t) {
-    case "dogfooding":
-      return "Dogfooding";
-    case "pitch_off":
-      return "Pitch Off";
-    case "hackathon":
-      return "Hackathon";
-    case "m2_incubator":
-      return "M2 Incubator";
-    default:
-      return t;
-  }
+const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
+  dogfooding: "DOGFOODING",
+  pitch_off: "PITCH-OFF",
+  hackathon: "HACKATHON",
+  m2_incubator: "M2 INCUBATOR",
 };
 
 const ProgramDetailPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const { toast } = useToast();
+  const auth = useWalletAuth();
+  const connectedAddress = auth.account?.address ?? null;
 
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Wallet + my projects state
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
   const [myProjects, setMyProjects] = useState<ApiProject[]>([]);
   const [myApplications, setMyApplications] = useState<ApiProgramApplication[]>([]);
+  const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
@@ -68,47 +52,38 @@ const ProgramDetailPage = () => {
     setError(null);
     api
       .getProgramBySlug(slug)
-      .then((r) => {
-        if (active) setProgram(r.data);
-      })
+      .then((r) => { if (active) setProgram(r.data); })
       .catch((e: unknown) => {
         if (!active) return;
-        if (e instanceof ApiError && e.status === 404) {
-          setNotFound(true);
-        } else {
-          setError(e instanceof Error ? e.message : "Failed to load program");
-        }
+        if (e instanceof ApiError && e.status === 404) setNotFound(true);
+        else setError(e instanceof Error ? e.message : "Failed to load program");
       })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [slug]);
 
-  // Load the wallet's projects whenever the connected address changes.
   useEffect(() => {
-    if (!connectedAddress) {
-      setMyProjects([]);
-      return;
-    }
+    if (!connectedAddress) { setMyProjects([]); return; }
     let active = true;
     api
       .getProjectsByTeamWallet(connectedAddress)
-      .then((r) => {
-        if (active) setMyProjects(r.data);
-      })
-      .catch(() => {
-        if (active) setMyProjects([]);
-      });
-    return () => {
-      active = false;
-    };
+      .then((r) => { if (active) setMyProjects(r.data); })
+      .catch(() => { if (active) setMyProjects([]); });
+    return () => { active = false; };
   }, [connectedAddress]);
 
-  // Load applications this wallet's projects already submitted to THIS program.
+  // Load sponsors once we know the program exists.
   useEffect(() => {
+    if (!slug || !program) { setSponsors([]); return; }
+    let active = true;
+    api
+      .listProgramSponsors(slug)
+      .then((r) => { if (active) setSponsors(r.data); })
+      .catch(() => { if (active) setSponsors([]); });
+    return () => { active = false; };
+  }, [slug, program]);
+
+  const refetchApplications = useCallback(() => {
     if (!program || myProjects.length === 0) {
       setMyApplications([]);
       return;
@@ -118,182 +93,247 @@ const ProgramDetailPage = () => {
       .then((results) => {
         if (!active) return;
         const flat: ApiProgramApplication[] = [];
-        for (const r of results) {
-          if (r?.data) flat.push(...r.data);
-        }
+        for (const r of results) if (r?.data) flat.push(...r.data);
         setMyApplications(flat.filter((a) => a.programId === program.id));
       });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [program, myProjects]);
 
-  const existingApplication = useMemo(() => myApplications[0] || null, [myApplications]);
+  useEffect(() => { return refetchApplications(); }, [refetchApplications]);
 
-  const connectWallet = async () => {
-    setConnecting(true);
-    try {
-      await web3Enable("Stadium");
-      const accounts = await web3Accounts();
-      if (accounts.length === 0) {
-        toast({
-          title: "No wallet account found",
-          description: "Install Polkadot-JS or Talisman and create an account first.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setConnectedAddress(accounts[0].address);
-    } catch (e) {
-      const err = e as Error;
-      toast({
-        title: "Couldn't connect wallet",
-        description: err?.message || "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setConnecting(false);
-    }
-  };
+  useEffect(() => {
+    window.addEventListener("focus", refetchApplications);
+    return () => window.removeEventListener("focus", refetchApplications);
+  }, [refetchApplications]);
+
+  const existingApplication = useMemo(() => myApplications[0] || null, [myApplications]);
 
   const handleApplied = (app: ApiProgramApplication) => {
     setMyApplications((prev) => [app, ...prev]);
   };
 
-  const applicationsRange = formatDateRange(
-    program?.applicationsOpenAt,
-    program?.applicationsCloseAt,
-  );
+  const connectWallet = async () => {
+    try {
+      const found = await auth.connect();
+      if (found[0]) auth.selectAccount(found[0]);
+    } catch (e) {
+      toast({
+        title: "Couldn't connect wallet",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const applicationsRange = formatDateRange(program?.applicationsOpenAt, program?.applicationsCloseAt);
   const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt);
+
+  const RackButton = ({
+    onClick, disabled, children,
+  }: { onClick?: () => void; disabled?: boolean; children: React.ReactNode }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:bg-panel-deep disabled:text-label-dim disabled:border-hairline disabled:cursor-not-allowed px-4 py-2"
+    >
+      {children}
+    </button>
+  );
 
   const renderApplyCta = () => {
     if (!program) return null;
 
     if (program.status !== "open") {
-      return (
-        <Button disabled className="gap-2">
-          Applications closed
-        </Button>
-      );
+      return <RackButton disabled>APPLICATIONS CLOSED</RackButton>;
     }
 
     if (existingApplication) {
       return (
-        <div className="inline-flex items-center gap-2 rounded-md border bg-muted px-3 py-2 text-sm">
-          <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
-          Applied — status: <Badge variant="secondary">{existingApplication.status}</Badge>
+        <div className="lcd inline-flex items-center gap-2 px-3 py-2">
+          <span className="led led-sm" aria-hidden="true" />
+          <span className="label-hw text-display">APPLIED</span>
+          <span className="label-hw-dim">·</span>
+          <span className="label-hw text-display">{existingApplication.status.toUpperCase()}</span>
+          <button
+            type="button"
+            onClick={refetchApplications}
+            className="ml-2 text-label-mid hover:text-display"
+            aria-label="Refresh application status"
+          >
+            <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
         </div>
       );
     }
 
     if (!connectedAddress) {
       return (
-        <Button onClick={connectWallet} disabled={connecting} className="gap-2">
-          <Wallet className="h-4 w-4" aria-hidden="true" />
-          {connecting ? "Connecting…" : "Sign in with wallet to apply"}
-        </Button>
+        <RackButton onClick={connectWallet} disabled={auth.isConnecting}>
+          {auth.isConnecting ? "CONNECTING…" : "SIGN IN TO APPLY"}
+        </RackButton>
       );
     }
 
     if (myProjects.length === 0) {
       return (
         <div className="space-y-1">
-          <Button disabled className="gap-2">
-            Apply
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            You need to be a team member on a Stadium project to apply.
-          </p>
+          <RackButton disabled>APPLY</RackButton>
+          <p className="label-hw-dim">You need to be a team member on a Stadium project to apply.</p>
         </div>
       );
     }
 
-    return (
-      <Button onClick={() => setModalOpen(true)} className="gap-2">
-        Apply with my project
-      </Button>
-    );
+    return <RackButton onClick={() => setModalOpen(true)}>APPLY WITH MY PROJECT</RackButton>;
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen scanlines">
       <Navigation />
-      <main className="container mx-auto px-4 pt-24 pb-16">
+
+      <main className="container mx-auto px-4 py-6">
+        <div className="mb-6">
+          <Link
+            to="/programs"
+            className="label-hw-dim hover:text-display transition-colors duration-150 inline-flex items-center gap-1"
+          >
+            ◂ BACK TO PROGRAMS
+          </Link>
+        </div>
+
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-16">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading program…
-          </div>
+          <div className="panel px-4 py-10 text-center label-hw-dim">Reading program…</div>
         ) : notFound ? (
-          <div className="mx-auto max-w-lg rounded-lg border bg-card p-8 text-center">
-            <h1 className="font-heading text-2xl font-bold">Program not found</h1>
-            <p className="mt-2 text-muted-foreground">
-              We couldn&apos;t find a program with that URL. It may have been removed or
-              renamed.
+          <div className="panel px-4 py-10 max-w-lg mx-auto text-center">
+            <div className="label-hw text-display mb-2">·PROGRAM NOT FOUND</div>
+            <p className="text-body mb-4">
+              We couldn't find a program at that address. It may have been removed or renamed.
             </p>
-            <Button asChild className="mt-4">
-              <Link to="/programs">Back to programs</Link>
-            </Button>
+            <Link
+              to="/programs"
+              className="inline-block font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+            >
+              ◂ BACK TO PROGRAMS
+            </Link>
           </div>
         ) : error ? (
-          <p className="text-sm text-destructive py-16">{error}</p>
+          <div className="panel px-4 py-10 text-center">
+            <div className="label-hw text-destructive mb-2">·ERROR</div>
+            <p className="label-hw-dim">{error}</p>
+          </div>
         ) : program ? (
-          <article className="mx-auto max-w-3xl">
+          <article className="max-w-3xl mx-auto">
             <header className="mb-6">
-              <p className="text-sm text-muted-foreground">
-                {programTypeLabel(program.programType)}
-              </p>
-              <h1 className="mt-1 font-heading text-3xl font-bold md:text-4xl">
+              <div className="label-hw-dim mb-2">·PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
+              <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-3">
                 {program.name}
               </h1>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Badge variant={program.status === "open" ? "default" : "secondary"}>
-                  {program.status}
-                </Badge>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="lcd inline-flex items-center gap-2 px-3 py-1.5">
+                  <span className={`led led-sm ${program.status === "open" ? "led-pulse" : ""}`} aria-hidden="true" />
+                  <span className="label-hw text-display">{program.status.toUpperCase()}</span>
+                </div>
                 {program.location && (
-                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                    {program.location}
-                  </span>
+                  <span className="label-hw-dim">{program.location.toUpperCase()}</span>
                 )}
               </div>
             </header>
 
             {program.description && (
-              <p className="mb-6 text-base text-muted-foreground whitespace-pre-line">
-                {program.description}
-              </p>
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-2">·DESCRIPTION</div>
+                <p className="text-body text-base leading-relaxed whitespace-pre-line">
+                  {program.description}
+                </p>
+              </div>
             )}
 
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Key dates</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {applicationsRange && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    <span className="text-muted-foreground">Applications:</span>
-                    <span>{applicationsRange}</span>
-                  </div>
-                )}
-                {eventRange && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    <span className="text-muted-foreground">Event:</span>
-                    <span>{eventRange}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {(applicationsRange || eventRange || program.eventUrl) && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·KEY DATES</div>
+                <div className="space-y-2">
+                  {applicationsRange && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="label-hw-dim">APPLICATIONS</span>
+                      <span className="font-mono text-[12px] text-display">{applicationsRange}</span>
+                    </div>
+                  )}
+                  {eventRange && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="label-hw-dim">EVENT</span>
+                      <span className="font-mono text-[12px] text-display">{eventRange}</span>
+                    </div>
+                  )}
+                  {program.eventUrl && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="label-hw-dim">SIGN UP</span>
+                      <a
+                        href={program.eventUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-[12px] text-display hover:underline break-all max-w-[60%] text-right"
+                      >
+                        {program.eventUrl}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {renderApplyCta()}
-              {!existingApplication && program.status === "open" && (
-                <p className="text-xs text-muted-foreground sm:ml-2">
-                  Applications open to past WebZero winners who are on a Stadium project team.
-                </p>
-              )}
+            {sponsors.length > 0 && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·SPONSORS &amp; HOW TO APPLY</div>
+                <div className="space-y-3">
+                  {sponsors.map((s) => (
+                    <div key={s.id} className="lcd p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-base tracking-tight text-display uppercase">{s.name}</span>
+                        {typeof s.submissionTarget === "number" && s.submissionTarget > 0 && (
+                          <span className="border border-hairline text-display bg-panel-deep px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase">
+                            TARGET {s.submissionTarget}
+                          </span>
+                        )}
+                        {s.targetProfiles.map((p) => (
+                          <span
+                            key={p}
+                            className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase"
+                          >
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                      {s.applicationInstructions && (
+                        <p className="text-body text-sm leading-relaxed whitespace-pre-line">
+                          {s.applicationInstructions}
+                        </p>
+                      )}
+                      {s.applyUrl && (
+                        <a
+                          href={s.applyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-xs text-display hover:underline break-all"
+                        >
+                          {s.applyUrl} ▸
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="panel p-4">
+              <div className="label-hw mb-3">·APPLY</div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {renderApplyCta()}
+                {!existingApplication && program.status === "open" && (
+                  <p className="label-hw-dim sm:ml-2">
+                    Applications open to past WebZero winners on a Stadium project team.
+                  </p>
+                )}
+              </div>
             </div>
 
             {connectedAddress && myProjects.length > 0 && (

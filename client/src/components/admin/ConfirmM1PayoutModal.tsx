@@ -163,11 +163,11 @@ export function ConfirmM1PayoutModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Confirm M1 Winner Payout
+          <DialogTitle className="font-display tracking-tight flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-label-mid" />
+            CONFIRM M1 WINNER PAYOUT
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-body">
             Distribute M1 hackathon winnings to {project.projectName} team members
           </DialogDescription>
         </DialogHeader>
@@ -377,20 +377,21 @@ export function ConfirmM1PayoutModal({
           )}
 
           <DialogFooter>
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
+              CANCEL
+            </button>
+            <button
+              type="submit"
               disabled={loading || m1Paid || recipients.length === 0}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5"
             >
-              {loading ? 'Confirming...' : 'Confirm M1 Payout'}
-            </Button>
+              {loading ? 'CONFIRMING…' : 'CONFIRM M1 PAYOUT ▸'}
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

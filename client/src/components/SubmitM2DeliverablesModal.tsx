@@ -6,13 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Github, Video, FileText, AlertTriangle, Loader2 } from "lucide-react";
+import { Github, Video, FileText, AlertTriangle, Loader2, Lightbulb } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -87,11 +85,14 @@ export function SubmitM2DeliverablesModal({
 
   const handleSubmit = async (data: FormValues) => {
     try {
-      const { confirmed, ...submissionData } = data;
+      const { confirmed: _confirmed, ...submissionData } = data;
+      void _confirmed;
       await onSubmit(submissionData);
       onOpenChange(false);
     } catch (error) {
-      console.error('Submission failed:', error);
+      if (import.meta.env.DEV) {
+        console.error('Submission failed:', error);
+      }
       // Error handling is done in parent component
     }
   };
@@ -100,118 +101,111 @@ export function SubmitM2DeliverablesModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Submit M2 Deliverables</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-display tracking-tight">SUBMIT M2 DELIVERABLES</DialogTitle>
+          <DialogDescription className="text-body">
             Submit your completed work for WebZero review. All fields are required.
           </DialogDescription>
         </DialogHeader>
 
-        <Alert className="bg-primary/5 border-primary/20">
-          <AlertTriangle className="h-4 w-4 text-primary" />
-          <AlertDescription className="text-sm text-foreground">
-            <strong>Before submitting:</strong> Make sure your code is complete, tested, and
-            documented according to your M2 Agreement roadmap.
-          </AlertDescription>
-        </Alert>
+        <div className="lcd p-3 flex items-start gap-2.5">
+          <AlertTriangle className="h-3.5 w-3.5 text-display flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-body">
+            <span className="label-hw text-display">·BEFORE SUBMITTING — </span>
+            make sure your code is complete, tested, and documented according to your M2 Agreement
+            roadmap.
+          </p>
+        </div>
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
           {/* GitHub Repository */}
-          <div className="space-y-2">
-            <Label htmlFor="repoUrl" className="flex items-center gap-2">
-              <Github className="h-4 w-4" />
-              GitHub Repository <span className="text-destructive">*</span>
+          <div className="space-y-1.5">
+            <Label htmlFor="repoUrl" className="label-hw-dim flex items-center gap-1.5">
+              <Github className="h-3 w-3" />
+              ·GITHUB REPOSITORY *
             </Label>
             <Input
               id="repoUrl"
               {...form.register('repoUrl')}
               placeholder="https://github.com/username/project"
-              className="font-mono text-sm bg-muted/30 border-border"
+              className="font-mono text-sm"
             />
-            <p className="text-xs text-muted-foreground">
-              ⓘ Link to your code repository (GitHub, GitLab, etc.)
-            </p>
+            <p className="label-hw-dim">LINK TO YOUR CODE REPOSITORY (GITHUB, GITLAB, ETC.)</p>
             {form.formState.errors.repoUrl && (
-              <p className="text-xs text-destructive">
-                {form.formState.errors.repoUrl.message}
+              <p className="label-hw text-destructive">
+                ·{form.formState.errors.repoUrl.message?.toUpperCase()}
               </p>
             )}
           </div>
 
           {/* Demo Video */}
-          <div className="space-y-2">
-            <Label htmlFor="demoUrl" className="flex items-center gap-2">
-              <Video className="h-4 w-4" />
-              Demo Video <span className="text-destructive">*</span>
+          <div className="space-y-1.5">
+            <Label htmlFor="demoUrl" className="label-hw-dim flex items-center gap-1.5">
+              <Video className="h-3 w-3" />
+              ·DEMO VIDEO *
             </Label>
             <Input
               id="demoUrl"
               {...form.register('demoUrl')}
-              placeholder="https://youtube.com/watch?v=... or https://loom.com/share/..."
-              className="font-mono text-sm bg-muted/30 border-border"
+              placeholder="https://youtube.com/watch?v=… or https://loom.com/share/…"
+              className="font-mono text-sm"
             />
-            <p className="text-xs text-muted-foreground">
-              ⓘ Video link demonstrating your project (YouTube, Loom, or other platform)
+            <p className="label-hw-dim">
+              VIDEO LINK DEMONSTRATING YOUR PROJECT (YOUTUBE, LOOM, OR OTHER PLATFORM)
             </p>
             {form.formState.errors.demoUrl && (
-              <p className="text-xs text-destructive">
-                {form.formState.errors.demoUrl.message}
+              <p className="label-hw text-destructive">
+                ·{form.formState.errors.demoUrl.message?.toUpperCase()}
               </p>
             )}
           </div>
 
           {/* Documentation URL */}
-          <div className="space-y-2">
-            <Label htmlFor="docsUrl" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Documentation URL <span className="text-destructive">*</span>
+          <div className="space-y-1.5">
+            <Label htmlFor="docsUrl" className="label-hw-dim flex items-center gap-1.5">
+              <FileText className="h-3 w-3" />
+              ·DOCUMENTATION URL *
             </Label>
             <Input
               id="docsUrl"
               {...form.register('docsUrl')}
               placeholder="https://docs.yourproject.com or https://github.com/user/repo#readme"
-              className="font-mono text-sm bg-muted/30 border-border"
+              className="font-mono text-sm"
             />
-            <p className="text-xs text-muted-foreground">
-              ⓘ Link to your documentation (README, wiki, or hosted docs)
-            </p>
+            <p className="label-hw-dim">LINK TO YOUR DOCUMENTATION (README, WIKI, OR HOSTED DOCS)</p>
             {form.formState.errors.docsUrl && (
-              <p className="text-xs text-destructive">
-                {form.formState.errors.docsUrl.message}
+              <p className="label-hw text-destructive">
+                ·{form.formState.errors.docsUrl.message?.toUpperCase()}
               </p>
             )}
           </div>
 
           {/* Summary */}
-          <div className="space-y-2">
-            <Label htmlFor="summary">
-              Project Summary <span className="text-destructive">*</span>
-            </Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="summary" className="label-hw-dim">·PROJECT SUMMARY *</Label>
             <Textarea
               id="summary"
               {...form.register('summary')}
               rows={5}
-              placeholder="Describe what you built, key features implemented, technologies used, and any challenges overcome..."
-              className="resize-none bg-muted/30 border-border"
+              placeholder="Describe what you built, key features implemented, technologies used, and any challenges overcome…"
+              className="resize-none font-mono text-sm"
             />
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                ⓘ Brief overview of your M2 accomplishments
-              </span>
-              <span className={`font-mono ${
-                (form.watch('summary')?.length || 0) > 1000 ? 'text-destructive' : 'text-muted-foreground'
-              }`}>
-                {form.watch('summary')?.length || 0}/1000
+            <div className="flex items-center justify-between">
+              <span className="label-hw-dim">BRIEF OVERVIEW OF YOUR M2 ACCOMPLISHMENTS</span>
+              <span className={
+                (form.watch('summary')?.length || 0) > 1000 ? 'label-hw text-destructive' : 'label-hw-dim'
+              }>
+                {form.watch('summary')?.length || 0} / 1000
               </span>
             </div>
             {form.formState.errors.summary && (
-              <p className="text-xs text-destructive">
-                {form.formState.errors.summary.message}
+              <p className="label-hw text-destructive">
+                ·{form.formState.errors.summary.message?.toUpperCase()}
               </p>
             )}
           </div>
 
           {/* Confirmation Checkbox */}
-          <div className="flex items-start space-x-3 p-4 border rounded-lg bg-muted/50">
+          <div className="flex items-start space-x-3 lcd p-4">
             <Checkbox
               id="confirmed"
               checked={form.watch('confirmed')}
@@ -220,47 +214,48 @@ export function SubmitM2DeliverablesModal({
             />
             <Label
               htmlFor="confirmed"
-              className="text-sm font-normal leading-relaxed cursor-pointer text-foreground"
+              className="text-sm font-normal leading-relaxed cursor-pointer text-body"
             >
               I confirm that my M2 deliverables are complete and ready for review. I understand
               that WebZero will evaluate my work against the M2 Agreement roadmap.
             </Label>
           </div>
           {form.formState.errors.confirmed && (
-            <p className="text-xs text-destructive -mt-2 ml-1">
-              {form.formState.errors.confirmed.message}
+            <p className="label-hw text-destructive -mt-2 ml-1">
+              ·{form.formState.errors.confirmed.message?.toUpperCase()}
             </p>
           )}
 
-          <Alert className="bg-green-500/5 border-green-500/20">
-            <AlertDescription className="text-xs text-foreground">
-              💡 <strong>After submission:</strong> WebZero will review within 2-3 days. You'll
-              be notified via email and can track status on this page.
-            </AlertDescription>
-          </Alert>
+          <div className="lcd p-3 flex items-start gap-2.5">
+            <Lightbulb className="h-3.5 w-3.5 text-led flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-body">
+              <span className="label-hw text-led">·AFTER SUBMISSION — </span>
+              WebZero will review within 2-3 days. You'll be notified via email and can track status on this page.
+            </p>
+          </div>
 
-          <DialogFooter className="bg-card/50 pt-4 -mx-6 -mb-6 px-6 rounded-b-lg">
-            <Button
+          <DialogFooter className="pt-4 border-t border-hairline-subtle">
+            <button
               type="button"
-              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={form.formState.isSubmitting}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              Cancel
-            </Button>
-            <Button
+              CANCEL
+            </button>
+            <button
               type="submit"
               disabled={!form.watch('confirmed') || form.formState.isSubmitting}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
             >
               {form.formState.isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
+                  <Loader2 className="h-3 w-3 animate-spin" /> SUBMITTING…
                 </>
               ) : (
-                'Submit for Review'
+                'SUBMIT FOR REVIEW ▸'
               )}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

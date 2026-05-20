@@ -7,9 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,12 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Tabs,
   TabsContent,
@@ -96,7 +87,12 @@ interface WinnersTableProps {
   projects: any[];
   onRefresh: () => void;
   connectedAddress?: string;
-  signAdminAction: (action?: string) => Promise<string>;
+  /**
+   * Returns admin auth headers — cached session bearer when available, or
+   * a fresh one-shot SIWS payload. Use the same callback for every admin
+   * write below to share the cache.
+   */
+  signAdminAction: () => Promise<import("@/lib/api").AdminAuthArg>;
 }
 
 type WinnerFilter = "all" | "main-track" | "bounty";
@@ -148,18 +144,20 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
   // Get M2 status display
   const getM2StatusDisplay = (project: any) => {
     if (!project.m2Status) {
-      return <span className="text-muted-foreground">—</span>;
+      return <span className="text-label-dim">—</span>;
     }
+    const base =
+      "inline-flex items-center px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase";
     if (project.m2Status === 'completed') {
-      return <Badge className="bg-green-500/10 text-green-500 border-green-500">Completed</Badge>;
+      return <span className={`${base} border border-led bg-led text-shell`}>COMPLETED</span>;
     }
     if (project.m2Status === 'under_review') {
-      return <Badge className="bg-orange-500/10 text-orange-500 border-orange-500">Under Review</Badge>;
+      return <span className={`${base} border border-hairline text-display bg-panel-deep`}>UNDER REVIEW</span>;
     }
     if (project.m2Status === 'active') {
-      return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500">Active</Badge>;
+      return <span className={`${base} border border-hairline text-display bg-panel-deep`}>ACTIVE</span>;
     }
-    return <Badge variant="outline">{project.m2Status}</Badge>;
+    return <span className={`${base} border border-hairline text-label-mid`}>{project.m2Status}</span>;
   };
 
   // Calculate total bounty amount
@@ -221,7 +219,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("status");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       const updateData: Record<string, any> = {
         projectState: manageModal.projectState,
@@ -257,7 +255,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("agreement");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       // Parse line-separated strings into arrays
       const agreedFeatures = manageModal.agreedFeatures
@@ -315,7 +313,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("deliverables");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       // Validate
       if (!manageModal.repoUrl) {
@@ -368,7 +366,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("payment");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       // Validate
       if (!manageModal.paymentAmount || manageModal.paymentAmount <= 0) {
@@ -419,7 +417,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     let failCount = 0;
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       for (const project of unpaidProjects) {
         try {
@@ -453,77 +451,82 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
 
   if (sortedProjects.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No winning projects found</p>
-        </CardContent>
-      </Card>
+      <div className="panel p-12 text-center">
+        <Trophy className="w-10 h-10 mx-auto text-label-dim mb-4" />
+        <span className="label-hw-dim">·NO WINNING PROJECTS FOUND</span>
+      </div>
     );
   }
+
+  const filterButton = (
+    value: "all" | "main-track" | "bounty",
+    label: string,
+    count: number,
+  ) => {
+    const active = winnerFilter === value;
+    return (
+      <button
+        type="button"
+        onClick={() => setWinnerFilter(value)}
+        className={
+          active
+            ? "font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell px-3 py-1.5"
+            : "font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+        }
+      >
+        {label.toUpperCase()} ({count})
+      </button>
+    );
+  };
 
   return (
     <>
       {/* Filter Controls */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Filter:</span>
+          <span className="label-hw-dim">FILTER:</span>
           <div className="flex gap-1">
-            <Button
-              variant={winnerFilter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setWinnerFilter("all")}
-            >
-              All ({winnerProjects.length})
-            </Button>
-            <Button
-              variant={winnerFilter === "main-track" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setWinnerFilter("main-track")}
-            >
-              Main Track ({mainTrackCount})
-            </Button>
-            <Button
-              variant={winnerFilter === "bounty" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setWinnerFilter("bounty")}
-            >
-              Other Bounties ({bountyCount})
-            </Button>
+            {filterButton("all", "All", winnerProjects.length)}
+            {filterButton("main-track", "Main Track", mainTrackCount)}
+            {filterButton("bounty", "Other Bounties", bountyCount)}
           </div>
         </div>
-        
+
         {/* Bulk Actions */}
         {connectedAddress && unpaidCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setBulkMarkPaidDialog(true)}
-            className="gap-1"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
           >
-            <CheckCheck className="h-4 w-4" />
-            Mark All as Paid ({unpaidCount})
-          </Button>
+            <CheckCheck className="h-3 w-3" />
+            MARK ALL AS PAID ({unpaidCount})
+          </button>
         )}
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className={connectedAddress ? "w-[18%]" : "w-[22%]"}>Project</TableHead>
-                <TableHead className={connectedAddress ? "w-[12%]" : "w-[15%]"}>Event</TableHead>
-                <TableHead className={connectedAddress ? "w-[20%]" : "w-[24%]"}>Track/Bounty</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Bounty amount</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>M2 Status</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[15%]"}>Payment</TableHead>
-                {connectedAddress && <TableHead className="w-[20%] text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
+      <div className="panel p-0 overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-panel-deep">
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[18%]" : "w-[22%]"}`}>PROJECT</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[12%]" : "w-[15%]"}`}>EVENT</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[20%]" : "w-[24%]"}`}>TRACK / BOUNTY</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[10%]" : "w-[12%]"}`}>AMOUNT</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[10%]" : "w-[12%]"}`}>M2 STATUS</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[10%]" : "w-[15%]"}`}>PAYMENT</TableHead>
+              {connectedAddress && <TableHead className="w-[20%] text-right label-hw-dim">ACTIONS</TableHead>}
+            </TableRow>
+          </TableHeader>
             <TableBody>
               {sortedProjects.map((project) => {
                 const totalBounty = getTotalBounty(project);
+                // M2 program grant (issue #26) — schema-backed entitlement,
+                // only present on M2 projects.
+                const m2Grant = project.m2Entitlement
+                  ? (project.m2Entitlement.milestone1Amount || 0) + (project.m2Entitlement.milestone2Amount || 0)
+                  : 0;
+                const totalAmount = totalBounty + m2Grant;
                 const isSaving = saving === project.id;
 
                 return (
@@ -552,35 +555,20 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                       </div>
                     </TableCell>
 
-                    {/* Bounty amount (sum of bountyPrize[].amount from schema).
-                        M2 program grant is NOT included here — entitlement is not
-                        stored in the schema yet. See issue #26. */}
+                    {/* Amount — bounty sum + M2 program grant. The M2
+                        entitlement is schema-backed per project (issue #26). */}
                     <TableCell>
                       <div className="space-y-1">
-                        <p className="font-semibold">{formatAmount(totalBounty, getProjectCurrency(project))}</p>
-                        {project.bountyPrize.length > 1 && (
+                        <p className="font-semibold">{formatAmount(totalAmount, getProjectCurrency(project))}</p>
+                        {(project.bountyPrize.length > 1 || m2Grant > 0) && (
                           <div className="text-xs text-muted-foreground">
                             {project.bountyPrize.map((b: BountyPrize, idx: number) => (
-                              <div key={idx}>{formatAmount(b.amount, b.currency)}</div>
+                              <div key={idx}>Bounty: {formatAmount(b.amount, b.currency)}</div>
                             ))}
+                            {m2Grant > 0 && (
+                              <div>M2 grant: {formatAmount(m2Grant, project.m2Entitlement?.currency)}</div>
+                            )}
                           </div>
-                        )}
-                        {project.m2Status && (
-                          <TooltipProvider delayDuration={100}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge variant="outline" className="text-[10px] font-normal cursor-help">
-                                  + M2 grant
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">
-                                <p className="text-xs">
-                                  This team is in the M2 program and is owed an additional grant beyond the bounty shown.
-                                  The M2 entitlement is not yet stored in the schema per project — tracked in issue #26.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
                         )}
                       </div>
                     </TableCell>
@@ -625,33 +613,32 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                     {/* Actions - unified Confirm Payout for all rows */}
                     {connectedAddress && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center border border-hairline text-display hover:bg-panel-deep w-7 h-7"
                             onClick={() => window.open(`/m2-program/${project.id}`, '_blank')}
                             title="View project"
+                            aria-label="Open project page"
                           >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="h-8"
+                            <Eye className="h-3 w-3" />
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => openManageModal(project)}
                             disabled={isSaving}
+                            className="inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-2.5 h-7"
                           >
                             {isSaving ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <>
-                                <Settings className="h-4 w-4 mr-1" />
-                                Manage
+                                <Settings className="h-3 w-3" />
+                                MANAGE
                               </>
                             )}
-                          </Button>
+                          </button>
                         </div>
                       </TableCell>
                     )}
@@ -660,16 +647,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               })}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Multi-Tab Manage Project Modal */}
       <Dialog open={!!manageModal} onOpenChange={() => setManageModal(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Manage Project</DialogTitle>
-            <DialogDescription>
-              Update details for <strong>{manageModal?.projectName}</strong>
+            <DialogTitle className="font-display tracking-tight">MANAGE PROJECT</DialogTitle>
+            <DialogDescription className="text-body">
+              Update details for <strong className="text-display">{manageModal?.projectName}</strong>
             </DialogDescription>
           </DialogHeader>
           
@@ -744,10 +730,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={saveProjectStatus} disabled={saving === "status"}>
-                  {saving === "status" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save Status
-                </Button>
+                <button
+                  type="button"
+                  onClick={saveProjectStatus}
+                  disabled={saving === "status"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "status" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  SAVE STATUS
+                </button>
               </div>
             </TabsContent>
 
@@ -793,10 +784,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={saveM2Agreement} disabled={saving === "agreement"}>
-                  {saving === "agreement" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save Agreement
-                </Button>
+                <button
+                  type="button"
+                  onClick={saveM2Agreement}
+                  disabled={saving === "agreement"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "agreement" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  SAVE AGREEMENT
+                </button>
               </div>
             </TabsContent>
 
@@ -848,10 +844,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={saveDeliverables} disabled={saving === "deliverables"}>
-                  {saving === "deliverables" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save Deliverables
-                </Button>
+                <button
+                  type="button"
+                  onClick={saveDeliverables}
+                  disabled={saving === "deliverables"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "deliverables" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  SAVE DELIVERABLES
+                </button>
               </div>
             </TabsContent>
 
@@ -929,10 +930,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={savePayment} disabled={saving === "payment"}>
-                  {saving === "payment" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Confirm Payment
-                </Button>
+                <button
+                  type="button"
+                  onClick={savePayment}
+                  disabled={saving === "payment"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "payment" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  CONFIRM PAYMENT
+                </button>
               </div>
             </TabsContent>
           </Tabs>
@@ -943,46 +949,56 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
       <Dialog open={bulkMarkPaidDialog} onOpenChange={setBulkMarkPaidDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Mark All as Paid</DialogTitle>
-            <DialogDescription>
-              This will mark <strong>{unpaidCount} projects</strong> as paid (set <code>bountiesProcessed: true</code>).
+            <DialogTitle className="font-display tracking-tight">MARK ALL AS PAID</DialogTitle>
+            <DialogDescription className="text-body">
+              This will mark <strong className="text-display">{unpaidCount} projects</strong> as paid (set <code className="font-mono text-display">bountiesProcessed: true</code>).
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-2">Projects to be updated:</p>
-            <div className="max-h-48 overflow-y-auto border rounded-md p-2 bg-muted/30">
+            <p className="label-hw-dim mb-2">·PROJECTS TO BE UPDATED</p>
+            <div className="max-h-48 overflow-y-auto lcd p-2">
               {unpaidProjects.slice(0, 20).map((p) => (
                 <div key={p.id} className="text-sm py-1 flex justify-between">
-                  <span>{p.projectName}</span>
-                  <span className="text-muted-foreground">{formatAmount(getTotalBounty(p), getProjectCurrency(p))}</span>
+                  <span className="text-body">{p.projectName}</span>
+                  <span className="text-label-mid font-mono">{formatAmount(getTotalBounty(p), getProjectCurrency(p))}</span>
                 </div>
               ))}
               {unpaidProjects.length > 20 && (
-                <div className="text-sm text-muted-foreground py-1">
-                  ... and {unpaidProjects.length - 20} more
+                <div className="label-hw-dim py-1">
+                  … AND {unpaidProjects.length - 20} MORE
                 </div>
               )}
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkMarkPaidDialog(false)} disabled={bulkUpdating}>
-              Cancel
-            </Button>
-            <Button onClick={bulkMarkAsPaid} disabled={bulkUpdating}>
+            <button
+              type="button"
+              onClick={() => setBulkMarkPaidDialog(false)}
+              disabled={bulkUpdating}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
+            >
+              CANCEL
+            </button>
+            <button
+              type="button"
+              onClick={bulkMarkAsPaid}
+              disabled={bulkUpdating}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+            >
               {bulkUpdating ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Updating...
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  UPDATING…
                 </>
               ) : (
                 <>
-                  <CheckCheck className="h-4 w-4 mr-2" />
-                  Mark All as Paid
+                  <CheckCheck className="h-3 w-3" />
+                  MARK ALL AS PAID
                 </>
               )}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

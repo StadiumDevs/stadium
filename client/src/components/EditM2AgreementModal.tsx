@@ -319,7 +319,7 @@ Application must successfully track assets across at least 20 parachains, displa
               <Button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="bg-purple-600 hover:bg-purple-700"
+                className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim"
               >
                 {isSubmitting ? (
                   <>

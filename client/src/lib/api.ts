@@ -50,6 +50,27 @@ const mapStatusToMessage = (status: number) => {
   }
 };
 
+/**
+ * Auth credentials accepted by admin-mutating API methods.
+ *
+ * - `string` (legacy) — treated as a one-shot SIWS payload; sent as
+ *   `x-siws-auth: <value>`. All existing callers pass this shape.
+ * - `Record<string,string>` (modern) — pre-built header map. Used by
+ *   `useWalletAuth.getAdminBearerHeaders()` which returns either
+ *   `{ Authorization: 'Bearer …' }` (session token) or `{ 'x-siws-auth': … }`
+ *   (one-shot fallback when the session exchange fails).
+ *
+ * `undefined` means no auth header is sent (caller is responsible).
+ */
+export type AdminAuthArg = string | Record<string, string> | undefined;
+
+/** Convert AdminAuthArg → header entries that can be spread into a fetch. */
+export const adminAuthHeaders = (a: AdminAuthArg): Record<string, string> => {
+  if (!a) return {};
+  if (typeof a === "string") return { "x-siws-auth": a };
+  return a;
+};
+
 const request = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   if (typeof window !== "undefined" && import.meta.env.DEV) {
@@ -116,6 +137,29 @@ export type ApiProject = {
   submittedDate?: string;
   updatedAt?: string;
   hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+  /**
+   * Canonical event/track row (Phase 1 #93). Populated when the project's
+   * `program_id` resolves to a row in `programs`. `hackathon` above stays
+   * around as the legacy flat-column view for callers not yet migrated.
+   */
+  program?: {
+    id: string;
+    name: string;
+    slug: string;
+    programType: ApiProgram["programType"];
+    status: ApiProgram["status"];
+    eventStartsAt?: string | null;
+    eventEndsAt?: string | null;
+    location?: string | null;
+  } | null;
+  finalSubmission?: {
+    repoUrl?: string;
+    demoUrl?: string;
+    docsUrl?: string;
+    summary?: string;
+    submittedDate?: string;
+    submittedBy?: string;
+  };
   totalPaid?: Array<{
     milestone: "M1" | "M2" | "BOUNTY";
     amount: number;
@@ -151,6 +195,14 @@ export type ApiProgramApplication = {
   reviewNotes?: string | null;
 };
 
+/** Shape of a row in the `program_admins` table (Phase 3 #95). */
+export type ApiProgramAdmin = {
+  programId: string;
+  walletChain: "substrate" | "ethereum" | "solana";
+  wallet: string;
+  createdAt: string;
+};
+
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
 export type ApiProgram = {
   id: string;
@@ -166,8 +218,48 @@ export type ApiProgram = {
   eventEndsAt?: string | null;
   location?: string | null;
   maxApplicants?: number | null;
+  eventUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+/** Per-program sponsor / partner with goals + follow-up tracking. */
+export type ApiProgramSponsor = {
+  id: string;
+  programId: string;
+  name: string;
+  submissionTarget?: number | null;
+  targetProfiles: string[];
+  applicationInstructions?: string | null;
+  followUpNotes?: string | null;
+  applyUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** Shape of a row in `program_signups` (Luma CSV imports). */
+export type ApiProgramSignup = {
+  id: string;
+  programId: string;
+  email: string;
+  name?: string | null;
+  wallet?: string | null;
+  registeredAt?: string | null;
+  source: string;
+  rawRow?: Record<string, unknown> | null;
+  createdAt?: string;
+};
+
+/** Summary returned by POST /programs/:slug/signups/import. */
+export type ProgramSignupImportSummary = {
+  dryRun: boolean;
+  totalParsed: number;
+  skippedNoEmail: number;
+  duplicates: number;
+  newCount: number;
+  newPreview: Array<{ email: string; name?: string | null; wallet?: string | null }>;
+  duplicatePreview: Array<{ email: string; name?: string | null }>;
+  inserted: ApiProgramSignup[];
 };
 
 /** Shape of a row in `project_updates` (Phase 1 revamp, #39). */
@@ -246,18 +338,28 @@ export const api = {
     if (USE_MOCK_DATA) {
       const { mockWinningProjects } = await import("./mockWinners");
       const mockProject = mockWinningProjects.find((p) => p.id === id);
-      
+
       if (mockProject) {
         return Promise.resolve({
           status: "success",
           data: mockProject
         });
       }
-      
+
+      // Fall back to localStorage-persisted projects (e.g. created via createProject in mock mode)
+      const stored = localStorage.getItem("projects");
+      if (stored) {
+        const lsProjects: ApiProject[] = JSON.parse(stored);
+        const lsProject = lsProjects.find((p) => p.id === id);
+        if (lsProject) {
+          return Promise.resolve({ status: "success", data: lsProject });
+        }
+      }
+
       // If project not found in mock data, return 404-like response
       throw new ApiError("Project not found", 404);
     }
-    
+
     return request(`/m2-program/${id}`);
   },
 
@@ -271,7 +373,7 @@ export const api = {
     }
     return request(`/m2-program/${projectId}/team`, {
       method: "POST",
-      headers: { "x-siws-auth": authHeader },
+      headers: adminAuthHeaders(authHeader),
       body: JSON.stringify({ teamMembers }),
     });
   },
@@ -286,7 +388,7 @@ export const api = {
     }
     return request(`/m2-program/${projectId}`, {
       method: "PATCH",
-      headers: { "x-siws-auth": authHeader, "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({ categories }),
     });
   },
@@ -296,7 +398,7 @@ export const api = {
     demoUrl: string;
     docsUrl: string;
     summary: string;
-  }, authHeader?: string) => {
+  }, authHeader?: AdminAuthArg) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -332,15 +434,16 @@ export const api = {
     // Real API call (server route is submit-m2, not submit-review)
     return request(`/m2-program/${projectId}/submit-m2`, {
       method: 'POST',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(submission)
     });
   },
 
   updateTeam: async (projectId: string, data: {
-    teamMembers: Array<{ 
-      name: string; 
+    teamMembers: Array<{
+      name: string;
       walletAddress?: string;
+      walletChain?: 'substrate' | 'ethereum' | 'solana';
       role?: string;
       twitter?: string;
       github?: string;
@@ -348,7 +451,8 @@ export const api = {
       customUrl?: string;
     }>;
     donationAddress?: string;
-  }, authHeader?: string) => {
+    donationChain?: 'substrate' | 'ethereum' | 'solana';
+  }, authHeader?: AdminAuthArg) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -373,7 +477,7 @@ export const api = {
     // Real API call - update team members
     const teamResult = await request(`/m2-program/${projectId}/team`, {
       method: 'POST',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({ teamMembers: data.teamMembers })
     });
 
@@ -381,15 +485,18 @@ export const api = {
     if (data.donationAddress) {
       await request(`/m2-program/${projectId}/payout-address`, {
         method: 'PATCH',
-        headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
-        body: JSON.stringify({ donationAddress: data.donationAddress })
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          donationAddress: data.donationAddress,
+          donationChain: data.donationChain || 'substrate',
+        })
       });
     }
 
     return teamResult;
   },
 
-  webzeroApprove: async (projectId: string, authHeader?: string) => {
+  webzeroApprove: async (projectId: string, authHeader?: AdminAuthArg) => {
     if (USE_MOCK_DATA) {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -416,7 +523,7 @@ export const api = {
 
     return request(`/m2-program/${projectId}/approve`, {
       method: "POST",
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({
         m2Status: 'completed',
         webzeroApproved: true,
@@ -425,7 +532,7 @@ export const api = {
     });
   },
 
-  requestChanges: async (projectId: string, feedback: string, authHeader?: string) => {
+  requestChanges: async (projectId: string, feedback: string, authHeader?: AdminAuthArg) => {
     if (USE_MOCK_DATA) {
       await new Promise((resolve) => setTimeout(resolve, 500));
       const requestedDate = new Date().toISOString();
@@ -454,7 +561,7 @@ export const api = {
 
     return request(`/m2-program/${projectId}/request-changes`, {
       method: "POST",
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({
         feedback,
         requestedChangesDate: new Date().toISOString(),
@@ -468,7 +575,7 @@ export const api = {
     agreedFeatures: string[];
     documentation?: string[];
     successCriteria?: string;
-  }, authHeader?: string) => {
+  }, authHeader?: AdminAuthArg) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -497,7 +604,7 @@ export const api = {
     // Real API call
     return request(`/m2-program/${projectId}/m2-agreement`, {
       method: 'POST',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(agreement)
     });
   },
@@ -509,7 +616,7 @@ export const api = {
       documentation: string[];
       successCriteria: string;
     },
-    authHeader?: string
+    authHeader?: AdminAuthArg
   ) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
@@ -553,12 +660,12 @@ export const api = {
     // Real API call
     return request(`/m2-program/${projectId}/m2-agreement`, {
       method: 'PATCH',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
   },
 
-  updateProjectStatus: async (projectId: string, status: 'building' | 'under_review' | 'completed', authHeader?: string) => {
+  updateProjectStatus: async (projectId: string, status: 'building' | 'under_review' | 'completed', authHeader?: AdminAuthArg) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -583,7 +690,7 @@ export const api = {
     // Real API call
     return request(`/m2-program/${projectId}`, {
       method: "PATCH",
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({
         m2Status: status,
       }),
@@ -601,7 +708,7 @@ export const api = {
       linkedin?: string;
       customUrl?: string;
     }>,
-    authHeader?: string
+    authHeader?: AdminAuthArg
   ) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
@@ -624,7 +731,7 @@ export const api = {
     // Real API call
     return request(`/m2-program/${projectId}/team`, {
       method: 'POST',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({ teamMembers })
     });
   },
@@ -632,7 +739,8 @@ export const api = {
   updatePayoutAddress: async (
     projectId: string,
     donationAddress: string,
-    authHeader?: string
+    authHeader?: AdminAuthArg,
+    donationChain: 'substrate' | 'ethereum' | 'solana' = 'substrate'
   ) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
@@ -655,8 +763,8 @@ export const api = {
     // Real API call
     return request(`/m2-program/${projectId}`, {
       method: 'PATCH',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
-      body: JSON.stringify({ donationAddress })
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ donationAddress, donationChain })
     });
   },
 
@@ -679,8 +787,22 @@ export const api = {
         hackathonWonAtId: string;
         txHash?: string;
       }>;
+      finalSubmission?: {
+        repoUrl?: string;
+        demoUrl?: string;
+        docsUrl?: string;
+        summary?: string;
+        submittedDate?: string;
+        submittedBy?: string;
+      };
+      hackathon?: {
+        id?: string;
+        name?: string;
+        endDate?: string;
+        eventStartedAt?: string;
+      };
     },
-    authHeader?: string
+    authHeader?: AdminAuthArg
   ) => {
     if (USE_MOCK_DATA) {
       // Simulate API delay
@@ -703,7 +825,7 @@ export const api = {
     // Real API call
     return request(`/m2-program/${projectId}`, {
       method: 'PATCH',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
   },
@@ -717,7 +839,7 @@ export const api = {
       transactionProof: string;
       bountyName?: string; // Required for BOUNTY milestone
     },
-    authHeader?: string
+    authHeader?: AdminAuthArg
   ) => {
     if (USE_MOCK_DATA) {
       if (!['M1', 'M2', 'BOUNTY'].includes(data.milestone)) {
@@ -800,7 +922,7 @@ export const api = {
     // Real API call
     return request(`/m2-program/${projectId}/confirm-payment`, {
       method: 'POST',
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
   },
@@ -848,7 +970,7 @@ export const api = {
   postProjectUpdate: async (
     projectId: string,
     payload: { body: string; linkUrl?: string | null },
-    authHeader?: string,
+    authHeader?: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProjectUpdate }> => {
     if (USE_MOCK_DATA) {
       const { mockProjectUpdates } = await import("./mockProjectUpdates");
@@ -865,9 +987,7 @@ export const api = {
     }
     return request(`/m2-program/${encodeURIComponent(projectId)}/updates`, {
       method: "POST",
-      headers: authHeader
-        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
-        : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
   },
@@ -900,7 +1020,7 @@ export const api = {
       amountRange?: string | null;
       description?: string | null;
     },
-    authHeader?: string,
+    authHeader?: AdminAuthArg,
   ): Promise<{ status: string; data: ApiFundingSignal }> => {
     if (USE_MOCK_DATA) {
       const { mockFundingSignals } = await import("./mockFundingSignals");
@@ -918,9 +1038,7 @@ export const api = {
     }
     return request(`/m2-program/${encodeURIComponent(projectId)}/funding-signal`, {
       method: "PATCH",
-      headers: authHeader
-        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
-        : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
   },
@@ -930,7 +1048,7 @@ export const api = {
    */
   createProgram: async (
     payload: Partial<ApiProgram> & { name: string; slug: string; programType: ApiProgram["programType"]; status: ApiProgram["status"] },
-    authHeader?: string,
+    authHeader?: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgram }> => {
     if (USE_MOCK_DATA) {
       const { mockPrograms } = await import("./mockPrograms");
@@ -956,9 +1074,7 @@ export const api = {
     }
     return request(`/programs`, {
       method: "POST",
-      headers: authHeader
-        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
-        : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
   },
@@ -966,7 +1082,7 @@ export const api = {
   updateProgram: async (
     slug: string,
     patch: Partial<ApiProgram>,
-    authHeader?: string,
+    authHeader?: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgram }> => {
     if (USE_MOCK_DATA) {
       const { mockPrograms } = await import("./mockPrograms");
@@ -981,10 +1097,184 @@ export const api = {
     }
     return request(`/programs/${encodeURIComponent(slug)}`, {
       method: "PATCH",
-      headers: authHeader
-        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
-        : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(patch),
+    });
+  },
+
+  // --- Program sponsors ---
+
+  listProgramSponsors: async (
+    slug: string,
+  ): Promise<{ status: string; data: ApiProgramSponsor[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      return { status: "success", data: mockProgramSponsors[slug] || [] };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/sponsors`);
+  },
+
+  createProgramSponsor: async (
+    slug: string,
+    payload: Omit<ApiProgramSponsor, "id" | "programId" | "createdAt" | "updatedAt">,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramSponsor }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      const created: ApiProgramSponsor = {
+        id: `sponsor-${Date.now()}`,
+        programId: slug,
+        ...payload,
+      };
+      mockProgramSponsors[slug] = [...(mockProgramSponsors[slug] || []), created];
+      return { status: "success", data: created };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/sponsors`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateProgramSponsor: async (
+    slug: string,
+    sponsorId: string,
+    patch: Partial<Omit<ApiProgramSponsor, "id" | "programId" | "createdAt" | "updatedAt">>,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramSponsor }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      const list = mockProgramSponsors[slug] || [];
+      const idx = list.findIndex((s) => s.id === sponsorId);
+      if (idx === -1) throw new ApiError("Sponsor not found", 404);
+      const merged = { ...list[idx], ...patch };
+      list[idx] = merged;
+      return { status: "success", data: merged };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/sponsors/${encodeURIComponent(sponsorId)}`, {
+      method: "PATCH",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  },
+
+  deleteProgramSponsor: async (
+    slug: string,
+    sponsorId: string,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      const list = mockProgramSponsors[slug] || [];
+      mockProgramSponsors[slug] = list.filter((s) => s.id !== sponsorId);
+      return { status: "success" };
+    }
+    await request(`/programs/${encodeURIComponent(slug)}/sponsors/${encodeURIComponent(sponsorId)}`, {
+      method: "DELETE",
+      headers: adminAuthHeaders(authHeader),
+    });
+    return { status: "success" };
+  },
+
+  // --- Program signups (Luma CSV) ---
+
+  listProgramSignups: async (
+    slug: string,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramSignup[]; meta: { count: number } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const list = mockProgramSignups[slug] || [];
+      return { status: "success", data: list, meta: { count: list.length } };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/signups`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  importProgramSignups: async (
+    slug: string,
+    csv: string,
+    options: { dryRun: boolean },
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ProgramSignupImportSummary }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups, importMockSignups } = await import("./mockPrograms");
+      const summary = importMockSignups(slug, csv, options.dryRun);
+      return {
+        status: "success",
+        data: {
+          dryRun: options.dryRun,
+          ...summary,
+          inserted: options.dryRun ? [] : mockProgramSignups[slug] || [],
+        },
+      };
+    }
+    const qs = options.dryRun ? "?dry_run=true" : "";
+    return request(`/programs/${encodeURIComponent(slug)}/signups/import${qs}`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ csv }),
+    });
+  },
+
+  deleteProgramSignup: async (
+    slug: string,
+    signupId: string,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const list = mockProgramSignups[slug] || [];
+      mockProgramSignups[slug] = list.filter((s) => s.id !== signupId);
+      return { status: "success" };
+    }
+    await request(`/programs/${encodeURIComponent(slug)}/signups/${encodeURIComponent(signupId)}`, {
+      method: "DELETE",
+      headers: adminAuthHeaders(authHeader),
+    });
+    return { status: "success" };
+  },
+
+  /**
+   * Phase 2 revamp: admin create project (issue #80).
+   */
+  createProject: async (
+    payload: Partial<ApiProject> & { projectName: string },
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProject }> => {
+    if (USE_MOCK_DATA) {
+      const { mockWinningProjects } = await import("./mockWinners");
+      const id =
+        payload.id ||
+        payload.projectName
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 100) +
+          `-${Date.now()}`;
+      const created: ApiProject = {
+        description: "",
+        ...payload,
+        id,
+      };
+      (mockWinningProjects as ApiProject[]).unshift(created);
+
+      // Persist to localStorage so the project survives a module reload
+      const stored = localStorage.getItem("projects");
+      const lsProjects: ApiProject[] = stored ? JSON.parse(stored) : [];
+      lsProjects.unshift(created);
+      localStorage.setItem("projects", JSON.stringify(lsProjects));
+
+      return { status: "success", data: created };
+    }
+    return request(`/m2-program`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
   },
 
@@ -1027,7 +1317,7 @@ export const api = {
   /** Admin-only: list all applications for a program. */
   listProgramApplications: async (
     slug: string,
-    authHeader?: string,
+    authHeader?: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgramApplication[] }> => {
     if (USE_MOCK_DATA) {
       const { mockProgramApplications } = await import("./mockProgramApplications");
@@ -1040,7 +1330,7 @@ export const api = {
       };
     }
     return request(`/programs/${encodeURIComponent(slug)}/applications`, {
-      headers: authHeader ? { "x-siws-auth": authHeader, "Content-Type": "application/json" } : undefined,
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
     });
   },
 
@@ -1048,7 +1338,7 @@ export const api = {
     slug: string,
     applicationId: string,
     patch: { status: ApiProgramApplication["status"]; reviewNotes?: string | null },
-    authHeader?: string,
+    authHeader?: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgramApplication }> => {
     if (USE_MOCK_DATA) {
       const { mockProgramApplications } = await import("./mockProgramApplications");
@@ -1066,17 +1356,56 @@ export const api = {
     }
     return request(`/programs/${encodeURIComponent(slug)}/applications/${encodeURIComponent(applicationId)}`, {
       method: "PATCH",
-      headers: authHeader
-        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
-        : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
+  },
+
+  /**
+   * Phase 2 revamp: wallet contacts / notification preferences (#71).
+   */
+  getWalletContact: async (
+    address: string,
+    chain: 'substrate' | 'ethereum' | 'solana' = 'substrate',
+  ): Promise<{ email_set: boolean; notifications_enabled: boolean }> => {
+    if (USE_MOCK_DATA) {
+      const { mockWalletContacts } = await import("./mockWalletContacts");
+      const entry = mockWalletContacts[address];
+      return { email_set: !!entry?.email, notifications_enabled: entry?.notificationsEnabled ?? true };
+    }
+    const res = await request(
+      `/wallet-contacts/${encodeURIComponent(address)}?chain=${encodeURIComponent(chain)}`,
+    );
+    return res.data;
+  },
+
+  updateWalletContact: async (
+    address: string,
+    payload: { email?: string | null; notificationsEnabled?: boolean },
+    authHeader?: AdminAuthArg,
+  ): Promise<{ email_set: boolean; notifications_enabled: boolean }> => {
+    if (USE_MOCK_DATA) {
+      const { mockWalletContacts } = await import("./mockWalletContacts");
+      const existing = mockWalletContacts[address];
+      mockWalletContacts[address] = {
+        email: payload.email !== undefined ? payload.email : (existing?.email ?? null),
+        notificationsEnabled: payload.notificationsEnabled !== undefined ? payload.notificationsEnabled : (existing?.notificationsEnabled ?? true),
+      };
+      const updated = mockWalletContacts[address];
+      return { email_set: !!updated.email, notifications_enabled: updated.notificationsEnabled };
+    }
+    const res = await request(`/wallet-contacts/${encodeURIComponent(address)}`, {
+      method: "PUT",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ email: payload.email, notifications_enabled: payload.notificationsEnabled }),
+    });
+    return res.data;
   },
 
   applyToProgram: async (
     slug: string,
     payload: { project_id: string; application_fields: Record<string, unknown> },
-    authHeader?: string,
+    authHeader?: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgramApplication }> => {
     if (USE_MOCK_DATA) {
       const { mockProgramApplications } = await import("./mockProgramApplications");
@@ -1107,11 +1436,63 @@ export const api = {
     }
     return request(`/programs/${encodeURIComponent(slug)}/applications`, {
       method: "POST",
-      headers: authHeader
-        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
-        : { "Content-Type": "application/json" },
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+  },
+
+  /**
+   * Per-event admins (Phase 3 #95). Read is gated on requireProgramAdmin
+   * (global admins and per-program admins can list). Add/remove are gated
+   * on requireAdmin (global admins only).
+   */
+  listProgramAdmins: async (
+    slug: string,
+    authHeader: string,
+  ): Promise<{ status: string; data: ApiProgramAdmin[] }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success", data: [] };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  addProgramAdmin: async (
+    slug: string,
+    payload: { wallet: string; walletChain: ApiProgramAdmin["walletChain"] },
+    authHeader: string,
+  ): Promise<{ status: string; data: ApiProgramAdmin }> => {
+    if (USE_MOCK_DATA) {
+      const created: ApiProgramAdmin = {
+        programId: slug,
+        walletChain: payload.walletChain,
+        wallet: payload.wallet,
+        createdAt: new Date().toISOString(),
+      };
+      return { status: "success", data: created };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  removeProgramAdmin: async (
+    slug: string,
+    wallet: string,
+    walletChain: ApiProgramAdmin["walletChain"],
+    authHeader: string,
+  ): Promise<void> => {
+    if (USE_MOCK_DATA) return;
+    await request(
+      `/programs/${encodeURIComponent(slug)}/admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
+      {
+        method: "DELETE",
+        headers: adminAuthHeaders(authHeader),
+      },
+    );
   },
 };
 

@@ -1,65 +1,55 @@
 import { useState, useMemo, useEffect, lazy, Suspense, useCallback } from "react";
-import { Filter, FolderOpen, Trophy, Users, Rocket, ArrowRight, CheckCircle2, Github } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Navigation } from "@/components/Navigation";
-import { SearchBar } from "@/components/SearchBar";
-import { ProjectCard } from "@/components/ProjectCard";
+import { UnitCard } from "@/components/unit-card";
+import { LCDStat } from "@/components/lcd-stat";
+import { InputBus } from "@/components/input-bus";
+import { HardwareToggle } from "@/components/hardware-toggle";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { NoProjectsFound } from "@/components/EmptyState";
 import { api, type ApiProject, API_BASE_URL } from "@/lib/api";
 import { isMainTrackWinner } from "@/lib/projectUtils";
 import { useToast } from "@/hooks/use-toast";
-import { motion } from "framer-motion";
 
-// Lazy load heavy components
-const FilterSidebar = lazy(() => import("@/components/FilterSidebar").then(module => ({ default: module.FilterSidebar })));
-const ProjectDetailModal = lazy(() => import("@/components/ProjectDetailModal").then(module => ({ default: module.ProjectDetailModal })));
-import type { ProjectDetailModalProject } from "@/components/ProjectDetailModal";
+// Lazy load heavy components (filter sidebar + detail modal)
+const FilterSidebar = lazy(() => import("@/components/FilterSidebar").then(m => ({ default: m.FilterSidebar })));
+const UnitDetailModal = lazy(() => import("@/components/unit-detail-modal").then(m => ({ default: m.UnitDetailModal })));
 
-type ProjectCardData = {
+type UnitForCard = {
   id: string;
+  unitNumber: string;
   title: string;
   author: string;
   description: string;
+  longDescription?: string;
   track: string;
   isWinner: boolean;
+  isM2: boolean;
+  date?: string;
+  prize?: string;
   demoUrl?: string;
   githubUrl?: string;
   projectUrl?: string;
-  liveUrl?: string;
-  eventStartedAt?: string;
-  m2Status?: "building" | "under_review" | "completed";
-  m2Week?: number;
-  showM2Progress?: boolean;
-  submittedDate?: string;
-  completionDate?: string;
-  totalPaid?: Array<{
-    milestone: "M1" | "M2";
-    amount: number;
-    currency: "USDC" | "DOT";
-    transactionProof: string;
-  }>;
 };
 
-// Map filter IDs to category names
 const FILTER_TO_CATEGORY: Record<string, string> = {
-  "gaming": "Gaming",
-  "defi": "DeFi",
-  "nft": "NFT",
+  gaming: "Gaming",
+  defi: "DeFi",
+  nft: "NFT",
   "developer-tools": "Developer Tools",
-  "social": "Social",
-  "ai": "AI",
-  "arts": "Arts",
-  "mobile": "Mobile",
+  social: "Social",
+  ai: "AI",
+  arts: "Arts",
+  mobile: "Mobile",
 };
 
 const HomePage = () => {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [showWinnersOnly, setShowWinnersOnly] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<ProjectCardData | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<UnitForCard | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedHackathon, setSelectedHackathon] = useState<string>("all");
   const [projects, setProjects] = useState<ApiProject[]>([]);
@@ -71,35 +61,49 @@ const HomePage = () => {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const { toast } = useToast();
 
-  // Load hackathon list once
+  // Load the event filter list and the project stats in parallel.
+  // Phase 2 #94: events come from `programs` (program_type='hackathon'), not
+  // from aggregating `project.hackathon.id` — so upcoming events surface
+  // even when they have zero projects yet.
   useEffect(() => {
-    const loadHackathons = async () => {
+    const loadEventsAndStats = async () => {
       try {
-        const response = await api.getProjects({ limit: 2000, sortBy: "updatedAt", sortOrder: "desc" });
-        const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
+        const [projectsResp, programsResp] = await Promise.all([
+          api.getProjects({ limit: 2000, sortBy: "updatedAt", sortOrder: "desc" }),
+          api.listPrograms().catch(() => null),
+        ]);
+        const apiProjects: ApiProject[] = Array.isArray(projectsResp?.data) ? projectsResp.data : [];
         setAllProjects(apiProjects);
         setStatsLoading(false);
-        const unique = new Map<string, string>();
-        for (const p of apiProjects) {
-          if (p.hackathon?.id) {
-            unique.set(p.hackathon.id, p.hackathon.name || p.hackathon.id);
+        const eventPrograms = (programsResp?.data ?? []).filter(
+          (p) => p.programType === "hackathon",
+        );
+        if (eventPrograms.length > 0) {
+          setHackathons(eventPrograms.map((p) => ({ id: p.slug, name: p.name })));
+        } else {
+          // Fallback for environments where programs aren't seeded yet —
+          // derive the list from project rows so the filter still works.
+          const unique = new Map<string, string>();
+          for (const p of apiProjects) {
+            if (p.hackathon?.id) {
+              unique.set(p.hackathon.id, p.hackathon.name || p.hackathon.id);
+            }
           }
+          setHackathons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })));
         }
-        setHackathons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })));
-      } catch (error) {
+      } catch {
         toast({
           title: "Error",
-          description: "Failed to load hackathon list. Event filtering may be unavailable.",
+          description: "Failed to load event list. Event filtering may be unavailable.",
           variant: "destructive",
         });
       }
     };
-    loadHackathons();
+    loadEventsAndStats();
     // Run once on mount; `toast` is stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load projects when selected hackathon changes
   const [retryCount, setRetryCount] = useState(0);
   useEffect(() => {
     const load = async () => {
@@ -114,29 +118,15 @@ const HomePage = () => {
           const msg = "API returned no data array. Check server response.";
           setLoadError(msg);
           setProjects([]);
-          if (typeof window !== "undefined") {
-            console.error("[HomePage] getProjects unexpected shape", response);
-          }
           toast({ title: "Could not load projects", description: msg, variant: "destructive" });
           return;
         }
-        const apiProjects: ApiProject[] = response.data;
-        if (import.meta.env.DEV && typeof window !== "undefined") {
-          console.debug("[HomePage] getProjects response", { count: apiProjects?.length, sample: apiProjects?.[0]?.projectName });
-        }
-        setProjects(apiProjects);
+        setProjects(response.data);
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : "Failed to load projects";
         setLoadError(errMsg);
-        if (typeof window !== "undefined") {
-          console.error("[HomePage] getProjects failed", errMsg, error);
-        }
         setProjects([]);
-        toast({
-          title: "Error",
-          description: errMsg,
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: errMsg, variant: "destructive" });
       } finally {
         setLoading(false);
       }
@@ -144,547 +134,293 @@ const HomePage = () => {
     load();
   }, [selectedHackathon, toast, retryCount]);
 
-  // Convert API project to ProjectCard format
-  const convertToProjectCard = (project: ApiProject): ProjectCardData => {
-    const track = project.bountyPrize?.[0]?.name ||
-                 (project.categories?.[0] || "Other");
-    const isWinner = Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0;
-    const eventStartedAt = project.hackathon?.eventStartedAt;
-    const hasM2 = project.m2Status != null;
-
+  // Map an ApiProject into the rack-card shape — the index in the displayed
+  // list provides a stable zero-padded "UNIT NNN" label.
+  const toUnit = useCallback((p: ApiProject, idx: number): UnitForCard => {
+    const track = p.bountyPrize?.[0]?.name || p.categories?.[0] || "Other";
+    const isWinner = Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0;
+    const isM2 = p.m2Status === "completed";
+    const dateStr = p.completionDate || p.submittedDate || p.hackathon?.endDate;
+    const date = dateStr
+      ? new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "2-digit" }).toUpperCase()
+      : undefined;
+    const prize = p.bountyPrize?.[0]?.amount
+      ? `$${p.bountyPrize[0].amount.toLocaleString()}`
+      : undefined;
     return {
-      id: project.id,
-      title: project.projectName,
-      author: project.teamMembers?.[0]?.name || "",
-      description: project.description,
-      track: track,
-      isWinner: isWinner,
-      demoUrl: project.demoUrl,
-      githubUrl: project.projectRepo,
-      projectUrl: project.id ? `/m2-program/${project.id}` : undefined,
-      liveUrl: project.liveUrl,
-      eventStartedAt: eventStartedAt,
-      m2Status: project.m2Status,
-      showM2Progress: hasM2,
-      submittedDate: project.submittedDate,
-      completionDate: project.completionDate,
-      totalPaid: project.totalPaid as ProjectCardData["totalPaid"],
+      id: p.id,
+      unitNumber: String(idx + 1).padStart(3, "0"),
+      title: p.projectName,
+      author: p.teamMembers?.[0]?.name || "Unknown",
+      description: p.description,
+      track,
+      isWinner,
+      isM2,
+      date,
+      prize,
+      demoUrl: p.demoUrl,
+      githubUrl: p.projectRepo,
+      projectUrl: p.id ? `/m2-program/${p.id}` : undefined,
     };
-  };
+  }, []);
 
-  // Filter projects
+  // Filter + sort projects.
   const filteredProjects = useMemo(() => {
     let filtered = projects;
 
-    // Filter by hackathon (already handled by API, but keep for consistency)
     if (selectedHackathon !== "all") {
       filtered = filtered.filter((p) => p.hackathon?.id === selectedHackathon);
     }
 
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((project) =>
-        project.projectName.toLowerCase().includes(query) ||
-        project.description.toLowerCase().includes(query) ||
-        project.teamMembers?.[0]?.name?.toLowerCase().includes(query)
+      filtered = filtered.filter((p) =>
+        p.projectName.toLowerCase().includes(query) ||
+        p.description.toLowerCase().includes(query) ||
+        p.teamMembers?.[0]?.name?.toLowerCase().includes(query)
       );
     }
 
-    // Filter by winners
     if (showWinnersOnly) {
-      filtered = filtered.filter((project) =>
-        Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0
-      );
+      filtered = filtered.filter((p) => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0);
     }
 
-    // Filter by category
     if (activeFilters.length > 0) {
-      filtered = filtered.filter((project) => {
-        // Get project categories (from API or derive from techStack)
-        const projectCategories = project.categories || [];
-        
-        // Check if any active filter matches project categories
-        return activeFilters.some((filterId) => {
-          const categoryName = FILTER_TO_CATEGORY[filterId];
-          if (!categoryName) return false;
-          
-          // Check if project has this category
-          return projectCategories.some(
-            (cat) => cat.toLowerCase() === categoryName.toLowerCase()
-          );
+      filtered = filtered.filter((p) => {
+        const cats = p.categories || [];
+        return activeFilters.some((id) => {
+          const name = FILTER_TO_CATEGORY[id];
+          return name && cats.some((c) => c.toLowerCase() === name.toLowerCase());
         });
       });
     }
 
-    // Sort: latest / milestone winners first (completion date newest, then submitted, then updatedAt, then hackathon end date)
     filtered.sort((a, b) => {
-      // First: completion date (newest first)
       const compA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
       const compB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
       if (compB !== compA) return compB - compA;
-      
-      // Second: submitted date (newest first)
       const subA = a.submittedDate ? new Date(a.submittedDate).getTime() : 0;
       const subB = b.submittedDate ? new Date(b.submittedDate).getTime() : 0;
       if (subB !== subA) return subB - subA;
-      
-      // Third: updatedAt (newest first) - use this for projects without completion/submitted dates
       const updA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
       const updB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      if (updB !== updA) return updB - updA;
-      
-      // Fourth: hackathon end date (newest first) - only use if it's a valid date string
-      const endDateA = a.hackathon?.endDate ? new Date(a.hackathon.endDate).getTime() : 0;
-      const endDateB = b.hackathon?.endDate ? new Date(b.hackathon.endDate).getTime() : 0;
-      if (endDateB !== endDateA && endDateA > 0 && endDateB > 0) return endDateB - endDateA;
-      
-      // Final fallback: keep original order
-      return 0;
+      return updB - updA;
     });
 
-    return filtered.map(convertToProjectCard);
-  }, [projects, searchQuery, showWinnersOnly, activeFilters, selectedHackathon]);
+    return filtered.map((p, i) => toUnit(p, i));
+  }, [projects, searchQuery, showWinnersOnly, activeFilters, selectedHackathon, toUnit]);
 
-  // Calculate stats from all projects (not affected by hackathon filter)
   const stats = useMemo(() => {
     const totalProjects = allProjects.length;
     const winners = allProjects.filter((p) => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0).length;
-    const m2Graduates = allProjects.filter(
-      (p) => p.m2Status === "completed" && isMainTrackWinner(p)
-    ).length;
-    return { totalProjects, winners, m2Graduates };
+    const m2Graduates = allProjects.filter((p) => p.m2Status === "completed" && isMainTrackWinner(p)).length;
+    const totalPaid = allProjects.reduce((acc, p) => {
+      const paid = (p.totalPaid || []).reduce((s, x) => s + (x.currency === "USDC" ? x.amount : 0), 0);
+      return acc + paid;
+    }, 0);
+    return { totalProjects, winners, m2Graduates, totalPaid };
   }, [allProjects]);
 
-  // Recently completed M2 projects (main track only), sorted by completion date, newest first
-  const recentlyShipped = useMemo(() => {
-    return projects
+  // Featured "·NOW SHOWING" unit — most recently-shipped M2 graduate.
+  const featuredUnit = useMemo<UnitForCard | null>(() => {
+    const shipped = projects
       .filter((p) => p.m2Status === "completed" && isMainTrackWinner(p))
       .sort((a, b) => {
-        const dateA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
-        const dateB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
-        return dateB - dateA;
-      })
-      .slice(0, 4);
-  }, [projects]);
-
-  // Format completion date for display
-  const formatCompletionDate = (dateStr?: string) => {
-    if (!dateStr) return null;
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+        const dA = a.completionDate ? new Date(a.completionDate).getTime() : 0;
+        const dB = b.completionDate ? new Date(b.completionDate).getTime() : 0;
+        return dB - dA;
+      });
+    return shipped[0] ? toUnit(shipped[0], 0) : null;
+  }, [projects, toUnit]);
 
   const handleFilterChange = useCallback((filterId: string) => {
-    setActiveFilters((prev) =>
-      prev.includes(filterId)
-        ? prev.filter((id) => id !== filterId)
-        : [...prev, filterId]
-    );
+    setActiveFilters((prev) => prev.includes(filterId) ? prev.filter((id) => id !== filterId) : [...prev, filterId]);
   }, []);
-
   const handleClearFilters = useCallback(() => {
     setActiveFilters([]);
     setShowWinnersOnly(false);
     setSearchQuery("");
   }, []);
 
-  const handleWinnersOnlyChange = useCallback((value: boolean) => {
-    setShowWinnersOnly(value);
-  }, []);
-
-  const handleProjectClick = useCallback((project: ProjectCardData) => {
-    setSelectedProject(project);
-  }, []);
-
-  const handleCloseModal = useCallback(() => {
-    setSelectedProject(null);
-  }, []);
+  const fmtUSD = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n}`;
 
   return (
-    <div className="min-h-screen animate-fade-in">
+    <div className="min-h-screen scanlines">
       <Navigation />
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        {/* Cosmic Background Layer */}
-        <div 
-          className="absolute inset-0 z-0"
-          style={{
-            backgroundImage: 'url(/images/sub0-ba.jpg)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            opacity: 0.25,
-            filter: 'blur(1px)',
-          }}
-        />
-        
-        {/* Dark Gradient Overlay */}
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-background/85 via-background/90 to-background" />
-        
-        {/* Radial gradient for depth */}
-        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_transparent_0%,_hsl(var(--background))_70%)]" />
-        
-        {/* Content */}
-        <div className="relative z-10 container mx-auto px-4 pt-28 pb-12">
-          <div className="max-w-4xl mx-auto text-center space-y-8">
-            <h1 className="font-display hero-title text-7xl md:text-8xl lg:text-9xl mb-6">
-              STADIUM
-            </h1>
-            
-            <p className="text-xl md:text-2xl text-muted-foreground">
-              A progress and showcase portal for hackathon projects that keep shipping between events.
-            </p>
+      <main className="container mx-auto px-4">
+        {/* Hero */}
+        <section className="pt-8 pb-10">
+          <div className="label-hw-dim mb-3">·DIRECTORY / NOW SHOWING</div>
+          <h1 className="font-display text-6xl md:text-7xl lg:text-8xl uppercase tracking-tight text-display leading-[0.9] mb-4">
+            Stadium
+          </h1>
+          <p className="text-body text-base md:text-lg max-w-xl leading-relaxed">
+            Builders showcase what they ship at WebZero events — and keep building between them.
+          </p>
 
-            {/* Past Event Partners */}
-            <div className="pt-8 space-y-4">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground/60">
-                Past event partners
-              </p>
-              <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
-                <img 
-                  src="/logos/polkadot.png" 
-                  alt="Polkadot" 
-                  className="h-6 md:h-8 w-auto opacity-70 hover:opacity-100 transition-opacity"
-                />
-                <img 
-                  src="/logos/arkiv.png" 
-                  alt="Arkiv" 
-                  className="h-6 md:h-8 w-auto opacity-70 hover:opacity-100 transition-opacity"
-                />
-                <img 
-                  src="/logos/hyperbridge.png" 
-                  alt="Hyperbridge" 
-                  className="h-6 md:h-8 w-auto opacity-70 hover:opacity-100 transition-opacity"
-                />
-                <img 
-                  src="/logos/superteam-germany.png" 
-                  alt="Superteam Germany" 
-                  className="h-6 md:h-8 w-auto opacity-70 hover:opacity-100 transition-opacity"
-                />
-              </div>
+          <div className="pt-8">
+            <div className="label-hw-dim mb-3">PAST EVENT PARTNERS</div>
+            <div className="flex flex-wrap items-center gap-8 opacity-60">
+              <img src="/logos/polkadot.png" alt="Polkadot" className="h-6 md:h-7 w-auto" />
+              <img src="/logos/arkiv.png" alt="Arkiv" className="h-6 md:h-7 w-auto" />
+              <img src="/logos/hyperbridge.png" alt="Hyperbridge" className="h-6 md:h-7 w-auto" />
+              <img src="/logos/superteam-germany.png" alt="Superteam Germany" className="h-6 md:h-7 w-auto" />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Stats Row */}
-      <section className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Total Projects */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Total Projects</p>
-                    {statsLoading ? (
-                      <div className="h-9 w-16 rounded bg-primary/10 animate-pulse" />
-                    ) : (
-                      <p className="text-3xl font-bold">{stats.totalProjects}</p>
-                    )}
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <FolderOpen className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Winners */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="border-yellow-500/30 bg-yellow-500/5">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Winners</p>
-                    {statsLoading ? (
-                      <div className="h-9 w-12 rounded bg-yellow-500/10 animate-pulse" />
-                    ) : (
-                      <p className="text-3xl font-bold">{stats.winners}</p>
-                    )}
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                    <Trophy className="h-6 w-6 text-yellow-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* M2 Graduates */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card className="border-green-500/30 bg-green-500/5">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">M2 Graduates</p>
-                    {statsLoading ? (
-                      <div className="h-9 w-12 rounded bg-green-500/10 animate-pulse" />
-                    ) : (
-                      <p className="text-3xl font-bold">{stats.m2Graduates}</p>
-                    )}
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <Users className="h-6 w-6 text-green-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Recently Shipped Spotlight Section */}
-      {recentlyShipped.length > 0 && (
-        <section className="relative py-12 overflow-hidden">
-          {/* Gradient Background */}
-          <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-primary/10 to-transparent" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_hsl(var(--primary)/0.15)_0%,_transparent_70%)]" />
-          
-          <div className="relative container mx-auto px-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              {/* Section Header */}
-              <div className="text-center mb-10">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
-                  <Rocket className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-primary">Milestone 2 Complete</span>
-                </div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-3">Recently Shipped</h2>
-                <p className="text-muted-foreground text-lg">
-                  Teams that recently completed their Milestone 2
-                </p>
-              </div>
-              
-              {/* Spotlight Cards - Horizontal Layout */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {recentlyShipped.map((project, index) => (
-                  <motion.div
-                    key={project.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 + index * 0.1 }}
-                  >
-                    <Link 
-                      to={`/m2-program/${project.id}`}
-                      className="group block"
-                    >
-                      <div className="glass-panel rounded-xl border border-primary/20 p-6 hover:border-primary/40 hover:purple-glow transition-all duration-300">
-                        <div className="flex gap-5">
-                          {/* Left: Icon/Badge */}
-                          <div className="flex-shrink-0">
-                            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 flex items-center justify-center group-hover:scale-105 transition-transform">
-                              <CheckCircle2 className="h-7 w-7 text-primary" />
-                            </div>
-                          </div>
-                          
-                          {/* Right: Content */}
-                          <div className="flex-1 min-w-0">
-                            {/* Title & Author */}
-                            <h3 className="text-xl font-bold mb-1 group-hover:text-primary transition-colors truncate">
-                              {project.projectName}
-                            </h3>
-                            <p className="text-sm text-muted-foreground mb-3">
-                              by {project.teamMembers?.[0]?.name || 'Team'}
-                              {project.completionDate && (
-                                <span className="ml-2 text-primary/70">
-                                  • Shipped {formatCompletionDate(project.completionDate)}
-                                </span>
-                              )}
-                            </p>
-                            
-                            {/* Description */}
-                            <p className="text-muted-foreground text-sm line-clamp-2 mb-4">
-                              {project.description}
-                            </p>
-                            
-                            {/* Footer: Track & Link */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                {project.bountyPrize?.[0]?.name && (
-                                  <span className="px-2 py-1 text-xs rounded-md bg-primary/10 text-primary border border-primary/20">
-                                    {project.bountyPrize[0].name}
-                                  </span>
-                                )}
-                                {project.projectRepo && (
-                                  <button 
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      window.open(project.projectRepo, '_blank', 'noopener,noreferrer');
-                                    }}
-                                    className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                                  >
-                                    <Github className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                                  </button>
-                                )}
-                              </div>
-                              <span className="inline-flex items-center gap-1 text-sm font-medium text-primary group-hover:gap-2 transition-all">
-                                View Project
-                                <ArrowRight className="h-4 w-4" />
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
+        {/* Index stats */}
+        <section className="mb-10">
+          <div className="panel p-4">
+            <div className="label-hw mb-3">·INDEX / LIVE</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <LCDStat value={statsLoading ? "—" : stats.totalProjects} label="Total Units" size="lg" />
+              <LCDStat value={statsLoading ? "—" : stats.winners} label="Winners" showLED pulse />
+              <LCDStat value={statsLoading ? "—" : stats.m2Graduates} label="In M2" showLED />
+              <LCDStat value={statsLoading ? "—" : fmtUSD(stats.totalPaid)} label="Paid" size="sm" showLED />
+            </div>
           </div>
         </section>
-      )}
 
-      {/* Projects Section */}
-      <div className="container mx-auto px-4 pb-16">
-        {/* Search and Filters Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <SearchBar
-              onSearchChange={setSearchQuery}
-              onHackathonChange={setSelectedHackathon}
-              hackathons={hackathons}
-              projectCount={filteredProjects.length}
-              selectedHackathon={selectedHackathon}
+        {/* Now Showing — single featured unit */}
+        {featuredUnit && (
+          <section className="mb-10">
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
+              <div className="label-hw text-display flex items-center gap-2">
+                <span className="led led-sm led-pulse" aria-hidden="true" />
+                ·NOW SHOWING / UNIT {featuredUnit.unitNumber}
+              </div>
+              {featuredUnit.date && <div className="label-hw-dim">{featuredUnit.date}</div>}
+            </div>
+            <UnitCard
+              {...featuredUnit}
+              onClick={() => setSelectedUnit(featuredUnit)}
             />
-            
-            {/* Mobile Filters Button */}
-            <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" className="lg:hidden gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filters
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[300px] sm:w-[400px]">
-                <SheetHeader>
-                  <SheetTitle className="font-heading">Filters</SheetTitle>
-                </SheetHeader>
-                <div className="mt-6">
-                  <Suspense fallback={<div className="text-muted-foreground">Loading filters...</div>}>
-                    <FilterSidebar
-                      activeFilters={activeFilters}
-                      onFilterChange={handleFilterChange}
-                      onClearFilters={handleClearFilters}
-                      showWinnersOnly={showWinnersOnly}
-                      onWinnersOnlyChange={handleWinnersOnlyChange}
-                      className=""
-                    />
-                  </Suspense>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </div>
+          </section>
+        )}
 
-        {/* Main Content */}
-        <div className="flex gap-8">
-          {/* Sidebar - hidden on mobile/tablet, visible on desktop */}
-          <aside className="hidden lg:block w-72 flex-shrink-0">
-            <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
-              <FilterSidebar
-                activeFilters={activeFilters}
-                onFilterChange={handleFilterChange}
-                onClearFilters={handleClearFilters}
-                showWinnersOnly={showWinnersOnly}
-                onWinnersOnlyChange={handleWinnersOnlyChange}
-              />
-            </Suspense>
-          </aside>
-
-          {/* Projects Grid */}
-          <main className="flex-1">
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {Array.from({ length: 9 }).map((_, idx) => (
-                  <ProjectCardSkeleton key={idx} />
-                ))}
-              </div>
-            ) : filteredProjects.length === 0 ? (
-              loadError ? (
-                <Card className="p-6 border-destructive/50 bg-destructive/5">
-                  <CardContent className="space-y-4">
-                    <h3 className="font-semibold text-destructive">Could not load projects</h3>
-                    <p className="text-sm text-muted-foreground break-all">{loadError}</p>
-                    <p className="text-xs text-muted-foreground">
-                      API: <code className="bg-muted px-1 rounded">{API_BASE_URL || "undefined"}</code>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      In Vercel, set <code className="bg-muted px-1 rounded">VITE_API_BASE_URL</code> to this URL for Production, then redeploy.
-                    </p>
-                    <Button variant="outline" size="sm" onClick={() => setRetryCount((c) => c + 1)}>
-                      Retry
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <NoProjectsFound onClearFilters={handleClearFilters} />
-              )
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    title={project.title}
-                    author={project.author}
-                    description={project.description}
-                    track={project.track}
-                    isWinner={project.isWinner}
-                    demoUrl={project.demoUrl}
-                    githubUrl={project.githubUrl}
-                    projectUrl={project.projectUrl}
-                    onClick={() => handleProjectClick(project)}
-                    showM2Progress={project.showM2Progress}
-                    m2Status={project.m2Status}
-                    m2Week={project.m2Week}
-                    submittedDate={project.submittedDate}
-                    completionDate={project.completionDate}
-                    totalPaid={project.totalPaid}
+        {/* Filter bar */}
+        <section className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
+          <InputBus
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="search units..."
+            kbdHint="⌘K"
+            className="flex-1 min-w-[200px]"
+          />
+          {hackathons.length > 0 && (
+            <select
+              value={selectedHackathon}
+              onChange={(e) => setSelectedHackathon(e.target.value)}
+              className="lcd font-mono text-[11px] text-display bg-panel-deep border border-hairline-subtle px-2 py-1.5 outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-led"
+              aria-label="Filter by hackathon"
+            >
+              <option value="all">ALL EVENTS</option>
+              {hackathons.map((h) => (
+                <option key={h.id} value={h.id}>{h.name.toUpperCase()}</option>
+              ))}
+            </select>
+          )}
+          <HardwareToggle
+            options={[{ value: "winners", label: "WINNERS" }, { value: "all", label: "ALL" }]}
+            value={showWinnersOnly ? "winners" : "all"}
+            onChange={(v) => setShowWinnersOnly(v === "winners")}
+          />
+          <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-label-mid hover:text-display hover:bg-panel-deep px-3 py-1.5 rounded-none"
+              >
+                <Filter className="h-3 w-3 mr-1.5" />
+                FILTERS{activeFilters.length > 0 && ` · ${activeFilters.length}`}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[320px] panel">
+              <SheetHeader>
+                <SheetTitle className="label-hw">·CATEGORY FILTERS</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6">
+                <Suspense fallback={<div className="label-hw-dim">Loading filters…</div>}>
+                  <FilterSidebar
+                    activeFilters={activeFilters}
+                    onFilterChange={handleFilterChange}
+                    onClearFilters={handleClearFilters}
+                    showWinnersOnly={showWinnersOnly}
+                    onWinnersOnlyChange={setShowWinnersOnly}
                   />
-                ))}
+                </Suspense>
               </div>
-            )}
-          </main>
-        </div>
-      </div>
+            </SheetContent>
+          </Sheet>
+        </section>
 
-      {/* Project Detail Modal */}
-      {selectedProject && (
+        {/* Projects grid */}
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
+            <div className="label-hw text-display">·DIRECTORY / GRID</div>
+            <div className="label-hw-dim">{filteredProjects.length} {filteredProjects.length === 1 ? "UNIT" : "UNITS"}</div>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {Array.from({ length: 9 }).map((_, i) => <ProjectCardSkeleton key={i} />)}
+            </div>
+          ) : filteredProjects.length === 0 ? (
+            loadError ? (
+              <Card className="lcd p-6">
+                <CardContent className="space-y-3 p-0">
+                  <div className="label-hw text-destructive">·ERROR / NO PROJECTS</div>
+                  <p className="text-body text-sm break-all">{loadError}</p>
+                  <p className="label-hw-dim">
+                    API: <code className="text-display">{API_BASE_URL || "undefined"}</code>
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRetryCount((c) => c + 1)}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 rounded-none"
+                  >
+                    RETRY
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <NoProjectsFound onClearFilters={handleClearFilters} />
+            )
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {filteredProjects.map((u) => (
+                <UnitCard key={u.id} {...u} onClick={() => setSelectedUnit(u)} />
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+
+      <footer className="panel mt-12">
+        <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 font-mono text-[10px] tracking-[0.14em] text-label-dim">
+          <div className="flex items-center gap-3">
+            <span className="text-display">STADIUM</span>
+            <span className="text-hairline">|</span>
+            <span>MMXXVI</span>
+            <span className="text-hairline">|</span>
+            <span className="flex items-center gap-1.5">
+              <span className="led led-sm" aria-hidden="true" /> READY
+            </span>
+          </div>
+          <span>POLKADOT · SUPERTEAM · HYPERBRIDGE · ARKIV</span>
+        </div>
+      </footer>
+
+      {selectedUnit && (
         <Suspense fallback={null}>
-          <ProjectDetailModal
-            open={!!selectedProject}
-            onOpenChange={(open) => !open && handleCloseModal()}
-            project={{
-              title: selectedProject.title,
-              author: selectedProject.author,
-              description: selectedProject.description,
-              track: selectedProject.track,
-              isWinner: selectedProject.isWinner,
-              demoUrl: selectedProject.demoUrl,
-              githubUrl: selectedProject.githubUrl,
-              projectUrl: selectedProject.projectUrl,
-              liveUrl: selectedProject.liveUrl,
-              eventStartedAt: selectedProject.eventStartedAt,
-            } as ProjectDetailModalProject}
+          <UnitDetailModal
+            open={!!selectedUnit}
+            onOpenChange={(open) => !open && setSelectedUnit(null)}
+            unit={selectedUnit}
           />
         </Suspense>
       )}

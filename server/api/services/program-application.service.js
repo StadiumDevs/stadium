@@ -1,6 +1,10 @@
 import programApplicationRepository from '../repositories/program-application.repository.js';
 
 class ProgramApplicationService {
+  async getById(id) {
+    return await programApplicationRepository.getById(id);
+  }
+
   async listByProgram(programId) {
     return await programApplicationRepository.listByProgram(programId);
   }

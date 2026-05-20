@@ -1,51 +1,41 @@
+/**
+ * Authentication middleware.
+ *
+ * Verifies a wallet-signed `x-siws-auth` header. The verification pipeline is
+ * chain-agnostic: `parsePayload` reads the optional `chain` field (default
+ * `'substrate'`), a per-chain verifier checks the signature, and the shared
+ * `validateStatement` / domain checks run identically for every chain. Each
+ * middleware then applies its own authorization rule.
+ */
+
 import dotenv from 'dotenv';
-import { verifySIWS, parseMessage } from '@talismn/siws';
-import { SiwsMessage } from '@talismn/siws';
 import chalk from 'chalk';
-import { cryptoWaitReady, decodeAddress, signatureVerify } from '@polkadot/util-crypto';
-import { u8aToHex } from '@polkadot/util';
 import projectService from '../services/project.service.js';
-import { getAuthorizedAddresses, isAuthorizedSigner, CURRENT_MULTISIG, NETWORK_CONFIG } from '../../config/polkadot-config.js';
+import {
+  getAuthorizedAddresses,
+  CURRENT_MULTISIG,
+  NETWORK_CONFIG,
+} from '../../config/polkadot-config.js';
+import { isAuthorizedSigner } from '../auth/authorizedSigners.js';
+import { parsePayload } from '../auth/parsePayload.js';
+import { getVerifier } from '../auth/verifiers/index.js';
+import { validateStatement } from '../auth/statements.js';
+import { normalizeAddress } from '../auth/normalize.js';
+import { consumeNonce } from '../auth/nonceStore.js';
+import { extractBearerToken, verifySessionToken } from '../auth/sessionToken.js';
+import programRepository from '../repositories/program.repository.js';
+import programAdminRepository from '../repositories/program-admin.repository.js';
 
 dotenv.config();
 
 // --- Configuration ---
-// Use authorized signers from network config (multisig signers)
+// Authorized signers (multisig signers) used for admin authorization.
 const ADMIN_WALLETS = getAuthorizedAddresses();
 
 console.log(chalk.cyan('[AuthMiddleware] Configuration:'));
 console.log(chalk.cyan(`  Network: ${NETWORK_CONFIG.networkName}`));
 console.log(chalk.cyan(`  Multisig: ${CURRENT_MULTISIG}`));
 console.log(chalk.cyan(`  Authorized Signers: ${ADMIN_WALLETS.length}`));
-
-// Multiple valid statements for different actions
-const VALID_STATEMENTS = [
-  "Submit milestone deliverables for Stadium",
-  "Update team members for project on Stadium",
-  "Update project details for project on Stadium",
-  "Register team address for Stadium",
-  "Perform administrative action on Stadium",
-  "Sign in to Stadium",
-  // Additional context-specific statements
-  "Submit milestone deliverables for project on Stadium",
-  "Update team members for Stadium",
-  "Update project details for Stadium",
-  "Register team address for project on Stadium",
-  // Project-specific statements (these will be generated dynamically)
-  "Create new project on Stadium",
-  "Delete project on Stadium",
-  // Admin action statements
-  "Review project on Stadium",
-  "Approve project on Stadium",
-  "Reject project on Stadium",
-  // Phase 1 revamp statements
-  "Post an update on Stadium",
-  "Update funding signal on Stadium",
-  "Apply to program on Stadium",
-  "Create program on Stadium",
-  "Update program on Stadium",
-  "Review application on Stadium"
-];
 
 const EXPECTED_DOMAIN = process.env.EXPECTED_DOMAIN || 'localhost';
 const DISABLE_SIWS_DOMAIN_CHECK = process.env.DISABLE_SIWS_DOMAIN_CHECK === 'true';
@@ -55,144 +45,244 @@ const logError = (message) => console.log(chalk.red(`[AuthMiddleware] ${message}
 const logSuccess = (message) => console.log(chalk.green(`[AuthMiddleware] ${message}`));
 
 /**
- * Validate SIWS statement with support for context-aware and project-specific statements
+ * Shared auth pipeline: parse the header, pick the chain verifier, verify the
+ * signature, then validate the statement and (optionally) the domain.
+ *
+ * @param {string} authHeader - raw `x-siws-auth` header value
+ * @param {{ checkDomain: boolean }} options
+ * @returns {Promise<
+ *   | { ok: true, chain: string, parsed: object, normalizedAddress: string|null }
+ *   | { ok: false, status: number, body: object }
+ * >}
  */
-function validateSiwsStatement(statement) {
-  // Check exact matches first
-  if (VALID_STATEMENTS.includes(statement)) {
-    return true;
+export async function authenticateRequest(authHeader, { checkDomain }) {
+  let payload;
+  try {
+    payload = parsePayload(authHeader);
+  } catch (e) {
+    return { ok: false, status: e.status || 400, body: { status: 'error', message: e.message } };
   }
-  
-  // Pattern match for project-specific statements
-  const projectPatterns = [
-    /^Update team members for .+ on Stadium$/,
-    /^Submit milestone deliverables for .+ on Stadium$/,
-    /^Update project details for .+ on Stadium$/,
-    /^Delete project .+ on Stadium$/,
-    /^Review project .+ on Stadium$/,
-    /^Approve project .+ on Stadium$/,
-    /^Reject project .+ on Stadium$/,
-    // Phase 1 revamp: project updates (#41)
-    /^Post an update to .+ on Stadium$/,
-    // Phase 1 revamp: funding signal (#42)
-    /^Update funding signal for .+ on Stadium$/,
-    // Phase 1 revamp: apply project X to program Y (#44)
-    /^Apply project .+ to program .+ on Stadium$/
-  ];
-  
-  return projectPatterns.some(pattern => pattern.test(statement));
+
+  const { chain, message, signature, address } = payload;
+
+  const verifier = getVerifier(chain);
+  if (!verifier) {
+    logError(`Unsupported sign-in chain: ${chain}`);
+    return {
+      ok: false,
+      status: 400,
+      body: { status: 'error', message: `Unsupported sign-in chain: ${chain}` },
+    };
+  }
+
+  let result;
+  try {
+    log(`Verifying ${chain} sign-in for address: ${address}`);
+    result = await verifier.verify({ message, signature, address });
+  } catch (e) {
+    logError(`Signature verification threw. Error: ${e.message}`);
+    return {
+      ok: false,
+      status: 403,
+      body: { status: 'error', message: 'SIWS signature verification failed', error: e.message },
+    };
+  }
+
+  if (!result.valid) {
+    logError(`Signature invalid for ${chain} address ${address}.`);
+    return {
+      ok: false,
+      status: 403,
+      body: {
+        status: 'error',
+        message: 'SIWS signature verification failed',
+        error: result.error || 'Invalid signature',
+      },
+    };
+  }
+
+  const { parsed, normalizedAddress } = result;
+
+  if (!validateStatement(parsed.statement)) {
+    logError(`Invalid statement. Received: "${parsed.statement}"`);
+    return {
+      ok: false,
+      status: 403,
+      body: { status: 'error', message: 'Invalid statement in SIWS message.' },
+    };
+  }
+
+  if (checkDomain && !DISABLE_SIWS_DOMAIN_CHECK) {
+    if (parsed.domain !== EXPECTED_DOMAIN) {
+      logError(`Invalid domain. Received: "${parsed.domain}". Expected: "${EXPECTED_DOMAIN}"`);
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          status: 'error',
+          message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.`,
+          error: `Domain mismatch: got '${parsed.domain}'`,
+        },
+      };
+    }
+  }
+
+  // Reject stale messages and consume the nonce — single-use, anti-replay (#88).
+  const expiresAtMs = parsed.expirationTime ? new Date(parsed.expirationTime).getTime() : NaN;
+  if (!Number.isFinite(expiresAtMs)) {
+    logError('Sign-in message has no expiration time.');
+    return {
+      ok: false,
+      status: 403,
+      body: { status: 'error', message: 'Sign-in message must include an expiration time' },
+    };
+  }
+  if (expiresAtMs <= Date.now()) {
+    logError('Sign-in message has expired.');
+    return {
+      ok: false,
+      status: 403,
+      body: { status: 'error', message: 'Sign-in message has expired' },
+    };
+  }
+
+  let nonceResult;
+  try {
+    nonceResult = await consumeNonce(parsed.nonce, expiresAtMs);
+  } catch (e) {
+    logError(`Nonce store error: ${e.message}`);
+    return {
+      ok: false,
+      status: 500,
+      body: { status: 'error', message: 'Internal error during authentication' },
+    };
+  }
+  if (!nonceResult.ok) {
+    logError(`Nonce rejected (${nonceResult.reason}).`);
+    return {
+      ok: false,
+      status: 403,
+      body: {
+        status: 'error',
+        message: nonceResult.reason === 'replay'
+          ? 'Sign-in message has already been used'
+          : 'Sign-in message must include a nonce',
+      },
+    };
+  }
+
+  logSuccess(`${chain} sign-in verified for ${parsed.address}.`);
+  return { ok: true, chain, parsed, normalizedAddress };
 }
 
-// --- Middleware ---
-export const requireAdmin = async (req, res, next) => {
-  log(`Initiating admin verification for ${req.method} ${req.originalUrl}`);
+/**
+ * Resolve the authenticated signer of a request, preferring a session bearer
+ * token over a fresh SIWS sign. Returns the same shape as authenticateRequest
+ * (`{ ok, status, body }` on failure; `{ ok, chain, parsed, normalizedAddress }`
+ * on success).
+ *
+ * Bearer path: short-lived HMAC token, valid for ADMIN_SESSION_TTL_SECONDS
+ * after one SIWS sign exchanged via POST /api/admin/session.
+ * SIWS path: unchanged — single-use nonce + expirationTime + statement check.
+ *
+ * The synthetic `parsed` object exposed on the bearer path has just `address`
+ * (other fields are undefined) — downstream middleware only reads `address`
+ * and `chain`, never the other SIWS fields, so the shape is compatible.
+ */
+export async function resolveAuthIdentity(req, { checkDomain }) {
+  const bearer = extractBearerToken(req);
+  if (bearer) {
+    const v = verifySessionToken(bearer);
+    if (v.valid) {
+      const chain = v.chain;
+      let normalizedAddress;
+      try {
+        normalizedAddress = normalizeAddress(chain, v.address);
+      } catch {
+        normalizedAddress = v.address;
+      }
+      logSuccess(`${chain} session bearer accepted for ${v.address}.`);
+      return {
+        ok: true,
+        chain,
+        parsed: { address: v.address, statement: '[session-bearer]', domain: undefined, nonce: undefined },
+        normalizedAddress,
+        viaSession: true,
+      };
+    }
+    logError(`Bearer rejected (${v.reason}).`);
+    return {
+      ok: false,
+      status: 401,
+      body: { status: 'error', message: 'Session token invalid or expired' },
+    };
+  }
 
-  // DEV MODE BYPASS: Skip auth in development when header contains 'dev-bypass'
   const authHeader = req.headers['x-siws-auth'];
+
+  // DEV MODE BYPASS — preserved so existing local dev workflows keep working.
   if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
     log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication'));
-    req.adminAddress = ADMIN_WALLETS[0] || 'dev-admin';
-    return next();
+    return {
+      ok: true,
+      chain: 'substrate',
+      parsed: { address: ADMIN_WALLETS[0] || 'dev-admin', statement: '[dev-bypass]' },
+      normalizedAddress: ADMIN_WALLETS[0] || 'dev-admin',
+      viaSession: false,
+      devBypass: true,
+    };
   }
 
   if (!authHeader) {
-    logError('Verification failed: Missing x-siws-auth header.');
-    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
-  }
-  log('Found x-siws-auth header.');
-
-  let decodedString;
-  try {
-    decodedString = atob(authHeader);
-    log('Successfully decoded Base64 header.');
-  } catch (e) {
-    logError(`Verification failed: Could not decode Base64. Error: ${e.message}`);
-    logError(`Received value: ${authHeader}`);
-    return res.status(400).json({ status: 'error', message: 'Invalid Base64 in auth header' });
-  }
-
-  let signedPayload;
-  try {
-    signedPayload = JSON.parse(decodedString);
-    log('Successfully parsed JSON from decoded string.');
-  } catch (e) {
-    logError(`Verification failed: Could not parse JSON. Error: ${e.message}`);
-    logError(`Decoded string content: ${decodedString}`);
-    return res.status(400).json({ status: 'error', message: 'Malformed SIWS payload in header' });
-  }
-
-  const { message, signature, address } = signedPayload;
-  if (!message || !signature || !address) {
-    logError('Verification failed: Payload is missing message, signature, or address.');
-    logError(`Received payload: ${JSON.stringify(signedPayload)}`);
-    return res.status(400).json({ status: 'error', message: 'Incomplete SIWS payload' });
-  }
-
-  try {
-    log(`Verifying SIWS for address: ${address}`);
-
-    await cryptoWaitReady();
-    const verification = signatureVerify(message, signature, address);
-    if (!verification?.isValid) {
-      logError(`Signature invalid. crypto: ${verification?.crypto}, isWrapped: ${verification?.isWrapped}`);
-      logError(`Message length: ${message.length}, Signature length: ${signature.length}`);
-      logError(`Message starts with: ${message.substring(0, 80)}`);
-      return res.status(403).json({ status: 'error', message: 'SIWS signature verification failed', error: 'Invalid signature' });
-    }
-    logSuccess(`SIWS signature verified (crypto: ${verification.crypto}).`);
-
-    const siwsMessage = parseMessage(message);
-
-    log(`Checking statement. Received: "${siwsMessage.statement}"`);
-    if (!validateSiwsStatement(siwsMessage.statement)) {
-      logError(`Invalid statement. Received: "${siwsMessage.statement}"`);
-      logError(`Valid statements: ${VALID_STATEMENTS.join(', ')}`);
-      return res.status(403).json({ status: 'error', message: 'Invalid statement in SIWS message.' });
-    }
-    logSuccess('Statement is valid.');
-
-    // Check domain if not disabled
-    if (!DISABLE_SIWS_DOMAIN_CHECK) {
-      log(`Checking domain. Expected: "${EXPECTED_DOMAIN}"`);
-      if (siwsMessage.domain !== EXPECTED_DOMAIN) {
-        logError(`Invalid domain. Received: "${siwsMessage.domain}". Expected: "${EXPECTED_DOMAIN}"`);
-        return res.status(403).json({ status: 'error', message: `Invalid domain. Expected '${EXPECTED_DOMAIN}'.`, error: `Domain mismatch: got '${siwsMessage.domain}'` });
-      }
-      logSuccess('Domain matches.');
-    } else {
-      log('Domain check disabled (DISABLE_SIWS_DOMAIN_CHECK=true)');
-    }
-
-    const signerAddress = siwsMessage.address;
-    log(`Checking if signer address can sign for multisig. Address: ${signerAddress}`);
-
-    if (!isAuthorizedSigner(signerAddress)) {
-      logError(`Authorization failed: Address ${signerAddress} is not authorized to sign for multisig ${CURRENT_MULTISIG}`);
-      logError(`Authorized signers: ${ADMIN_WALLETS.join(', ')}`);
-      return res.status(403).json({
-        status: 'error',
-        message: 'Address is not authorized to sign for the multisig',
-        multisig: CURRENT_MULTISIG,
-        network: NETWORK_CONFIG.networkName
-      });
-    }
-
-    logSuccess(`Authorized signer ${signerAddress} can sign for multisig ${CURRENT_MULTISIG}`);
-    req.user = {
-      address: siwsMessage.address,
-      multisig: CURRENT_MULTISIG,
-      network: NETWORK_CONFIG.environment
+    return {
+      ok: false,
+      status: 401,
+      body: { status: 'error', message: 'Missing SIWS auth header' },
     };
-    next();
-
-  } catch (e) {
-    logError(`SIWS signature verification failed. Error: ${e.message}`);
-    logError(`Stack: ${e.stack}`);
-    logError(`Received payload for debugging: ${JSON.stringify(signedPayload)}`);
-    return res.status(403).json({ status: "error", message: "SIWS signature verification failed", error: e.message });
   }
+  return authenticateRequest(authHeader, { checkDomain });
+}
+
+// --- Middleware ---
+
+/**
+ * Admin-only: the signer must be an authorized multisig signer.
+ */
+export const requireAdmin = async (req, res, next) => {
+  log(`Initiating admin verification for ${req.method} ${req.originalUrl}`);
+
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.adminAddress = auth.parsed.address;
+    return next();
+  }
+
+  const signerAddress = auth.parsed.address;
+  if (!isAuthorizedSigner(auth.chain, signerAddress)) {
+    logError(`Authorization failed: ${signerAddress} is not authorized for multisig ${CURRENT_MULTISIG}`);
+    return res.status(403).json({
+      status: 'error',
+      message: 'Address is not authorized to sign for the multisig',
+      multisig: CURRENT_MULTISIG,
+      network: NETWORK_CONFIG.networkName,
+    });
+  }
+
+  logSuccess(`Authorized signer ${signerAddress} can sign for multisig ${CURRENT_MULTISIG}`);
+  req.user = {
+    address: signerAddress,
+    multisig: CURRENT_MULTISIG,
+    network: NETWORK_CONFIG.environment,
+  };
+  return next();
 };
 
+/**
+ * Admin OR a team member of the project identified by `req.params.projectId`.
+ */
 export const requireTeamMemberOrAdmin = async (req, res, next) => {
   log(`Initiating team member or admin verification for ${req.method} ${req.originalUrl}`);
   const { projectId } = req.params;
@@ -202,117 +292,177 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     return res.status(400).json({ status: 'error', message: 'Project ID is required for this operation' });
   }
 
-  const authHeader = req.headers['x-siws-auth'];
-  
-  // DEV MODE BYPASS: Skip auth in development when header contains 'dev-bypass'
-  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
-    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for team/admin'));
-    req.auth = { address: ADMIN_WALLETS[0] || 'dev-admin', isAdmin: true };
+  // Domain is verified here too, consistent with requireAdmin / requireOwnWallet.
+  // Preview/staging origins are handled by DISABLE_SIWS_DOMAIN_CHECK, not by
+  // skipping the check.
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.auth = { address: auth.parsed.address, isAdmin: true };
     return next();
   }
-  
-  if (!authHeader) {
-    logError('Verification failed: Missing x-siws-auth header.');
-    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
-  }
-  
-  let decodedString, signedPayload, siwsMessage;
 
-  try {
-    decodedString = atob(authHeader);
-    signedPayload = JSON.parse(decodedString);
-    const { message, signature, address } = signedPayload;
-    
-    if (!message || !signature || !address) {
-      logError('Verification failed: Payload is missing message, signature, or address.');
-      return res.status(400).json({ status: 'error', message: 'Incomplete SIWS payload' });
-    }
+  const signerAddress = auth.parsed.address;
 
-    log(`Verifying SIWS for address: ${address}`);
-
-    // Inline verification with granular error reporting
-    await cryptoWaitReady();
-    const verification = signatureVerify(message, signature, address);
-    if (!verification?.isValid) {
-      logError(`Signature invalid. crypto: ${verification?.crypto}, isWrapped: ${verification?.isWrapped}`);
-      logError(`Message length: ${message.length}, Signature length: ${signature.length}`);
-      logError(`Message starts with: ${message.substring(0, 80)}`);
-      return res.status(403).json({ status: 'error', message: 'SIWS verification failed', error: 'Invalid signature' });
-    }
-    logSuccess(`SIWS signature verified (crypto: ${verification.crypto}).`);
-
-    siwsMessage = parseMessage(message);
-
-    // Validate statement with context-aware validation
-    log(`Checking statement. Received: "${siwsMessage.statement}"`);
-    if (!validateSiwsStatement(siwsMessage.statement)) {
-      logError(`Invalid statement. Received: "${siwsMessage.statement}"`);
-      logError(`Valid statements: ${VALID_STATEMENTS.join(', ')}`);
-      return res.status(403).json({ status: 'error', message: 'Invalid statement in SIWS message.' });
-    }
-    logSuccess('Statement is valid.');
-
-  } catch (e) {
-    logError(`SIWS verification failed. Error: ${e.message}`);
-    logError(`Stack: ${e.stack}`);
-    logError(`Decoded string for debugging: ${decodedString}`);
-    return res.status(403).json({ status: "error", message: "SIWS verification failed", error: e.message });
-  }
-
-  const signerAddress = siwsMessage.address;
-  log(`Checking authorization for signer: ${signerAddress}`);
-
-  if (isAuthorizedSigner(signerAddress)) {
+  // Authorized multisig signers are always allowed.
+  if (isAuthorizedSigner(auth.chain, signerAddress)) {
     logSuccess(`Signer ${signerAddress} is authorized for multisig. Granting access.`);
     req.user = {
-      address: siwsMessage.address,
+      address: signerAddress,
       multisig: CURRENT_MULTISIG,
-      network: NETWORK_CONFIG.environment
+      network: NETWORK_CONFIG.environment,
     };
     return next();
   }
-  log(`Signer ${signerAddress} is not a multisig signer. Checking project team membership...`);
 
+  // Otherwise the signer must be a team member of the project.
   try {
     const project = await projectService.getProjectById(projectId);
-
     if (!project) {
       logError(`Authorization failed: Project with ID ${projectId} not found.`);
       return res.status(404).json({ status: 'error', message: 'Project not found' });
     }
 
-    let signerPubkey;
-    try {
-      signerPubkey = u8aToHex(decodeAddress(signerAddress));
-    } catch {
-      logError(`Invalid SS58 address: ${signerAddress}`);
+    const signerNormalized = auth.normalizedAddress;
+    if (!signerNormalized) {
+      logError(`Invalid wallet address: ${signerAddress}`);
       return res.status(400).json({ status: 'error', message: 'Invalid wallet address' });
     }
 
-    const isTeamMember = (project.teamMembers || []).some(member => {
+    const isTeamMember = (project.teamMembers || []).some((member) => {
       if (!member.walletAddress) return false;
-      try {
-        return u8aToHex(decodeAddress(member.walletAddress)) === signerPubkey;
-      } catch { return false; }
+      const memberChain = member.walletChain || 'substrate';
+      const memberNormalized = normalizeAddress(memberChain, member.walletAddress);
+      return memberNormalized != null && memberNormalized === signerNormalized;
     });
 
     if (isTeamMember) {
       logSuccess(`Signer ${signerAddress} is a team member of project ${projectId}. Granting access.`);
-      req.user = { address: siwsMessage.address };
+      req.user = { address: signerAddress };
       return next();
     }
 
-    logError(`Authorization failed: Signer ${signerAddress} is not a team member of project ${projectId}.`);
+    logError(`Authorization failed: ${signerAddress} is not a team member of project ${projectId}.`);
     return res.status(403).json({
       status: 'error',
       message: 'User is not authorized to perform this action',
       detail: ADMIN_WALLETS.length === 0
         ? 'No authorized signers configured on server. Set AUTHORIZED_SIGNERS env var.'
-        : 'Address is not an authorized signer or team member of this project.'
+        : 'Address is not an authorized signer or team member of this project.',
     });
-
   } catch (error) {
     logError(`Database error while checking team membership: ${error.message}`);
+    return res.status(500).json({ status: 'error', message: 'Internal server error during authorization' });
+  }
+};
+
+/**
+ * The signer must match the wallet identified by `req.params.address`.
+ */
+export const requireOwnWallet = async (req, res, next) => {
+  log(`Initiating own-wallet verification for ${req.method} ${req.originalUrl}`);
+
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.user = { address: req.params.address, chain: 'substrate' };
+    return next();
+  }
+
+  // The signer's chain governs how the target route param is interpreted.
+  const targetNormalized = normalizeAddress(auth.chain, req.params.address);
+  if (!targetNormalized) {
+    logError(`Invalid address in route param: ${req.params.address}`);
+    return res.status(400).json({ status: 'error', message: 'Invalid wallet address' });
+  }
+
+  const signerNormalized = auth.normalizedAddress;
+  if (!signerNormalized) {
+    logError(`Invalid signer address: ${auth.parsed.address}`);
+    return res.status(400).json({ status: 'error', message: 'Invalid wallet address' });
+  }
+
+  if (signerNormalized !== targetNormalized) {
+    logError(`Signer ${auth.parsed.address} does not match target wallet ${req.params.address}`);
+    return res.status(403).json({
+      status: 'error',
+      message: 'Signer does not match the target wallet',
+      reason: 'not-your-wallet',
+    });
+  }
+
+  logSuccess(`Signer ${auth.parsed.address} matches target wallet ${req.params.address}`);
+  req.user = { address: auth.parsed.address, chain: auth.chain };
+  return next();
+};
+
+/**
+ * Per-event admin (Phase 3, #95). The signer must be either a global
+ * authorized signer (ADMIN_WALLETS) OR an entry in `program_admins` for the
+ * program identified by `req.params[slugParam]`.
+ *
+ * @param {string} [slugParam='slug'] - name of the URL param holding the
+ *   program slug. Routes mounted under `/programs/:slug/...` get the default.
+ */
+export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next) => {
+  const slug = req.params?.[slugParam];
+  log(`Initiating program-admin verification for ${req.method} ${req.originalUrl} (slug=${slug})`);
+
+  if (!slug || typeof slug !== 'string') {
+    logError(`Missing ${slugParam} param.`);
+    return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
+  }
+
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.user = { address: auth.parsed.address, programSlug: slug, isGlobalAdmin: true };
+    return next();
+  }
+
+  const signerAddress = auth.parsed.address;
+
+  // Global authorized signers always pass.
+  if (isAuthorizedSigner(auth.chain, signerAddress)) {
+    logSuccess(`Global admin ${signerAddress} accessing program "${slug}".`);
+    req.user = { address: signerAddress, chain: auth.chain, programSlug: slug, isGlobalAdmin: true };
+    return next();
+  }
+
+  // Otherwise the signer must be an entry in program_admins for this program.
+  try {
+    const program = await programRepository.findBySlug(slug);
+    if (!program) {
+      logError(`Program "${slug}" not found.`);
+      return res.status(404).json({ status: 'error', message: 'Program not found' });
+    }
+
+    const isProgramAdmin = await programAdminRepository.isAdmin(program.id, auth.chain, signerAddress);
+    if (!isProgramAdmin) {
+      logError(`${signerAddress} is not an admin for program "${slug}".`);
+      return res.status(403).json({
+        status: 'error',
+        message: 'Address is not authorized to administer this program',
+      });
+    }
+
+    logSuccess(`Program admin ${signerAddress} accessing "${slug}".`);
+    req.user = {
+      address: signerAddress,
+      chain: auth.chain,
+      programSlug: slug,
+      programId: program.id,
+      isGlobalAdmin: false,
+    };
+    return next();
+  } catch (err) {
+    logError(`Database error during program-admin check: ${err.message}`);
     return res.status(500).json({ status: 'error', message: 'Internal server error during authorization' });
   }
 };
@@ -322,9 +472,6 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
  * request body instead of the URL param. Used by routes whose URL is keyed
  * to a different resource (e.g. POST /api/programs/:slug/applications, where
  * :slug identifies the program and body.project_id identifies the project).
- *
- * Reuses requireTeamMemberOrAdmin unchanged — it just sets req.params.projectId
- * so the downstream logic works.
  */
 export const requireTeamMemberOrAdminByBodyProject = async (req, res, next) => {
   const projectId = req.body?.project_id;

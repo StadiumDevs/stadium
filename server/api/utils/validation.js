@@ -1,6 +1,7 @@
 /**
  * Validation utility functions for Stadium backend
  */
+import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
 
 /**
  * Validate SS58 address format (Polkadot/Substrate)
@@ -15,6 +16,30 @@ export const validateSS58 = (address) => {
   // SS58 addresses are 47-48 characters, alphanumeric (excluding 0, O, I, l)
   const ss58Regex = /^[1-9A-HJ-NP-Za-km-z]{47,48}$/;
   return ss58Regex.test(address);
+};
+
+/** Wallet chains supported for sign-in and address storage. */
+export const ALLOWED_WALLET_CHAINS = ['substrate', 'ethereum', 'solana'];
+
+/**
+ * Validate a wallet address for a given chain.
+ * @param {string} chain - 'substrate' | 'ethereum' | 'solana'
+ * @param {string} address
+ * @returns {boolean} - True if the address is valid for the chain
+ */
+export const validateAddress = (chain, address) => {
+  if (!address || typeof address !== 'string') return false;
+  const trimmed = address.trim();
+  switch (chain) {
+    case 'ethereum':
+      return /^0x[a-fA-F0-9]{40}$/.test(trimmed);
+    case 'solana':
+      // base58 public key — 32-byte keys encode to 32-44 base58 characters.
+      return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed);
+    case 'substrate':
+    default:
+      return validateSS58(trimmed);
+  }
 };
 
 /**
@@ -95,8 +120,12 @@ export const validateTeamMember = (member) => {
     return { valid: false, error: 'Team member name must be 1-100 characters' };
   }
   
-  if (member.walletAddress && !validateSS58(member.walletAddress)) {
-    return { valid: false, error: `Invalid SS58 address format: ${member.walletAddress}` };
+  if (member.walletChain !== undefined && !ALLOWED_WALLET_CHAINS.includes(member.walletChain)) {
+    return { valid: false, error: `Invalid walletChain: ${member.walletChain}` };
+  }
+  const memberWalletChain = member.walletChain || 'substrate';
+  if (member.walletAddress && !validateAddress(memberWalletChain, member.walletAddress)) {
+    return { valid: false, error: `Invalid ${memberWalletChain} address format: ${member.walletAddress}` };
   }
   
   if (member.role && !validateLength(member.role, 0, 50)) {
@@ -273,6 +302,102 @@ export const validateFundingSignal = (data) => {
 };
 
 /**
+ * Validate email address (Phase 2 revamp, #67).
+ * @param {string} email
+ * @returns {Object} - { valid: boolean, error?: string, normalised?: string }
+ */
+export const validateEmail = (email) => {
+  if (typeof email !== 'string') return { valid: false, error: 'email must be a string' };
+  const trimmed = email.trim().toLowerCase();
+  if (trimmed.length === 0 || trimmed.length > 254) {
+    return { valid: false, error: 'email must be 1–254 characters' };
+  }
+  const emailRe = /^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$/;
+  if (!emailRe.test(trimmed)) {
+    return { valid: false, error: 'email must be a valid email address' };
+  }
+  return { valid: true, normalised: trimmed };
+};
+
+/**
+ * Validate project creation payload (Phase 2 revamp, #80).
+ * @param {Object} data
+ * @returns {Object} - { valid: boolean, errors: Record<string,string> }
+ */
+export const validateProject = (data) => {
+  const errors = {};
+
+  if (!data || typeof data !== 'object') {
+    return { valid: false, errors: { _root: 'Project payload must be an object' } };
+  }
+
+  // projectName is required
+  if (!data.projectName || typeof data.projectName !== 'string' || !validateLength(data.projectName, 1, 200)) {
+    errors.projectName = 'projectName is required (1–200 characters)';
+  }
+
+  if (data.description !== undefined && data.description !== null) {
+    if (typeof data.description !== 'string' || !validateLength(data.description, 0, 5000)) {
+      errors.description = 'description must be a string (max 5000 characters)';
+    }
+  }
+
+  for (const urlField of ['projectRepo', 'demoUrl', 'slidesUrl', 'liveUrl']) {
+    if (data[urlField] !== undefined && data[urlField] !== null && data[urlField] !== '') {
+      if (!validateSimpleUrl(data[urlField])) {
+        errors[urlField] = `${urlField} must start with www or http`;
+      }
+    }
+  }
+
+  if (data.donationChain !== undefined && !ALLOWED_WALLET_CHAINS.includes(data.donationChain)) {
+    errors.donationChain = `donationChain must be one of: ${ALLOWED_WALLET_CHAINS.join(', ')}`;
+  }
+  if (data.donationAddress !== undefined && data.donationAddress !== null && data.donationAddress !== '') {
+    const donationChain = data.donationChain || 'substrate';
+    if (!validateAddress(donationChain, data.donationAddress)) {
+      errors.donationAddress = `donationAddress must be a valid ${donationChain} address`;
+    }
+  }
+
+  if (data.categories !== undefined && data.categories !== null) {
+    if (!Array.isArray(data.categories)) {
+      errors.categories = 'categories must be an array';
+    } else {
+      const bad = data.categories.filter(c => !ALLOWED_CATEGORIES.includes(String(c)));
+      if (bad.length > 0) {
+        errors.categories = `Invalid categories: ${bad.join(', ')}`;
+      }
+    }
+  }
+
+  if (data.teamMembers !== undefined && data.teamMembers !== null) {
+    if (!Array.isArray(data.teamMembers)) {
+      errors.teamMembers = 'teamMembers must be an array';
+    } else {
+      for (let i = 0; i < data.teamMembers.length; i++) {
+        const result = validateTeamMember(data.teamMembers[i]);
+        if (!result.valid) {
+          errors[`teamMembers[${i}]`] = result.error;
+        }
+      }
+    }
+  }
+
+  if (data.hackathon !== undefined && data.hackathon !== null) {
+    if (typeof data.hackathon !== 'object' || Array.isArray(data.hackathon)) {
+      errors.hackathon = 'hackathon must be an object';
+    } else if (data.hackathon.name !== undefined && data.hackathon.name !== null) {
+      if (typeof data.hackathon.name !== 'string' || !validateLength(data.hackathon.name, 1, 200)) {
+        errors['hackathon.name'] = 'hackathon.name must be a string (1–200 characters)';
+      }
+    }
+  }
+
+  return { valid: Object.keys(errors).length === 0, errors };
+};
+
+/**
  * Validate program payload (Phase 1 revamp, #46).
  * @param {Object} data
  * @param {Object} opts - { partial: boolean } — PATCH payloads only include changed fields.
@@ -325,6 +450,14 @@ export const validateProgram = (data, { partial = false } = {}) => {
       return { valid: false, error: 'maxApplicants must be a positive integer' };
     }
   }
+  if (has('eventUrl') && data.eventUrl !== null && data.eventUrl !== '') {
+    if (typeof data.eventUrl !== 'string' || data.eventUrl.length > 500) {
+      return { valid: false, error: 'eventUrl must be a string (max 500 characters)' };
+    }
+    if (!/^https?:\/\//i.test(data.eventUrl)) {
+      return { valid: false, error: 'eventUrl must start with http:// or https://' };
+    }
+  }
 
   const isoOrNull = (val) => {
     if (val === null || val === undefined || val === '') return true;
@@ -352,3 +485,64 @@ export const validateProgram = (data, { partial = false } = {}) => {
   return { valid: true };
 };
 
+// --- Sponsors (per-program) ---
+
+// Open-ended profile vocabulary — the team can write anything but these are the
+// expected canonical values. Validator only enforces shape, not the dictionary.
+export const SUGGESTED_SPONSOR_PROFILES = [
+  'developer',
+  'designer',
+  'marketer',
+  'artist',
+  'researcher',
+  'founder',
+  'other',
+];
+
+export const validateSponsor = (data, { partial = false } = {}) => {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: 'Sponsor payload must be an object' };
+  }
+  const has = (k) => Object.prototype.hasOwnProperty.call(data, k);
+
+  if (!partial || has('name')) {
+    if (typeof data.name !== 'string' || !validateLength(data.name, 1, 200)) {
+      return { valid: false, error: 'name is required (1–200 characters)' };
+    }
+  }
+  if (has('submissionTarget') && data.submissionTarget !== null && data.submissionTarget !== '') {
+    const n = Number(data.submissionTarget);
+    if (!Number.isInteger(n) || n < 0 || n > 100000) {
+      return { valid: false, error: 'submissionTarget must be a non-negative integer (max 100000)' };
+    }
+  }
+  if (has('targetProfiles') && data.targetProfiles !== null) {
+    if (!Array.isArray(data.targetProfiles)) {
+      return { valid: false, error: 'targetProfiles must be an array of strings' };
+    }
+    if (data.targetProfiles.length > 20) {
+      return { valid: false, error: 'targetProfiles allows at most 20 entries' };
+    }
+    for (const p of data.targetProfiles) {
+      if (typeof p !== 'string' || !validateLength(p, 1, 60)) {
+        return { valid: false, error: 'targetProfiles entries must be strings 1–60 chars' };
+      }
+    }
+  }
+  for (const key of ['applicationInstructions', 'followUpNotes']) {
+    if (has(key) && data[key] !== null && data[key] !== '') {
+      if (typeof data[key] !== 'string' || data[key].length > 4000) {
+        return { valid: false, error: `${key} must be a string (max 4000 characters)` };
+      }
+    }
+  }
+  if (has('applyUrl') && data.applyUrl !== null && data.applyUrl !== '') {
+    if (typeof data.applyUrl !== 'string' || data.applyUrl.length > 500) {
+      return { valid: false, error: 'applyUrl must be a string (max 500 characters)' };
+    }
+    if (!/^https?:\/\//i.test(data.applyUrl)) {
+      return { valid: false, error: 'applyUrl must start with http:// or https://' };
+    }
+  }
+  return { valid: true };
+};

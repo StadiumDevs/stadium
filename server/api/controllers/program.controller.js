@@ -1,9 +1,17 @@
 import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
+import programSponsorService from '../services/program-sponsor.service.js';
+import programSignupService from '../services/program-signup.service.js';
 import projectService from '../services/project.service.js';
+import notificationService from '../services/notification.service.js';
+import programAdminRepository from '../repositories/program-admin.repository.js';
+import programSignupRepository from '../repositories/program-signup.repository.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
-import { validateProgram } from '../utils/validation.js';
+import { validateProgram, validateSponsor } from '../utils/validation.js';
 import { randomUUID } from 'node:crypto';
+import logger from '../utils/logger.js';
+
+const VALID_CHAINS = ['substrate', 'ethereum', 'solana'];
 
 class ProgramController {
   async list(req, res) {
@@ -104,6 +112,16 @@ class ProgramController {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
 
+      // Prior-status lookup feeds only the notification gate below — a failure
+      // here must not break the status update or change the HTTP response.
+      let prevStatus;
+      try {
+        const existing = await programApplicationService.getById(applicationId);
+        prevStatus = existing?.status;
+      } catch (err) {
+        logger.error('Failed to read application prior status for notification gating:', err);
+      }
+
       const reviewedBy = req.user?.address || req.auth?.address || 'unknown';
       const updated = await programApplicationService.updateStatus({
         id: applicationId,
@@ -115,6 +133,20 @@ class ProgramController {
       // updateStatus uses .single() which throws if no row matched; translate
       // to 404 via the Postgres PGRST116 code we see on not-found.
       res.status(200).json({ status: 'success', data: updated });
+
+      if (prevStatus === 'submitted' && (updated.status === 'accepted' || updated.status === 'rejected')) {
+        const eventType = updated.status === 'accepted' ? 'application_accepted' : 'application_rejected';
+        try {
+          await notificationService.notifyProjectTeam(
+            updated.projectId,
+            eventType,
+            updated.id,
+            { programName: program.name, programSlug: req.params.slug },
+          );
+        } catch (err) {
+          logger.error('notifyProjectTeam failed for application status change:', err);
+        }
+      }
     } catch (error) {
       if (error?.code === 'PGRST116' || /no rows/i.test(error?.message || '')) {
         return res.status(404).json({ status: 'error', message: 'Application not found' });
@@ -271,6 +303,246 @@ class ProgramController {
       }
       console.error('❌ Error creating program application:', error);
       res.status(500).json({ status: 'error', message: 'Failed to create application' });
+    }
+  }
+
+  // --- Phase 3 (#95): per-event admins ---
+
+  async listAdmins(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const admins = await programAdminRepository.list(program.id);
+      res.status(200).json({ status: 'success', data: admins });
+    } catch (error) {
+      console.error('❌ Error listing program admins:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program admins' });
+    }
+  }
+
+  async addAdmin(req, res) {
+    try {
+      const { slug } = req.params;
+      const { wallet, walletChain } = req.body || {};
+      if (!wallet || typeof wallet !== 'string') {
+        return res.status(422).json({ status: 'error', message: 'wallet is required' });
+      }
+      if (!VALID_CHAINS.includes(walletChain)) {
+        return res.status(422).json({
+          status: 'error',
+          message: `walletChain must be one of: ${VALID_CHAINS.join(', ')}`,
+        });
+      }
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const added = await programAdminRepository.add(program.id, walletChain, wallet);
+      if (!added) {
+        return res.status(422).json({
+          status: 'error',
+          message: `Invalid ${walletChain} wallet address`,
+        });
+      }
+      res.status(201).json({ status: 'success', data: added });
+    } catch (error) {
+      console.error('❌ Error adding program admin:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to add program admin' });
+    }
+  }
+
+  async removeAdmin(req, res) {
+    try {
+      const { slug, wallet } = req.params;
+      const walletChain = req.query.chain;
+      if (!VALID_CHAINS.includes(walletChain)) {
+        return res.status(422).json({
+          status: 'error',
+          message: `chain query param must be one of: ${VALID_CHAINS.join(', ')}`,
+        });
+      }
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      await programAdminRepository.remove(program.id, walletChain, wallet);
+      res.status(204).end();
+    } catch (error) {
+      console.error('❌ Error removing program admin:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to remove program admin' });
+    }
+  }
+
+  // --- Sponsors (per-program) ---
+
+  async listSponsors(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const sponsors = await programSponsorService.listByProgramId(program.id);
+      res.status(200).json({ status: 'success', data: sponsors });
+    } catch (error) {
+      console.error('❌ Error listing program sponsors:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program sponsors' });
+    }
+  }
+
+  async createSponsor(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const { valid, error } = validateSponsor(req.body);
+      if (!valid) {
+        return res.status(422).json({ status: 'error', message: error });
+      }
+      const created = await programSponsorService.create({ ...req.body, programId: program.id });
+      res.status(201).json({ status: 'success', data: created });
+    } catch (error) {
+      console.error('❌ Error creating program sponsor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to create program sponsor' });
+    }
+  }
+
+  async updateSponsor(req, res) {
+    try {
+      const { slug, sponsorId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const existing = await programSponsorService.findById(sponsorId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Sponsor not found' });
+      }
+      const { valid, error } = validateSponsor(req.body, { partial: true });
+      if (!valid) {
+        return res.status(422).json({ status: 'error', message: error });
+      }
+      const updated = await programSponsorService.update(sponsorId, req.body);
+      res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+      console.error('❌ Error updating program sponsor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to update program sponsor' });
+    }
+  }
+
+  async deleteSponsor(req, res) {
+    try {
+      const { slug, sponsorId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const existing = await programSponsorService.findById(sponsorId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Sponsor not found' });
+      }
+      await programSponsorService.delete(sponsorId);
+      res.status(204).end();
+    } catch (error) {
+      console.error('❌ Error deleting program sponsor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to delete program sponsor' });
+    }
+  }
+
+  // --- Signups (Luma CSV imports) ---
+
+  async listSignups(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const signups = await programSignupService.listByProgramId(program.id);
+      res.status(200).json({
+        status: 'success',
+        data: signups,
+        meta: { count: signups.length },
+      });
+    } catch (error) {
+      console.error('❌ Error listing program signups:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program signups' });
+    }
+  }
+
+  async importSignups(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+
+      // Accepts the CSV as either a raw text/csv body or as { csv: "..." }
+      // inside a JSON body. The former scales further; the latter is the
+      // path the admin UI uses today because shadcn forms speak JSON.
+      let csvText = '';
+      if (typeof req.body === 'string') {
+        csvText = req.body;
+      } else if (req.body && typeof req.body.csv === 'string') {
+        csvText = req.body.csv;
+      } else {
+        return res.status(422).json({
+          status: 'error',
+          message: 'Missing CSV body. Send Content-Type text/csv or JSON {"csv":"..."}',
+        });
+      }
+      if (!csvText.trim()) {
+        return res.status(422).json({ status: 'error', message: 'CSV body is empty' });
+      }
+
+      const dryRun = req.query.dry_run === 'true' || req.query.dry_run === '1';
+
+      const summary = dryRun
+        ? await programSignupService.planImport(program.id, csvText)
+        : await programSignupService.commitImport(program.id, csvText);
+
+      // Drop the verbose `newRows` array on the wire — the preview slices and
+      // counts are enough for the admin UI to render the summary.
+      const { newRows: _omit, inserted, ...wire } = summary;
+      void _omit;
+      res.status(200).json({
+        status: 'success',
+        data: {
+          dryRun,
+          ...wire,
+          inserted: dryRun ? [] : inserted || [],
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error importing program signups:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to import program signups' });
+    }
+  }
+
+  async deleteSignup(req, res) {
+    try {
+      const { slug, signupId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      // Cross-check program scoping: a signup from program A must not be
+      // deletable via program B's slug. Symmetric with sponsors.
+      const existing = await programSignupRepository.findById(signupId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Signup not found' });
+      }
+      await programSignupService.delete(signupId);
+      res.status(204).end();
+    } catch (error) {
+      console.error('❌ Error deleting program signup:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to delete program signup' });
     }
   }
 }

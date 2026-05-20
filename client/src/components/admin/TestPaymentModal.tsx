@@ -788,12 +788,12 @@ export function TestPaymentModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-purple-500" />
-            Test Multisig Payment (Batched)
+          <DialogTitle className="font-display tracking-tight flex items-center gap-2">
+            <Users className="h-4 w-4 text-label-mid" />
+            TEST MULTISIG PAYMENT (BATCHED)
           </DialogTitle>
-          <DialogDescription>
-            Initiate a multisig transaction with batched transfers using your browser wallet
+          <DialogDescription className="text-body">
+            Initiate a multisig transaction with batched transfers using your browser wallet.
           </DialogDescription>
         </DialogHeader>
 
@@ -811,8 +811,8 @@ export function TestPaymentModal({
           )}
 
           {isTestnet() && (
-            <Alert className="border-purple-500 bg-purple-500/10">
-              <Users className="h-4 w-4 text-purple-500" />
+            <Alert className="border-hairline bg-panel-deep">
+              <Users className="h-4 w-4 text-display" />
               <AlertTitle>Multisig Transaction</AlertTitle>
               <AlertDescription>
                 This will initiate a {TEST_CONFIG.threshold}-of-{AUTHORIZED_SIGNERS.length} multisig transaction on Asset Hub Paseo testnet
@@ -842,7 +842,7 @@ export function TestPaymentModal({
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">Transaction Type:</span>
-              <Badge variant="outline" className="bg-purple-500/20 border-purple-500">
+              <Badge variant="outline" className="bg-panel-deep border-hairline">
                 <Users className="w-3 h-3 mr-1" />
                 Multisig {TEST_CONFIG.threshold}-of-{AUTHORIZED_SIGNERS.length}
               </Badge>
@@ -1048,7 +1048,7 @@ export function TestPaymentModal({
               <li>Your wallet must be one of the authorized signers</li>
               <li>Account with testnet DOT for transaction fees</li>
             </ul>
-            <p className="mt-2 text-purple-600 font-medium">
+            <p className="mt-2 text-display font-medium">
               💡 Multisig Flow:
             </p>
             <ul className="list-disc list-inside space-y-1 ml-2">
@@ -1062,78 +1062,74 @@ export function TestPaymentModal({
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2">
           <div className="flex gap-2">
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={handleClose}
               disabled={loading || loadingApproval}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              Close
-            </Button>
+              CLOSE
+            </button>
             {(loading || loadingApproval) && (
-              <Button
+              <button
+                type="button"
                 onClick={handleCancelSignature}
-                variant="outline"
-                className="border-red-500 text-red-500 hover:bg-red-50"
+                className="font-mono text-[10px] tracking-[0.14em] border border-destructive text-destructive hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
               >
-                <X className="w-4 h-4 mr-2" />
-                Cancel Signature
-              </Button>
+                <X className="w-3 h-3" />
+                CANCEL SIGNATURE
+              </button>
             )}
           </div>
           <div className="flex gap-2 flex-1 justify-end">
-            <Button
+            <button
+              type="button"
               onClick={handleTestSend}
               disabled={loading || loadingApproval || !isTestnet() || !!multisigInfo}
-              className="bg-purple-500 hover:bg-purple-600 text-white"
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
             >
               {loading ? (
-                <>
-                  <span className="animate-pulse">Initiating...</span>
-                </>
+                <span className="animate-pulse">INITIATING…</span>
               ) : (
                 <>
-                  <Users className="w-4 h-4 mr-2" />
-                  1. Initiate Multisig
+                  <Users className="w-3 h-3" />
+                  1. INITIATE MULTISIG
                 </>
               )}
-            </Button>
+            </button>
 
             {multisigInfo && (
               <>
-                <Button
+                <button
+                  type="button"
                   onClick={handleSecondApproval}
                   disabled={loading || loadingApproval || !isTestnet()}
-                  className="bg-green-500 hover:bg-green-600 text-white"
+                  className="font-mono text-[10px] tracking-[0.14em] border border-led bg-led text-shell hover:opacity-90 disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
                 >
                   {loadingApproval ? (
-                    <>
-                      <span className="animate-pulse">Approving...</span>
-                    </>
+                    <span className="animate-pulse">APPROVING…</span>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      2. Approve & Execute
+                      <CheckCircle2 className="w-3 h-3" />
+                      2. APPROVE & EXECUTE
                     </>
                   )}
-                </Button>
-                <Button
+                </button>
+                <button
+                  type="button"
                   onClick={handleCancelMultisig}
                   disabled={loading || loadingApproval || !isTestnet()}
-                  variant="destructive"
-                  className="bg-red-500 hover:bg-red-600"
+                  className="font-mono text-[10px] tracking-[0.14em] border border-destructive bg-destructive text-shell hover:opacity-90 disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
                 >
                   {loadingApproval ? (
-                    <>
-                      <span className="animate-pulse">Cancelling...</span>
-                    </>
+                    <span className="animate-pulse">CANCELLING…</span>
                   ) : (
                     <>
-                      <X className="w-4 h-4 mr-2" />
-                      Cancel Multisig
+                      <X className="w-3 h-3" />
+                      CANCEL MULTISIG
                     </>
                   )}
-                </Button>
+                </button>
               </>
             )}
           </div>

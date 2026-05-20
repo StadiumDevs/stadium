@@ -64,6 +64,16 @@ class ProgramApplicationRepository {
     return transform(data);
   }
 
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('program_applications')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return transform(data);
+  }
+
   /** Phase 1: used by admin review flow (#47, Block F). */
   async updateStatus({ id, status, reviewedBy, reviewNotes }) {
     const { data, error } = await supabase

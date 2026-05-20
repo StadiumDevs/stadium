@@ -28,9 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { web3Enable, web3Accounts, web3FromSource } from '@polkadot/extension-dapp';
-import { SiwsMessage } from '@talismn/siws';
-import { generateSiwsStatement } from '@/lib/siwsUtils';
+import { useWalletAuth } from '@/lib/auth/useWalletAuth';
 import { Navigation } from "@/components/Navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getCurrentProgramWeek } from "@/lib/projectUtils";
@@ -47,6 +45,7 @@ import { ProjectUpdatesTab } from "@/components/project/ProjectUpdatesTab";
 import { FundingSignalBadge } from "@/components/project/FundingSignalBadge";
 import { EditFundingSignalModal } from "@/components/project/EditFundingSignalModal";
 import { ProjectProgramsSection } from "@/components/project/ProjectProgramsSection";
+import { NotificationsCard } from "@/components/project/NotificationsCard";
 import type { ApiFundingSignal } from "@/lib/api";
 import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
@@ -85,10 +84,11 @@ function SummaryWithBullets({ text }: { text: string }) {
 const ProjectDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  type ApiTeamMember = { 
-    name: string; 
-    customUrl?: string; 
+  type ApiTeamMember = {
+    name: string;
+    customUrl?: string;
     walletAddress?: string;
+    walletChain?: 'substrate' | 'ethereum' | 'solana';
     role?: string;
     twitter?: string;
     github?: string;
@@ -111,8 +111,10 @@ const ProjectDetailsPage = () => {
     milestones?: ApiMilestone[];
     bountyPrize?: ApiBounty[];
     donationAddress?: string;
+    donationChain?: 'substrate' | 'ethereum' | 'solana';
     winner?: string; // legacy
     hackathon?: { id: string; name: string; endDate: string; eventStartedAt?: string };
+    program?: { id: string; name: string; slug: string } | null;
     eventStartedAt?: string; // legacy - use hackathon.eventStartedAt instead
     m2Status?: 'building' | 'under_review' | 'completed';
     finalSubmission?: {
@@ -148,11 +150,10 @@ const ProjectDetailsPage = () => {
   const [notFound, setNotFound] = useState(false);
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const auth = useWalletAuth();
+  const connectedAddress = auth.account?.address ?? null;
   const [editMode, setEditMode] = useState<false | 'updateAddress' | 'edit'>(false);
   const [editFields, setEditFields] = useState<Partial<ApiProject>>({});
-  const [registerAddress, setRegisterAddress] = useState('');
-  const [registerSig, setRegisterSig] = useState('');
   const ALLOWED_CATEGORIES = [
     "Gaming",
     "DeFi",
@@ -370,29 +371,11 @@ const ProjectDetailsPage = () => {
   const saveEdit = async () => {
     try {
       if (project && Array.isArray(editFields.categories)) {
-        // Sign SIWS and persist categories via PATCH (protected route)
-        await web3Enable('Hackathonia');
-        const accounts = await web3Accounts();
-        const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-        if (!account) throw new Error('No wallet found');
-        const siws = new SiwsMessage({
-          domain: window.location.hostname,
-          uri: window.location.origin,
-          address: account.address,
-          nonce: Math.random().toString(36).slice(2),
-          statement: generateSiwsStatement({
-            action: 'update-project',
-            projectTitle: project.projectName,
-            projectId: project.id
-          }),
+        // Sign in and persist categories via PATCH (protected route)
+        const authHeader = await auth.signAction('update-project', {
+          projectTitle: project.projectName,
+          projectId: project.id,
         });
-        const injector = await web3FromSource(account.meta.source);
-        const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-        const messageStr = typeof signed.message === 'string' && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-        const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
-
         await api.updateProjectCategories(project.id, editFields.categories as string[], authHeader);
       }
 
@@ -408,44 +391,17 @@ const ProjectDetailsPage = () => {
 
   // Wallet connect logic
   const connectWallet = async () => {
-    await web3Enable('Hackathonia');
-    const accounts = await web3Accounts();
-    if (accounts.length > 0) {
-      // Prefer admin account if available, otherwise use first account
-      const adminAccount = accounts.find(a => checkIsAdmin(a.address));
-      setConnectedAddress(adminAccount ? adminAccount.address : accounts[0].address);
-    } else {
-      toast({ title: 'No wallet found', description: 'Please install Polkadot{.js} extension or Talisman.' });
-    }
-  };
-
-  const handleRegisterTeamAddress = async () => {
-    if (!registerAddress) {
-      toast({ title: 'Enter an address to register.' });
-      return;
-    }
     try {
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: registerAddress,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'register-address'
-        })
-      });
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === registerAddress);
-      if (!account) {
-        toast({ title: 'Address not found in wallet.' });
+      const found = await auth.connect();
+      if (!found.length) {
+        toast({ title: 'No wallet found', description: 'Please install a wallet extension for the selected chain.' });
         return;
       }
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector);
-      setRegisterSig(signed.signature);
-      toast({ title: 'Address registered (mock)', description: `Signature: ${signed.signature.slice(0, 16)}...` });
-    } catch (err: unknown) {
-      toast({ title: 'Signature failed', description: (err as Error)?.message || String(err) });
+      // Prefer an admin account if present, otherwise use the first account.
+      const adminAccount = found.find(a => checkIsAdmin(a.address, a.chain));
+      auth.selectAccount(adminAccount || found[0]);
+    } catch (e) {
+      toast({ title: 'Connection failed', description: (e as Error)?.message || 'Could not connect wallet.' });
     }
   };
 
@@ -459,14 +415,14 @@ const ProjectDetailsPage = () => {
 
   // Check if connected wallet is a team member
   const isTeamMember = useMemo(() => {
-    if (!connectedAddress || !project?.teamMembers) return false;
-    return addressInList(connectedAddress, project.teamMembers);
-  }, [connectedAddress, project?.teamMembers]);
+    if (!auth.account || !project?.teamMembers) return false;
+    return addressInList(auth.account.address, project.teamMembers, auth.account.chain);
+  }, [auth.account, project?.teamMembers]);
 
   // Check if connected wallet is an admin (use shared constants)
   const isAdmin = useMemo(() => {
-    return checkIsAdmin(connectedAddress);
-  }, [connectedAddress]);
+    return checkIsAdmin(auth.account?.address, auth.account?.chain);
+  }, [auth.account]);
 
   // Check if user can edit (admin or team member)
   const canEdit = isAdmin || isTeamMember;
@@ -489,29 +445,11 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-team',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('update-team', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       // Update team - convert to new API format
       await api.updateTeam(project.id, {
@@ -565,6 +503,22 @@ const ProjectDetailsPage = () => {
     liveUrl?: string;
     categories: string[];
     techStack: string[];
+    finalSubmission?: {
+      repoUrl?: string;
+      demoUrl?: string;
+      docsUrl?: string;
+      summary?: string;
+    };
+    hackathon?: {
+      id?: string;
+      name?: string;
+      endDate?: string;
+    };
+    bountyPrize?: Array<{
+      name: string;
+      amount: number;
+      hackathonWonAtId: string;
+    }>;
   }) => {
     if (!project || !connectedAddress) {
       toast({
@@ -576,33 +530,15 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-project',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('update-project', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       // Update project details
       await api.updateProjectDetails(project.id, data, authHeader);
-      
+
       // Update local project state
       setProject((prev: ApiProject | null) => (prev ? {
         ...prev,
@@ -614,6 +550,20 @@ const ProjectDetailsPage = () => {
         liveUrl: data.liveUrl,
         categories: data.categories,
         techStack: data.techStack,
+        ...(data.finalSubmission !== undefined ? { finalSubmission: data.finalSubmission } : {}),
+        ...(data.hackathon !== undefined
+          ? {
+              hackathon: {
+                ...prev.hackathon,
+                // drop undefined sub-fields so a partial edit doesn't blank
+                // already-set hackathon values in local state before reload
+                ...Object.fromEntries(
+                  Object.entries(data.hackathon).filter(([, v]) => v !== undefined),
+                ),
+              },
+            }
+          : {}),
+        ...(data.bountyPrize !== undefined ? { bountyPrize: data.bountyPrize } : {}),
       } as ApiProject : prev));
       
       toast({
@@ -632,17 +582,19 @@ const ProjectDetailsPage = () => {
   };
 
   // Handle inline team & payment save
-  const handleTeamPaymentSave = async (data: { 
+  const handleTeamPaymentSave = async (data: {
     teamMembers: Array<{
       name: string;
       walletAddress?: string;
+      walletChain?: 'substrate' | 'ethereum' | 'solana';
       role?: string;
       twitter?: string;
       github?: string;
       linkedin?: string;
       customUrl?: string;
-    }>; 
-    donationAddress: string 
+    }>;
+    donationAddress: string;
+    donationChain?: 'substrate' | 'ethereum' | 'solana';
   }) => {
     if (!project || !connectedAddress) {
       toast({
@@ -654,35 +606,18 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'update-team',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('update-team', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       // Update team and payout address via API
       await api.updateTeam(project.id, {
         teamMembers: data.teamMembers.map(m => ({
           name: m.name,
           walletAddress: m.walletAddress || undefined,
+          walletChain: m.walletChain || 'substrate',
           role: m.role || undefined,
           twitter: m.twitter || undefined,
           github: m.github || undefined,
@@ -690,14 +625,16 @@ const ProjectDetailsPage = () => {
           customUrl: m.customUrl || undefined,
         })),
         donationAddress: data.donationAddress,
+        donationChain: data.donationChain || 'substrate',
       }, authHeader);
-      
+
       // Update local project state
       setProject((prev: ApiProject | null) => (prev ? {
         ...prev,
         teamMembers: data.teamMembers.map(m => ({
           name: m.name.trim(),
           walletAddress: m.walletAddress?.trim() || undefined,
+          walletChain: m.walletChain || 'substrate',
           role: m.role?.trim() || undefined,
           twitter: m.twitter?.trim() || undefined,
           github: m.github?.trim() || undefined,
@@ -705,6 +642,7 @@ const ProjectDetailsPage = () => {
           customUrl: m.customUrl?.trim() || undefined,
         })),
         donationAddress: data.donationAddress.trim(),
+        donationChain: data.donationChain || 'substrate',
       } as ApiProject : prev));
       
       // Toast is shown by TeamPaymentSection
@@ -731,29 +669,11 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find(a => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet found");
-      
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'submit-deliverable',
-          projectTitle: project.projectName,
-          projectId: project.id
-        }),
+      // Sign in with the connected wallet
+      const authHeader = await auth.signAction('submit-deliverable', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr = typeof signed.message === 'string' && signed.message
-        ? signed.message
-        : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }));
 
       await api.submitForReview(project.id, {
         repoUrl: ensureSubmissionUrl(data.repoUrl),
@@ -800,32 +720,10 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error('No wallet found');
-
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'submit-deliverable',
-          projectTitle: project.projectName,
-          projectId: project.id,
-        }),
+      const authHeader = await auth.signAction('submit-deliverable', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      if (!injector?.signer?.signRaw) throw new Error('Wallet does not support signing');
-      const signed = await siws.sign(injector) as unknown as { signature: string; message?: string };
-      const messageStr =
-        typeof signed.message === 'string' && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(
-        JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address })
-      );
 
       await api.submitForReview(
         project.id,
@@ -860,33 +758,21 @@ const ProjectDetailsPage = () => {
     setFormError("");
     setFormLoading(true);
     try {
-      // Connect wallet and sign with SIWS
-      await web3Enable('Hackathonia');
-      const accounts = await web3Accounts();
-      const account = accounts[0];
-      if (!account) throw new Error("No wallet found");
-      // Require signer to be a team member or admin (server also enforces via SIWS)
+      // Require a connected wallet that is a team member or admin
+      // (the server also enforces this when the signed action is sent).
+      if (!auth.account) throw new Error("No wallet found");
       const isTeamMemberForSubmit = Array.isArray(project.teamMembers) &&
-        addressInList(account.address, project.teamMembers);
-      const isAdminForSubmit = checkIsAdmin(account.address);
+        addressInList(auth.account.address, project.teamMembers, auth.account.chain);
+      const isAdminForSubmit = checkIsAdmin(auth.account.address, auth.account.chain);
       if (!isTeamMemberForSubmit && !isAdminForSubmit) {
         setFormError("You must sign in with a team member or admin wallet to submit deliverables.");
         setFormLoading(false);
         return;
       }
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: 'submit-deliverable',
-          projectTitle: project.projectName,
-          projectId: project.id
-        })
+      await auth.signAction('submit-deliverable', {
+        projectTitle: project.projectName,
+        projectId: project.id,
       });
-      const injector = await web3FromSource(account.meta.source);
-      await siws.sign(injector);
       // Mock API call to save milestone
       const newMilestone = `${milestoneName}: ${milestoneDesc}\n${deliverables.map((d, i) => `- ${d}`).join("\n")}`;
       setProject((prev: ApiProject | null) => (
@@ -905,11 +791,12 @@ const ProjectDetailsPage = () => {
 
   if (loading) {
     return (
-      <div className="container py-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-lg">Loading project details...</span>
+      <div className="min-h-screen scanlines">
+        <Navigation />
+        <div className="container py-8 flex items-center justify-center min-h-[400px]">
+          <div className="panel p-8 inline-flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-label-mid" />
+            <span className="label-hw text-display">·LOADING PROJECT</span>
           </div>
         </div>
       </div>
@@ -918,22 +805,25 @@ const ProjectDetailsPage = () => {
 
   if (notFound || !project) {
     return (
-      <div className="container py-8">
-        <Card className="text-center py-12">
-          <CardContent>
-            <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h1 className="font-heading text-2xl font-bold mb-2">Project Not Found</h1>
-            <p className="text-muted-foreground mb-4">
+      <div className="min-h-screen scanlines">
+        <Navigation />
+        <div className="container py-8 flex items-center justify-center min-h-[400px]">
+          <div className="panel p-8 max-w-md w-full text-center">
+            <div className="label-hw-dim mb-3">·SIGNAL LOST</div>
+            <h1 className="font-display text-5xl uppercase tracking-tight text-display mb-3">
+              Not Found
+            </h1>
+            <p className="text-body mb-4">
               The project you're looking for doesn't exist or has been removed.
             </p>
-            <Button asChild>
-              <Link to="/" className="flex items-center space-x-2">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Go Back Home</span>
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+            <Link
+              to="/"
+              className="inline-block font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+            >
+              ◂ BACK TO DIRECTORY
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -946,123 +836,131 @@ const ProjectDetailsPage = () => {
   // 6. In the lower card, right below the timeline, render the donationAddress and a small 'Update Team Address' button
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen scanlines">
       {/* Navigation Header */}
       <Navigation />
       {/* Main Content */}
-      <main className="flex-1 pt-16">
+      <main className="flex-1">
         <div className="container py-8 px-4 sm:px-6">
           {/* Back Button */}
           <div className="mb-6">
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
+              type="button"
               onClick={() => navigate('/m2-program')}
-              className="text-muted-foreground hover:text-foreground"
+              className="label-hw-dim hover:text-display transition-colors duration-150 inline-flex items-center gap-1"
             >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-              Back to Program Overview
-            </Button>
+              ◂ BACK TO PROGRAM OVERVIEW
+            </button>
           </div>
           
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Header Section - Always Visible */}
+            {/* Header Section — rack chrome */}
             <div className="space-y-4">
-              {/* Status Badges Row */}
-              <div className="flex flex-wrap gap-2">
+              <div className="label-hw-dim">·UNIT / {project.id?.toUpperCase()}</div>
+
+              <div className="flex flex-wrap items-center gap-2">
                 {project.m2Status === 'completed' && (
-                  <Badge className="bg-green-500 text-white">
-                    🎓 M2 Graduate
-                  </Badge>
+                  <span className="bg-display text-shell px-2 py-[2px] font-mono text-[10px] font-bold tracking-[0.12em]">
+                    M2 GRADUATE
+                  </span>
                 )}
                 {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0)) && (
-                  <Badge className="bg-yellow-500 text-black">
-                    🏆 Winner
-                  </Badge>
+                  <span className="border border-display text-display px-2 py-[1px] font-mono text-[10px] font-bold tracking-[0.12em]">
+                    WINNER
+                  </span>
                 )}
                 {project.categories && project.categories.length > 0 && (
-                  <Badge variant="outline" className="bg-primary/10 border-primary">
-                    {project.categories[0]}
-                  </Badge>
+                  <span className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.14em]">
+                    {project.categories[0].toUpperCase()}
+                  </span>
                 )}
               </div>
-              
-              {/* Project Title */}
-              <h1 className="font-heading text-3xl sm:text-4xl font-bold">{project.projectName}</h1>
-              
-              {/* Meta Line */}
-              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span>By {Array.isArray(project.teamMembers) && project.teamMembers.length > 0 
-                  ? project.teamMembers.map((m: ApiTeamMember) => m?.name).filter(Boolean).join(', ') 
-                  : (project.teamLead || 'Unknown')}</span>
+
+              <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95]">
+                {project.projectName}
+              </h1>
+
+              <div className="label-hw-dim flex flex-wrap items-center gap-3">
+                <span>
+                  BY {(Array.isArray(project.teamMembers) && project.teamMembers.length > 0
+                    ? project.teamMembers.map((m: ApiTeamMember) => m?.name).filter(Boolean).join(', ')
+                    : (project.teamLead || 'Unknown')).toUpperCase()}
+                </span>
                 <span>·</span>
                 <span>
-                  {project.hackathon?.eventStartedAt === "funkhaus-2024" 
-                    ? "Symmetry 2024" 
-                    : project.hackathon?.eventStartedAt === "synergy-hack-2024" 
-                    ? "Synergy 2025" 
-                    : project.hackathon?.name || "Hackathon"}
+                  {(project.program?.name
+                    ?? (project.hackathon?.eventStartedAt === "funkhaus-2024"
+                      ? "Symmetry 2024"
+                      : project.hackathon?.eventStartedAt === "synergy-hack-2024"
+                      ? "Synergy 2025"
+                      : project.hackathon?.name || "Event")).toUpperCase()}
                 </span>
                 {project.teamMembers && project.teamMembers.length > 0 && (
                   <>
                     <span>·</span>
-                    <span>{project.teamMembers.length} team member{project.teamMembers.length !== 1 ? 's' : ''}</span>
+                    <span>{project.teamMembers.length} TEAM MEMBER{project.teamMembers.length !== 1 ? 'S' : ''}</span>
                   </>
                 )}
               </div>
-              
-              {/* Description */}
-              <p className="text-muted-foreground">{project.description}</p>
-              
-              {/* Link Buttons */}
-              <div className="flex gap-3 flex-wrap">
+
+              <p className="text-body text-base leading-relaxed">{project.description}</p>
+
+              <div className="flex gap-2 flex-wrap">
                 {project.liveUrl && project.liveUrl !== "nan" && (
-                  <Button variant="outline" asChild>
-                    <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      <span>Live site</span>
-                    </a>
-                  </Button>
+                  <a
+                    href={project.liveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Globe className="h-3 w-3" /> LIVE SITE
+                  </a>
                 )}
                 {project.projectRepo && project.projectRepo !== "nan" && (
-                  <Button variant="outline" asChild>
-                    <a href={project.projectRepo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <Github className="h-4 w-4" />
-                      <span>Source Code</span>
-                    </a>
-                  </Button>
+                  <a
+                    href={project.projectRepo}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Github className="h-3 w-3" /> SOURCE
+                  </a>
                 )}
                 {(project.demoUrl && project.demoUrl !== "nan") && (
-                  <Button variant="outline" asChild>
-                    <a href={project.demoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      <span>Live Demo</span>
-                    </a>
-                  </Button>
+                  <a
+                    href={project.demoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Globe className="h-3 w-3" /> DEMO
+                  </a>
                 )}
                 {project.slidesUrl && project.slidesUrl !== "nan" && (
-                  <Button variant="outline" asChild>
-                    <a href={project.slidesUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      <span>Slides</span>
-                    </a>
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => setShowShareModal(true)}
-                >
-                  <Share2 className="w-4 h-4 mr-2" aria-hidden="true" />
-                  Share
-                </Button>
-                {canEdit && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditProjectDetailsOpen(true)}
+                  <a
+                    href={project.slidesUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
                   >
-                    <Edit className="w-4 h-4 mr-2" aria-hidden="true" />
-                    Edit Details
-                  </Button>
+                    <FileText className="h-3 w-3" /> SLIDES
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowShareModal(true)}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  <Share2 className="h-3 w-3" /> SHARE
+                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditProjectDetailsOpen(true)}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Edit className="h-3 w-3" /> EDIT DETAILS
+                  </button>
                 )}
               </div>
             </div>
@@ -1094,6 +992,11 @@ const ProjectDetailsPage = () => {
                       </Button>
                     )}
                   </div>
+                )}
+
+                {/* Notifications card — Phase 2 revamp (#71) */}
+                {(isTeamMember || isAdmin) && connectedAddress && (
+                  <NotificationsCard connectedAddress={connectedAddress} />
                 )}
 
                 {/* Programs section — Phase 1 revamp (#45) */}
@@ -1319,12 +1222,15 @@ const ProjectDetailsPage = () => {
                 <WalletConnectionBanner
                   onConnect={connectWallet}
                   isConnected={!!connectedAddress}
+                  chain={auth.chain}
+                  onChainChange={auth.setChain}
                 />
 
                 {/* Team & Payment Section */}
                 <TeamPaymentSection
                   teamMembers={project.teamMembers || []}
                   donationAddress={project.donationAddress}
+                  donationChain={project.donationChain}
                   totalPaid={project.totalPaid}
                   m2Status={project.m2Status}
                   isTeamMember={isTeamMember}
@@ -1487,6 +1393,9 @@ const ProjectDetailsPage = () => {
               liveUrl: project.liveUrl,
               categories: project.categories,
               techStack: Array.isArray(project.techStack) ? project.techStack : [],
+              finalSubmission: project.finalSubmission,
+              hackathon: project.hackathon,
+              bountyPrize: project.bountyPrize,
             }}
             onSave={handleProjectDetailsUpdate}
           />

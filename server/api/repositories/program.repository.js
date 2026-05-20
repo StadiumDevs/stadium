@@ -17,6 +17,7 @@ const transformProgram = (row) => {
     eventEndsAt: row.event_ends_at,
     location: row.location,
     maxApplicants: row.max_applicants,
+    eventUrl: row.event_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -37,6 +38,7 @@ const toSnakeCase = (data) => {
   if ('eventEndsAt' in data) row.event_ends_at = data.eventEndsAt ?? null;
   if ('location' in data) row.location = data.location ?? null;
   if ('maxApplicants' in data) row.max_applicants = data.maxApplicants ?? null;
+  if ('eventUrl' in data) row.event_url = data.eventUrl ?? null;
   return row;
 };
 

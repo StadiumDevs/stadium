@@ -16,6 +16,7 @@ const transformProject = (row) => {
         techStack: row.tech_stack || [],
         categories: row.categories || [],
         donationAddress: row.donation_address,
+        donationChain: row.donation_chain || 'substrate',
         projectState: row.project_state,
         bountiesProcessed: row.bounties_processed,
         hackathon: {
@@ -24,6 +25,19 @@ const transformProject = (row) => {
             endDate: row.hackathon_end_date,
             eventStartedAt: row.hackathon_event_started_at
         },
+        // Phase 1 multi-event reframe (#93): the canonical event/track row.
+        // `hackathon` above is the legacy flat-column view, kept for callers
+        // not yet migrated; `program` is the joined `programs` row.
+        program: row.program ? {
+            id: row.program.id,
+            name: row.program.name,
+            slug: row.program.slug,
+            programType: row.program.program_type,
+            status: row.program.status,
+            eventStartsAt: row.program.event_starts_at,
+            eventEndsAt: row.program.event_ends_at,
+            location: row.program.location
+        } : null,
         m2Status: row.m2_status,
         m2Agreement: row.m2_status ? {
             mentorName: row.m2_mentor_name,
@@ -33,6 +47,12 @@ const transformProject = (row) => {
             successCriteria: row.m2_success_criteria,
             lastUpdatedBy: row.m2_last_updated_by,
             lastUpdatedDate: row.m2_last_updated_date
+        } : undefined,
+        // Planned M2 program grant (issue #26) — only meaningful for M2 projects.
+        m2Entitlement: row.m2_status ? {
+            milestone1Amount: row.m2_milestone_1_amount,
+            milestone2Amount: row.m2_milestone_2_amount,
+            currency: row.m2_currency
         } : undefined,
         finalSubmission: row.final_submission_repo_url ? {
             repoUrl: row.final_submission_repo_url,
@@ -54,6 +74,7 @@ const transformProject = (row) => {
         teamMembers: (row.team_members || []).map(m => ({
             name: m.name,
             walletAddress: m.wallet_address,
+            walletChain: m.wallet_chain || 'substrate',
             customUrl: m.custom_url,
             role: m.role,
             twitter: m.twitter,
@@ -97,16 +118,18 @@ const toSupabaseProject = (data) => {
     if (data.techStack !== undefined) row.tech_stack = data.techStack;
     if (data.categories !== undefined) row.categories = data.categories;
     if (data.donationAddress !== undefined) row.donation_address = data.donationAddress;
+    if (data.donationChain !== undefined) row.donation_chain = data.donationChain;
     if (data.projectState !== undefined) row.project_state = data.projectState;
     if (data.bountiesProcessed !== undefined) row.bounties_processed = data.bountiesProcessed;
 
-    // Hackathon fields
+    // Hackathon fields (legacy; superseded by `program_id` — see #93).
     if (data.hackathon) {
         if (data.hackathon.id !== undefined) row.hackathon_id = data.hackathon.id;
         if (data.hackathon.name !== undefined) row.hackathon_name = data.hackathon.name;
         if (data.hackathon.endDate !== undefined) row.hackathon_end_date = data.hackathon.endDate;
         if (data.hackathon.eventStartedAt !== undefined) row.hackathon_event_started_at = data.hackathon.eventStartedAt;
     }
+    if (data.program?.id !== undefined) row.program_id = data.program.id;
 
     // M2 fields
     if (data.m2Status !== undefined) row.m2_status = data.m2Status;
@@ -118,6 +141,11 @@ const toSupabaseProject = (data) => {
         if (data.m2Agreement.successCriteria !== undefined) row.m2_success_criteria = data.m2Agreement.successCriteria;
         if (data.m2Agreement.lastUpdatedBy !== undefined) row.m2_last_updated_by = data.m2Agreement.lastUpdatedBy;
         if (data.m2Agreement.lastUpdatedDate !== undefined) row.m2_last_updated_date = data.m2Agreement.lastUpdatedDate;
+    }
+    if (data.m2Entitlement) {
+        if (data.m2Entitlement.milestone1Amount !== undefined) row.m2_milestone_1_amount = data.m2Entitlement.milestone1Amount;
+        if (data.m2Entitlement.milestone2Amount !== undefined) row.m2_milestone_2_amount = data.m2Entitlement.milestone2Amount;
+        if (data.m2Entitlement.currency !== undefined) row.m2_currency = data.m2Entitlement.currency;
     }
 
     // Final submission
@@ -159,7 +187,8 @@ class ProjectRepository {
                 team_members(*),
                 bounty_prizes(*),
                 milestones(*),
-                payments(*)
+                payments(*),
+                program:programs(*)
             `)
             .eq('id', projectId)
             .single();
@@ -176,7 +205,8 @@ class ProjectRepository {
                 team_members(*),
                 bounty_prizes(*),
                 milestones(*),
-                payments(*)
+                payments(*),
+                program:programs(*)
             `)
             .eq('donation_address', projectId)
             .single());
@@ -197,7 +227,8 @@ class ProjectRepository {
                         team_members(*),
                         bounty_prizes(*),
                         milestones(*),
-                        payments(*)
+                        payments(*),
+                        program:programs(*)
                     `)
                     .ilike('project_name', `%${searchPattern}%`)
                     .limit(1)
@@ -233,6 +264,7 @@ class ProjectRepository {
                     project_id: projectId,
                     name: m.name,
                     wallet_address: m.walletAddress,
+                    wallet_chain: m.walletChain || 'substrate',
                     custom_url: m.customUrl,
                     role: m.role,
                     twitter: m.twitter,
@@ -297,6 +329,7 @@ class ProjectRepository {
                         project_id: projectId,
                         name: m.name,
                         wallet_address: m.walletAddress,
+                        wallet_chain: m.walletChain || 'substrate',
                         custom_url: m.customUrl,
                         role: m.role,
                         twitter: m.twitter,
@@ -322,7 +355,8 @@ class ProjectRepository {
                 team_members(*),
                 bounty_prizes(*),
                 milestones(*),
-                payments(*)
+                payments(*),
+                program:programs(*)
             `, { count: 'exact' });
 
         // Apply filters
@@ -442,6 +476,7 @@ class ProjectRepository {
                         project_id: projectId,
                         name: m.name,
                         wallet_address: m.walletAddress,
+                        wallet_chain: m.walletChain || 'substrate',
                         custom_url: m.customUrl,
                         role: m.role,
                         twitter: m.twitter,
@@ -449,6 +484,25 @@ class ProjectRepository {
                         linkedin: m.linkedin
                     })));
                 if (teamError) throw teamError;
+            }
+        }
+
+        // Handle bounty prizes replacement
+        if (updateData.bountyPrize !== undefined) {
+            // Delete existing bounty prizes
+            await supabase.from('bounty_prizes').delete().eq('project_id', projectId);
+
+            // Insert new bounty prizes
+            if (updateData.bountyPrize.length > 0) {
+                const { error: bountyError } = await supabase
+                    .from('bounty_prizes')
+                    .insert(updateData.bountyPrize.map(b => ({
+                        project_id: projectId,
+                        name: b.name,
+                        amount: b.amount,
+                        hackathon_won_at_id: b.hackathonWonAtId
+                    })));
+                if (bountyError) throw bountyError;
             }
         }
 
@@ -484,13 +538,14 @@ class ProjectRepository {
      * so "the most-recently-updated project" is the default selection in the
      * Apply modal.
      */
-    async findByTeamWallet(walletAddress) {
+    async findByTeamWallet(walletAddress, chain = 'substrate') {
         if (!walletAddress) return [];
         // Two-step: first, get project ids where the wallet is a team member.
         const { data: teamRows, error: teamErr } = await supabase
             .from('team_members')
             .select('project_id')
-            .eq('wallet_address', walletAddress);
+            .eq('wallet_address', walletAddress)
+            .eq('wallet_chain', chain);
         if (teamErr) throw teamErr;
         const projectIds = [...new Set((teamRows || []).map((r) => r.project_id))];
         if (projectIds.length === 0) return [];
@@ -498,7 +553,7 @@ class ProjectRepository {
         // Second: fetch the projects with their joined relations.
         const { data, error } = await supabase
             .from('projects')
-            .select('*, team_members(*), bounty_prizes(*), milestones(*), payments(*)')
+            .select('*, team_members(*), bounty_prizes(*), milestones(*), payments(*), program:programs(*)')
             .in('id', projectIds)
             .order('updated_at', { ascending: false });
         if (error) throw error;
