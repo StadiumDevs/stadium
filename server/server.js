@@ -11,16 +11,23 @@ const app = express();
 const PORT = process.env.PORT || 2000;
 
 // CORS Configuration: allow explicit list + any Vercel deployment (*.vercel.app)
+// In non-production, also allow any http://localhost:* or http://127.0.0.1:*
+// origin so Vite's auto-port-bump (5173 → 5174, 8080 → 8081, …) doesn't break
+// preflight when the developer has another process holding the default port.
+const isProd = process.env.NODE_ENV === 'production';
 const explicitOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-    : process.env.NODE_ENV === 'production'
+    : isProd
       ? ['https://stadium.joinwebzero.com', 'https://stadium-indol.vercel.app', 'https://stadium-nu.vercel.app']
-      : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'https://stadium-indol.vercel.app', 'https://stadium-nu.vercel.app'];
+      : ['https://stadium-indol.vercel.app', 'https://stadium-nu.vercel.app'];
+
+const LOCALHOST_DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 const allowOrigin = (origin, cb) => {
     if (!origin) return cb(null, true); // same-origin or non-browser
     if (explicitOrigins.includes(origin)) return cb(null, origin);
     if (/^https:\/\/[^/]+\.vercel\.app$/.test(origin)) return cb(null, origin); // echo origin for credentials
+    if (!isProd && LOCALHOST_DEV_ORIGIN.test(origin)) return cb(null, origin);
     return cb(null, false);
 };
 
