@@ -25,6 +25,19 @@ const transformProject = (row) => {
             endDate: row.hackathon_end_date,
             eventStartedAt: row.hackathon_event_started_at
         },
+        // Phase 1 multi-event reframe (#93): the canonical event/track row.
+        // `hackathon` above is the legacy flat-column view, kept for callers
+        // not yet migrated; `program` is the joined `programs` row.
+        program: row.program ? {
+            id: row.program.id,
+            name: row.program.name,
+            slug: row.program.slug,
+            programType: row.program.program_type,
+            status: row.program.status,
+            eventStartsAt: row.program.event_starts_at,
+            eventEndsAt: row.program.event_ends_at,
+            location: row.program.location
+        } : null,
         m2Status: row.m2_status,
         m2Agreement: row.m2_status ? {
             mentorName: row.m2_mentor_name,
@@ -109,13 +122,14 @@ const toSupabaseProject = (data) => {
     if (data.projectState !== undefined) row.project_state = data.projectState;
     if (data.bountiesProcessed !== undefined) row.bounties_processed = data.bountiesProcessed;
 
-    // Hackathon fields
+    // Hackathon fields (legacy; superseded by `program_id` — see #93).
     if (data.hackathon) {
         if (data.hackathon.id !== undefined) row.hackathon_id = data.hackathon.id;
         if (data.hackathon.name !== undefined) row.hackathon_name = data.hackathon.name;
         if (data.hackathon.endDate !== undefined) row.hackathon_end_date = data.hackathon.endDate;
         if (data.hackathon.eventStartedAt !== undefined) row.hackathon_event_started_at = data.hackathon.eventStartedAt;
     }
+    if (data.program?.id !== undefined) row.program_id = data.program.id;
 
     // M2 fields
     if (data.m2Status !== undefined) row.m2_status = data.m2Status;
@@ -173,7 +187,8 @@ class ProjectRepository {
                 team_members(*),
                 bounty_prizes(*),
                 milestones(*),
-                payments(*)
+                payments(*),
+                program:programs(*)
             `)
             .eq('id', projectId)
             .single();
@@ -190,7 +205,8 @@ class ProjectRepository {
                 team_members(*),
                 bounty_prizes(*),
                 milestones(*),
-                payments(*)
+                payments(*),
+                program:programs(*)
             `)
             .eq('donation_address', projectId)
             .single());
@@ -211,7 +227,8 @@ class ProjectRepository {
                         team_members(*),
                         bounty_prizes(*),
                         milestones(*),
-                        payments(*)
+                        payments(*),
+                        program:programs(*)
                     `)
                     .ilike('project_name', `%${searchPattern}%`)
                     .limit(1)
@@ -338,7 +355,8 @@ class ProjectRepository {
                 team_members(*),
                 bounty_prizes(*),
                 milestones(*),
-                payments(*)
+                payments(*),
+                program:programs(*)
             `, { count: 'exact' });
 
         // Apply filters
@@ -535,7 +553,7 @@ class ProjectRepository {
         // Second: fetch the projects with their joined relations.
         const { data, error } = await supabase
             .from('projects')
-            .select('*, team_members(*), bounty_prizes(*), milestones(*), payments(*)')
+            .select('*, team_members(*), bounty_prizes(*), milestones(*), payments(*), program:programs(*)')
             .in('id', projectIds)
             .order('updated_at', { ascending: false });
         if (error) throw error;
