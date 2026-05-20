@@ -1,8 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, ExternalLink, Loader2 } from "lucide-react";
 import { web3Enable, web3Accounts, web3FromSource } from "@polkadot/extension-dapp";
 import { SiwsMessage } from "@talismn/siws";
@@ -10,15 +7,17 @@ import { generateSiwsStatement } from "@/lib/siwsUtils";
 import { api, type ApiProgramApplication } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
-const statusVariant = (status: ApiProgramApplication["status"]) => {
+const statusBadge = (status: ApiProgramApplication["status"]) => {
+  const base =
+    "inline-flex items-center px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase";
   switch (status) {
     case "accepted":
-      return "default" as const;
+      return `${base} border border-display bg-display text-shell`;
     case "rejected":
     case "withdrawn":
-      return "outline" as const;
+      return `${base} border border-hairline text-label-mid`;
     default:
-      return "secondary" as const;
+      return `${base} border border-hairline text-display bg-panel-deep`;
   }
 };
 
@@ -93,74 +92,69 @@ export function ApplicationCard({
       : null;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
+    <div className="panel p-4">
+      <div className="flex flex-row items-start justify-between gap-3 pb-3 border-b border-hairline-subtle">
         <div className="min-w-0">
           <Link
             to={`/m2-program/${application.projectId}`}
-            className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-sm text-display hover:underline break-all"
           >
             {application.projectId}
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            <ExternalLink className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
           </Link>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Submitted by {truncateAddress(application.submittedBy)} ·{" "}
-            {new Date(application.submittedAt).toLocaleDateString()}
+          <p className="mt-1 label-hw-dim">
+            SUBMITTED BY {truncateAddress(application.submittedBy).toUpperCase()} ·{" "}
+            {new Date(application.submittedAt).toLocaleDateString().toUpperCase()}
           </p>
         </div>
-        <Badge variant={statusVariant(application.status)}>{application.status}</Badge>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        <span className={statusBadge(application.status)}>{application.status}</span>
+      </div>
+      <div className="space-y-3 pt-3">
         {focus && (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Feedback focus
-            </p>
-            <p className="mt-1 whitespace-pre-line text-sm">{focus}</p>
+            <p className="label-hw-dim">·FEEDBACK FOCUS</p>
+            <p className="mt-1 whitespace-pre-line text-sm text-body">{focus}</p>
           </div>
         )}
         {application.reviewNotes && (
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Review notes
-            </p>
-            <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
+            <p className="label-hw-dim">·REVIEW NOTES</p>
+            <p className="mt-1 whitespace-pre-line text-sm text-body">
               {application.reviewNotes}
             </p>
           </div>
         )}
         {application.status === "submitted" && (
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              size="sm"
+            <button
+              type="button"
               onClick={() => doUpdate("accepted")}
               disabled={working !== null}
-              className="gap-2"
+              className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1.5"
             >
               {working === "accept" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
               ) : (
-                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
               )}
-              Accept
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
+              ACCEPT
+            </button>
+            <button
+              type="button"
               onClick={() => doUpdate("rejected")}
               disabled={working !== null}
-              className="gap-2"
+              className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
               {working === "reject" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
               ) : (
-                <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                <XCircle className="h-3 w-3" aria-hidden="true" />
               )}
-              Reject
-            </Button>
+              REJECT
+            </button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

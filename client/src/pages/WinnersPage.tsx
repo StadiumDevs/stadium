@@ -1,17 +1,16 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ChevronLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Navigation } from "@/components/Navigation";
-import { ProjectCard } from "@/components/ProjectCard";
+import { UnitCard } from "@/components/unit-card";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
-// Lazy load ProjectDetailModal
-const ProjectDetailModal = lazy(() => import("@/components/ProjectDetailModal").then(module => ({ default: module.ProjectDetailModal })));
+const UnitDetailModal = lazy(() =>
+  import("@/components/unit-detail-modal").then((m) => ({ default: m.UnitDetailModal })),
+);
 
 type ApiProject = {
   id: string;
@@ -20,54 +19,44 @@ type ApiProject = {
   teamMembers?: { name: string }[];
   projectRepo?: string;
   demoUrl?: string;
-  slidesUrl?: string;
-  donationAddress?: string;
+  liveUrl?: string;
   bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
-  techStack?: string[];
   categories?: string[];
+  m2Status?: "building" | "under_review" | "completed";
   hackathon?: { id: string; name: string; endDate: string };
 };
 
-type ProjectCardData = {
+type Unit = {
   id: string;
+  unitNumber: string;
   title: string;
   author: string;
   description: string;
   track: string;
   isWinner: boolean;
+  isM2: boolean;
+  prize?: string;
   demoUrl?: string;
   githubUrl?: string;
   projectUrl?: string;
-  liveUrl?: string;
-  longDescription?: string;
 };
 
 const WinnersPage = () => {
   const { hackathon } = useParams<{ hackathon: string }>();
-  const [winners, setWinners] = useState<ProjectCardData[]>([]);
+  const [winners, setWinners] = useState<Unit[]>([]);
   const [hackathonName, setHackathonName] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<ProjectCardData | null>(null);
+  const [selected, setSelected] = useState<Unit | null>(null);
   const { toast } = useToast();
 
-  const handleProjectClick = useCallback((project: ProjectCardData) => {
-    setSelectedProject(project);
-  }, []);
-
-  const handleCloseModal = useCallback(() => {
-    setSelectedProject(null);
-  }, []);
-
   useEffect(() => {
-    const loadWinners = async () => {
+    const load = async () => {
       if (!hackathon) {
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
-        // Fetch winners for the specific hackathon
         const response = await api.getProjects({
           hackathonId: hackathon,
           winnersOnly: true,
@@ -75,42 +64,37 @@ const WinnersPage = () => {
           sortOrder: "desc",
           limit: 1000,
         });
-
         const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
-        
-        // Get hackathon name from first project (if available)
-        if (apiProjects.length > 0 && apiProjects[0].hackathon?.name) {
+
+        if (apiProjects[0]?.hackathon?.name) {
           setHackathonName(apiProjects[0].hackathon.name);
         } else {
-          // Fallback: format the hackathon ID to a readable name
           const formatted = hackathon
             .split("-")
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
             .join(" ");
           setHackathonName(formatted);
         }
 
-        // Convert API projects to ProjectCard format
-        const converted: ProjectCardData[] = apiProjects.map((p) => {
-          const track = p.bountyPrize?.[0]?.name || 
-                       (p.categories?.[0] || "Winner");
-          
-          return {
-            id: p.id,
-            title: p.projectName,
-            author: p.teamMembers?.[0]?.name || "",
-            description: p.description,
-            track: track,
-            isWinner: true, // All are winners on this page
-            demoUrl: p.demoUrl,
-            githubUrl: p.projectRepo,
-            projectUrl: p.id ? `/m2-program/${p.id}` : undefined,
-            liveUrl: p.liveUrl,
-            longDescription: p.description,
-          };
-        });
-
-        setWinners(converted);
+        setWinners(
+          apiProjects.map((p, i): Unit => {
+            const prizeAmount = p.bountyPrize?.[0]?.amount;
+            return {
+              id: p.id,
+              unitNumber: String(i + 1).padStart(3, "0"),
+              title: p.projectName,
+              author: p.teamMembers?.[0]?.name || "Unknown",
+              description: p.description,
+              track: p.bountyPrize?.[0]?.name || p.categories?.[0] || "Winner",
+              isWinner: true,
+              isM2: p.m2Status === "completed",
+              prize: prizeAmount ? `$${prizeAmount.toLocaleString()}` : undefined,
+              demoUrl: p.demoUrl,
+              githubUrl: p.projectRepo,
+              projectUrl: p.id ? `/m2-program/${p.id}` : undefined,
+            };
+          }),
+        );
       } catch (error) {
         const err = error as Error;
         toast({
@@ -122,106 +106,76 @@ const WinnersPage = () => {
         setLoading(false);
       }
     };
-
-    loadWinners();
+    load();
   }, [hackathon, toast]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen">
-        <Navigation />
-        <div className="container mx-auto px-4 pt-24 pb-16">
-          <div className="mb-12">
-            <div className="h-10 bg-muted animate-pulse rounded-md w-64 mb-2" />
-            <div className="h-6 bg-muted animate-pulse rounded-md w-96" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, idx) => (
-              <ProjectCardSkeleton key={idx} />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleClose = useCallback(() => setSelected(null), []);
 
-  // Format hackathon name for display (remove "Blockspace" if present, keep event name)
-  const displayHackathonName = hackathonName.replace(/^Blockspace\s+/i, "");
+  // Drop a "Blockspace" prefix if present — fits the rack-label aesthetic.
+  const displayName = hackathonName.replace(/^Blockspace\s+/i, "");
 
   return (
-    <div className="min-h-screen animate-fade-in">
+    <div className="min-h-screen scanlines">
       <Navigation />
 
-      <div className="container mx-auto px-4 pt-24 pb-16">
-        {/* Page Header */}
-        <div className="mb-12">
-          <Button variant="ghost" size="sm" className="mb-4 -ml-2" asChild>
-            <Link to="/">
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Go Back Home
-            </Link>
-          </Button>
+      <main className="container mx-auto px-4 py-6">
+        <div className="mb-6">
+          <Link
+            to="/"
+            className="label-hw-dim hover:text-display transition-colors duration-150 inline-flex items-center gap-1"
+          >
+            ◂ BACK TO DIRECTORY
+          </Link>
+        </div>
 
-          <h1 className="font-heading text-4xl md:text-5xl font-bold mb-2">
-            {displayHackathonName} Winners
+        <div className="mb-6">
+          <div className="label-hw-dim mb-2">·WINNERS / {hackathon?.toUpperCase()}</div>
+          <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-2">
+            {displayName || "Winners"}
           </h1>
-          <p className="text-accent text-lg">
-            Congratulations to the winners of the {hackathonName} Hackathon!
+          <p className="text-body text-base max-w-2xl leading-relaxed">
+            Congratulations to the winners of the {hackathonName || "this"} hackathon.
           </p>
         </div>
 
-        {/* Winners Section */}
         <section>
-          <h2 className="font-heading text-2xl font-bold mb-6 flex items-center gap-2">
-            <span>🏆</span>
-            <span>Winners</span>
-          </h2>
+          <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
+            <div className="label-hw text-display flex items-center gap-2">
+              <span className="led led-sm" aria-hidden="true" /> ·GRID
+            </div>
+            <div className="label-hw-dim">
+              {loading ? "…" : `${winners.length} ${winners.length === 1 ? "UNIT" : "UNITS"}`}
+            </div>
+          </div>
 
-          {winners.length === 0 ? (
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <ProjectCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : winners.length === 0 ? (
             <EmptyState
-              title="No Winners Found"
+              title="No winners found"
               description="No winners have been announced for this hackathon yet."
-              icon={<Trophy className="h-12 w-12 text-muted-foreground mx-auto" />}
+              icon={<Trophy className="h-12 w-12 text-label-dim mx-auto" />}
             />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {winners.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  title={project.title}
-                  author={project.author}
-                  description={project.description}
-                  track={project.track}
-                  isWinner={project.isWinner}
-                  demoUrl={project.demoUrl}
-                  githubUrl={project.githubUrl}
-                  projectUrl={project.projectUrl}
-                  onClick={() => handleProjectClick(project)}
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {winners.map((u) => (
+                <UnitCard key={u.id} {...u} onClick={() => setSelected(u)} />
               ))}
             </div>
           )}
         </section>
-      </div>
+      </main>
 
-      {/* Project Detail Modal */}
-      {selectedProject && (
+      {selected && (
         <Suspense fallback={null}>
-          <ProjectDetailModal
-            open={!!selectedProject}
-            onOpenChange={(open) => !open && handleCloseModal()}
-            project={{
-              title: selectedProject.title,
-              author: selectedProject.author,
-              description: selectedProject.description,
-              longDescription: selectedProject.longDescription,
-              track: selectedProject.track,
-              isWinner: selectedProject.isWinner,
-              demoUrl: selectedProject.demoUrl,
-              githubUrl: selectedProject.githubUrl,
-              projectUrl: selectedProject.projectUrl,
-              liveUrl: selectedProject.liveUrl,
-            }}
+          <UnitDetailModal
+            open={!!selected}
+            onOpenChange={(open) => !open && handleClose()}
+            unit={selected}
           />
         </Suspense>
       )}

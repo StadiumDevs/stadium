@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -137,15 +136,15 @@ export function PostUpdateModal({
     >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Post an update</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-display tracking-tight">POST AN UPDATE</DialogTitle>
+          <DialogDescription className="text-body">
             Share what's shipped, what's changed, or what you're asking for. Updates are visible to
             anyone viewing your project page.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1">
-            <Label htmlFor="post-update-body">Update</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="post-update-body" className="label-hw-dim">·UPDATE</Label>
             <Textarea
               id="post-update-body"
               rows={6}
@@ -155,23 +154,24 @@ export function PostUpdateModal({
               onChange={(e) => setBody(e.target.value)}
               aria-invalid={bodyError ? true : undefined}
               aria-describedby="post-update-body-error post-update-body-count"
+              className="font-mono text-sm"
             />
-            <div className="flex items-center justify-between text-xs">
-              <span id="post-update-body-error" className="text-destructive">
-                {bodyError || ""}
+            <div className="flex items-center justify-between">
+              <span id="post-update-body-error" className="label-hw text-destructive">
+                {bodyError ? `·${bodyError.toUpperCase()}` : ""}
               </span>
               <span
                 id="post-update-body-count"
                 className={
-                  body.trim().length > BODY_MAX ? "text-destructive" : "text-muted-foreground"
+                  body.trim().length > BODY_MAX ? "label-hw text-destructive" : "label-hw-dim"
                 }
               >
                 {body.trim().length} / {BODY_MAX}
               </span>
             </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="post-update-link">Link (optional)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="post-update-link" className="label-hw-dim">·LINK (OPTIONAL)</Label>
             <Input
               id="post-update-link"
               type="url"
@@ -180,17 +180,18 @@ export function PostUpdateModal({
               onChange={(e) => setLinkUrl(e.target.value)}
               aria-invalid={linkError ? true : undefined}
               aria-describedby="post-update-link-error"
+              className="font-mono text-sm"
             />
             {linkError && (
-              <p id="post-update-link-error" className="text-xs text-destructive">
-                {linkError}
+              <p id="post-update-link-error" className="label-hw text-destructive">
+                ·{linkError.toUpperCase()}
               </p>
             )}
           </div>
         </div>
         <DialogFooter>
-          <Button
-            variant="ghost"
+          <button
+            type="button"
             onClick={() => {
               if (!submitting) {
                 reset();
@@ -198,19 +199,24 @@ export function PostUpdateModal({
               }
             }}
             disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
           >
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+            CANCEL
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+          >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Posting…
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> POSTING…
               </>
             ) : (
-              "Post update"
+              "POST UPDATE ▸"
             )}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -103,38 +103,31 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Bell className="w-5 h-5" aria-hidden="true" />
-            Notifications
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading…
-          </div>
-        </CardContent>
-      </Card>
+      <div className="panel p-4">
+        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">
+          <Bell className="h-3.5 w-3.5 text-label-mid" aria-hidden="true" />
+          <span className="label-hw text-display">·NOTIFICATIONS</span>
+        </div>
+        <div className="flex items-center gap-2 label-hw-dim">
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> LOADING…
+        </div>
+      </div>
     );
   }
 
   if (!emailSet || showForm) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Bell className="w-5 h-5" aria-hidden="true" />
-            Notifications
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
+      <div className="panel p-4">
+        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">
+          <Bell className="h-3.5 w-3.5 text-label-mid" aria-hidden="true" />
+          <span className="label-hw text-display">·NOTIFICATIONS</span>
+        </div>
+        <div className="space-y-4">
+          <p className="text-body text-sm">
             Want an email when something changes? Drop your address.
           </p>
           <div className="space-y-1">
-            <Label htmlFor="notif-email">Email address</Label>
+            <Label htmlFor="notif-email" className="label-hw-dim">EMAIL ADDRESS</Label>
             <Input
               id="notif-email"
               type="email"
@@ -143,12 +136,13 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
               onChange={(e) => setEmailInput(e.target.value)}
               aria-invalid={emailError ? true : undefined}
               disabled={submitting}
+              className="font-mono text-sm"
             />
-            {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+            {emailError && <p className="label-hw text-destructive">·{emailError.toUpperCase()}</p>}
           </div>
           <div className="flex items-center justify-between">
-            <Label htmlFor="notif-toggle" className="text-sm">
-              Notify me about this project
+            <Label htmlFor="notif-toggle" className="label-hw text-display">
+              NOTIFY ME ABOUT THIS PROJECT
             </Label>
             <Switch
               id="notif-toggle"
@@ -158,40 +152,49 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
             />
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={handleSave} disabled={submitting} size="sm">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={submitting}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+            >
               {submitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
-                  Saving…
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> SAVING…
                 </>
               ) : (
-                "Save"
+                "SAVE"
               )}
-            </Button>
+            </button>
             {emailSet && (
-              <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); setEmailInput(""); setEmailError(null); }} disabled={submitting}>
-                Cancel
-              </Button>
+              <button
+                type="button"
+                onClick={() => { setShowForm(false); setEmailInput(""); setEmailError(null); }}
+                disabled={submitting}
+                className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
+              >
+                CANCEL
+              </button>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Bell className="w-5 h-5" aria-hidden="true" />
-          Notifications
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">You'll get email about this project</p>
+    <div className="panel p-4">
+      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">
+        <Bell className="h-3.5 w-3.5 text-label-mid" aria-hidden="true" />
+        <span className="label-hw text-display">·NOTIFICATIONS</span>
+        <span className="led led-sm ml-1" aria-hidden="true" />
+        <span className="label-hw-dim">EMAIL ON FILE</span>
+      </div>
+      <div className="space-y-3">
+        <p className="text-body text-sm">You'll get email about this project.</p>
         <div className="flex items-center justify-between">
-          <Label htmlFor="notif-toggle-set" className="text-sm">
-            Notify me about this project
+          <Label htmlFor="notif-toggle-set" className="label-hw text-display">
+            NOTIFY ME ABOUT THIS PROJECT
           </Label>
           <Switch
             id="notif-toggle-set"
@@ -200,16 +203,15 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
             disabled={submitting}
           />
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="px-0 text-sm"
+        <button
+          type="button"
           onClick={() => { setShowForm(true); setEmailInput(""); setEmailError(null); }}
           disabled={submitting}
+          className="label-hw-dim hover:text-display disabled:opacity-50"
         >
-          Update email
-        </Button>
-      </CardContent>
-    </Card>
+          UPDATE EMAIL ▸
+        </button>
+      </div>
+    </div>
   );
 }

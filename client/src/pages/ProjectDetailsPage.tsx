@@ -790,11 +790,12 @@ const ProjectDetailsPage = () => {
 
   if (loading) {
     return (
-      <div className="container py-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex items-center space-x-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-lg">Loading project details...</span>
+      <div className="min-h-screen scanlines">
+        <Navigation />
+        <div className="container py-8 flex items-center justify-center min-h-[400px]">
+          <div className="panel p-8 inline-flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-label-mid" />
+            <span className="label-hw text-display">·LOADING PROJECT</span>
           </div>
         </div>
       </div>
@@ -803,22 +804,25 @@ const ProjectDetailsPage = () => {
 
   if (notFound || !project) {
     return (
-      <div className="container py-8">
-        <Card className="text-center py-12">
-          <CardContent>
-            <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h1 className="font-heading text-2xl font-bold mb-2">Project Not Found</h1>
-            <p className="text-muted-foreground mb-4">
+      <div className="min-h-screen scanlines">
+        <Navigation />
+        <div className="container py-8 flex items-center justify-center min-h-[400px]">
+          <div className="panel p-8 max-w-md w-full text-center">
+            <div className="label-hw-dim mb-3">·SIGNAL LOST</div>
+            <h1 className="font-display text-5xl uppercase tracking-tight text-display mb-3">
+              Not Found
+            </h1>
+            <p className="text-body mb-4">
               The project you're looking for doesn't exist or has been removed.
             </p>
-            <Button asChild>
-              <Link to="/" className="flex items-center space-x-2">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Go Back Home</span>
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+            <Link
+              to="/"
+              className="inline-block font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+            >
+              ◂ BACK TO DIRECTORY
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -831,123 +835,130 @@ const ProjectDetailsPage = () => {
   // 6. In the lower card, right below the timeline, render the donationAddress and a small 'Update Team Address' button
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen scanlines">
       {/* Navigation Header */}
       <Navigation />
       {/* Main Content */}
-      <main className="flex-1 pt-16">
+      <main className="flex-1">
         <div className="container py-8 px-4 sm:px-6">
           {/* Back Button */}
           <div className="mb-6">
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
+              type="button"
               onClick={() => navigate('/m2-program')}
-              className="text-muted-foreground hover:text-foreground"
+              className="label-hw-dim hover:text-display transition-colors duration-150 inline-flex items-center gap-1"
             >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-              Back to Program Overview
-            </Button>
+              ◂ BACK TO PROGRAM OVERVIEW
+            </button>
           </div>
           
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Header Section - Always Visible */}
+            {/* Header Section — rack chrome */}
             <div className="space-y-4">
-              {/* Status Badges Row */}
-              <div className="flex flex-wrap gap-2">
+              <div className="label-hw-dim">·UNIT / {project.id?.toUpperCase()}</div>
+
+              <div className="flex flex-wrap items-center gap-2">
                 {project.m2Status === 'completed' && (
-                  <Badge className="bg-green-500 text-white">
-                    🎓 M2 Graduate
-                  </Badge>
+                  <span className="bg-display text-shell px-2 py-[2px] font-mono text-[10px] font-bold tracking-[0.12em]">
+                    M2 GRADUATE
+                  </span>
                 )}
                 {(project.winner || (Array.isArray(project.bountyPrize) && project.bountyPrize.length > 0)) && (
-                  <Badge className="bg-yellow-500 text-black">
-                    🏆 Winner
-                  </Badge>
+                  <span className="border border-display text-display px-2 py-[1px] font-mono text-[10px] font-bold tracking-[0.12em]">
+                    WINNER
+                  </span>
                 )}
                 {project.categories && project.categories.length > 0 && (
-                  <Badge variant="outline" className="bg-primary/10 border-primary">
-                    {project.categories[0]}
-                  </Badge>
+                  <span className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.14em]">
+                    {project.categories[0].toUpperCase()}
+                  </span>
                 )}
               </div>
-              
-              {/* Project Title */}
-              <h1 className="font-heading text-3xl sm:text-4xl font-bold">{project.projectName}</h1>
-              
-              {/* Meta Line */}
-              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span>By {Array.isArray(project.teamMembers) && project.teamMembers.length > 0 
-                  ? project.teamMembers.map((m: ApiTeamMember) => m?.name).filter(Boolean).join(', ') 
-                  : (project.teamLead || 'Unknown')}</span>
+
+              <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95]">
+                {project.projectName}
+              </h1>
+
+              <div className="label-hw-dim flex flex-wrap items-center gap-3">
+                <span>
+                  BY {(Array.isArray(project.teamMembers) && project.teamMembers.length > 0
+                    ? project.teamMembers.map((m: ApiTeamMember) => m?.name).filter(Boolean).join(', ')
+                    : (project.teamLead || 'Unknown')).toUpperCase()}
+                </span>
                 <span>·</span>
                 <span>
-                  {project.hackathon?.eventStartedAt === "funkhaus-2024" 
-                    ? "Symmetry 2024" 
-                    : project.hackathon?.eventStartedAt === "synergy-hack-2024" 
-                    ? "Synergy 2025" 
-                    : project.hackathon?.name || "Hackathon"}
+                  {(project.hackathon?.eventStartedAt === "funkhaus-2024"
+                    ? "Symmetry 2024"
+                    : project.hackathon?.eventStartedAt === "synergy-hack-2024"
+                    ? "Synergy 2025"
+                    : project.hackathon?.name || "Hackathon").toUpperCase()}
                 </span>
                 {project.teamMembers && project.teamMembers.length > 0 && (
                   <>
                     <span>·</span>
-                    <span>{project.teamMembers.length} team member{project.teamMembers.length !== 1 ? 's' : ''}</span>
+                    <span>{project.teamMembers.length} TEAM MEMBER{project.teamMembers.length !== 1 ? 'S' : ''}</span>
                   </>
                 )}
               </div>
-              
-              {/* Description */}
-              <p className="text-muted-foreground">{project.description}</p>
-              
-              {/* Link Buttons */}
-              <div className="flex gap-3 flex-wrap">
+
+              <p className="text-body text-base leading-relaxed">{project.description}</p>
+
+              <div className="flex gap-2 flex-wrap">
                 {project.liveUrl && project.liveUrl !== "nan" && (
-                  <Button variant="outline" asChild>
-                    <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      <span>Live site</span>
-                    </a>
-                  </Button>
+                  <a
+                    href={project.liveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Globe className="h-3 w-3" /> LIVE SITE
+                  </a>
                 )}
                 {project.projectRepo && project.projectRepo !== "nan" && (
-                  <Button variant="outline" asChild>
-                    <a href={project.projectRepo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <Github className="h-4 w-4" />
-                      <span>Source Code</span>
-                    </a>
-                  </Button>
+                  <a
+                    href={project.projectRepo}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Github className="h-3 w-3" /> SOURCE
+                  </a>
                 )}
                 {(project.demoUrl && project.demoUrl !== "nan") && (
-                  <Button variant="outline" asChild>
-                    <a href={project.demoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      <span>Live Demo</span>
-                    </a>
-                  </Button>
+                  <a
+                    href={project.demoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Globe className="h-3 w-3" /> DEMO
+                  </a>
                 )}
                 {project.slidesUrl && project.slidesUrl !== "nan" && (
-                  <Button variant="outline" asChild>
-                    <a href={project.slidesUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      <span>Slides</span>
-                    </a>
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => setShowShareModal(true)}
-                >
-                  <Share2 className="w-4 h-4 mr-2" aria-hidden="true" />
-                  Share
-                </Button>
-                {canEdit && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditProjectDetailsOpen(true)}
+                  <a
+                    href={project.slidesUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
                   >
-                    <Edit className="w-4 h-4 mr-2" aria-hidden="true" />
-                    Edit Details
-                  </Button>
+                    <FileText className="h-3 w-3" /> SLIDES
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowShareModal(true)}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  <Share2 className="h-3 w-3" /> SHARE
+                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditProjectDetailsOpen(true)}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
+                  >
+                    <Edit className="h-3 w-3" /> EDIT DETAILS
+                  </button>
                 )}
               </div>
             </div>

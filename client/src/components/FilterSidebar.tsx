@@ -1,26 +1,16 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { Gamepad2, Coins, Image, Wrench, Users, Layers, Trophy } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-interface FilterOption {
-  id: string
-  label: string
-  icon: React.ReactNode
-  count?: number
-}
-
 const filterCategories = {
   categories: [
-    { id: "gaming", label: "Gaming", icon: <Gamepad2 className="w-4 h-4" /> },
-    { id: "defi", label: "DeFi", icon: <Coins className="w-4 h-4" /> },
-    { id: "nft", label: "NFT", icon: <Image className="w-4 h-4" /> },
-    { id: "developer-tools", label: "Developer Tools", icon: <Wrench className="w-4 h-4" /> },
-    { id: "social", label: "Social", icon: <Users className="w-4 h-4" /> },
-    { id: "ai", label: "AI", icon: <Layers className="w-4 h-4" /> },
-    { id: "arts", label: "Arts", icon: <Layers className="w-4 h-4" /> },
-    { id: "mobile", label: "Mobile", icon: <Layers className="w-4 h-4" /> },
+    { id: "gaming", label: "Gaming", icon: <Gamepad2 className="w-3.5 h-3.5" /> },
+    { id: "defi", label: "DeFi", icon: <Coins className="w-3.5 h-3.5" /> },
+    { id: "nft", label: "NFT", icon: <Image className="w-3.5 h-3.5" /> },
+    { id: "developer-tools", label: "Developer Tools", icon: <Wrench className="w-3.5 h-3.5" /> },
+    { id: "social", label: "Social", icon: <Users className="w-3.5 h-3.5" /> },
+    { id: "ai", label: "AI", icon: <Layers className="w-3.5 h-3.5" /> },
+    { id: "arts", label: "Arts", icon: <Layers className="w-3.5 h-3.5" /> },
+    { id: "mobile", label: "Mobile", icon: <Layers className="w-3.5 h-3.5" /> },
   ],
 }
 
@@ -33,6 +23,9 @@ interface FilterSidebarProps {
   className?: string
 }
 
+const baseRow =
+  "w-full inline-flex items-center justify-start gap-2 px-3 py-1.5 font-mono text-[11px] tracking-[0.1em] uppercase border transition-colors";
+
 export function FilterSidebar({
   activeFilters,
   onFilterChange,
@@ -42,70 +35,72 @@ export function FilterSidebar({
   className,
 }: FilterSidebarProps) {
   return (
-    <Card className={className || "sticky top-20"}>
-      <CardHeader>
-        <CardTitle className="font-heading text-base">Filters</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className={cn("panel p-4", className || "sticky top-20")}>
+      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">
+        <span className="label-hw text-display">·FILTERS</span>
+      </div>
+
+      <div className="space-y-4">
         {/* Winners Filter */}
         <div>
-          <h4 className="text-sm font-semibold mb-2 uppercase tracking-wide text-muted-foreground">
-            Special
-          </h4>
-          <Button
-            variant={showWinnersOnly ? "default" : "outline"}
-            className={cn(
-              "w-full justify-start transition-all duration-200",
-              showWinnersOnly && "bg-yellow-500/10 border-yellow-500 text-yellow-500 hover:bg-yellow-500/20"
-            )}
+          <h4 className="label-hw-dim mb-2">·SPECIAL</h4>
+          <button
+            type="button"
             onClick={() => onWinnersOnlyChange(!showWinnersOnly)}
+            className={cn(
+              baseRow,
+              showWinnersOnly
+                ? "border-display bg-display text-shell"
+                : "border-hairline text-display hover:bg-panel-deep",
+            )}
           >
-            <Trophy className={cn(
-              "w-4 h-4 mr-2 transition-all duration-200",
-              showWinnersOnly && "animate-pulse"
-            )} />
-            Winners
-          </Button>
+            <Trophy className={cn("w-3.5 h-3.5", showWinnersOnly && "animate-pulse")} />
+            WINNERS
+          </button>
         </div>
 
-        <Separator />
+        <div className="border-t border-hairline-subtle" />
 
         {/* Category Filters */}
         <div>
-          <h4 className="text-sm font-semibold mb-2 uppercase tracking-wide text-muted-foreground">
-            Categories
-          </h4>
+          <h4 className="label-hw-dim mb-2">·CATEGORIES</h4>
           <div className="space-y-1">
-            {filterCategories.categories.map((filter) => (
-              <Button
-                key={filter.id}
-                variant={activeFilters.includes(filter.id) ? "secondary" : "ghost"}
-                className={cn(
-                  "w-full justify-start transition-all duration-200",
-                  activeFilters.includes(filter.id) && "bg-primary/10 text-accent"
-                )}
-                onClick={() => onFilterChange(filter.id)}
-              >
-                {filter.icon}
-                <span className="ml-2">{filter.label}</span>
-              </Button>
-            ))}
+            {filterCategories.categories.map((filter) => {
+              const active = activeFilters.includes(filter.id);
+              return (
+                <button
+                  type="button"
+                  key={filter.id}
+                  onClick={() => onFilterChange(filter.id)}
+                  className={cn(
+                    baseRow,
+                    active
+                      ? "border-display bg-panel-deep text-display"
+                      : "border-transparent text-label-mid hover:text-display hover:bg-panel-deep",
+                  )}
+                >
+                  {filter.icon}
+                  <span>{filter.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <Separator />
-
         {/* Clear Filters */}
         {(activeFilters.length > 0 || showWinnersOnly) && (
-          <Button
-            variant="outline"
-            className="w-full border-primary text-accent hover:bg-primary/10"
-            onClick={onClearFilters}
-          >
-            Clear filters
-          </Button>
+          <>
+            <div className="border-t border-hairline-subtle" />
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className={cn(baseRow, "border-hairline text-label-mid hover:text-display hover:bg-panel-deep justify-center")}
+            >
+              CLEAR FILTERS
+            </button>
+          </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

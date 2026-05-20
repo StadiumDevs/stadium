@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, Plus } from "lucide-react";
@@ -99,7 +98,7 @@ export function UpdateTeamModal({
         description: "Team updated successfully!",
       });
       onOpenChange(false);
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update team",
@@ -114,143 +113,147 @@ export function UpdateTeamModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Update Team</DialogTitle>
+          <DialogTitle className="font-display tracking-tight">UPDATE TEAM</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Team Members Section */}
           <div>
-            <h3 className="font-medium mb-3">Team Members</h3>
-            <div className="space-y-4">
+            <h3 className="label-hw text-display mb-3">·TEAM MEMBERS</h3>
+            <div className="space-y-3">
               {members.map((member, index) => (
-                <div key={index} className="border border-subtle rounded-lg p-4 bg-muted/30 space-y-3">
+                <div key={index} className="lcd p-4 space-y-3">
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Label htmlFor={`name-${index}`}>Name *</Label>
-                      <Input 
+                      <Label htmlFor={`name-${index}`} className="label-hw-dim">NAME *</Label>
+                      <Input
                         id={`name-${index}`}
-                        placeholder="Name" 
+                        placeholder="Name"
                         value={member.name}
                         onChange={(e) => handleMemberChange(index, 'name', e.target.value)}
                         required
                         disabled={isSubmitting}
+                        className="font-mono text-sm"
                       />
                     </div>
                     <div className="flex-1">
-                      <Label htmlFor={`wallet-${index}`}>Wallet Address</Label>
-                      <Input 
+                      <Label htmlFor={`wallet-${index}`} className="label-hw-dim">WALLET ADDRESS</Label>
+                      <Input
                         id={`wallet-${index}`}
-                        placeholder="0x... (optional)" 
+                        placeholder="0x… (optional)"
                         value={member.wallet}
                         onChange={(e) => handleMemberChange(index, 'wallet', e.target.value)}
                         disabled={isSubmitting}
+                        className="font-mono text-sm"
                       />
                     </div>
                     {members.length > 1 && (
-                      <Button 
+                      <button
                         type="button"
-                        variant="ghost" 
-                        size="icon"
                         onClick={() => handleRemoveMember(index)}
                         aria-label="Remove team member"
                         disabled={isSubmitting}
-                        className="mt-6"
+                        className="mt-6 inline-flex items-center justify-center border border-hairline text-label-mid hover:text-destructive hover:bg-panel-deep w-9 h-9 flex-shrink-0 disabled:opacity-50"
                       >
-                        <X className="w-4 h-4" aria-hidden="true" />
-                      </Button>
+                        <X className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
                     )}
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Label htmlFor={`role-${index}`}>Role (optional)</Label>
-                      <Input 
+                      <Label htmlFor={`role-${index}`} className="label-hw-dim">ROLE (OPTIONAL)</Label>
+                      <Input
                         id={`role-${index}`}
-                        placeholder="e.g., Developer, Designer" 
+                        placeholder="e.g., Developer, Designer"
                         value={member.role || ''}
                         onChange={(e) => handleMemberChange(index, 'role', e.target.value)}
                         disabled={isSubmitting}
+                        className="font-mono text-sm"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label htmlFor={`twitter-${index}`}>Twitter (optional)</Label>
-                      <Input 
+                      <Label htmlFor={`twitter-${index}`} className="label-hw-dim">TWITTER</Label>
+                      <Input
                         id={`twitter-${index}`}
-                        placeholder="@username" 
+                        placeholder="@username"
                         value={member.twitter || ''}
                         onChange={(e) => handleMemberChange(index, 'twitter', e.target.value)}
                         disabled={isSubmitting}
+                        className="font-mono text-sm"
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`github-${index}`}>GitHub (optional)</Label>
-                      <Input 
+                      <Label htmlFor={`github-${index}`} className="label-hw-dim">GITHUB</Label>
+                      <Input
                         id={`github-${index}`}
-                        placeholder="username" 
+                        placeholder="username"
                         value={member.github || ''}
                         onChange={(e) => handleMemberChange(index, 'github', e.target.value)}
                         disabled={isSubmitting}
+                        className="font-mono text-sm"
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`linkedin-${index}`}>LinkedIn (optional)</Label>
-                      <Input 
+                      <Label htmlFor={`linkedin-${index}`} className="label-hw-dim">LINKEDIN</Label>
+                      <Input
                         id={`linkedin-${index}`}
-                        placeholder="username or URL" 
+                        placeholder="username or URL"
                         value={member.linkedin || ''}
                         onChange={(e) => handleMemberChange(index, 'linkedin', e.target.value)}
                         disabled={isSubmitting}
+                        className="font-mono text-sm"
                       />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <Button 
+            <button
               type="button"
-              variant="outline" 
-              size="sm" 
               onClick={handleAddMember}
-              className="mt-3"
               disabled={isSubmitting}
+              className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
-              Add Member
-            </Button>
+              <Plus className="w-3 h-3" aria-hidden="true" />
+              ADD MEMBER
+            </button>
           </div>
-          
+
           {/* Payout Address Section */}
           <div>
-            <h3 className="font-medium mb-3">Payout Address</h3>
-            <Input 
-              placeholder="0x..."
+            <h3 className="label-hw text-display mb-3">·PAYOUT ADDRESS</h3>
+            <Input
+              placeholder="0x…"
               value={payoutAddress}
               onChange={(e) => setPayoutAddress(e.target.value)}
               required
               disabled={isSubmitting}
+              className="font-mono text-sm"
             />
-            <p className="text-xs text-muted-foreground mt-2">
-              Wallet address to receive M2 payment ($2,000 USDC)
+            <p className="label-hw-dim mt-2">
+              WALLET ADDRESS TO RECEIVE M2 PAYMENT ($2,000 USDC)
             </p>
           </div>
-          
+
           {/* Actions */}
-          <div className="flex gap-2 justify-end pt-4 border-t">
-            <Button 
+          <div className="flex gap-2 justify-end pt-4 border-t border-hairline-subtle">
+            <button
               type="button"
-              variant="outline" 
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              Cancel
-            </Button>
-            <Button 
+              CANCEL
+            </button>
+            <button
               type="submit"
               disabled={isSubmitting}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5"
             >
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
-            </Button>
+              {isSubmitting ? 'SAVING…' : 'SAVE CHANGES'}
+            </button>
           </div>
         </form>
       </DialogContent>

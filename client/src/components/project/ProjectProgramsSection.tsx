@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Loader2, RotateCw, Sparkles, ExternalLink } from "lucide-react";
 import { api, type ApiProgram, type ApiProgramApplication } from "@/lib/api";
 
 type Row = ApiProgramApplication & { program?: ApiProgram };
 
-const statusVariant = (status: ApiProgramApplication["status"]) => {
+const statusBadge = (status: ApiProgramApplication["status"]) => {
+  const base =
+    "inline-flex items-center px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase";
   switch (status) {
     case "accepted":
-      return "default" as const;
+      return `${base} border border-display bg-display text-shell`;
     case "rejected":
     case "withdrawn":
-      return "outline" as const;
+      return `${base} border border-hairline text-label-mid`;
     default:
-      return "secondary" as const;
+      return `${base} border border-hairline text-display bg-panel-deep`;
   }
 };
 
@@ -71,20 +70,15 @@ export function ProjectProgramsSection({ projectId }: { projectId: string }) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Sparkles className="w-5 h-5" aria-hidden="true" />
-            Programs
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading…
-          </div>
-        </CardContent>
-      </Card>
+      <div className="panel p-4">
+        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">
+          <Sparkles className="h-3.5 w-3.5 text-label-mid" aria-hidden="true" />
+          <span className="label-hw text-display">·PROGRAMS</span>
+        </div>
+        <div className="flex items-center gap-2 label-hw-dim">
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> LOADING…
+        </div>
+      </div>
     );
   }
 
@@ -94,50 +88,45 @@ export function ProjectProgramsSection({ projectId }: { projectId: string }) {
   if (!rows || rows.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Sparkles className="w-5 h-5" aria-hidden="true" />
-          Programs
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-2">
-          {rows.map((r) => {
-            const slug = r.program?.slug;
-            const name = r.program?.name || r.programId;
-            return (
-              <li key={r.id} className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  {slug ? (
-                    <Link
-                      to={`/programs/${slug}`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
-                    >
-                      {name}
-                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Link>
-                  ) : (
-                    <span className="text-sm font-medium">{name}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6"
-                    onClick={refetch}
-                    aria-label="Refresh application status"
+    <div className="panel p-4">
+      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">
+        <Sparkles className="h-3.5 w-3.5 text-label-mid" aria-hidden="true" />
+        <span className="label-hw text-display">·PROGRAMS</span>
+      </div>
+      <ul className="space-y-2">
+        {rows.map((r) => {
+          const slug = r.program?.slug;
+          const name = r.program?.name || r.programId;
+          return (
+            <li key={r.id} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                {slug ? (
+                  <Link
+                    to={`/programs/${slug}`}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-display hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-display focus-visible:ring-offset-2 focus-visible:ring-offset-shell rounded-sm"
                   >
-                    <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </CardContent>
-    </Card>
+                    {name}
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                  </Link>
+                ) : (
+                  <span className="text-sm font-medium text-body">{name}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={statusBadge(r.status)}>{r.status}</span>
+                <button
+                  type="button"
+                  className="h-6 w-6 inline-flex items-center justify-center border border-hairline text-label-mid hover:text-display hover:bg-panel-deep"
+                  onClick={refetch}
+                  aria-label="Refresh application status"
+                >
+                  <RotateCw className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

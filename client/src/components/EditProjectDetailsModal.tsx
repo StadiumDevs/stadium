@@ -336,9 +336,9 @@ export function EditProjectDetailsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Project Details</DialogTitle>
-          <DialogDescription>
-            Update your project information
+          <DialogTitle className="font-display tracking-tight">EDIT PROJECT DETAILS</DialogTitle>
+          <DialogDescription className="text-body">
+            Update your project information.
           </DialogDescription>
         </DialogHeader>
 
@@ -708,24 +708,27 @@ export function EditProjectDetailsModal({
           </div>
 
           <DialogFooter>
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={form.formState.isSubmitting}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
+              CANCEL
+            </button>
+            <button
+              type="submit"
+              disabled={form.formState.isSubmitting}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+            >
               {form.formState.isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  <Loader2 className="h-3 w-3 animate-spin" /> SAVING…
                 </>
               ) : (
-                "Save Changes"
+                "SAVE CHANGES"
               )}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

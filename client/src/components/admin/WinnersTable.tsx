@@ -142,18 +142,20 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
   // Get M2 status display
   const getM2StatusDisplay = (project: any) => {
     if (!project.m2Status) {
-      return <span className="text-muted-foreground">—</span>;
+      return <span className="text-label-dim">—</span>;
     }
+    const base =
+      "inline-flex items-center px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase";
     if (project.m2Status === 'completed') {
-      return <Badge className="bg-green-500/10 text-green-500 border-green-500">Completed</Badge>;
+      return <span className={`${base} border border-led bg-led text-shell`}>COMPLETED</span>;
     }
     if (project.m2Status === 'under_review') {
-      return <Badge className="bg-orange-500/10 text-orange-500 border-orange-500">Under Review</Badge>;
+      return <span className={`${base} border border-hairline text-display bg-panel-deep`}>UNDER REVIEW</span>;
     }
     if (project.m2Status === 'active') {
-      return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500">Active</Badge>;
+      return <span className={`${base} border border-hairline text-display bg-panel-deep`}>ACTIVE</span>;
     }
-    return <Badge variant="outline">{project.m2Status}</Badge>;
+    return <span className={`${base} border border-hairline text-label-mid`}>{project.m2Status}</span>;
   };
 
   // Calculate total bounty amount
@@ -447,74 +449,73 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
 
   if (sortedProjects.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No winning projects found</p>
-        </CardContent>
-      </Card>
+      <div className="panel p-12 text-center">
+        <Trophy className="w-10 h-10 mx-auto text-label-dim mb-4" />
+        <span className="label-hw-dim">·NO WINNING PROJECTS FOUND</span>
+      </div>
     );
   }
+
+  const filterButton = (
+    value: "all" | "main-track" | "bounty",
+    label: string,
+    count: number,
+  ) => {
+    const active = winnerFilter === value;
+    return (
+      <button
+        type="button"
+        onClick={() => setWinnerFilter(value)}
+        className={
+          active
+            ? "font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell px-3 py-1.5"
+            : "font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+        }
+      >
+        {label.toUpperCase()} ({count})
+      </button>
+    );
+  };
 
   return (
     <>
       {/* Filter Controls */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Filter:</span>
+          <span className="label-hw-dim">FILTER:</span>
           <div className="flex gap-1">
-            <Button
-              variant={winnerFilter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setWinnerFilter("all")}
-            >
-              All ({winnerProjects.length})
-            </Button>
-            <Button
-              variant={winnerFilter === "main-track" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setWinnerFilter("main-track")}
-            >
-              Main Track ({mainTrackCount})
-            </Button>
-            <Button
-              variant={winnerFilter === "bounty" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setWinnerFilter("bounty")}
-            >
-              Other Bounties ({bountyCount})
-            </Button>
+            {filterButton("all", "All", winnerProjects.length)}
+            {filterButton("main-track", "Main Track", mainTrackCount)}
+            {filterButton("bounty", "Other Bounties", bountyCount)}
           </div>
         </div>
-        
+
         {/* Bulk Actions */}
         {connectedAddress && unpaidCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setBulkMarkPaidDialog(true)}
-            className="gap-1"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
           >
-            <CheckCheck className="h-4 w-4" />
-            Mark All as Paid ({unpaidCount})
-          </Button>
+            <CheckCheck className="h-3 w-3" />
+            MARK ALL AS PAID ({unpaidCount})
+          </button>
         )}
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className={connectedAddress ? "w-[18%]" : "w-[22%]"}>Project</TableHead>
-                <TableHead className={connectedAddress ? "w-[12%]" : "w-[15%]"}>Event</TableHead>
-                <TableHead className={connectedAddress ? "w-[20%]" : "w-[24%]"}>Track/Bounty</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>Amount</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[12%]"}>M2 Status</TableHead>
-                <TableHead className={connectedAddress ? "w-[10%]" : "w-[15%]"}>Payment</TableHead>
-                {connectedAddress && <TableHead className="w-[20%] text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
+      <div className="panel p-0 overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-panel-deep">
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[18%]" : "w-[22%]"}`}>PROJECT</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[12%]" : "w-[15%]"}`}>EVENT</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[20%]" : "w-[24%]"}`}>TRACK / BOUNTY</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[10%]" : "w-[12%]"}`}>AMOUNT</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[10%]" : "w-[12%]"}`}>M2 STATUS</TableHead>
+              <TableHead className={`label-hw-dim ${connectedAddress ? "w-[10%]" : "w-[15%]"}`}>PAYMENT</TableHead>
+              {connectedAddress && <TableHead className="w-[20%] text-right label-hw-dim">ACTIONS</TableHead>}
+            </TableRow>
+          </TableHeader>
             <TableBody>
               {sortedProjects.map((project) => {
                 const totalBounty = getTotalBounty(project);
@@ -645,8 +646,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               })}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Multi-Tab Manage Project Modal */}
       <Dialog open={!!manageModal} onOpenChange={() => setManageModal(null)}>
