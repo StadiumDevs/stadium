@@ -93,7 +93,7 @@ export function UnitCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 text-label-mid hover:text-display"
               onClick={(e) => {
                 e.stopPropagation();
                 window.open(demoUrl, "_blank");
@@ -107,7 +107,7 @@ export function UnitCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 text-label-mid hover:text-display"
               onClick={(e) => {
                 e.stopPropagation();
                 window.open(githubUrl, "_blank");

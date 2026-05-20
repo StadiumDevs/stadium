@@ -1,4 +1,5 @@
 import { useBrightness } from "@/hooks/use-brightness";
+import { HardwareToggle } from "@/components/hardware-toggle";
 import { cn } from "@/lib/utils";
 
 interface BrightnessRackProps {
@@ -6,7 +7,10 @@ interface BrightnessRackProps {
 }
 
 export function BrightnessRack({ className }: BrightnessRackProps) {
-  const { brightness, mode, phase, solarTarget, setBrightness, setAuto } = useBrightness();
+  const {
+    brightness, mode, phase, paletteKey, palettes, solarTarget,
+    setBrightness, setAuto, setPalette,
+  } = useBrightness();
 
   return (
     <div className={cn("panel px-4 py-3", className)}>
@@ -106,6 +110,16 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             RESYNC
           </button>
         )}
+      </div>
+
+      {/* Palette picker — last row, separated from brightness controls */}
+      <div className="flex items-center gap-3 mt-2 pt-2 border-t border-hairline-subtle">
+        <span className="label-hw min-w-[78px]">PALETTE</span>
+        <HardwareToggle
+          options={palettes.map((p) => ({ value: p.key, label: p.label }))}
+          value={paletteKey}
+          onChange={setPalette}
+        />
       </div>
     </div>
   );

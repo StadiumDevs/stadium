@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { computePalette, applyPalette, scanlineOpacity } from '@/lib/brightness';
 import { solarBrightness, phaseLabel } from '@/lib/solar';
+import { DEFAULT_PALETTE_KEY, getPalette, PALETTES } from '@/lib/palettes';
 
 type Mode = 'auto' | 'manual';
 const STORAGE_KEY = 'stadium-brightness';
@@ -9,20 +10,24 @@ const TICK_INTERVAL_MS = 60_000;
 interface StoredState {
   mode: Mode;
   manualValue: number | null;
+  paletteKey: string;
 }
 
 function readStored(): StoredState {
-  if (typeof window === 'undefined') return { mode: 'auto', manualValue: null };
+  const defaults: StoredState = { mode: 'auto', manualValue: null, paletteKey: DEFAULT_PALETTE_KEY };
+  if (typeof window === 'undefined') return defaults;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { mode: 'auto', manualValue: null };
+    if (!raw) return defaults;
     const parsed = JSON.parse(raw);
-    if (parsed.mode !== 'auto' && parsed.mode !== 'manual') {
-      return { mode: 'auto', manualValue: null };
-    }
-    return parsed;
+    if (parsed.mode !== 'auto' && parsed.mode !== 'manual') return defaults;
+    return {
+      mode: parsed.mode,
+      manualValue: typeof parsed.manualValue === 'number' ? parsed.manualValue : null,
+      paletteKey: typeof parsed.paletteKey === 'string' ? parsed.paletteKey : DEFAULT_PALETTE_KEY,
+    };
   } catch {
-    return { mode: 'auto', manualValue: null };
+    return defaults;
   }
 }
 
@@ -41,17 +46,18 @@ export function useBrightness() {
   });
   const [phase, setPhase] = useState<string>(phaseLabel());
 
-  const applyToDOM = useCallback((b: number) => {
-    applyPalette(computePalette(b));
+  const applyToDOM = useCallback((b: number, paletteKey: string) => {
+    const palette = getPalette(paletteKey);
+    applyPalette(computePalette(b, palette), palette);
     if (typeof document !== 'undefined') {
       document.documentElement.style.setProperty('--scanline-opacity', String(scanlineOpacity(b)));
     }
   }, []);
 
-  // Apply on mount and whenever brightness changes
+  // Apply on mount and whenever brightness OR palette changes
   useEffect(() => {
-    applyToDOM(brightness);
-  }, [brightness, applyToDOM]);
+    applyToDOM(brightness, state.paletteKey);
+  }, [brightness, state.paletteKey, applyToDOM]);
 
   // Auto-mode tick — re-read clock every minute
   useEffect(() => {
@@ -78,26 +84,41 @@ export function useBrightness() {
 
   const setBrightness = useCallback((value: number) => {
     const clamped = Math.max(0, Math.min(100, Math.round(value)));
-    const next: StoredState = { mode: 'manual', manualValue: clamped };
-    setState(next);
-    writeStored(next);
+    setState((prev) => {
+      const next: StoredState = { ...prev, mode: 'manual', manualValue: clamped };
+      writeStored(next);
+      return next;
+    });
     setBrightnessValue(clamped);
   }, []);
 
   const setAuto = useCallback(() => {
-    const next: StoredState = { mode: 'auto', manualValue: null };
-    setState(next);
-    writeStored(next);
+    setState((prev) => {
+      const next: StoredState = { ...prev, mode: 'auto', manualValue: null };
+      writeStored(next);
+      return next;
+    });
     setBrightnessValue(solarBrightness());
     setPhase(phaseLabel());
+  }, []);
+
+  const setPalette = useCallback((paletteKey: string) => {
+    setState((prev) => {
+      const next: StoredState = { ...prev, paletteKey };
+      writeStored(next);
+      return next;
+    });
   }, []);
 
   return {
     brightness,
     mode: state.mode,
     phase,
+    paletteKey: state.paletteKey,
+    palettes: PALETTES,
     solarTarget: solarBrightness(),
     setBrightness,
     setAuto,
+    setPalette,
   };
 }

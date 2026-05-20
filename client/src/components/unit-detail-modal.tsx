@@ -113,6 +113,7 @@ export function UnitDetailModal({ open, onOpenChange, unit }: UnitDetailModalPro
               <Button
                 variant="outline"
                 size="icon"
+                className="text-label-mid hover:text-display"
                 onClick={() => window.open(unit.githubUrl, "_blank")}
                 aria-label="View on GitHub"
               >
