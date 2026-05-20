@@ -3,7 +3,7 @@
  */
 
 export interface SiwsContext {
-  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project' | 'post-update' | 'update-funding-signal' | 'apply-to-program' | 'create-program' | 'update-program' | 'review-application' | 'update-program-sponsors' | 'update-notifications';
+  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project' | 'post-update' | 'update-funding-signal' | 'apply-to-program' | 'create-program' | 'update-program' | 'review-application' | 'update-program-sponsors' | 'import-program-signups' | 'update-notifications';
   projectId?: string;
   projectTitle?: string;
   programTitle?: string;
@@ -68,6 +68,8 @@ export function generateSiwsStatement(context: SiwsContext): string {
       return `Review application on ${baseDomain}`;
     case 'update-program-sponsors':
       return `Update program sponsors on ${baseDomain}`;
+    case 'import-program-signups':
+      return `Import program signups on ${baseDomain}`;
 
     // Phase 2 revamp (#71): notification preferences
     case 'update-notifications':

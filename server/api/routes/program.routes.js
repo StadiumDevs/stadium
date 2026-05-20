@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, text, json } from 'express';
 import programController from '../controllers/program.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
@@ -6,6 +6,14 @@ import requireAdmin, {
 } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// CSV imports can run hundreds of rows; bump the body limit on the signup
+// import route only, leaving the default express.json() limit elsewhere.
+// Accept both text/csv (raw) and application/json {"csv":"..."} bodies.
+const csvBody = [
+  text({ type: 'text/csv', limit: '5mb' }),
+  json({ limit: '5mb' }),
+];
 
 // --- Public, Read-Only Routes ---
 router.get('/', programController.list);
@@ -51,6 +59,23 @@ router.delete(
   '/:slug/sponsors/:sponsorId',
   requireProgramAdmin('slug'),
   programController.deleteSponsor,
+);
+
+// --- Signups (Luma CSV imports) ---
+// All admin — same gate as applications. CSV body parsers stack with the
+// shared SIWS middleware: parser runs first to produce req.body, then
+// requireProgramAdmin reads x-siws-auth from headers.
+router.get('/:slug/signups', requireProgramAdmin('slug'), programController.listSignups);
+router.post(
+  '/:slug/signups/import',
+  ...csvBody,
+  requireProgramAdmin('slug'),
+  programController.importSignups,
+);
+router.delete(
+  '/:slug/signups/:signupId',
+  requireProgramAdmin('slug'),
+  programController.deleteSignup,
 );
 
 export default router;
