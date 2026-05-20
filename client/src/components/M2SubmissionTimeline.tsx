@@ -1,12 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Rocket, 
-  CheckCircle2, 
+import {
+  Rocket,
+  CheckCircle2,
   Circle,
-  Upload
+  Upload,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -19,13 +15,49 @@ interface M2SubmissionTimelineProps {
   onSubmit: () => void;
 }
 
-export function M2SubmissionTimeline({ 
-  project, 
-  isTeamMember, 
+const statusBadge = (status: string) => {
+  const base =
+    "inline-flex items-center gap-1.5 px-2 py-[2px] font-mono text-[10px] tracking-[0.12em] uppercase";
+  switch (status) {
+    case "completed":
+      return { cls: `${base} border border-display bg-display text-shell`, label: "COMPLETED" };
+    case "under_review":
+      return { cls: `${base} border border-hairline bg-panel-deep text-display`, label: "UNDER REVIEW" };
+    default:
+      return { cls: `${base} border border-hairline text-label-mid`, label: "BUILDING" };
+  }
+};
+
+function ChecklistRow({
+  done,
+  label,
+  meta,
+}: {
+  done: boolean;
+  label: string;
+  meta?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 lcd p-3">
+      {done ? (
+        <CheckCircle2 className="h-3.5 w-3.5 text-led flex-shrink-0" />
+      ) : (
+        <Circle className="h-3.5 w-3.5 text-label-dim flex-shrink-0" />
+      )}
+      <span className={`label-hw ${done ? "text-display" : "text-label-mid"}`}>·{label}</span>
+      {meta && (
+        <span className="label-hw-dim ml-auto font-mono">{meta.toUpperCase()}</span>
+      )}
+    </div>
+  );
+}
+
+export function M2SubmissionTimeline({
+  project,
+  isTeamMember,
   isAdmin,
   isConnected,
-  connectedWallet,
-  onSubmit 
+  onSubmit,
 }: M2SubmissionTimelineProps) {
   // Determine checklist states based on project data
   const isPlanAgreed = !!project.m2Agreement;
@@ -34,211 +66,156 @@ export function M2SubmissionTimeline({
   const isPayoutConfirmed = project.totalPaid?.some(
     (payment: { milestone: string }) => payment.milestone === 'M2'
   );
-  
-  // Check if there are incomplete milestones (show submit button)
+
   const hasIncompleteMilestones = !isDeliveryCompleted && isPlanAgreed;
-  
-  // Can submit if team member or admin, plan is agreed, and not yet submitted
-  const canSubmit = (isTeamMember || isAdmin) && hasIncompleteMilestones && isConnected;
-  
+
+  const m2Payment = project.totalPaid?.find(
+    (p: { milestone: string }) => p.milestone === 'M2'
+  );
+  const payoutMeta = m2Payment
+    ? m2Payment.currency === 'DOT'
+      ? `${m2Payment.amount.toLocaleString()} DOT`
+      : `$${m2Payment.amount.toLocaleString()} ${m2Payment.currency}`
+    : undefined;
+
+  const status = statusBadge(project.m2Status);
+
   return (
-    <Card className="panel">
-      <CardHeader>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <CardTitle className="flex items-center gap-2">
-            <Rocket className="h-5 w-5 text-primary" />
-            M2 Program Progress
-          </CardTitle>
-          <Badge 
-            variant={
-              project.m2Status === 'completed' ? 'default' : 
-              project.m2Status === 'under_review' ? 'secondary' : 
-              'outline'
-            }
-            className={
-              project.m2Status === 'completed' ? 'bg-green-500/10 border-green-500 text-green-500' :
-              project.m2Status === 'under_review' ? 'bg-orange-500/10 border-orange-500 text-orange-500' :
-              'bg-primary/10 border-primary text-primary'
-            }
-          >
-            {project.m2Status === 'building' && '🔨 Building'}
-            {project.m2Status === 'under_review' && '⏳ Under Review'}
-            {project.m2Status === 'completed' && '✅ Completed'}
-          </Badge>
+    <div className="panel p-5">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-5 pb-3 border-b border-hairline-subtle">
+        <div className="flex items-center gap-2">
+          <Rocket className="h-3.5 w-3.5 text-label-mid" />
+          <span className="label-hw text-display">·M2 PROGRAM PROGRESS</span>
         </div>
-      </CardHeader>
-      
-      <CardContent className="space-y-6">
+        <span className={status.cls}>
+          <span className="led led-sm" aria-hidden="true" />
+          {status.label}
+        </span>
+      </div>
+
+      <div className="space-y-5">
         {/* Progress Checklist */}
-        <div className="space-y-3">
-          {/* M2 Plan Agreed */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-            {isPlanAgreed ? (
-              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-            ) : (
-              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-            )}
-            <span className={`text-sm font-medium ${isPlanAgreed ? 'text-foreground' : 'text-muted-foreground'}`}>
-              M2 Plan Agreed
-            </span>
-            {isPlanAgreed && project.m2Agreement?.agreedDate && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                {format(new Date(project.m2Agreement.agreedDate), 'MMM d, yyyy')}
-              </span>
-            )}
-          </div>
-          
-          {/* M2 Delivery Completed */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-            {isDeliveryCompleted ? (
-              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-            ) : (
-              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-            )}
-            <span className={`text-sm font-medium ${isDeliveryCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
-              M2 Delivery Completed
-            </span>
-            {isDeliveryCompleted && project.finalSubmission?.submittedDate && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                {format(new Date(project.finalSubmission.submittedDate), 'MMM d, yyyy')}
-              </span>
-            )}
-          </div>
-          
-          {/* M2 Approved */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-            {isApproved ? (
-              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-            ) : (
-              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-            )}
-            <span className={`text-sm font-medium ${isApproved ? 'text-foreground' : 'text-muted-foreground'}`}>
-              M2 Approved
-            </span>
-            {isApproved && project.completionDate && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                {format(new Date(project.completionDate), 'MMM d, yyyy')}
-              </span>
-            )}
-          </div>
-          
-          {/* Payout Confirmed */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-            {isPayoutConfirmed ? (
-              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-            ) : (
-              <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-            )}
-            <span className={`text-sm font-medium ${isPayoutConfirmed ? 'text-foreground' : 'text-muted-foreground'}`}>
-              Payout Confirmed
-            </span>
-            {isPayoutConfirmed && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                {(() => {
-                  const m2Payment = project.totalPaid?.find(
-                    (p: { milestone: string }) => p.milestone === 'M2'
-                  );
-                  if (!m2Payment) return '';
-                  return m2Payment.currency === 'DOT' 
-                    ? `${m2Payment.amount.toLocaleString()} DOT`
-                    : `$${m2Payment.amount.toLocaleString()} ${m2Payment.currency}`;
-                })()}
-              </span>
-            )}
-          </div>
+        <div className="space-y-2">
+          <ChecklistRow
+            done={isPlanAgreed}
+            label="M2 PLAN AGREED"
+            meta={
+              isPlanAgreed && project.m2Agreement?.agreedDate
+                ? format(new Date(project.m2Agreement.agreedDate), 'MMM d, yyyy')
+                : undefined
+            }
+          />
+          <ChecklistRow
+            done={isDeliveryCompleted}
+            label="M2 DELIVERY COMPLETED"
+            meta={
+              isDeliveryCompleted && project.finalSubmission?.submittedDate
+                ? format(new Date(project.finalSubmission.submittedDate), 'MMM d, yyyy')
+                : undefined
+            }
+          />
+          <ChecklistRow
+            done={isApproved}
+            label="M2 APPROVED"
+            meta={
+              isApproved && project.completionDate
+                ? format(new Date(project.completionDate), 'MMM d, yyyy')
+                : undefined
+            }
+          />
+          <ChecklistRow
+            done={isPayoutConfirmed}
+            label="PAYOUT CONFIRMED"
+            meta={payoutMeta}
+          />
         </div>
 
         {/* Agreed Deliverables Section */}
         {(() => {
-          // Get deliverables from m2Agreement.agreedFeatures or fallback to project.milestones
           const deliverables = project.m2Agreement?.agreedFeatures || project.milestones || [];
           const hasDeliverables = deliverables.length > 0;
-          
+
           if (!hasDeliverables) return null;
-          
+
           return (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Agreed Deliverables</h3>
-              <div className="bg-muted/20 rounded-lg p-4 space-y-2">
+            <div>
+              <h3 className="label-hw text-display mb-2">·AGREED DELIVERABLES</h3>
+              <div className="lcd p-4 space-y-2">
                 {deliverables.map((item: string | { description?: string }, index: number) => {
                   const text = typeof item === 'string' ? item : item.description || '';
                   if (!text) return null;
                   return (
-                    <div key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <span className="text-primary flex-shrink-0">•</span>
+                    <div key={index} className="flex items-start gap-2 text-sm text-body">
+                      <span className="text-display flex-shrink-0 font-mono text-xs mt-0.5">·</span>
                       <span className="flex-1 leading-relaxed whitespace-pre-line">{text}</span>
                     </div>
                   );
                 })}
               </div>
               {project.m2Agreement?.successCriteria && (
-                <div className="text-sm">
-                  <span className="font-medium text-foreground">Success Criteria: </span>
-                  <span className="text-muted-foreground whitespace-pre-line leading-relaxed">{project.m2Agreement.successCriteria}</span>
+                <div className="text-sm mt-3">
+                  <span className="label-hw text-display">·SUCCESS CRITERIA: </span>
+                  <span className="text-body whitespace-pre-line leading-relaxed">
+                    {project.m2Agreement.successCriteria}
+                  </span>
                 </div>
               )}
             </div>
           );
         })()}
-        
+
         {/* Submitted / Approved Alert */}
         {isDeliveryCompleted && (
-          <Alert className="bg-green-500/10 border-green-500/30">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-            <AlertDescription>
+          <div className="lcd p-4 border-led">
+            <div className="flex items-start gap-2.5">
+              <CheckCircle2 className="h-4 w-4 text-led flex-shrink-0 mt-0.5" />
               <div className="space-y-1">
                 {project.m2Status === 'completed' ? (
                   <>
-                    <p className="font-semibold text-green-500">
-                      Your M2 has been approved
-                    </p>
-                    <p className="text-sm text-foreground">
+                    <p className="label-hw text-led">·YOUR M2 HAS BEEN APPROVED</p>
+                    <p className="text-sm text-body">
                       Check Payment History for transaction details.
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="font-semibold text-green-500">
-                      M2 deliverables submitted on {format(new Date(project.finalSubmission.submittedDate), 'MMMM d, yyyy')}
+                    <p className="label-hw text-led">
+                      ·M2 DELIVERABLES SUBMITTED ON {format(new Date(project.finalSubmission.submittedDate), 'MMM d, yyyy').toUpperCase()}
                     </p>
-                    <p className="text-sm text-foreground">
+                    <p className="text-sm text-body">
                       WebZero is reviewing your submission.
                     </p>
                   </>
                 )}
               </div>
-            </AlertDescription>
-          </Alert>
+            </div>
+          </div>
         )}
-        
+
         {/* Submit Button - Only show if incomplete milestones */}
         {hasIncompleteMilestones && (
-          <div className="pt-2">
+          <div className="pt-1">
             {!isConnected ? (
-              <Alert className="bg-muted border-border">
-                <AlertDescription className="text-sm text-center text-muted-foreground">
-                  Connect your wallet to submit deliverables
-                </AlertDescription>
-              </Alert>
+              <div className="lcd p-3 text-center">
+                <span className="label-hw-dim">·CONNECT YOUR WALLET TO SUBMIT DELIVERABLES</span>
+              </div>
             ) : !isTeamMember && !isAdmin ? (
-              <Alert className="bg-muted border-border">
-                <AlertDescription className="text-sm text-center text-muted-foreground">
-                  Only team members can submit deliverables
-                </AlertDescription>
-              </Alert>
+              <div className="lcd p-3 text-center">
+                <span className="label-hw-dim">·ONLY TEAM MEMBERS CAN SUBMIT DELIVERABLES</span>
+              </div>
             ) : (
-              <Button
-                className="w-full"
-                size="lg"
+              <button
+                type="button"
                 onClick={onSubmit}
+                className="w-full inline-flex items-center justify-center gap-2 font-mono text-[11px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-3"
               >
-                <Upload className="mr-2 h-5 w-5" />
-                Submit Milestone
-              </Button>
+                <Upload className="h-3.5 w-3.5" />
+                SUBMIT MILESTONE ▸
+              </button>
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
