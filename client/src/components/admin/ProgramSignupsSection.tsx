@@ -23,7 +23,7 @@ const truncateAddress = (addr?: string | null) => {
 
 interface Props {
   programSlug: string;
-  signAuthHeader: () => Promise<string>;
+  signAuthHeader: () => Promise<import("@/lib/api").AdminAuthArg>;
 }
 
 export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {

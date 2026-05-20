@@ -157,7 +157,7 @@ export function ProgramSponsorsSection({
   signAuthHeader,
 }: {
   programSlug: string;
-  signAuthHeader: () => Promise<string>;
+  signAuthHeader: () => Promise<import("@/lib/api").AdminAuthArg>;
 }) {
   const { toast } = useToast();
   const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);

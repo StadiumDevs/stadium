@@ -19,7 +19,7 @@ export function ProgramAdminsSection({
   isGlobalAdmin,
 }: {
   programSlug: string;
-  signAuthHeader: () => Promise<string>;
+  signAuthHeader: () => Promise<import("@/lib/api").AdminAuthArg>;
   isGlobalAdmin: boolean;
 }) {
   const { toast } = useToast();

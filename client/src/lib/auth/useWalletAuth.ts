@@ -10,8 +10,15 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Chain, WalletAccount } from './types'
 import { getProvider } from './registry'
 import { generateSiwsStatement, type SiwsContext } from '@/lib/siwsUtils'
+import { readAdminToken, writeAdminToken, clearAdminToken } from './adminSession'
+import { API_BASE_URL } from '@/lib/api'
 
 const SESSION_KEY = 'stadium_wallet_session_v2'
+
+/** Headers an admin caller can attach. Exactly one of these is populated. */
+export type AdminAuthHeaders =
+  | { Authorization: string; 'x-siws-auth'?: never }
+  | { 'x-siws-auth': string; Authorization?: never }
 
 export interface WalletAuth {
   chain: Chain
@@ -28,6 +35,12 @@ export interface WalletAuth {
   selectAccount: (account: WalletAccount) => void
   /** Sign an action; resolves with the base64 `x-siws-auth` header value. */
   signAction: (action: SiwsContext['action'], context?: Partial<SiwsContext>) => Promise<string>
+  /**
+   * Get an admin auth bearer token, signing once + exchanging if the cache
+   * is empty or expired. Resolves with `Authorization: Bearer …` headers so
+   * the caller can spread them straight into a fetch.
+   */
+  getAdminBearerHeaders: () => Promise<AdminAuthHeaders>
   disconnect: () => void
 }
 
@@ -121,7 +134,59 @@ export function useWalletAuth(): WalletAuth {
     [account]
   )
 
+  const getAdminBearerHeaders = useCallback(async (): Promise<AdminAuthHeaders> => {
+    if (!account) throw new Error('Wallet not connected')
+
+    const cached = readAdminToken(account.chain, account.address)
+    if (cached) {
+      return { Authorization: `Bearer ${cached}` }
+    }
+
+    // No valid token — sign once with the existing admin-action statement,
+    // exchange via POST /api/admin/session for a short-lived bearer token,
+    // and cache it for the rest of this session.
+    const provider = getProvider(account.chain)
+    if (!provider) throw new Error(`Unsupported sign-in chain: ${account.chain}`)
+    const statement = generateSiwsStatement({ action: 'admin-action' })
+    const siwsHeader = await provider.signIn({ account, statement })
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/session`, {
+        method: 'POST',
+        headers: { 'x-siws-auth': siwsHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        // Session exchange failed — fall back to one-shot SIWS so the action
+        // still goes through. The caller passes the raw SIWS header instead.
+        return { 'x-siws-auth': siwsHeader }
+      }
+      const body = (await res.json()) as {
+        status: string
+        data: { token: string; expiresAt: string; chain: string; address: string }
+      }
+      if (!body?.data?.token) {
+        return { 'x-siws-auth': siwsHeader }
+      }
+      writeAdminToken({
+        chain: account.chain,
+        address: account.address,
+        token: body.data.token,
+        expiresAt: body.data.expiresAt,
+      })
+      return { Authorization: `Bearer ${body.data.token}` }
+    } catch {
+      // Network error — fall back to the SIWS one-shot so the caller still wins.
+      return { 'x-siws-auth': siwsHeader }
+    }
+  }, [account])
+
   const disconnect = useCallback(() => {
+    if (account) {
+      clearAdminToken(account.chain, account.address)
+    } else {
+      clearAdminToken()
+    }
     setAccount(null)
     setAccounts([])
     setError('')
@@ -130,7 +195,7 @@ export function useWalletAuth(): WalletAuth {
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [account])
 
   return {
     chain,
@@ -143,6 +208,7 @@ export function useWalletAuth(): WalletAuth {
     connect,
     selectAccount,
     signAction,
+    getAdminBearerHeaders,
     disconnect,
   }
 }

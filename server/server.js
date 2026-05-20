@@ -4,6 +4,7 @@ import connectToSupabase, { supabase } from "./db.js";
 import m2ProgramRoutes from './api/routes/m2-program.routes.js';
 import programRoutes from './api/routes/program.routes.js';
 import walletContactRoutes from './api/routes/wallet-contact.routes.js';
+import adminSessionRoutes from './api/routes/admin-session.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
 import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
@@ -46,6 +47,7 @@ app.use(requestLogger);
 app.use('/api/m2-program', m2ProgramRoutes);
 app.use('/api/programs', programRoutes);
 app.use('/api/wallet-contacts', walletContactRoutes);
+app.use('/api/admin/session', adminSessionRoutes);
 
 // Backward compatibility: Keep old /api/projects route as alias
 // TODO: Remove after frontend migration is stable
