@@ -87,7 +87,12 @@ interface WinnersTableProps {
   projects: any[];
   onRefresh: () => void;
   connectedAddress?: string;
-  signAdminAction: (action?: string) => Promise<string>;
+  /**
+   * Returns admin auth headers — cached session bearer when available, or
+   * a fresh one-shot SIWS payload. Use the same callback for every admin
+   * write below to share the cache.
+   */
+  signAdminAction: () => Promise<import("@/lib/api").AdminAuthArg>;
 }
 
 type WinnerFilter = "all" | "main-track" | "bounty";
@@ -214,7 +219,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("status");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       const updateData: Record<string, any> = {
         projectState: manageModal.projectState,
@@ -250,7 +255,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("agreement");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       // Parse line-separated strings into arrays
       const agreedFeatures = manageModal.agreedFeatures
@@ -308,7 +313,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("deliverables");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       // Validate
       if (!manageModal.repoUrl) {
@@ -361,7 +366,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("payment");
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       // Validate
       if (!manageModal.paymentAmount || manageModal.paymentAmount <= 0) {
@@ -412,7 +417,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     let failCount = 0;
     
     try {
-      const authHeader = await signAdminAction('admin-action');
+      const authHeader = await signAdminAction();
       
       for (const project of unpaidProjects) {
         try {

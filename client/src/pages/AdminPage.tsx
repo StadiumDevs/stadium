@@ -108,10 +108,10 @@ const AdminPage = () => {
   const handleConfirmM1Payout = async (data: any) => {
     if (!selectedProject) return;
     try {
-      const authHeader = await auth.signAction("admin-action");
+      const authHeaders = await auth.getAdminBearerHeaders();
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-siws-auth": authHeader },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         credentials: "include",
         body: JSON.stringify(data),
       });
@@ -145,10 +145,10 @@ const AdminPage = () => {
   const handleConfirmPayment = async (data: any) => {
     if (!selectedProject) return;
     try {
-      const authHeader = await auth.signAction("admin-action");
+      const authHeaders = await auth.getAdminBearerHeaders();
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-siws-auth": authHeader },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         credentials: "include",
         body: JSON.stringify(data),
       });
@@ -459,7 +459,7 @@ const AdminPage = () => {
             projects={projects}
             onRefresh={loadData}
             connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0]?.address : auth.account?.address}
-            signAdminAction={auth.signAction}
+            signAdminAction={auth.getAdminBearerHeaders}
           />
         </section>
 

@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, XCircle, ExternalLink, Loader2 } from "lucide-react";
-import { web3Enable, web3Accounts, web3FromSource } from "@polkadot/extension-dapp";
-import { SiwsMessage } from "@talismn/siws";
-import { generateSiwsStatement } from "@/lib/siwsUtils";
-import { api, type ApiProgramApplication } from "@/lib/api";
+import { api, type ApiProgramApplication, type AdminAuthArg } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const statusBadge = (status: ApiProgramApplication["status"]) => {
@@ -30,12 +27,16 @@ const truncateAddress = (addr?: string | null) => {
 export function ApplicationCard({
   application,
   programSlug,
-  connectedAddress,
+  signAuthHeader,
   onUpdated,
 }: {
   application: ApiProgramApplication;
   programSlug: string;
-  connectedAddress: string;
+  /**
+   * Returns admin auth headers — either a cached session bearer or a fresh
+   * one-shot SIWS payload. Same shape as `useWalletAuth.getAdminBearerHeaders`.
+   */
+  signAuthHeader: () => Promise<AdminAuthArg>;
   onUpdated: (next: ApiProgramApplication) => void;
 }) {
   const [working, setWorking] = useState<"accept" | "reject" | null>(null);
@@ -44,28 +45,7 @@ export function ApplicationCard({
   const doUpdate = async (next: ApiProgramApplication["status"]) => {
     setWorking(next === "accepted" ? "accept" : "reject");
     try {
-      await web3Enable("Stadium");
-      const accounts = await web3Accounts();
-      const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet account found");
-
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({ action: "review-application" }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = (await siws.sign(injector)) as unknown as { signature: string; message?: string };
-      const messageStr =
-        typeof signed.message === "string" && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(
-        JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }),
-      );
-
+      const authHeader = await signAuthHeader();
       const res = await api.updateApplicationStatus(
         programSlug,
         application.id,

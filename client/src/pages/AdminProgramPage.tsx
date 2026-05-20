@@ -46,22 +46,13 @@ const AdminProgramPage = () => {
   const [isProgramAdmin, setIsProgramAdmin] = useState(false);
   const isAdminWallet = isGlobalAdmin || isProgramAdmin;
 
-  // Stabilize per-action signers so child sections that include
-  // `signAuthHeader` in their effect deps don't loop forever — every render
-  // of this page would otherwise produce a fresh `() => auth.signAction(...)`
-  // arrow and re-trigger the wallet popup. `signAction` itself is memoized
-  // in useWalletAuth against `account`, so these stay stable until the user
-  // disconnects or switches account.
-  const { signAction } = auth;
-  const signAdminAction = useCallback(() => signAction("admin-action"), [signAction]);
-  const signUpdateSponsors = useCallback(
-    () => signAction("update-program-sponsors"),
-    [signAction],
-  );
-  const signImportSignups = useCallback(
-    () => signAction("import-program-signups"),
-    [signAction],
-  );
+  // Admin-action auth: hand each section the same `getAdminBearerHeaders`
+  // callback. First call signs once and exchanges via /api/admin/session for
+  // a short-lived bearer; subsequent calls in this tab hit the cache and
+  // return the bearer headers with zero wallet prompts. Stable across
+  // renders because `getAdminBearerHeaders` is memoized against `account`.
+  const { getAdminBearerHeaders } = auth;
+  const getAdminAuth = useCallback(() => getAdminBearerHeaders(), [getAdminBearerHeaders]);
 
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [applications, setApplications] = useState<ApiProgramApplication[]>([]);
@@ -92,7 +83,7 @@ const AdminProgramPage = () => {
   const loadApplications = async () => {
     if (!slug || !connectedAddress || !isAdminWallet) return;
     try {
-      const authHeader = await signAdminAction();
+      const authHeader = await getAdminAuth();
       const res = await api.listProgramApplications(slug, authHeader);
       setApplications(res.data);
     } catch (e) {
@@ -132,7 +123,9 @@ const AdminProgramPage = () => {
       }
       auth.selectAccount(candidate);
       try {
-        const authHeader = await auth.signAction("admin-action");
+        // First call also primes the admin session cache: signs once,
+        // exchanges via /api/admin/session, caches the bearer for later.
+        const authHeader = await auth.getAdminBearerHeaders();
         await api.listProgramAdmins(slug, authHeader);
         setIsProgramAdmin(true);
       } catch (probeErr) {
@@ -237,18 +230,18 @@ const AdminProgramPage = () => {
               <>
                 <ProgramAdminsSection
                   programSlug={program.slug}
-                  signAuthHeader={signAdminAction}
+                  signAuthHeader={getAdminAuth}
                   isGlobalAdmin={isGlobalAdmin}
                 />
 
                 <ProgramSponsorsSection
                   programSlug={program.slug}
-                  signAuthHeader={signUpdateSponsors}
+                  signAuthHeader={getAdminAuth}
                 />
 
                 <ProgramSignupsSection
                   programSlug={program.slug}
-                  signAuthHeader={signImportSignups}
+                  signAuthHeader={getAdminAuth}
                 />
 
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
@@ -286,7 +279,7 @@ const AdminProgramPage = () => {
                         key={a.id}
                         application={a}
                         programSlug={program.slug}
-                        connectedAddress={connectedAddress!}
+                        signAuthHeader={getAdminAuth}
                         onUpdated={handleUpdated}
                       />
                     ))}

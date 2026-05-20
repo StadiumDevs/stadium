@@ -22,6 +22,7 @@ import { getVerifier } from '../auth/verifiers/index.js';
 import { validateStatement } from '../auth/statements.js';
 import { normalizeAddress } from '../auth/normalize.js';
 import { consumeNonce } from '../auth/nonceStore.js';
+import { extractBearerToken, verifySessionToken } from '../auth/sessionToken.js';
 import programRepository from '../repositories/program.repository.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
 
@@ -54,7 +55,7 @@ const logSuccess = (message) => console.log(chalk.green(`[AuthMiddleware] ${mess
  *   | { ok: false, status: number, body: object }
  * >}
  */
-async function authenticateRequest(authHeader, { checkDomain }) {
+export async function authenticateRequest(authHeader, { checkDomain }) {
   let payload;
   try {
     payload = parsePayload(authHeader);
@@ -174,6 +175,74 @@ async function authenticateRequest(authHeader, { checkDomain }) {
   return { ok: true, chain, parsed, normalizedAddress };
 }
 
+/**
+ * Resolve the authenticated signer of a request, preferring a session bearer
+ * token over a fresh SIWS sign. Returns the same shape as authenticateRequest
+ * (`{ ok, status, body }` on failure; `{ ok, chain, parsed, normalizedAddress }`
+ * on success).
+ *
+ * Bearer path: short-lived HMAC token, valid for ADMIN_SESSION_TTL_SECONDS
+ * after one SIWS sign exchanged via POST /api/admin/session.
+ * SIWS path: unchanged — single-use nonce + expirationTime + statement check.
+ *
+ * The synthetic `parsed` object exposed on the bearer path has just `address`
+ * (other fields are undefined) — downstream middleware only reads `address`
+ * and `chain`, never the other SIWS fields, so the shape is compatible.
+ */
+export async function resolveAuthIdentity(req, { checkDomain }) {
+  const bearer = extractBearerToken(req);
+  if (bearer) {
+    const v = verifySessionToken(bearer);
+    if (v.valid) {
+      const chain = v.chain;
+      let normalizedAddress;
+      try {
+        normalizedAddress = normalizeAddress(chain, v.address);
+      } catch {
+        normalizedAddress = v.address;
+      }
+      logSuccess(`${chain} session bearer accepted for ${v.address}.`);
+      return {
+        ok: true,
+        chain,
+        parsed: { address: v.address, statement: '[session-bearer]', domain: undefined, nonce: undefined },
+        normalizedAddress,
+        viaSession: true,
+      };
+    }
+    logError(`Bearer rejected (${v.reason}).`);
+    return {
+      ok: false,
+      status: 401,
+      body: { status: 'error', message: 'Session token invalid or expired' },
+    };
+  }
+
+  const authHeader = req.headers['x-siws-auth'];
+
+  // DEV MODE BYPASS — preserved so existing local dev workflows keep working.
+  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
+    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication'));
+    return {
+      ok: true,
+      chain: 'substrate',
+      parsed: { address: ADMIN_WALLETS[0] || 'dev-admin', statement: '[dev-bypass]' },
+      normalizedAddress: ADMIN_WALLETS[0] || 'dev-admin',
+      viaSession: false,
+      devBypass: true,
+    };
+  }
+
+  if (!authHeader) {
+    return {
+      ok: false,
+      status: 401,
+      body: { status: 'error', message: 'Missing SIWS auth header' },
+    };
+  }
+  return authenticateRequest(authHeader, { checkDomain });
+}
+
 // --- Middleware ---
 
 /**
@@ -182,23 +251,13 @@ async function authenticateRequest(authHeader, { checkDomain }) {
 export const requireAdmin = async (req, res, next) => {
   log(`Initiating admin verification for ${req.method} ${req.originalUrl}`);
 
-  const authHeader = req.headers['x-siws-auth'];
-
-  // DEV MODE BYPASS: skip auth in development when header is 'dev-bypass'.
-  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
-    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication'));
-    req.adminAddress = ADMIN_WALLETS[0] || 'dev-admin';
-    return next();
-  }
-
-  if (!authHeader) {
-    logError('Verification failed: Missing x-siws-auth header.');
-    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
-  }
-
-  const auth = await authenticateRequest(authHeader, { checkDomain: true });
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.adminAddress = auth.parsed.address;
+    return next();
   }
 
   const signerAddress = auth.parsed.address;
@@ -233,26 +292,16 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     return res.status(400).json({ status: 'error', message: 'Project ID is required for this operation' });
   }
 
-  const authHeader = req.headers['x-siws-auth'];
-
-  // DEV MODE BYPASS
-  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
-    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for team/admin'));
-    req.auth = { address: ADMIN_WALLETS[0] || 'dev-admin', isAdmin: true };
-    return next();
-  }
-
-  if (!authHeader) {
-    logError('Verification failed: Missing x-siws-auth header.');
-    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
-  }
-
   // Domain is verified here too, consistent with requireAdmin / requireOwnWallet.
   // Preview/staging origins are handled by DISABLE_SIWS_DOMAIN_CHECK, not by
   // skipping the check.
-  const auth = await authenticateRequest(authHeader, { checkDomain: true });
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.auth = { address: auth.parsed.address, isAdmin: true };
+    return next();
   }
 
   const signerAddress = auth.parsed.address;
@@ -315,23 +364,13 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
 export const requireOwnWallet = async (req, res, next) => {
   log(`Initiating own-wallet verification for ${req.method} ${req.originalUrl}`);
 
-  const authHeader = req.headers['x-siws-auth'];
-
-  // DEV MODE BYPASS
-  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
-    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for own-wallet'));
-    req.user = { address: req.params.address, chain: 'substrate' };
-    return next();
-  }
-
-  if (!authHeader) {
-    logError('Verification failed: Missing x-siws-auth header.');
-    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
-  }
-
-  const auth = await authenticateRequest(authHeader, { checkDomain: true });
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.user = { address: req.params.address, chain: 'substrate' };
+    return next();
   }
 
   // The signer's chain governs how the target route param is interpreted.
@@ -378,22 +417,13 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
     return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
   }
 
-  const authHeader = req.headers['x-siws-auth'];
-
-  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
-    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication for program admin'));
-    req.user = { address: ADMIN_WALLETS[0] || 'dev-admin', programSlug: slug, isGlobalAdmin: true };
-    return next();
-  }
-
-  if (!authHeader) {
-    logError('Verification failed: Missing x-siws-auth header.');
-    return res.status(401).json({ status: 'error', message: 'Missing SIWS auth header' });
-  }
-
-  const auth = await authenticateRequest(authHeader, { checkDomain: true });
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.user = { address: auth.parsed.address, programSlug: slug, isGlobalAdmin: true };
+    return next();
   }
 
   const signerAddress = auth.parsed.address;
