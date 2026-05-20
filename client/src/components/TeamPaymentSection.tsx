@@ -244,38 +244,37 @@ export function TeamPaymentSection({
 
   // Render read-only team member card
   const renderReadOnlyMember = (member: TeamMember, index: number) => (
-    <Card key={member.walletAddress || index} className="bg-secondary/50">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1 flex-1">
+    <div key={member.walletAddress || index} className="lcd p-4">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold">{member.name}</p>
+              <p className="font-mono text-sm font-bold text-display">{member.name}</p>
               {member.role && (
-                <Badge variant="secondary" className="text-xs">
+                <span className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase">
                   {member.role}
-                </Badge>
+                </span>
               )}
             </div>
             {member.walletAddress && (
               <div className="flex items-center gap-2">
-                <code className="text-xs text-muted-foreground font-mono">
+                <code className="text-xs text-label-dim font-mono">
                   {truncateAddress(member.walletAddress)}
                 </code>
-                <Badge variant="outline" className="text-[10px]">
+                <span className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase">
                   {chainLabel(member.walletChain)}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
+                </span>
+                <button
+                  type="button"
                   onClick={() => copyToClipboard(member.walletAddress!, "Wallet address")}
+                  className="text-label-mid hover:text-display p-1"
+                  aria-label="Copy wallet address"
                 >
                   {copiedAddress === member.walletAddress ? (
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <CheckCircle2 className="h-3 w-3 text-led" />
                   ) : (
                     <Copy className="h-3 w-3" />
                   )}
-                </Button>
+                </button>
               </div>
             )}
             {/* Social Links */}
@@ -303,7 +302,7 @@ export function TeamPaymentSection({
                   </Button>
                 )}
                 {member.customUrl && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-label-mid hover:text-display" asChild>
                     <a href={member.customUrl.startsWith('http') ? member.customUrl : `https://${member.customUrl}`} target="_blank" rel="noopener noreferrer" title="Website">
                       <Globe className="h-4 w-4" />
                     </a>
@@ -313,14 +312,12 @@ export function TeamPaymentSection({
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 
   // Render editable team member card
   const renderEditableMember = (member: TeamMember, index: number) => (
-    <Card key={index} className="bg-secondary/50 border-primary/20">
-      <CardContent className="p-4 space-y-3">
+    <div key={index} className="lcd p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 grid gap-3">
             {/* Row 1: Name and Role */}
@@ -438,26 +435,25 @@ export function TeamPaymentSection({
             </Button>
           )}
         </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 
   return (
     <Card className="panel">
-      <CardHeader>
+      <CardHeader className="pb-3 border-b border-hairline-subtle">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Team & Payment Details
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Users className="h-3.5 w-3.5 text-label-mid" aria-hidden="true" />
+            <span className="label-hw text-display">·TEAM & PAYMENT DETAILS</span>
+          </div>
           {canEdit && !isEditing && (
-            <Button
-              variant="outline"
-              size="sm"
+            <button
+              type="button"
               onClick={() => setIsEditing(true)}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
             >
-              Edit
-            </Button>
+              EDIT
+            </button>
           )}
         </div>
       </CardHeader>
@@ -465,18 +461,15 @@ export function TeamPaymentSection({
         {/* Team Members Section */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Team Members
-            </h3>
+            <span className="label-hw text-display">·TEAM MEMBERS</span>
             {isEditing && (
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={addMember}
+                className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Member
-              </Button>
+                <Plus className="h-3 w-3" /> ADD MEMBER
+              </button>
             )}
           </div>
           
@@ -498,10 +491,10 @@ export function TeamPaymentSection({
         
         {/* Payment Information Section */}
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
-            <Wallet className="h-4 w-4" />
-            Payment Information
-          </h3>
+          <div className="flex items-center gap-2">
+            <Wallet className="h-3.5 w-3.5 text-label-mid" aria-hidden="true" />
+            <span className="label-hw text-display">·PAYMENT INFORMATION</span>
+          </div>
           
           {/* Payout Address */}
           {isEditing ? (
@@ -534,116 +527,106 @@ export function TeamPaymentSection({
               </p>
             </div>
           ) : donationAddress ? (
-            <Card className="bg-secondary/50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-xs text-muted-foreground">
-                    Payout Wallet Address
-                  </p>
-                  <Badge variant="outline" className="text-[10px]">
-                    {chainLabel(donationChain)}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <code className="text-sm font-mono break-all">
-                    {donationAddress}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="flex-shrink-0"
-                    onClick={() => copyToClipboard(donationAddress, "Payout address")}
-                  >
-                    {copiedAddress === donationAddress ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="lcd p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="label-hw-dim">PAYOUT WALLET ADDRESS</span>
+                <span className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase">
+                  {chainLabel(donationChain)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <code className="text-sm font-mono text-display break-all">
+                  {donationAddress}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(donationAddress, "Payout address")}
+                  className="text-label-mid hover:text-display flex-shrink-0 p-1.5"
+                  aria-label="Copy payout address"
+                >
+                  {copiedAddress === donationAddress ? (
+                    <CheckCircle2 className="h-4 w-4 text-led" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
           ) : (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                No payout address set. Please add one to receive M2 payments.
-              </AlertDescription>
-            </Alert>
+            <div className="lcd p-3 border-destructive flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="label-hw text-destructive mb-1">·NO PAYOUT ADDRESS</div>
+                <p className="text-body text-sm">Please add one to receive M2 payments.</p>
+              </div>
+            </div>
           )}
           
           {/* Payment History - Always read-only */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Payment History</p>
-            
+            <span className="label-hw text-display">·PAYMENT HISTORY</span>
+
             {totalPaid && totalPaid.length > 0 ? (
               <div className="space-y-2">
                 {totalPaid.map((payment, index) => (
-                  <Card key={index} className="bg-secondary/30">
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            <Badge variant="outline" className="bg-primary/10 border-primary">
-                              {payment.milestone}
-                            </Badge>
-                            <span className="font-semibold">
-                              {payment.currency === 'DOT' 
-                                ? `${payment.amount.toLocaleString()} DOT`
-                                : `$${payment.amount.toLocaleString()} ${payment.currency}`}
-                            </span>
-                          </div>
-                          {payment.paidDate && (
-                            <p className="text-xs text-muted-foreground">
-                              Paid: {new Date(payment.paidDate).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </p>
-                          )}
-                          {payment.transactionProof && (
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="h-auto p-0 text-xs"
-                              asChild
-                            >
-                              <a href={payment.transactionProof} target="_blank" rel="noopener noreferrer">
-                                View on Subscan
-                                <ExternalLink className="ml-1 h-3 w-3" />
-                              </a>
-                            </Button>
-                          )}
+                  <div key={index} className="lcd p-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <CheckCircle2 className="h-4 w-4 text-led" />
+                          <span className="bg-display text-shell px-2 py-[2px] font-mono text-[10px] font-bold tracking-[0.12em]">
+                            {payment.milestone}
+                          </span>
+                          <span className="font-mono text-sm font-bold text-display tabular-nums">
+                            {payment.currency === 'DOT'
+                              ? `${payment.amount.toLocaleString()} DOT`
+                              : `$${payment.amount.toLocaleString()} ${payment.currency}`}
+                          </span>
                         </div>
+                        {payment.paidDate && (
+                          <p className="label-hw-dim">
+                            PAID · {new Date(payment.paidDate).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            }).toUpperCase()}
+                          </p>
+                        )}
+                        {payment.transactionProof && (
+                          <a
+                            href={payment.transactionProof}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="label-hw-dim hover:text-display inline-flex items-center gap-1"
+                          >
+                            VIEW ON SUBSCAN <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No payments made yet</p>
+              <p className="label-hw-dim">No payments made yet</p>
             )}
-            
+
             {/* M2 Pending Payment */}
             {m2Status && m2Status !== 'completed' && (
-              <Card className="bg-secondary/30 border-dashed">
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <Badge variant="outline">M2</Badge>
-                    <span className="font-semibold">$2,000 USDC</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Status: {
-                      m2Status === 'building' ? 'Awaiting submission' :
-                      m2Status === 'under_review' ? 'Under review' :
-                      'Processing payment'
-                    }
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="lcd p-3 border-dashed">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Clock className="h-4 w-4 text-label-mid" />
+                  <span className="border border-display text-display px-2 py-[1px] font-mono text-[10px] font-bold tracking-[0.12em]">
+                    M2
+                  </span>
+                  <span className="font-mono text-sm font-bold text-display tabular-nums">$2,000 USDC</span>
+                </div>
+                <p className="label-hw-dim mt-1">
+                  STATUS · {(m2Status === 'building' ? 'Awaiting submission' :
+                    m2Status === 'under_review' ? 'Under review' :
+                    'Processing payment').toUpperCase()}
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -652,30 +635,31 @@ export function TeamPaymentSection({
         {isEditing && (
           <>
             <Separator />
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
                 onClick={handleCancel}
                 disabled={isSaving}
+                className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
               >
-                Cancel
-              </Button>
-              <Button
+                CANCEL
+              </button>
+              <button
+                type="button"
                 onClick={handleSave}
                 disabled={isSaving || !hasChanges()}
+                className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:bg-panel-deep disabled:text-label-dim disabled:border-hairline disabled:cursor-not-allowed px-4 py-1.5 inline-flex items-center gap-1.5"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    <Loader2 className="h-3 w-3 animate-spin" /> SAVING…
                   </>
                 ) : (
                   <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Changes
+                    <Save className="h-3 w-3" /> SAVE CHANGES
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </>
         )}
