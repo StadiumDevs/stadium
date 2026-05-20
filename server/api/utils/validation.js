@@ -450,6 +450,14 @@ export const validateProgram = (data, { partial = false } = {}) => {
       return { valid: false, error: 'maxApplicants must be a positive integer' };
     }
   }
+  if (has('eventUrl') && data.eventUrl !== null && data.eventUrl !== '') {
+    if (typeof data.eventUrl !== 'string' || data.eventUrl.length > 500) {
+      return { valid: false, error: 'eventUrl must be a string (max 500 characters)' };
+    }
+    if (!/^https?:\/\//i.test(data.eventUrl)) {
+      return { valid: false, error: 'eventUrl must start with http:// or https://' };
+    }
+  }
 
   const isoOrNull = (val) => {
     if (val === null || val === undefined || val === '') return true;
@@ -477,3 +485,64 @@ export const validateProgram = (data, { partial = false } = {}) => {
   return { valid: true };
 };
 
+// --- Sponsors (per-program) ---
+
+// Open-ended profile vocabulary — the team can write anything but these are the
+// expected canonical values. Validator only enforces shape, not the dictionary.
+export const SUGGESTED_SPONSOR_PROFILES = [
+  'developer',
+  'designer',
+  'marketer',
+  'artist',
+  'researcher',
+  'founder',
+  'other',
+];
+
+export const validateSponsor = (data, { partial = false } = {}) => {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: 'Sponsor payload must be an object' };
+  }
+  const has = (k) => Object.prototype.hasOwnProperty.call(data, k);
+
+  if (!partial || has('name')) {
+    if (typeof data.name !== 'string' || !validateLength(data.name, 1, 200)) {
+      return { valid: false, error: 'name is required (1–200 characters)' };
+    }
+  }
+  if (has('submissionTarget') && data.submissionTarget !== null && data.submissionTarget !== '') {
+    const n = Number(data.submissionTarget);
+    if (!Number.isInteger(n) || n < 0 || n > 100000) {
+      return { valid: false, error: 'submissionTarget must be a non-negative integer (max 100000)' };
+    }
+  }
+  if (has('targetProfiles') && data.targetProfiles !== null) {
+    if (!Array.isArray(data.targetProfiles)) {
+      return { valid: false, error: 'targetProfiles must be an array of strings' };
+    }
+    if (data.targetProfiles.length > 20) {
+      return { valid: false, error: 'targetProfiles allows at most 20 entries' };
+    }
+    for (const p of data.targetProfiles) {
+      if (typeof p !== 'string' || !validateLength(p, 1, 60)) {
+        return { valid: false, error: 'targetProfiles entries must be strings 1–60 chars' };
+      }
+    }
+  }
+  for (const key of ['applicationInstructions', 'followUpNotes']) {
+    if (has(key) && data[key] !== null && data[key] !== '') {
+      if (typeof data[key] !== 'string' || data[key].length > 4000) {
+        return { valid: false, error: `${key} must be a string (max 4000 characters)` };
+      }
+    }
+  }
+  if (has('applyUrl') && data.applyUrl !== null && data.applyUrl !== '') {
+    if (typeof data.applyUrl !== 'string' || data.applyUrl.length > 500) {
+      return { valid: false, error: 'applyUrl must be a string (max 500 characters)' };
+    }
+    if (!/^https?:\/\//i.test(data.applyUrl)) {
+      return { valid: false, error: 'applyUrl must start with http:// or https://' };
+    }
+  }
+  return { valid: true };
+};

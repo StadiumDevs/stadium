@@ -197,6 +197,21 @@ export type ApiProgram = {
   eventEndsAt?: string | null;
   location?: string | null;
   maxApplicants?: number | null;
+  eventUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** Per-program sponsor / partner with goals + follow-up tracking. */
+export type ApiProgramSponsor = {
+  id: string;
+  programId: string;
+  name: string;
+  submissionTarget?: number | null;
+  targetProfiles: string[];
+  applicationInstructions?: string | null;
+  followUpNotes?: string | null;
+  applyUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -1047,6 +1062,84 @@ export const api = {
         : { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
+  },
+
+  // --- Program sponsors ---
+
+  listProgramSponsors: async (
+    slug: string,
+  ): Promise<{ status: string; data: ApiProgramSponsor[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      return { status: "success", data: mockProgramSponsors[slug] || [] };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/sponsors`);
+  },
+
+  createProgramSponsor: async (
+    slug: string,
+    payload: Omit<ApiProgramSponsor, "id" | "programId" | "createdAt" | "updatedAt">,
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgramSponsor }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      const created: ApiProgramSponsor = {
+        id: `sponsor-${Date.now()}`,
+        programId: slug,
+        ...payload,
+      };
+      mockProgramSponsors[slug] = [...(mockProgramSponsors[slug] || []), created];
+      return { status: "success", data: created };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/sponsors`, {
+      method: "POST",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateProgramSponsor: async (
+    slug: string,
+    sponsorId: string,
+    patch: Partial<Omit<ApiProgramSponsor, "id" | "programId" | "createdAt" | "updatedAt">>,
+    authHeader?: string,
+  ): Promise<{ status: string; data: ApiProgramSponsor }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      const list = mockProgramSponsors[slug] || [];
+      const idx = list.findIndex((s) => s.id === sponsorId);
+      if (idx === -1) throw new ApiError("Sponsor not found", 404);
+      const merged = { ...list[idx], ...patch };
+      list[idx] = merged;
+      return { status: "success", data: merged };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/sponsors/${encodeURIComponent(sponsorId)}`, {
+      method: "PATCH",
+      headers: authHeader
+        ? { "x-siws-auth": authHeader, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  },
+
+  deleteProgramSponsor: async (
+    slug: string,
+    sponsorId: string,
+    authHeader?: string,
+  ): Promise<{ status: string }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSponsors } = await import("./mockPrograms");
+      const list = mockProgramSponsors[slug] || [];
+      mockProgramSponsors[slug] = list.filter((s) => s.id !== sponsorId);
+      return { status: "success" };
+    }
+    await request(`/programs/${encodeURIComponent(slug)}/sponsors/${encodeURIComponent(sponsorId)}`, {
+      method: "DELETE",
+      headers: authHeader ? { "x-siws-auth": authHeader } : undefined,
+    });
+    return { status: "success" };
   },
 
   /**
