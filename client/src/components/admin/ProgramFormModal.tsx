@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -224,27 +223,30 @@ export function ProgramFormModal({
     <Dialog open={open} onOpenChange={(v) => (submitting ? null : onOpenChange(v))}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit program" : "Create program"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-display tracking-tight">
+            {editing ? "EDIT PROGRAM" : "CREATE PROGRAM"}
+          </DialogTitle>
+          <DialogDescription className="text-body">
             {editing
               ? "Update the program metadata."
               : "Set up a new program. Applications open once the status is Open."}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2 space-y-1">
-            <Label htmlFor="pf-name">Name</Label>
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label htmlFor="pf-name" className="label-hw-dim">·NAME</Label>
             <Input
               id="pf-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               aria-invalid={errors.name ? true : undefined}
+              className="font-mono text-sm"
             />
-            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            {errors.name && <p className="label-hw text-destructive">·{errors.name.toUpperCase()}</p>}
           </div>
 
-          <div className="sm:col-span-2 space-y-1">
-            <Label htmlFor="pf-slug">Slug</Label>
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label htmlFor="pf-slug" className="label-hw-dim">·SLUG</Label>
             <Input
               id="pf-slug"
               value={slug}
@@ -254,22 +256,21 @@ export function ProgramFormModal({
               }}
               aria-invalid={errors.slug ? true : undefined}
               disabled={editing}
+              className="font-mono text-sm"
             />
-            {errors.slug && <p className="text-xs text-destructive">{errors.slug}</p>}
+            {errors.slug && <p className="label-hw text-destructive">·{errors.slug.toUpperCase()}</p>}
             {editing && (
-              <p className="text-xs text-muted-foreground">
-                Slug can't be changed after creation in this flow.
-              </p>
+              <p className="label-hw-dim">SLUG CAN'T BE CHANGED AFTER CREATION IN THIS FLOW.</p>
             )}
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-type">Type</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-type" className="label-hw-dim">·TYPE</Label>
             <Select
               value={programType}
               onValueChange={(v) => setProgramType(v as ApiProgram["programType"])}
             >
-              <SelectTrigger id="pf-type">
+              <SelectTrigger id="pf-type" className="font-mono text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -282,10 +283,10 @@ export function ProgramFormModal({
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-status">Status</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-status" className="label-hw-dim">·STATUS</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as ApiProgram["status"])}>
-              <SelectTrigger id="pf-status">
+              <SelectTrigger id="pf-status" className="font-mono text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -298,73 +299,81 @@ export function ProgramFormModal({
             </Select>
           </div>
 
-          <div className="sm:col-span-2 space-y-1">
-            <Label htmlFor="pf-description">Description</Label>
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label htmlFor="pf-description" className="label-hw-dim">·DESCRIPTION</Label>
             <Textarea
               id="pf-description"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className="font-mono text-sm"
             />
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-applications-open">Applications open at</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-applications-open" className="label-hw-dim">·APPLICATIONS OPEN AT</Label>
             <Input
               id="pf-applications-open"
               type="datetime-local"
               value={applicationsOpenAt}
               onChange={(e) => setApplicationsOpenAt(e.target.value)}
+              className="font-mono text-sm"
             />
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-applications-close">Applications close at</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-applications-close" className="label-hw-dim">·APPLICATIONS CLOSE AT</Label>
             <Input
               id="pf-applications-close"
               type="datetime-local"
               value={applicationsCloseAt}
               onChange={(e) => setApplicationsCloseAt(e.target.value)}
               aria-invalid={errors.applicationsCloseAt ? true : undefined}
+              className="font-mono text-sm"
             />
             {errors.applicationsCloseAt && (
-              <p className="text-xs text-destructive">{errors.applicationsCloseAt}</p>
+              <p className="label-hw text-destructive">·{errors.applicationsCloseAt.toUpperCase()}</p>
             )}
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-event-starts">Event starts at</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-event-starts" className="label-hw-dim">·EVENT STARTS AT</Label>
             <Input
               id="pf-event-starts"
               type="datetime-local"
               value={eventStartsAt}
               onChange={(e) => setEventStartsAt(e.target.value)}
+              className="font-mono text-sm"
             />
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-event-ends">Event ends at</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-event-ends" className="label-hw-dim">·EVENT ENDS AT</Label>
             <Input
               id="pf-event-ends"
               type="datetime-local"
               value={eventEndsAt}
               onChange={(e) => setEventEndsAt(e.target.value)}
               aria-invalid={errors.eventEndsAt ? true : undefined}
+              className="font-mono text-sm"
             />
-            {errors.eventEndsAt && <p className="text-xs text-destructive">{errors.eventEndsAt}</p>}
+            {errors.eventEndsAt && (
+              <p className="label-hw text-destructive">·{errors.eventEndsAt.toUpperCase()}</p>
+            )}
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-location">Location</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-location" className="label-hw-dim">·LOCATION</Label>
             <Input
               id="pf-location"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              className="font-mono text-sm"
             />
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="pf-max">Max applicants (optional)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-max" className="label-hw-dim">·MAX APPLICANTS (OPTIONAL)</Label>
             <Input
               id="pf-max"
               type="number"
@@ -372,28 +381,38 @@ export function ProgramFormModal({
               value={maxApplicants}
               onChange={(e) => setMaxApplicants(e.target.value)}
               aria-invalid={errors.maxApplicants ? true : undefined}
+              className="font-mono text-sm"
             />
             {errors.maxApplicants && (
-              <p className="text-xs text-destructive">{errors.maxApplicants}</p>
+              <p className="label-hw text-destructive">·{errors.maxApplicants.toUpperCase()}</p>
             )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
+          >
+            CANCEL
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+          >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Saving…
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> SAVING…
               </>
             ) : editing ? (
-              "Save"
+              "SAVE"
             ) : (
-              "Create program"
+              "CREATE PROGRAM ▸"
             )}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
