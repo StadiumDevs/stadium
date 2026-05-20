@@ -61,28 +61,46 @@ const HomePage = () => {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const { toast } = useToast();
 
-  // Load the hackathon list (once) and the stats cohort.
+  // Load the event filter list and the project stats in parallel.
+  // Phase 2 #94: events come from `programs` (program_type='hackathon'), not
+  // from aggregating `project.hackathon.id` — so upcoming events surface
+  // even when they have zero projects yet.
   useEffect(() => {
-    const loadHackathons = async () => {
+    const loadEventsAndStats = async () => {
       try {
-        const response = await api.getProjects({ limit: 2000, sortBy: "updatedAt", sortOrder: "desc" });
-        const apiProjects: ApiProject[] = Array.isArray(response?.data) ? response.data : [];
+        const [projectsResp, programsResp] = await Promise.all([
+          api.getProjects({ limit: 2000, sortBy: "updatedAt", sortOrder: "desc" }),
+          api.listPrograms().catch(() => null),
+        ]);
+        const apiProjects: ApiProject[] = Array.isArray(projectsResp?.data) ? projectsResp.data : [];
         setAllProjects(apiProjects);
         setStatsLoading(false);
-        const unique = new Map<string, string>();
-        for (const p of apiProjects) {
-          if (p.hackathon?.id) unique.set(p.hackathon.id, p.hackathon.name || p.hackathon.id);
+        const eventPrograms = (programsResp?.data ?? []).filter(
+          (p) => p.programType === "hackathon",
+        );
+        if (eventPrograms.length > 0) {
+          setHackathons(eventPrograms.map((p) => ({ id: p.slug, name: p.name })));
+        } else {
+          // Fallback for environments where programs aren't seeded yet —
+          // derive the list from project rows so the filter still works.
+          const unique = new Map<string, string>();
+          for (const p of apiProjects) {
+            if (p.hackathon?.id) {
+              unique.set(p.hackathon.id, p.hackathon.name || p.hackathon.id);
+            }
+          }
+          setHackathons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })));
         }
-        setHackathons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })));
       } catch {
         toast({
           title: "Error",
-          description: "Failed to load hackathon list. Event filtering may be unavailable.",
+          description: "Failed to load event list. Event filtering may be unavailable.",
           variant: "destructive",
         });
       }
     };
-    loadHackathons();
+    loadEventsAndStats();
+    // Run once on mount; `toast` is stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -238,7 +256,7 @@ const HomePage = () => {
             Stadium
           </h1>
           <p className="text-body text-base md:text-lg max-w-xl leading-relaxed">
-            Hackathon projects that didn't stop when the event ended. Winners featured first.
+            Builders showcase what they ship at WebZero events — and keep building between them.
           </p>
 
           <div className="pt-8">

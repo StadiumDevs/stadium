@@ -37,7 +37,7 @@ const ProgramsPage = () => {
             Programs
           </h1>
           <p className="text-body text-base max-w-2xl leading-relaxed">
-            Programs currently open for applications from past WebZero winners.
+            Open opportunities to build with WebZero — continuation tracks for past winners and upcoming events.
           </p>
         </div>
 
@@ -81,6 +81,14 @@ const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
   m2_incubator: "M2 INCUBATOR",
 };
 
+// Phase 2 #94: M2 has its own custom destination page. Future custom pages
+// (e.g. /dogfooding) can plug in here; other types fall through to the
+// generic /programs/:slug detail.
+const customRouteForProgramType = (type: ApiProgram["programType"]): string | null => {
+  if (type === "m2_incubator") return "/m2-program";
+  return null;
+};
+
 function ProgramRackCard({ program, number }: { program: ApiProgram; number: string }) {
   const date = (iso?: string | null) => {
     if (!iso) return null;
@@ -94,9 +102,11 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
   const closes = date(program.applicationsCloseAt);
   const startsAt = date(program.eventStartsAt);
 
+  const href = customRouteForProgramType(program.programType) ?? `/programs/${program.slug}`;
+
   return (
     <Link
-      to={`/programs/${program.slug}`}
+      to={href}
       className="lcd block px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px] relative"
     >
       <div className="absolute top-3 right-3 flex items-center gap-1">
