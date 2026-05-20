@@ -1,16 +1,92 @@
+import { useEffect, useMemo, useRef } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useBrightness } from "@/hooks/use-brightness";
 import { HardwareToggle } from "@/components/hardware-toggle";
+import { solarBrightness } from "@/lib/solar";
 import { cn } from "@/lib/utils";
 
 interface BrightnessRackProps {
   className?: string;
 }
 
+// 4-hour clock ticks plotted at the brightness % the solar curve would produce
+// for that hour today. Computed once per session — positions don't drift within a
+// day at human-visible resolution.
+function buildHourTicks(): Array<{ hour: number; brightness: number; label: string }> {
+  const base = new Date();
+  base.setMinutes(0, 0, 0);
+  return [0, 4, 8, 12, 16, 20].map((h) => {
+    const d = new Date(base);
+    d.setHours(h);
+    return {
+      hour: h,
+      brightness: solarBrightness(d),
+      label: `${String(h).padStart(2, "0")}h`,
+    };
+  });
+}
+
 export function BrightnessRack({ className }: BrightnessRackProps) {
   const {
-    brightness, mode, phase, paletteKey, palettes, solarTarget,
-    setBrightness, setAuto, setPalette,
+    brightness, mode, phase, paletteKey, palettes, solarTarget, collapsed,
+    setBrightness, setAuto, setPalette, setCollapsed,
   } = useBrightness();
+
+  // Once the user touches anything (slider, AUTO toggle, palette), collapse
+  // automatically. After that, expand/collapse is entirely user-driven via the
+  // chevron. We watch the persisted state via a ref so subsequent restores
+  // from localStorage don't re-trigger this.
+  const hasAutoCollapsedRef = useRef(false);
+  const lastStateRef = useRef({ brightness, mode, paletteKey });
+  useEffect(() => {
+    const prev = lastStateRef.current;
+    const changed =
+      prev.brightness !== brightness ||
+      prev.mode !== mode ||
+      prev.paletteKey !== paletteKey;
+    lastStateRef.current = { brightness, mode, paletteKey };
+    if (changed && !collapsed && !hasAutoCollapsedRef.current) {
+      hasAutoCollapsedRef.current = true;
+      setCollapsed(true);
+    }
+  }, [brightness, mode, paletteKey, collapsed, setCollapsed]);
+
+  const hourTicks = useMemo(() => buildHourTicks(), []);
+  const activePalette = palettes.find((p) => p.key === paletteKey);
+
+  // Collapsed: a single compact strip showing current state with an expand chevron.
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setCollapsed(false)}
+        aria-label="Expand brightness controls"
+        aria-expanded={false}
+        className={cn(
+          "panel px-3 py-1.5 w-full flex items-center gap-3 text-left",
+          "hover:bg-panel-deep transition-colors duration-150 group",
+          className,
+        )}
+      >
+        <span className="label-hw text-display">BRIGHTNESS</span>
+        <span className="font-mono text-[12px] text-display tabular-nums">
+          {brightness}%
+        </span>
+        <span className="label-hw-dim">·</span>
+        <span className="label-hw-dim">{mode === "auto" ? `${phase} · AUTO` : "MANUAL"}</span>
+        {activePalette && (
+          <>
+            <span className="label-hw-dim">·</span>
+            <span className="label-hw-dim uppercase">{activePalette.label}</span>
+          </>
+        )}
+        <ChevronDown
+          className="h-3.5 w-3.5 text-label-mid ml-auto group-hover:text-display transition-colors duration-150"
+          aria-hidden="true"
+        />
+      </button>
+    );
+  }
 
   return (
     <div className={cn("panel px-4 py-3", className)}>
@@ -21,6 +97,16 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
           <div className="relative h-[18px]">
             {/* Track */}
             <div className="absolute top-[7px] left-0 right-0 h-1 bg-panel-deep border border-hairline" />
+
+            {/* Hour ticks — every 4h plotted at its solar-brightness position */}
+            {hourTicks.map((t) => (
+              <div
+                key={t.hour}
+                className="absolute top-[3px] w-px h-2 bg-hairline pointer-events-none"
+                style={{ left: `calc(${t.brightness}% - 0.5px)` }}
+                aria-hidden="true"
+              />
+            ))}
 
             {/* Solar tick — shows where AUTO would place the dial */}
             <div
@@ -58,7 +144,20 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             />
           </div>
 
-          <div className="flex justify-between mt-1 label-hw-dim text-[8px]">
+          {/* Hour labels — same horizontal positions as the ticks above */}
+          <div className="relative h-[10px] mt-1">
+            {hourTicks.map((t) => (
+              <span
+                key={t.hour}
+                className="absolute label-hw-dim text-[8px] -translate-x-1/2 tabular-nums"
+                style={{ left: `${t.brightness}%` }}
+              >
+                {t.label}
+              </span>
+            ))}
+          </div>
+
+          <div className="flex justify-between mt-0.5 label-hw-dim text-[8px]">
             <span>NIGHT</span>
             <span>DAWN</span>
             <span>DAY</span>
@@ -69,6 +168,19 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
         <div className="lcd px-3 py-1 min-w-[56px] text-center font-mono text-[13px] font-bold text-display tabular-nums">
           {brightness}%
         </div>
+
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          aria-label="Collapse brightness controls"
+          aria-expanded={true}
+          className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group"
+        >
+          <ChevronUp
+            className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+            aria-hidden="true"
+          />
+        </button>
       </div>
 
       <div className="flex items-center gap-3 mt-2 pt-2 border-t border-hairline-subtle">

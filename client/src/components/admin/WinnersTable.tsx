@@ -7,9 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -611,33 +608,32 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
                     {/* Actions - unified Confirm Payout for all rows */}
                     {connectedAddress && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center border border-hairline text-display hover:bg-panel-deep w-7 h-7"
                             onClick={() => window.open(`/m2-program/${project.id}`, '_blank')}
                             title="View project"
+                            aria-label="Open project page"
                           >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="h-8"
+                            <Eye className="h-3 w-3" />
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => openManageModal(project)}
                             disabled={isSaving}
+                            className="inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-2.5 h-7"
                           >
                             {isSaving ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <>
-                                <Settings className="h-4 w-4 mr-1" />
-                                Manage
+                                <Settings className="h-3 w-3" />
+                                MANAGE
                               </>
                             )}
-                          </Button>
+                          </button>
                         </div>
                       </TableCell>
                     )}
@@ -652,9 +648,9 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
       <Dialog open={!!manageModal} onOpenChange={() => setManageModal(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Manage Project</DialogTitle>
-            <DialogDescription>
-              Update details for <strong>{manageModal?.projectName}</strong>
+            <DialogTitle className="font-display tracking-tight">MANAGE PROJECT</DialogTitle>
+            <DialogDescription className="text-body">
+              Update details for <strong className="text-display">{manageModal?.projectName}</strong>
             </DialogDescription>
           </DialogHeader>
           
@@ -729,10 +725,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={saveProjectStatus} disabled={saving === "status"}>
-                  {saving === "status" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save Status
-                </Button>
+                <button
+                  type="button"
+                  onClick={saveProjectStatus}
+                  disabled={saving === "status"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "status" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  SAVE STATUS
+                </button>
               </div>
             </TabsContent>
 
@@ -778,10 +779,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={saveM2Agreement} disabled={saving === "agreement"}>
-                  {saving === "agreement" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save Agreement
-                </Button>
+                <button
+                  type="button"
+                  onClick={saveM2Agreement}
+                  disabled={saving === "agreement"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "agreement" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  SAVE AGREEMENT
+                </button>
               </div>
             </TabsContent>
 
@@ -833,10 +839,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={saveDeliverables} disabled={saving === "deliverables"}>
-                  {saving === "deliverables" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Save Deliverables
-                </Button>
+                <button
+                  type="button"
+                  onClick={saveDeliverables}
+                  disabled={saving === "deliverables"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "deliverables" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  SAVE DELIVERABLES
+                </button>
               </div>
             </TabsContent>
 
@@ -914,10 +925,15 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
               </div>
 
               <div className="pt-4 flex justify-end">
-                <Button onClick={savePayment} disabled={saving === "payment"}>
-                  {saving === "payment" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Confirm Payment
-                </Button>
+                <button
+                  type="button"
+                  onClick={savePayment}
+                  disabled={saving === "payment"}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                >
+                  {saving === "payment" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  CONFIRM PAYMENT
+                </button>
               </div>
             </TabsContent>
           </Tabs>
@@ -928,46 +944,56 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
       <Dialog open={bulkMarkPaidDialog} onOpenChange={setBulkMarkPaidDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Mark All as Paid</DialogTitle>
-            <DialogDescription>
-              This will mark <strong>{unpaidCount} projects</strong> as paid (set <code>bountiesProcessed: true</code>).
+            <DialogTitle className="font-display tracking-tight">MARK ALL AS PAID</DialogTitle>
+            <DialogDescription className="text-body">
+              This will mark <strong className="text-display">{unpaidCount} projects</strong> as paid (set <code className="font-mono text-display">bountiesProcessed: true</code>).
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-2">Projects to be updated:</p>
-            <div className="max-h-48 overflow-y-auto border rounded-md p-2 bg-muted/30">
+            <p className="label-hw-dim mb-2">·PROJECTS TO BE UPDATED</p>
+            <div className="max-h-48 overflow-y-auto lcd p-2">
               {unpaidProjects.slice(0, 20).map((p) => (
                 <div key={p.id} className="text-sm py-1 flex justify-between">
-                  <span>{p.projectName}</span>
-                  <span className="text-muted-foreground">{formatAmount(getTotalBounty(p), getProjectCurrency(p))}</span>
+                  <span className="text-body">{p.projectName}</span>
+                  <span className="text-label-mid font-mono">{formatAmount(getTotalBounty(p), getProjectCurrency(p))}</span>
                 </div>
               ))}
               {unpaidProjects.length > 20 && (
-                <div className="text-sm text-muted-foreground py-1">
-                  ... and {unpaidProjects.length - 20} more
+                <div className="label-hw-dim py-1">
+                  … AND {unpaidProjects.length - 20} MORE
                 </div>
               )}
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkMarkPaidDialog(false)} disabled={bulkUpdating}>
-              Cancel
-            </Button>
-            <Button onClick={bulkMarkAsPaid} disabled={bulkUpdating}>
+            <button
+              type="button"
+              onClick={() => setBulkMarkPaidDialog(false)}
+              disabled={bulkUpdating}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
+            >
+              CANCEL
+            </button>
+            <button
+              type="button"
+              onClick={bulkMarkAsPaid}
+              disabled={bulkUpdating}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+            >
               {bulkUpdating ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Updating...
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  UPDATING…
                 </>
               ) : (
                 <>
-                  <CheckCheck className="h-4 w-4 mr-2" />
-                  Mark All as Paid
+                  <CheckCheck className="h-3 w-3" />
+                  MARK ALL AS PAID
                 </>
               )}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
