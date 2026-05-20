@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import programController from '../controllers/program.controller.js';
-import requireAdmin, { requireTeamMemberOrAdminByBodyProject } from '../middleware/auth.middleware.js';
+import requireAdmin, {
+  requireTeamMemberOrAdminByBodyProject,
+  requireProgramAdmin,
+} from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -13,7 +16,11 @@ router.post('/', requireAdmin, programController.createProgram);
 router.patch('/:slug', requireAdmin, programController.updateProgram);
 
 // --- Phase 1 revamp: applications (#43, #47) ---
-router.get('/:slug/applications', requireAdmin, programController.listApplicationsForProgram);
+router.get(
+  '/:slug/applications',
+  requireProgramAdmin('slug'),
+  programController.listApplicationsForProgram,
+);
 router.post(
   '/:slug/applications',
   requireTeamMemberOrAdminByBodyProject,
@@ -21,8 +28,14 @@ router.post(
 );
 router.patch(
   '/:slug/applications/:applicationId',
-  requireAdmin,
+  requireProgramAdmin('slug'),
   programController.updateApplicationStatus,
 );
+
+// --- Phase 3 (#95): per-event admins ---
+// Read = program admin or global; mutate = global only.
+router.get('/:slug/admins', requireProgramAdmin('slug'), programController.listAdmins);
+router.post('/:slug/admins', requireAdmin, programController.addAdmin);
+router.delete('/:slug/admins/:wallet', requireAdmin, programController.removeAdmin);
 
 export default router;

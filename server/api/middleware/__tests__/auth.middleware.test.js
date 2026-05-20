@@ -50,6 +50,18 @@ vi.mock('../../auth/nonceStore.js', () => ({
   consumeNonce: vi.fn(),
 }));
 
+vi.mock('../../repositories/program.repository.js', () => ({
+  default: {
+    findBySlug: vi.fn(),
+  },
+}));
+
+vi.mock('../../repositories/program-admin.repository.js', () => ({
+  default: {
+    isAdmin: vi.fn(),
+  },
+}));
+
 // Now import what we need
 import { verifySIWS, parseMessage } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
@@ -59,7 +71,9 @@ import projectService from '../../services/project.service.js';
 import { consumeNonce } from '../../auth/nonceStore.js';
 
 // Import middleware under test
-const { requireAdmin, requireTeamMemberOrAdmin } = await import('../auth.middleware.js');
+const { requireAdmin, requireTeamMemberOrAdmin, requireProgramAdmin } = await import('../auth.middleware.js');
+const programRepository = (await import('../../repositories/program.repository.js')).default;
+const programAdminRepository = (await import('../../repositories/program-admin.repository.js')).default;
 
 // Helpers
 function makeReq(overrides = {}) {
@@ -424,6 +438,155 @@ describe('requireTeamMemberOrAdmin', () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.body.message).toMatch(/Invalid domain/i);
+    expect(next).not.toHaveBeenCalled();
+  });
+});
+
+// ─── requireProgramAdmin (#95) ──────────────────────────────────
+
+describe('requireProgramAdmin', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NODE_ENV = 'test';
+    process.env.DISABLE_SIWS_DOMAIN_CHECK = 'true';
+    consumeNonce.mockResolvedValue({ ok: true });
+  });
+
+  it('returns 400 when slug param is missing', async () => {
+    const req = makeReq({
+      params: {},
+      headers: { 'x-siws-auth': encodePayload(VALID_PAYLOAD) },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireProgramAdmin('slug')(req, res, next);
+
+    expect(res.statusCode).toBe(400);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('bypasses auth in non-production with dev-bypass header', async () => {
+    const req = makeReq({
+      params: { slug: 'bitrefill-2026' },
+      headers: { 'x-siws-auth': 'dev-bypass' },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireProgramAdmin('slug')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user.isGlobalAdmin).toBe(true);
+    expect(req.user.programSlug).toBe('bitrefill-2026');
+  });
+
+  it('allows global authorized signers without checking program_admins', async () => {
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      address: '5FakeAdmin1',
+      statement: 'Perform administrative action on Stadium',
+      domain: 'localhost',
+      expirationTime: new Date(Date.now() + 60_000).toISOString(),
+      nonce: 'abc',
+    });
+    isAuthorizedSigner.mockReturnValue(true);
+
+    const req = makeReq({
+      params: { slug: 'bitrefill-2026' },
+      headers: { 'x-siws-auth': encodePayload(VALID_PAYLOAD) },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireProgramAdmin('slug')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user.isGlobalAdmin).toBe(true);
+    expect(programAdminRepository.isAdmin).not.toHaveBeenCalled();
+  });
+
+  it('allows program-scoped admins for the matching program', async () => {
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      address: '5RandomNonAdmin',
+      statement: 'Perform administrative action on Stadium',
+      domain: 'localhost',
+      expirationTime: new Date(Date.now() + 60_000).toISOString(),
+      nonce: 'abc',
+    });
+    isAuthorizedSigner.mockReturnValue(false);
+    programRepository.findBySlug.mockResolvedValue({ id: 'bitrefill-2026', slug: 'bitrefill-2026' });
+    programAdminRepository.isAdmin.mockResolvedValue(true);
+
+    const req = makeReq({
+      params: { slug: 'bitrefill-2026' },
+      headers: {
+        'x-siws-auth': encodePayload({ ...VALID_PAYLOAD, address: '5RandomNonAdmin' }),
+      },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireProgramAdmin('slug')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user.isGlobalAdmin).toBe(false);
+    expect(req.user.programId).toBe('bitrefill-2026');
+  });
+
+  it('rejects with 403 a signer that is neither global nor program admin', async () => {
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      address: '5SomeoneElse',
+      statement: 'Perform administrative action on Stadium',
+      domain: 'localhost',
+      expirationTime: new Date(Date.now() + 60_000).toISOString(),
+      nonce: 'abc',
+    });
+    isAuthorizedSigner.mockReturnValue(false);
+    programRepository.findBySlug.mockResolvedValue({ id: 'symbiosis-2025', slug: 'symbiosis-2025' });
+    programAdminRepository.isAdmin.mockResolvedValue(false);
+
+    const req = makeReq({
+      params: { slug: 'symbiosis-2025' },
+      headers: {
+        'x-siws-auth': encodePayload({ ...VALID_PAYLOAD, address: '5SomeoneElse' }),
+      },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireProgramAdmin('slug')(req, res, next);
+
+    expect(res.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the program slug does not exist', async () => {
+    signatureVerify.mockReturnValue({ isValid: true, crypto: 'sr25519' });
+    parseMessage.mockReturnValue({
+      address: '5SomeoneElse',
+      statement: 'Perform administrative action on Stadium',
+      domain: 'localhost',
+      expirationTime: new Date(Date.now() + 60_000).toISOString(),
+      nonce: 'abc',
+    });
+    isAuthorizedSigner.mockReturnValue(false);
+    programRepository.findBySlug.mockResolvedValue(null);
+
+    const req = makeReq({
+      params: { slug: 'no-such-program' },
+      headers: {
+        'x-siws-auth': encodePayload({ ...VALID_PAYLOAD, address: '5SomeoneElse' }),
+      },
+    });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireProgramAdmin('slug')(req, res, next);
+
+    expect(res.statusCode).toBe(404);
     expect(next).not.toHaveBeenCalled();
   });
 });

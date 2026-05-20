@@ -2,10 +2,13 @@ import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
 import projectService from '../services/project.service.js';
 import notificationService from '../services/notification.service.js';
+import programAdminRepository from '../repositories/program-admin.repository.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
 import { validateProgram } from '../utils/validation.js';
 import { randomUUID } from 'node:crypto';
 import logger from '../utils/logger.js';
+
+const VALID_CHAINS = ['substrate', 'ethereum', 'solana'];
 
 class ProgramController {
   async list(req, res) {
@@ -297,6 +300,76 @@ class ProgramController {
       }
       console.error('❌ Error creating program application:', error);
       res.status(500).json({ status: 'error', message: 'Failed to create application' });
+    }
+  }
+
+  // --- Phase 3 (#95): per-event admins ---
+
+  async listAdmins(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const admins = await programAdminRepository.list(program.id);
+      res.status(200).json({ status: 'success', data: admins });
+    } catch (error) {
+      console.error('❌ Error listing program admins:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program admins' });
+    }
+  }
+
+  async addAdmin(req, res) {
+    try {
+      const { slug } = req.params;
+      const { wallet, walletChain } = req.body || {};
+      if (!wallet || typeof wallet !== 'string') {
+        return res.status(422).json({ status: 'error', message: 'wallet is required' });
+      }
+      if (!VALID_CHAINS.includes(walletChain)) {
+        return res.status(422).json({
+          status: 'error',
+          message: `walletChain must be one of: ${VALID_CHAINS.join(', ')}`,
+        });
+      }
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const added = await programAdminRepository.add(program.id, walletChain, wallet);
+      if (!added) {
+        return res.status(422).json({
+          status: 'error',
+          message: `Invalid ${walletChain} wallet address`,
+        });
+      }
+      res.status(201).json({ status: 'success', data: added });
+    } catch (error) {
+      console.error('❌ Error adding program admin:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to add program admin' });
+    }
+  }
+
+  async removeAdmin(req, res) {
+    try {
+      const { slug, wallet } = req.params;
+      const walletChain = req.query.chain;
+      if (!VALID_CHAINS.includes(walletChain)) {
+        return res.status(422).json({
+          status: 'error',
+          message: `chain query param must be one of: ${VALID_CHAINS.join(', ')}`,
+        });
+      }
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      await programAdminRepository.remove(program.id, walletChain, wallet);
+      res.status(204).end();
+    } catch (error) {
+      console.error('❌ Error removing program admin:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to remove program admin' });
     }
   }
 }
