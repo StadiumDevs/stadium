@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -146,20 +145,20 @@ export function EditFundingSignalModal({
     <Dialog open={open} onOpenChange={(v) => (submitting ? null : onOpenChange(v))}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Funding signal</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-display tracking-tight">FUNDING SIGNAL</DialogTitle>
+          <DialogDescription className="text-body">
             Let partners and fellow builders know what you're looking for. Visible on your project
             page when the toggle is on.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-5">
-          <div className="flex items-center justify-between rounded-lg border p-3">
+          <div className="flex items-center justify-between lcd p-3">
             <div>
-              <Label htmlFor="funding-seeking" className="text-sm font-medium">
-                Actively seeking funding
+              <Label htmlFor="funding-seeking" className="label-hw text-display">
+                ACTIVELY SEEKING FUNDING
               </Label>
-              <p className="text-xs text-muted-foreground">
-                Turn off to hide the badge without losing your notes.
+              <p className="label-hw-dim mt-0.5">
+                TURN OFF TO HIDE THE BADGE WITHOUT LOSING YOUR NOTES.
               </p>
             </div>
             <Switch
@@ -172,10 +171,10 @@ export function EditFundingSignalModal({
 
           {isSeeking && (
             <>
-              <div className="space-y-1">
-                <Label htmlFor="funding-type">Type</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="funding-type" className="label-hw-dim">·TYPE</Label>
                 <Select value={fundingType} onValueChange={setFundingType}>
-                  <SelectTrigger id="funding-type">
+                  <SelectTrigger id="funding-type" className="font-mono text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -188,8 +187,8 @@ export function EditFundingSignalModal({
                 </Select>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="funding-amount">Amount range (optional)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="funding-amount" className="label-hw-dim">·AMOUNT RANGE (OPTIONAL)</Label>
                 <Input
                   id="funding-amount"
                   placeholder="e.g. 30k–60k USD"
@@ -197,12 +196,13 @@ export function EditFundingSignalModal({
                   maxLength={AMOUNT_RANGE_MAX + 50}
                   onChange={(e) => setAmountRange(e.target.value)}
                   aria-invalid={amountError ? true : undefined}
+                  className="font-mono text-sm"
                 />
-                {amountError && <p className="text-xs text-destructive">{amountError}</p>}
+                {amountError && <p className="label-hw text-destructive">·{amountError.toUpperCase()}</p>}
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="funding-description">Description (optional)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="funding-description" className="label-hw-dim">·DESCRIPTION (OPTIONAL)</Label>
                 <Textarea
                   id="funding-description"
                   rows={4}
@@ -210,14 +210,17 @@ export function EditFundingSignalModal({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   aria-invalid={descError ? true : undefined}
+                  className="font-mono text-sm"
                 />
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-destructive">{descError || ""}</span>
+                <div className="flex items-center justify-between">
+                  <span className="label-hw text-destructive">
+                    {descError ? `·${descError.toUpperCase()}` : ""}
+                  </span>
                   <span
                     className={
                       description.length > DESCRIPTION_MAX
-                        ? "text-destructive"
-                        : "text-muted-foreground"
+                        ? "label-hw text-destructive"
+                        : "label-hw-dim"
                     }
                   >
                     {description.length} / {DESCRIPTION_MAX}
@@ -228,23 +231,28 @@ export function EditFundingSignalModal({
           )}
         </div>
         <DialogFooter>
-          <Button
-            variant="ghost"
+          <button
+            type="button"
             onClick={() => (submitting ? null : onOpenChange(false))}
             disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
           >
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+            CANCEL
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+          >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Saving…
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> SAVING…
               </>
             ) : (
-              "Save"
+              "SAVE"
             )}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

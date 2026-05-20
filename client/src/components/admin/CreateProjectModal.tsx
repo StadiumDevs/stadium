@@ -173,8 +173,8 @@ export function CreateProjectModal({
     <Dialog open={open} onOpenChange={(v) => (submitting ? null : onOpenChange(v))}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create project</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-display tracking-tight">CREATE PROJECT</DialogTitle>
+          <DialogDescription className="text-body">
             Add a new project to the M2 incubator. Only the project name is required.
           </DialogDescription>
         </DialogHeader>
@@ -332,19 +332,28 @@ export function CreateProjectModal({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
+          >
+            CANCEL
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+          >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Creating…
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> CREATING…
               </>
             ) : (
-              "Create project"
+              "CREATE PROJECT ▸"
             )}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

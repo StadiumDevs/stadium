@@ -215,11 +215,11 @@ export function ConfirmPaymentModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Confirm Payment
+          <DialogTitle className="font-display tracking-tight flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-label-mid" />
+            CONFIRM PAYMENT
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-body">
             Record payment transaction for {project.projectName}
           </DialogDescription>
         </DialogHeader>
@@ -521,20 +521,21 @@ export function ConfirmPaymentModal({
           )}
 
           <DialogFooter>
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
+              CANCEL
+            </button>
+            <button
+              type="submit"
               disabled={loading || recipients.length === 0 || !amountsValid || (milestone === 'M2' && !m1Paid)}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5"
             >
-              {loading ? 'Confirming...' : 'Confirm Payment'}
-            </Button>
+              {loading ? 'CONFIRMING…' : 'CONFIRM PAYMENT ▸'}
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

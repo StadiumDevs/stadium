@@ -788,12 +788,12 @@ export function TestPaymentModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-display" />
-            Test Multisig Payment (Batched)
+          <DialogTitle className="font-display tracking-tight flex items-center gap-2">
+            <Users className="h-4 w-4 text-label-mid" />
+            TEST MULTISIG PAYMENT (BATCHED)
           </DialogTitle>
-          <DialogDescription>
-            Initiate a multisig transaction with batched transfers using your browser wallet
+          <DialogDescription className="text-body">
+            Initiate a multisig transaction with batched transfers using your browser wallet.
           </DialogDescription>
         </DialogHeader>
 
@@ -1062,78 +1062,74 @@ export function TestPaymentModal({
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2">
           <div className="flex gap-2">
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={handleClose}
               disabled={loading || loadingApproval}
+              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
             >
-              Close
-            </Button>
+              CLOSE
+            </button>
             {(loading || loadingApproval) && (
-              <Button
+              <button
+                type="button"
                 onClick={handleCancelSignature}
-                variant="outline"
-                className="border-red-500 text-red-500 hover:bg-red-50"
+                className="font-mono text-[10px] tracking-[0.14em] border border-destructive text-destructive hover:bg-panel-deep px-3 py-1.5 inline-flex items-center gap-1.5"
               >
-                <X className="w-4 h-4 mr-2" />
-                Cancel Signature
-              </Button>
+                <X className="w-3 h-3" />
+                CANCEL SIGNATURE
+              </button>
             )}
           </div>
           <div className="flex gap-2 flex-1 justify-end">
-            <Button
+            <button
+              type="button"
               onClick={handleTestSend}
               disabled={loading || loadingApproval || !isTestnet() || !!multisigInfo}
-              className="bg-display text-shell hover:bg-display-dim"
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
             >
               {loading ? (
-                <>
-                  <span className="animate-pulse">Initiating...</span>
-                </>
+                <span className="animate-pulse">INITIATING…</span>
               ) : (
                 <>
-                  <Users className="w-4 h-4 mr-2" />
-                  1. Initiate Multisig
+                  <Users className="w-3 h-3" />
+                  1. INITIATE MULTISIG
                 </>
               )}
-            </Button>
+            </button>
 
             {multisigInfo && (
               <>
-                <Button
+                <button
+                  type="button"
                   onClick={handleSecondApproval}
                   disabled={loading || loadingApproval || !isTestnet()}
-                  className="bg-green-500 hover:bg-green-600 text-white"
+                  className="font-mono text-[10px] tracking-[0.14em] border border-led bg-led text-shell hover:opacity-90 disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
                 >
                   {loadingApproval ? (
-                    <>
-                      <span className="animate-pulse">Approving...</span>
-                    </>
+                    <span className="animate-pulse">APPROVING…</span>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      2. Approve & Execute
+                      <CheckCircle2 className="w-3 h-3" />
+                      2. APPROVE & EXECUTE
                     </>
                   )}
-                </Button>
-                <Button
+                </button>
+                <button
+                  type="button"
                   onClick={handleCancelMultisig}
                   disabled={loading || loadingApproval || !isTestnet()}
-                  variant="destructive"
-                  className="bg-red-500 hover:bg-red-600"
+                  className="font-mono text-[10px] tracking-[0.14em] border border-destructive bg-destructive text-shell hover:opacity-90 disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
                 >
                   {loadingApproval ? (
-                    <>
-                      <span className="animate-pulse">Cancelling...</span>
-                    </>
+                    <span className="animate-pulse">CANCELLING…</span>
                   ) : (
                     <>
-                      <X className="w-4 h-4 mr-2" />
-                      Cancel Multisig
+                      <X className="w-3 h-3" />
+                      CANCEL MULTISIG
                     </>
                   )}
-                </Button>
+                </button>
               </>
             )}
           </div>
