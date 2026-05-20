@@ -42,7 +42,7 @@ export function UnitDetailModal({ open, onOpenChange, unit }: UnitDetailModalPro
           </div>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <DialogTitle className="font-mono text-3xl font-bold text-display tracking-tight">
+              <DialogTitle className="font-display text-4xl uppercase tracking-tight text-display">
                 {unit.title}
               </DialogTitle>
               <DialogDescription className="label-hw-dim mt-2">

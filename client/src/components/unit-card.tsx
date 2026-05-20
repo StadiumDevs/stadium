@@ -64,7 +64,7 @@ export function UnitCard({
         <div className="label-hw-dim mb-2">
           UNIT {unitNumber}{date && ` · ${date}`}
         </div>
-        <h3 className="font-mono text-xl font-bold text-display tracking-tight line-clamp-1">
+        <h3 className="font-display text-2xl uppercase tracking-tight text-display line-clamp-1">
           {title}
         </h3>
         <div className="label-hw-dim mt-1">BY {author.toUpperCase()}</div>

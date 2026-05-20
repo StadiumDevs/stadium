@@ -73,6 +73,9 @@ export default {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Courier New", "monospace"],
+        // Poster-style display face — uppercase headlines, hero text.
+        // Geometric heavy grotesk; sits over saturated panels well.
+        display: ['"Archivo Black"', "Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
         primary: "var(--shadow-primary)",
