@@ -443,7 +443,7 @@ export function TeamPaymentSection({
   );
 
   return (
-    <Card className="glass-panel">
+    <Card className="panel">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">

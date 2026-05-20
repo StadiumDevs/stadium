@@ -51,7 +51,7 @@ export function M2AgreementSection({
   if (!m2Agreement) {
     return (
       <>
-        <div className="glass-panel rounded-lg p-8 mb-6 text-center">
+        <div className="panel p-8 mb-6 text-center">
           <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-xl font-heading mb-2">No M2 Roadmap Created Yet</h3>
           <p className="text-muted-foreground mb-4">
@@ -60,10 +60,10 @@ export function M2AgreementSection({
           {isTeamMember && (
             <Button 
               onClick={() => setIsEditModalOpen(true)}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim"
             >
               <FileText className="w-4 h-4 mr-2" />
-              Create Your M2 Roadmap
+              CREATE YOUR M2 ROADMAP
             </Button>
           )}
         </div>
@@ -89,12 +89,12 @@ export function M2AgreementSection({
 
   return (
     <>
-      <div className="glass-panel rounded-lg p-6 mb-6">
+      <div className="panel p-6 mb-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <FileText className="w-6 h-6 text-purple-500" />
+              <FileText className="w-6 h-6 text-display" />
               <h2 className="text-2xl font-heading">📋 Your M2 Roadmap</h2>
               {isPastWeek4 && (
                 <Badge variant="secondary" className="flex items-center gap-1">
@@ -132,7 +132,7 @@ export function M2AgreementSection({
             <ul className="space-y-2">
               {m2Agreement.agreedFeatures.map((feature, index) => (
                 <li key={index} className="flex items-start gap-2">
-                  <span className="text-purple-500 mt-1 flex-shrink-0">•</span>
+                  <span className="text-display mt-1 flex-shrink-0">•</span>
                   <span className="flex-1 text-sm leading-relaxed whitespace-pre-line">{feature}</span>
                 </li>
               ))}

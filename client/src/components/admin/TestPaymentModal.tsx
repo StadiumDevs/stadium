@@ -789,7 +789,7 @@ export function TestPaymentModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-purple-500" />
+            <Users className="h-5 w-5 text-display" />
             Test Multisig Payment (Batched)
           </DialogTitle>
           <DialogDescription>
@@ -811,8 +811,8 @@ export function TestPaymentModal({
           )}
 
           {isTestnet() && (
-            <Alert className="border-purple-500 bg-purple-500/10">
-              <Users className="h-4 w-4 text-purple-500" />
+            <Alert className="border-hairline bg-panel-deep">
+              <Users className="h-4 w-4 text-display" />
               <AlertTitle>Multisig Transaction</AlertTitle>
               <AlertDescription>
                 This will initiate a {TEST_CONFIG.threshold}-of-{AUTHORIZED_SIGNERS.length} multisig transaction on Asset Hub Paseo testnet
@@ -842,7 +842,7 @@ export function TestPaymentModal({
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">Transaction Type:</span>
-              <Badge variant="outline" className="bg-purple-500/20 border-purple-500">
+              <Badge variant="outline" className="bg-panel-deep border-hairline">
                 <Users className="w-3 h-3 mr-1" />
                 Multisig {TEST_CONFIG.threshold}-of-{AUTHORIZED_SIGNERS.length}
               </Badge>
@@ -1048,7 +1048,7 @@ export function TestPaymentModal({
               <li>Your wallet must be one of the authorized signers</li>
               <li>Account with testnet DOT for transaction fees</li>
             </ul>
-            <p className="mt-2 text-purple-600 font-medium">
+            <p className="mt-2 text-display font-medium">
               💡 Multisig Flow:
             </p>
             <ul className="list-disc list-inside space-y-1 ml-2">
@@ -1085,7 +1085,7 @@ export function TestPaymentModal({
             <Button
               onClick={handleTestSend}
               disabled={loading || loadingApproval || !isTestnet() || !!multisigInfo}
-              className="bg-purple-500 hover:bg-purple-600 text-white"
+              className="bg-display text-shell hover:bg-display-dim"
             >
               {loading ? (
                 <>

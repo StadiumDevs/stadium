@@ -42,7 +42,7 @@ export function M2SubmissionTimeline({
   const canSubmit = (isTeamMember || isAdmin) && hasIncompleteMilestones && isConnected;
   
   return (
-    <Card className="glass-panel border-primary/20">
+    <Card className="panel">
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <CardTitle className="flex items-center gap-2">
