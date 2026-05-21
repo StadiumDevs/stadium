@@ -6,7 +6,7 @@
  * gating) — this hook is identity-agnostic.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Chain, WalletAccount } from './types'
 import { getProvider } from './registry'
 import { generateSiwsStatement, type SiwsContext } from '@/lib/siwsUtils'
@@ -134,6 +134,13 @@ export function useWalletAuth(): WalletAuth {
     [account]
   )
 
+  // De-dupes concurrent admin-bearer requests so multiple admin sections
+  // mounting in parallel only trigger ONE wallet sign popup. Without this,
+  // pages like AdminProgramPage (which renders 4 sections that each call
+  // getAdminBearerHeaders on mount) fire 4 simultaneous SIWS signs and the
+  // wallet extension rate-limits the burst with "rate limit exceeded".
+  const inflightSignRef = useRef<Promise<AdminAuthHeaders> | null>(null)
+
   const getAdminBearerHeaders = useCallback(async (): Promise<AdminAuthHeaders> => {
     if (!account) throw new Error('Wallet not connected')
 
@@ -142,43 +149,57 @@ export function useWalletAuth(): WalletAuth {
       return { Authorization: `Bearer ${cached}` }
     }
 
-    // No valid token — sign once with the existing admin-action statement,
-    // exchange via POST /api/admin/session for a short-lived bearer token,
-    // and cache it for the rest of this session.
-    const provider = getProvider(account.chain)
-    if (!provider) throw new Error(`Unsupported sign-in chain: ${account.chain}`)
-    const statement = generateSiwsStatement({ action: 'admin-action' })
-    const siwsHeader = await provider.signIn({ account, statement })
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/admin/session`, {
-        method: 'POST',
-        headers: { 'x-siws-auth': siwsHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      if (!res.ok) {
-        // Session exchange failed — fall back to one-shot SIWS so the action
-        // still goes through. The caller passes the raw SIWS header instead.
-        return { 'x-siws-auth': siwsHeader }
-      }
-      const body = (await res.json()) as {
-        status: string
-        data: { token: string; expiresAt: string; chain: string; address: string }
-      }
-      if (!body?.data?.token) {
-        return { 'x-siws-auth': siwsHeader }
-      }
-      writeAdminToken({
-        chain: account.chain,
-        address: account.address,
-        token: body.data.token,
-        expiresAt: body.data.expiresAt,
-      })
-      return { Authorization: `Bearer ${body.data.token}` }
-    } catch {
-      // Network error — fall back to the SIWS one-shot so the caller still wins.
-      return { 'x-siws-auth': siwsHeader }
+    // A sign is already in flight — piggy-back on it instead of triggering
+    // a parallel popup.
+    if (inflightSignRef.current) {
+      return inflightSignRef.current
     }
+
+    // No valid token, no in-flight sign — start one. Cache the promise on the
+    // ref so any concurrent caller awaits it instead of starting a second.
+    const signFlow = (async (): Promise<AdminAuthHeaders> => {
+      try {
+        const provider = getProvider(account.chain)
+        if (!provider) throw new Error(`Unsupported sign-in chain: ${account.chain}`)
+        const statement = generateSiwsStatement({ action: 'admin-action' })
+        const siwsHeader = await provider.signIn({ account, statement })
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/admin/session`, {
+            method: 'POST',
+            headers: { 'x-siws-auth': siwsHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          })
+          if (!res.ok) {
+            // Session exchange failed — fall back to one-shot SIWS so the action
+            // still goes through. The caller passes the raw SIWS header instead.
+            return { 'x-siws-auth': siwsHeader }
+          }
+          const body = (await res.json()) as {
+            status: string
+            data: { token: string; expiresAt: string; chain: string; address: string }
+          }
+          if (!body?.data?.token) {
+            return { 'x-siws-auth': siwsHeader }
+          }
+          writeAdminToken({
+            chain: account.chain,
+            address: account.address,
+            token: body.data.token,
+            expiresAt: body.data.expiresAt,
+          })
+          return { Authorization: `Bearer ${body.data.token}` }
+        } catch {
+          // Network error — fall back to the SIWS one-shot so the caller still wins.
+          return { 'x-siws-auth': siwsHeader }
+        }
+      } finally {
+        inflightSignRef.current = null
+      }
+    })()
+
+    inflightSignRef.current = signFlow
+    return signFlow
   }, [account])
 
   const disconnect = useCallback(() => {
