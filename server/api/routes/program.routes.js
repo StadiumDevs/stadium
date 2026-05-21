@@ -18,6 +18,8 @@ const csvBody = [
 // --- Public, Read-Only Routes ---
 router.get('/', programController.list);
 router.get('/:slug', programController.getBySlug);
+// Public, PII-free: distinct projects + interest counts derived from signups.
+router.get('/:slug/projects', programController.listProjects);
 
 // --- Phase 1 revamp: admin create/edit (#46) ---
 router.post('/', requireAdmin, programController.createProgram);

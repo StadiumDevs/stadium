@@ -8,6 +8,7 @@ import {
   api,
   type ApiProgram,
   type ApiProgramSponsor,
+  type ApiProgramProject,
   type ApiProject,
   type ApiProgramApplication,
   ApiError,
@@ -45,6 +46,7 @@ const ProgramDetailPage = () => {
   const [myProjects, setMyProjects] = useState<ApiProject[]>([]);
   const [myApplications, setMyApplications] = useState<ApiProgramApplication[]>([]);
   const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
+  const [projects, setProjects] = useState<ApiProgramProject[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
@@ -114,6 +116,18 @@ const ProgramDetailPage = () => {
       .listProgramSponsors(slug)
       .then((r) => { if (active) setSponsors(r.data); })
       .catch(() => { if (active) setSponsors([]); });
+    return () => { active = false; };
+  }, [slug, program]);
+
+  // Public, PII-free project aggregate (distinct projects + interest counts
+  // derived from the program's signups). Empty for programs without submissions.
+  useEffect(() => {
+    if (!slug || !program) { setProjects([]); return; }
+    let active = true;
+    api
+      .listProgramProjects(slug)
+      .then((r) => { if (active) setProjects(r.data); })
+      .catch(() => { if (active) setProjects([]); });
     return () => { active = false; };
   }, [slug, program]);
 
@@ -401,6 +415,28 @@ const ProgramDetailPage = () => {
                           {s.applyUrl} ▸
                         </a>
                       )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {projects.length > 0 && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·PROJECTS</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {projects.map((p) => (
+                    <div
+                      key={p.project}
+                      className="lcd px-3 py-2 flex items-center justify-between gap-3"
+                    >
+                      <span className="text-body text-sm leading-snug">{p.project}</span>
+                      <span
+                        className="border border-hairline text-label-mid bg-panel-deep px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase whitespace-nowrap"
+                        title={`${p.count} ${p.count === 1 ? "person" : "people"} interested`}
+                      >
+                        {p.count} INTERESTED
+                      </span>
                     </div>
                   ))}
                 </div>

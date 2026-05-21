@@ -513,6 +513,27 @@ class ProgramController {
     }
   }
 
+  // --- Projects (public, PII-free aggregate derived from signups) ---
+
+  async listProjects(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const projects = await programSignupService.projectSummaryByProgramId(program.id);
+      res.status(200).json({
+        status: 'success',
+        data: projects,
+        meta: { count: projects.length },
+      });
+    } catch (error) {
+      console.error('❌ Error listing program projects:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program projects' });
+    }
+  }
+
   // --- Signups (Luma CSV imports) ---
 
   async listSignups(req, res) {

@@ -1,6 +1,22 @@
 import signupRepository from '../repositories/program-signup.repository.js';
 import { parseLumaCsv } from '../utils/luma-csv.parser.js';
 
+// Heuristic: the signup CSV's "which project…" column lands in raw_row under
+// its original header. We don't know the exact wording per export, so match any
+// header mentioning "project". First match wins.
+const PROJECT_KEY_RE = /project/i;
+
+function findProjectKey(signups) {
+  for (const s of signups) {
+    const raw = s.rawRow;
+    if (!raw || typeof raw !== 'object') continue;
+    for (const key of Object.keys(raw)) {
+      if (PROJECT_KEY_RE.test(key)) return key;
+    }
+  }
+  return null;
+}
+
 class ProgramSignupService {
   async listByProgramId(programId) {
     return await signupRepository.listByProgramId(programId);
@@ -8,6 +24,34 @@ class ProgramSignupService {
 
   async countByProgramId(programId) {
     return await signupRepository.countByProgramId(programId);
+  }
+
+  /**
+   * Aggregate the distinct projects attendees picked, from the signup raw_row
+   * column whose header mentions "project". Returns [{ project, count }] sorted
+   * by count desc (ties broken alphabetically). PII-free by construction — only
+   * project labels + counts are returned, never attendee rows.
+   */
+  async projectSummaryByProgramId(programId) {
+    const signups = await signupRepository.listByProgramId(programId);
+    if (!signups.length) return [];
+
+    const projectKey = findProjectKey(signups);
+    if (!projectKey) return [];
+
+    const counts = new Map();
+    for (const s of signups) {
+      const raw = s.rawRow;
+      if (!raw || typeof raw !== 'object') continue;
+      const value = raw[projectKey];
+      if (typeof value !== 'string') continue;
+      const name = value.trim();
+      if (!name) continue;
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([project, count]) => ({ project, count }))
+      .sort((a, b) => b.count - a.count || a.project.localeCompare(b.project));
   }
 
   /**

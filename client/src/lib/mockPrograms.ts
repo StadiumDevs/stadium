@@ -178,8 +178,65 @@ export const mockProgramSponsors: Record<string, ApiProgramSponsor[]> = {
   ],
 };
 
+// Illustrative PitchOff! Denver signups so the preview renders the public
+// PROJECTS aggregate. Attendee fields are placeholders — only the "which
+// project" raw_row column drives the public view.
+const PITCHOFF_PROJECT_COL = "Which project would you like to try?";
+const pitchoffSignup = (n: number, project: string): ApiProgramSignup => ({
+  id: `pitchoff-signup-${n}`,
+  programId: "pitchoff-2026-denver",
+  email: `attendee${n}@example.com`,
+  name: `Attendee ${n}`,
+  wallet: null,
+  registeredAt: "2026-02-21T18:00:00Z",
+  source: "luma",
+  rawRow: { [PITCHOFF_PROJECT_COL]: project },
+  importedInBatchAt: "2026-02-22T00:00:00Z",
+  createdAt: "2026-02-22T00:00:00Z",
+});
+
 /** Per-program signup fixtures (mock mode). */
-export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {};
+export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
+  "pitchoff-2026-denver": [
+    pitchoffSignup(1, "Proof of Thought"),
+    pitchoffSignup(2, "Chain of Providence"),
+    pitchoffSignup(3, "Proof of Thought"),
+    pitchoffSignup(4, "Sproto Gremlins"),
+    pitchoffSignup(5, "Proof of Thought"),
+    pitchoffSignup(6, "Chain of Providence"),
+    pitchoffSignup(7, "Sproto Gremlins"),
+    pitchoffSignup(8, "Proof of Thought"),
+  ],
+};
+
+// Mirror of the server's project-summary aggregation (program-signup.service):
+// group signups by the raw_row column whose header mentions "project",
+// returning [{ project, count }] sorted by count desc then alpha. PII-free.
+export function projectSummaryFromMockSignups(
+  slug: string,
+): Array<{ project: string; count: number }> {
+  const signups = mockProgramSignups[slug] || [];
+  if (signups.length === 0) return [];
+  let projectKey: string | null = null;
+  for (const s of signups) {
+    const raw = s.rawRow;
+    if (!raw) continue;
+    const key = Object.keys(raw).find((k) => /project/i.test(k));
+    if (key) { projectKey = key; break; }
+  }
+  if (!projectKey) return [];
+  const counts = new Map<string, number>();
+  for (const s of signups) {
+    const value = s.rawRow?.[projectKey];
+    if (typeof value !== "string") continue;
+    const name = value.trim();
+    if (!name) continue;
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([project, count]) => ({ project, count }))
+    .sort((a, b) => b.count - a.count || a.project.localeCompare(b.project));
+}
 
 /**
  * Tiny CSV parser used only in mock mode so previews can demo the import
