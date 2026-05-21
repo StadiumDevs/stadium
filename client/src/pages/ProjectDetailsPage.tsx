@@ -40,6 +40,7 @@ import { ShareProjectModal } from "@/components/ShareProjectModal";
 import { WalletConnectionBanner } from "@/components/WalletConnectionBanner";
 import { TeamPaymentSection } from "@/components/TeamPaymentSection";
 import { M2SubmissionTimeline } from "@/components/M2SubmissionTimeline";
+import { ProjectContinuationModal } from "@/components/project/ProjectContinuationModal";
 import { SubmitM2DeliverablesModal } from "@/components/SubmitM2DeliverablesModal";
 import { ProjectUpdatesTab } from "@/components/project/ProjectUpdatesTab";
 import { FundingSignalBadge } from "@/components/project/FundingSignalBadge";
@@ -173,6 +174,7 @@ const ProjectDetailsPage = () => {
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isSubmitM2ModalOpen, setIsSubmitM2ModalOpen] = useState(false);
+  const [isContinuationModalOpen, setIsContinuationModalOpen] = useState(false);
   const [isEditProjectDetailsOpen, setIsEditProjectDetailsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   // Phase 1 revamp (#42): funding signal
@@ -1125,6 +1127,27 @@ const ProjectDetailsPage = () => {
                       onSubmit={() => setIsSubmitM2ModalOpen(true)}
                     />
 
+                    {/* 'What's next, milestone 3?' CTA — only on completed
+                        projects, only for team members. Admin-only inboxes
+                        list submissions; the form posts a new one each time. */}
+                    {project.m2Status === 'completed' && isTeamMember && (
+                      <div className="panel p-4 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="label-hw text-display">·WHAT'S NEXT, MILESTONE 3?</div>
+                          <p className="text-body text-sm mt-1">
+                            Tell us where the project stands now and what you want next.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsContinuationModalOpen(true)}
+                          className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-3 py-1.5 flex-shrink-0"
+                        >
+                          SHARE UPDATE ▸
+                        </button>
+                      </div>
+                    )}
+
                     {/* M2 Agreement Section - Only for building status */}
                     {project.m2Status === 'building' && (
                       <M2AgreementSection
@@ -1378,6 +1401,18 @@ const ProjectDetailsPage = () => {
             project={project}
             onSubmit={handleSubmitM2}
           />
+
+          {/* 'What's next, milestone 3?' continuation modal */}
+          {connectedAddress && (
+            <ProjectContinuationModal
+              open={isContinuationModalOpen}
+              onOpenChange={setIsContinuationModalOpen}
+              projectId={project.id}
+              projectTitle={project.projectName}
+              connectedAddress={connectedAddress}
+              onSubmitted={() => { /* no list rendered yet — admin inbox is a follow-up */ }}
+            />
+          )}
 
           {/* Edit Project Details Modal */}
           <EditProjectDetailsModal

@@ -546,3 +546,31 @@ export const validateSponsor = (data, { partial = false } = {}) => {
   }
   return { valid: true };
 };
+
+// --- Project continuations ('What's next, milestone 3?' form) ---
+
+export const validateContinuation = (data) => {
+  if (!data || typeof data !== 'object') {
+    return { valid: false, error: 'Continuation payload must be an object' };
+  }
+  if (typeof data.currentStatus !== 'string' || !validateLength(data.currentStatus, 1, 4000)) {
+    return { valid: false, error: 'currentStatus is required (1–4000 characters)' };
+  }
+  if (data.wantSupport !== undefined && typeof data.wantSupport !== 'boolean') {
+    return { valid: false, error: 'wantSupport must be a boolean' };
+  }
+  if (data.supportFor !== undefined && data.supportFor !== null) {
+    if (typeof data.supportFor !== 'string' || data.supportFor.length > 4000) {
+      return { valid: false, error: 'supportFor must be a string (max 4000 characters)' };
+    }
+  }
+  if (data.nextStepUrl !== undefined && data.nextStepUrl !== null && data.nextStepUrl !== '') {
+    if (typeof data.nextStepUrl !== 'string' || data.nextStepUrl.length > 500) {
+      return { valid: false, error: 'nextStepUrl must be a string (max 500 characters)' };
+    }
+    if (!/^https?:\/\//i.test(data.nextStepUrl)) {
+      return { valid: false, error: 'nextStepUrl must start with http:// or https://' };
+    }
+  }
+  return { valid: true };
+};

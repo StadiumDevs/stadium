@@ -216,6 +216,19 @@ export type ApiInboxEntry = {
   walletChain: string | null;
 };
 
+/** Row in `project_continuations` ('What's next, milestone 3?' submissions). */
+export type ApiProjectContinuation = {
+  id: string;
+  projectId: string;
+  currentStatus: string;
+  wantSupport: boolean;
+  supportFor: string | null;
+  nextStepUrl: string | null;
+  submittedBy: string;
+  submittedByChain: "substrate" | "ethereum" | "solana";
+  createdAt: string;
+};
+
 /** Tier-0 / tier-1 admin record. Same shape for both tables. */
 export type ApiAdminTierEntry = {
   walletChain: "substrate" | "ethereum" | "solana";
