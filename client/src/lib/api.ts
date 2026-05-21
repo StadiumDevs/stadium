@@ -225,6 +225,19 @@ export type ApiAdminTierEntry = {
   createdAt?: string;
 };
 
+/** One row in the per-program audit log. */
+export type ApiAuditLogEntry = {
+  id: string;
+  programId: string;
+  actorChain: string | null;
+  actorWallet: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
 export type ApiProgram = {
   id: string;
@@ -1595,45 +1608,17 @@ export const api = {
     );
   },
 
-  // --- Program inbox (merged signups + applications) ---
+  // --- Program audit log ---
 
-  listProgramInbox: async (
+  listProgramAuditLog: async (
     slug: string,
     authHeader: AdminAuthArg,
-  ): Promise<{
-    status: string;
-    data: ApiInboxEntry[];
-    meta: { total: number; signups: number; applications: number };
-  }> => {
-    if (USE_MOCK_DATA) {
-      // Mock mode returns an empty inbox — the underlying tables are
-      // mock-mode-only and unrelated. Real exercise happens on dev/prod.
-      return {
-        status: "success",
-        data: [],
-        meta: { total: 0, signups: 0, applications: 0 },
-      };
-    }
-    return request(`/programs/${encodeURIComponent(slug)}/inbox`, {
+    options: { limit?: number } = {},
+  ): Promise<{ status: string; data: ApiAuditLogEntry[] }> => {
+    const qs = options.limit ? `?limit=${encodeURIComponent(String(options.limit))}` : "";
+    return request(`/programs/${encodeURIComponent(slug)}/audit-log${qs}`, {
       headers: adminAuthHeaders(authHeader),
     });
-  },
-
-  /**
-   * Returns the same data as `listProgramInbox` serialised as CSV. Caller
-   * is expected to trigger a download via blob URL — see
-   * `ProgramInboxSection.handleExport` for the canonical flow.
-   */
-  exportProgramInboxCsv: async (slug: string, authHeader: AdminAuthArg): Promise<Blob> => {
-    if (USE_MOCK_DATA) {
-      return new Blob(["source,when,identifier,name,email,status,wallet\n"], { type: "text/csv" });
-    }
-    const url = `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/inbox.csv`;
-    const res = await fetch(url, { headers: adminAuthHeaders(authHeader) });
-    if (!res.ok) {
-      throw new ApiError(`Inbox export failed (HTTP ${res.status})`, res.status);
-    }
-    return res.blob();
   },
 };
 
