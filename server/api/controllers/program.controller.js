@@ -2,6 +2,7 @@ import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
 import programSponsorService from '../services/program-sponsor.service.js';
 import programSignupService from '../services/program-signup.service.js';
+import programInboxService, { inboxToCsv } from '../services/program-inbox.service.js';
 import projectService from '../services/project.service.js';
 import notificationService from '../services/notification.service.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
@@ -544,6 +545,48 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error deleting program signup:', error);
       res.status(500).json({ status: 'error', message: 'Failed to delete program signup' });
+    }
+  }
+
+  // --- Inbox (merged signups + applications) ---
+
+  async listInbox(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const entries = await programInboxService.listInbox(program.id);
+      const signupCount = entries.filter((e) => e.source === 'signup').length;
+      const applicationCount = entries.length - signupCount;
+      res.status(200).json({
+        status: 'success',
+        data: entries,
+        meta: { total: entries.length, signups: signupCount, applications: applicationCount },
+      });
+    } catch (error) {
+      console.error('❌ Error listing program inbox:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program inbox' });
+    }
+  }
+
+  async exportInboxCsv(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const entries = await programInboxService.listInbox(program.id);
+      const csv = inboxToCsv(entries, { programSlug: slug });
+      const filename = `${slug}-inbox-${new Date().toISOString().slice(0, 10)}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
+    } catch (error) {
+      console.error('❌ Error exporting program inbox CSV:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to export program inbox' });
     }
   }
 }
