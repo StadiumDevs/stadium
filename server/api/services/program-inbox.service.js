@@ -93,9 +93,19 @@ export default new ProgramInboxService();
 
 // CSV serialisation lives here so the controller stays thin. Escapes
 // double-quotes per RFC 4180.
+//
+// SECURITY: also defends against CSV formula injection (Excel / Google Sheets
+// auto-execute any cell starting with `=`, `+`, `-`, `@`, `\t`, `\r`). User-
+// submitted fields (name, email, identifier, wallet) flow into the export an
+// admin downloads, so a malicious applicant could exfiltrate the admin's data
+// via `=WEBSERVICE(…)` or `=HYPERLINK(…)`. Prefixing such cells with a single
+// quote neuters the formula while leaving the visible value intact (the quote
+// is a sentinel that the spreadsheet strips on display).
+const FORMULA_INJECTION_LEAD = /^[=+\-@\t\r]/;
 const csvCell = (val) => {
   if (val == null) return '';
-  const s = String(val);
+  let s = String(val);
+  if (FORMULA_INJECTION_LEAD.test(s)) s = `'${s}`;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 };
