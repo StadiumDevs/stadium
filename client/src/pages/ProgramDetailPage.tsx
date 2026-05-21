@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
+import { isAdmin } from "@/lib/constants";
 import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
@@ -46,6 +47,15 @@ const ProgramDetailPage = () => {
   const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
+  // accepts admins). Without this branch, the page would dead-end at "You need to be a team member"
+  // even though the server would have let them through.
+  const isUserAdmin = useMemo(
+    () => isAdmin(connectedAddress ?? undefined, auth.chain),
+    [connectedAddress, auth.chain],
+  );
+  const [allProjects, setAllProjects] = useState<ApiProject[]>([]);
+
   useEffect(() => {
     if (!slug) return;
     let active = true;
@@ -73,6 +83,28 @@ const ProgramDetailPage = () => {
       .catch(() => { if (active) setMyProjects([]); });
     return () => { active = false; };
   }, [connectedAddress]);
+
+  // Admins get the full project list so they can apply on behalf of any project.
+  // Limit is generous; we expect <500 projects historically. Response shape is
+  // `{ status, data: ApiProject[], meta }` per server/api/repositories/project.repository.js.
+  useEffect(() => {
+    if (!isUserAdmin) { setAllProjects([]); return; }
+    let active = true;
+    api
+      .getProjects({ limit: 500 })
+      .then((r: { data?: ApiProject[] }) => {
+        if (!active) return;
+        setAllProjects(Array.isArray(r?.data) ? r.data : []);
+      })
+      .catch(() => { if (active) setAllProjects([]); });
+    return () => { active = false; };
+  }, [isUserAdmin]);
+
+  // The list the apply modal renders: admin sees everything, normal user sees their team's projects.
+  const projectsForApply = useMemo(
+    () => (isUserAdmin && allProjects.length > 0 ? allProjects : myProjects),
+    [isUserAdmin, allProjects, myProjects],
+  );
 
   // Load sponsors once we know the program exists.
   useEffect(() => {
@@ -207,7 +239,17 @@ const ProgramDetailPage = () => {
       );
     }
 
-    if (myProjects.length === 0) {
+    if (projectsForApply.length === 0) {
+      if (isUserAdmin) {
+        // Admin signed in but the all-projects fetch is still pending or empty —
+        // surface a soft loading state instead of the gate copy.
+        return (
+          <div className="space-y-1">
+            <RackButton disabled>APPLY</RackButton>
+            <p className="label-hw-dim">LOADING PROJECTS…</p>
+          </div>
+        );
+      }
       return (
         <div className="space-y-1">
           <RackButton disabled>APPLY</RackButton>
@@ -216,7 +258,16 @@ const ProgramDetailPage = () => {
       );
     }
 
-    return <RackButton onClick={() => setModalOpen(true)}>APPLY WITH MY PROJECT</RackButton>;
+    return (
+      <div className="space-y-1">
+        <RackButton onClick={() => setModalOpen(true)}>
+          {isUserAdmin && myProjects.length === 0 ? "APPLY ON BEHALF OF…" : "APPLY WITH MY PROJECT"}
+        </RackButton>
+        {isUserAdmin && (
+          <p className="label-hw-dim">ADMIN MODE — APPLY ON BEHALF OF ANY PROJECT</p>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -368,12 +419,12 @@ const ProgramDetailPage = () => {
               </div>
             </div>
 
-            {connectedAddress && myProjects.length > 0 && (
+            {connectedAddress && projectsForApply.length > 0 && (
               <ApplyToProgramModal
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 program={program}
-                projects={myProjects}
+                projects={projectsForApply}
                 connectedAddress={connectedAddress}
                 onApplied={handleApplied}
               />
