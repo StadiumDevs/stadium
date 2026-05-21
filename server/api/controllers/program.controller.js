@@ -3,6 +3,7 @@ import programApplicationService from '../services/program-application.service.j
 import programSponsorService from '../services/program-sponsor.service.js';
 import programSignupService from '../services/program-signup.service.js';
 import programInboxService, { inboxToCsv } from '../services/program-inbox.service.js';
+import auditLog from '../services/program-audit-log.service.js';
 import projectService from '../services/project.service.js';
 import notificationService from '../services/notification.service.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
@@ -627,12 +628,12 @@ class ProgramController {
       res.status(500).json({ status: 'error', message: 'Failed to delete program signup' });
     }
   }
-  // --- Audit log read endpoint ---
+  // --- Inbox (merged signups + applications) ---
 
-  async listAuditLog(req, res) {
+  async listInbox(req, res) {
     try {
       const { slug } = req.params;
-      const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+      const program = await programService.findBySlug(slug);
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
@@ -647,6 +648,28 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error listing program inbox:', error);
       res.status(500).json({ status: 'error', message: 'Failed to list program inbox' });
+    }
+  }
+
+  // --- Audit log read endpoint ---
+
+  async listAuditLog(req, res) {
+    try {
+      const { slug } = req.params;
+      const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const entries = await auditLog.listByProgramId(program.id, { limit });
+      res.status(200).json({
+        status: 'success',
+        data: entries,
+        meta: { total: entries.length, limit },
+      });
+    } catch (error) {
+      console.error('❌ Error listing program audit log:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list program audit log' });
     }
   }
 
