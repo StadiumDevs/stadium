@@ -3,8 +3,9 @@ import projectUpdateService from '../services/project-update.service.js';
 import fundingSignalService from '../services/funding-signal.service.js';
 import paymentService from '../services/payment.service.js';
 import notificationService from '../services/notification.service.js';
+import projectContinuationRepository from '../repositories/project-continuation.repository.js';
 import { ALLOWED_CATEGORIES } from '../constants/allowedTech.js';
-import { validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal, validateProject, validateAddress, ALLOWED_WALLET_CHAINS } from '../utils/validation.js';
+import { validateM2Submission, validateSimpleUrl, validateProjectUpdate, validateFundingSignal, validateProject, validateAddress, validateContinuation, ALLOWED_WALLET_CHAINS } from '../utils/validation.js';
 import { canEditM2Agreement, isSubmissionWindowOpen } from '../utils/dateHelpers.js';
 import logger from '../utils/logger.js';
 import { getAuthorizedAddresses } from '../../config/polkadot-config.js';
@@ -704,6 +705,52 @@ class ProjectController {
         } catch (error) {
             console.error('❌ Error updating funding signal:', error);
             res.status(500).json({ status: 'error', message: 'Failed to update funding signal' });
+        }
+    }
+
+    // --- Project continuations ('What's next, milestone 3?') ---
+
+    async listContinuations(req, res) {
+        try {
+            const { projectId } = req.params;
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+            const entries = await projectContinuationRepository.listByProjectId(projectId);
+            res.status(200).json({ status: 'success', data: entries });
+        } catch (error) {
+            console.error('❌ Error listing continuations:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to list continuations' });
+        }
+    }
+
+    async createContinuation(req, res) {
+        try {
+            const { projectId } = req.params;
+            const project = await projectService.getProjectById(projectId);
+            if (!project) {
+                return res.status(404).json({ status: 'error', message: 'Project not found' });
+            }
+            const { valid, error } = validateContinuation(req.body);
+            if (!valid) {
+                return res.status(422).json({ status: 'error', message: error });
+            }
+            const submittedBy = req.user?.address || req.auth?.address || 'unknown';
+            const submittedByChain = req.user?.chain || req.auth?.chain || 'substrate';
+            const created = await projectContinuationRepository.create({
+                projectId,
+                currentStatus: req.body.currentStatus.trim(),
+                wantSupport: !!req.body.wantSupport,
+                supportFor: req.body.supportFor?.trim() || null,
+                nextStepUrl: req.body.nextStepUrl?.trim() || null,
+                submittedBy,
+                submittedByChain,
+            });
+            res.status(201).json({ status: 'success', data: created });
+        } catch (error) {
+            console.error('❌ Error creating continuation:', error);
+            res.status(500).json({ status: 'error', message: 'Failed to create continuation' });
         }
     }
 }

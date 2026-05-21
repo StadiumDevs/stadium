@@ -216,6 +216,19 @@ export type ApiInboxEntry = {
   walletChain: string | null;
 };
 
+/** Row in `project_continuations` ('What's next, milestone 3?' submissions). */
+export type ApiProjectContinuation = {
+  id: string;
+  projectId: string;
+  currentStatus: string;
+  wantSupport: boolean;
+  supportFor: string | null;
+  nextStepUrl: string | null;
+  submittedBy: string;
+  submittedByChain: "substrate" | "ethereum" | "solana";
+  createdAt: string;
+};
+
 /** Tier-0 / tier-1 admin record. Same shape for both tables. */
 export type ApiAdminTierEntry = {
   walletChain: "substrate" | "ethereum" | "solana";
@@ -1634,6 +1647,32 @@ export const api = {
       throw new ApiError(`Inbox export failed (HTTP ${res.status})`, res.status);
     }
     return res.blob();
+  },
+
+  // --- Project continuations ('What's next, milestone 3?') ---
+
+  listProjectContinuations: async (
+    projectId: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProjectContinuation[] }> => {
+    return request(`/m2-program/${encodeURIComponent(projectId)}/continuations`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  createProjectContinuation: async (
+    projectId: string,
+    payload: Pick<ApiProjectContinuation, "currentStatus" | "wantSupport"> & {
+      supportFor?: string | null;
+      nextStepUrl?: string | null;
+    },
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProjectContinuation }> => {
+    return request(`/m2-program/${encodeURIComponent(projectId)}/continuations`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   },
 };
 

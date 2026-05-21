@@ -32,6 +32,10 @@ router.post('/:projectId/updates', requireTeamMemberOrAdmin, projectController.p
 router.get('/:projectId/funding-signal', projectController.getFundingSignal);
 router.patch('/:projectId/funding-signal', requireTeamMemberOrAdmin, projectController.updateFundingSignal);
 
+// --- 'What's next, milestone 3?' continuations (#15) ---
+router.get('/:projectId/continuations', requireTeamMemberOrAdmin, projectController.listContinuations);
+router.post('/:projectId/continuations', requireTeamMemberOrAdmin, projectController.createContinuation);
+
 // --- Phase 1 revamp: per-project application list (#43) ---
 router.get('/:projectId/applications', programController.listApplicationsForProject);
 
