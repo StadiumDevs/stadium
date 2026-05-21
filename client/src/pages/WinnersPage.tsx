@@ -21,6 +21,7 @@ type ApiProject = {
   demoUrl?: string;
   liveUrl?: string;
   bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
+  techStack?: string[];
   categories?: string[];
   m2Status?: "building" | "under_review" | "completed";
   hackathon?: { id: string; name: string; endDate: string };
@@ -40,6 +41,9 @@ type Unit = {
   demoUrl?: string;
   githubUrl?: string;
   projectUrl?: string;
+  techStack?: string[];
+  categories?: string[];
+  teamSize?: number;
 };
 
 const WinnersPage = () => {
@@ -99,6 +103,9 @@ const WinnersPage = () => {
               demoUrl: p.demoUrl,
               githubUrl: p.projectRepo,
               projectUrl: p.id ? `/m2-program/${p.id}` : undefined,
+              techStack: Array.isArray(p.techStack) ? p.techStack : undefined,
+              categories: p.categories,
+              teamSize: p.teamMembers?.length,
             };
           }),
         );

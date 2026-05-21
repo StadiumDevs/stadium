@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, Copy, Check } from "lucide-react";
 import { api, type ApiAdminTierEntry, type AdminAuthArg, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,6 +34,7 @@ export function AdminTierSection({
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [wallet, setWallet] = useState("");
   const [label, setLabel] = useState("");
   const [chain, setChain] = useState<ChainOption>("substrate");
@@ -88,6 +89,32 @@ export function AdminTierSection({
     }
   };
 
+  const handleCopyInvite = async (entry: ApiAdminTierEntry) => {
+    const key = `${entry.walletChain}:${entry.wallet}`;
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://stadium.joinwebzero.com";
+    const tierLabel = title.toLowerCase();
+    const message =
+      `You're an admin on Stadium 🛰️\n\n` +
+      `Tier: ${tierLabel}\n` +
+      `Chain: ${entry.walletChain}\n` +
+      `Wallet: ${entry.wallet}\n` +
+      `Sign in: ${origin}/admin\n\n` +
+      `If you haven't already, install the wallet extension for your chain (Polkadot-JS, MetaMask, or Phantom) ` +
+      `and connect on the admin page. From there you can manage programs, sponsors, and signups.`;
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedKey(key);
+      toast({ title: "Invite copied to clipboard" });
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000);
+    } catch {
+      toast({
+        title: "Couldn't copy",
+        description: "Clipboard access denied — copy the wallet manually.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleRemove = async (entry: ApiAdminTierEntry) => {
     const key = `${entry.walletChain}:${entry.wallet}`;
     if (!confirm(`Remove ${entry.label || entry.wallet}?`)) return;
@@ -138,16 +165,28 @@ export function AdminTierSection({
                     {a.addedBy ? ` · ADDED BY ${a.addedBy.toUpperCase()}` : ""}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(a)}
-                  disabled={busyKey === key}
-                  aria-label={`Remove ${a.wallet}`}
-                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-destructive hover:bg-destructive/10 disabled:opacity-50 px-2 py-1 inline-flex items-center gap-1"
-                >
-                  {busyKey === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                  REMOVE
-                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyInvite(a)}
+                    aria-label={`Copy invite for ${a.wallet}`}
+                    title="Copy a pre-formatted invite message"
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-2 py-1 inline-flex items-center gap-1"
+                  >
+                    {copiedKey === key ? <Check className="h-3 w-3 text-led" /> : <Copy className="h-3 w-3" />}
+                    {copiedKey === key ? "COPIED" : "COPY INVITE"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(a)}
+                    disabled={busyKey === key}
+                    aria-label={`Remove ${a.wallet}`}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-destructive hover:bg-destructive/10 disabled:opacity-50 px-2 py-1 inline-flex items-center gap-1"
+                  >
+                    {busyKey === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    REMOVE
+                  </button>
+                </div>
               </li>
             );
           })}

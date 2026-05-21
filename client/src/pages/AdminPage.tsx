@@ -393,6 +393,37 @@ const AdminPage = () => {
           <LCDStat value={fmtUSD(totalPaidUsd)} label="Paid Out" size="sm" showLED />
         </div>
 
+        {/* Empty-state CTA — only shown when there are no projects yet. Gives
+            a fresh admin (or a first-time event organiser) a single obvious
+            place to start instead of an empty PROGRAMS table. */}
+        {!loading && projects.length === 0 && (
+          <section className="panel p-6 mb-4 text-center">
+            <div className="label-hw-dim mb-3">·WELCOME, ADMIN</div>
+            <h2 className="font-display text-2xl md:text-3xl uppercase tracking-tight text-display mb-3">
+              Create your first event
+            </h2>
+            <p className="text-body text-sm max-w-md mx-auto mb-5">
+              Stadium tracks events end-to-end: applications, sponsors, signups, payouts.
+              Spin up your program now and start onboarding builders.
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <button
+                type="button"
+                onClick={() => setShowCreateProjectModal(true)}
+                className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
+              >
+                <Plus className="h-3 w-3" /> CREATE PROJECT
+              </button>
+              <Link
+                to="/admin/app-admins"
+                className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-4 py-2"
+              >
+                ADMIN TIERS ▸
+              </Link>
+            </div>
+          </section>
+        )}
+
         {/* Pending Review */}
         <section className="panel p-4 mb-4">
           <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">

@@ -203,6 +203,32 @@ export type ApiProgramAdmin = {
   createdAt: string;
 };
 
+/** One row in the unified program inbox (signups + applications merged). */
+export type ApiInboxEntry = {
+  source: "signup" | "application";
+  id: string;
+  when: string | null;
+  name: string | null;
+  email: string | null;
+  identifier: string;
+  status: string | null;
+  wallet: string | null;
+  walletChain: string | null;
+};
+
+/** Row in `project_continuations` ('What's next, milestone 3?' submissions). */
+export type ApiProjectContinuation = {
+  id: string;
+  projectId: string;
+  currentStatus: string;
+  wantSupport: boolean;
+  supportFor: string | null;
+  nextStepUrl: string | null;
+  submittedBy: string;
+  submittedByChain: "substrate" | "ethereum" | "solana";
+  createdAt: string;
+};
+
 /** Tier-0 / tier-1 admin record. Same shape for both tables. */
 export type ApiAdminTierEntry = {
   walletChain: "substrate" | "ethereum" | "solana";
@@ -210,6 +236,19 @@ export type ApiAdminTierEntry = {
   label?: string | null;
   addedBy?: string | null;
   createdAt?: string;
+};
+
+/** One row in the per-program audit log. */
+export type ApiAuditLogEntry = {
+  id: string;
+  programId: string;
+  actorChain: string | null;
+  actorWallet: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
 };
 
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
@@ -1580,6 +1619,19 @@ export const api = {
       `/admin/global-admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
       { method: "DELETE", headers: adminAuthHeaders(authHeader) },
     );
+  },
+
+  // --- Program audit log ---
+
+  listProgramAuditLog: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+    options: { limit?: number } = {},
+  ): Promise<{ status: string; data: ApiAuditLogEntry[] }> => {
+    const qs = options.limit ? `?limit=${encodeURIComponent(String(options.limit))}` : "";
+    return request(`/programs/${encodeURIComponent(slug)}/audit-log${qs}`, {
+      headers: adminAuthHeaders(authHeader),
+    });
   },
 };
 

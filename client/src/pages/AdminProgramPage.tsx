@@ -14,6 +14,7 @@ import { ApplicationCard } from "@/components/admin/ApplicationCard";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
 import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
+import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -244,6 +245,10 @@ const AdminProgramPage = () => {
                   signAuthHeader={getAdminAuth}
                 />
 
+                <ProgramAuditLogSection
+                  programSlug={program.slug}
+                  signAuthHeader={getAdminAuth}
+                />
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
                   <HardwareToggle
                     options={FILTER_OPTIONS}
