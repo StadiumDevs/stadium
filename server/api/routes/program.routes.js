@@ -78,4 +78,9 @@ router.delete(
   programController.deleteSignup,
 );
 
+// --- Inbox (merged signups + applications) ---
+// Admin-only — both source rows are gated; the merge inherits that.
+router.get('/:slug/inbox', requireProgramAdmin('slug'), programController.listInbox);
+router.get('/:slug/inbox.csv', requireProgramAdmin('slug'), programController.exportInboxCsv);
+
 export default router;
