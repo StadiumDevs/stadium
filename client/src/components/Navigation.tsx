@@ -7,7 +7,6 @@ import { SearchPalette } from "./SearchPalette";
 
 const TABS = [
   { href: "/", label: "HOME" },
-  { href: "/m2-program", label: "M2" },
   { href: "/programs", label: "PROGRAMS" },
   { href: "/admin", label: "ADMIN" },
 ];

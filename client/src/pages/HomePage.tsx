@@ -265,7 +265,7 @@ const HomePage = () => {
             Stadium
           </h1>
           <p className="text-body text-base md:text-lg max-w-xl leading-relaxed">
-            Builders showcase what they ship at WebZero events — and keep building between them.
+            Stuff people have built here.
           </p>
 
           <div className="pt-8">
