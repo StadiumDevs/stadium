@@ -86,7 +86,7 @@ export const mockPrograms: ApiProgram[] = [
     slug: "m2-incubator",
     programType: "m2_incubator",
     description:
-      "Continuation track for event winners — focused build sprint with a mentor.",
+      "Projects who've continued hacking in our mentorship and milestone-focused incubation programs.",
     status: "open",
     owner: "webzero",
     applicationsOpenAt: null,
@@ -104,7 +104,7 @@ export const mockPrograms: ApiProgram[] = [
     slug: "dogfooding",
     programType: "dogfooding",
     description:
-      "Continuation track where past winners trade structured feedback by using each other's products.",
+      "Continuation track where past winners trade structured feedback by using each other's products. Apply on an ongoing basis to get what you're building featured at our upcoming events.",
     status: "open",
     owner: "webzero",
     applicationsOpenAt: null,
