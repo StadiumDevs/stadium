@@ -1621,6 +1621,48 @@ export const api = {
     );
   },
 
+  // --- Program inbox (merged signups + applications, #112) ---
+
+  listProgramInbox: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{
+    status: string;
+    data: ApiInboxEntry[];
+    meta: { total: number; signups: number; applications: number };
+  }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success", data: [], meta: { total: 0, signups: 0, applications: 0 } };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/inbox`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  exportProgramInboxCsv: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<Blob> => {
+    if (USE_MOCK_DATA) {
+      return new Blob(["source,when,name,email\n"], { type: "text/csv" });
+    }
+    const url = `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/inbox.csv`;
+    const response = await fetch(url, { headers: adminAuthHeaders(authHeader) });
+    if (!response.ok) {
+      let message = mapStatusToMessage(response.status);
+      try {
+        const body = await response.json();
+        if (body && typeof body.message === "string" && body.message.trim()) {
+          message = body.error ? `${body.message}: ${body.error}` : body.message;
+        }
+      } catch {
+        // non-JSON error body — keep status-based message
+      }
+      throw new ApiError(message, response.status);
+    }
+    return response.blob();
+  },
+
   // --- Program audit log ---
 
   listProgramAuditLog: async (
@@ -1631,6 +1673,54 @@ export const api = {
     const qs = options.limit ? `?limit=${encodeURIComponent(String(options.limit))}` : "";
     return request(`/programs/${encodeURIComponent(slug)}/audit-log${qs}`, {
       headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  // --- Project continuations ('What's next, milestone 3?', #114) ---
+
+  listProjectContinuations: async (
+    projectId: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProjectContinuation[] }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success", data: [] };
+    }
+    return request(`/m2-program/${encodeURIComponent(projectId)}/continuations`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  createProjectContinuation: async (
+    projectId: string,
+    payload: {
+      currentStatus: string;
+      wantSupport: boolean;
+      supportFor: string | null;
+      nextStepUrl: string | null;
+    },
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProjectContinuation }> => {
+    if (USE_MOCK_DATA) {
+      const now = new Date().toISOString();
+      return {
+        status: "success",
+        data: {
+          id: `mock-${Date.now()}`,
+          projectId,
+          currentStatus: payload.currentStatus,
+          wantSupport: payload.wantSupport,
+          supportFor: payload.supportFor,
+          nextStepUrl: payload.nextStepUrl,
+          submittedBy: "mock-wallet",
+          submittedByChain: "substrate",
+          createdAt: now,
+        },
+      };
+    }
+    return request(`/m2-program/${encodeURIComponent(projectId)}/continuations`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
   },
 };
