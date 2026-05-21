@@ -135,6 +135,15 @@ class ProgramController {
       // to 404 via the Postgres PGRST116 code we see on not-found.
       res.status(200).json({ status: 'success', data: updated });
 
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: reviewedBy },
+        action: `application.${updated.status}`,
+        targetType: 'application',
+        targetId: updated.id,
+        metadata: { from: prevStatus, to: updated.status, projectId: updated.projectId },
+      });
+
       if (prevStatus === 'submitted' && (updated.status === 'accepted' || updated.status === 'rejected')) {
         const eventType = updated.status === 'accepted' ? 'application_accepted' : 'application_rejected';
         try {
@@ -185,6 +194,14 @@ class ProgramController {
 
       const updated = await programService.updateBySlug(slug, patch);
       res.status(200).json({ status: 'success', data: updated });
+      auditLog.logSafe({
+        programId: updated.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'program.update',
+        targetType: 'program',
+        targetId: updated.id,
+        metadata: { changedKeys: Object.keys(patch || {}) },
+      });
     } catch (error) {
       if (error?.code === '23505') {
         return res.status(409).json({
@@ -349,6 +366,14 @@ class ProgramController {
         });
       }
       res.status(201).json({ status: 'success', data: added });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'admin.add',
+        targetType: 'admin',
+        targetId: `${walletChain}:${added.wallet}`,
+        metadata: null,
+      });
     } catch (error) {
       console.error('❌ Error adding program admin:', error);
       res.status(500).json({ status: 'error', message: 'Failed to add program admin' });
@@ -371,6 +396,14 @@ class ProgramController {
       }
       await programAdminRepository.remove(program.id, walletChain, wallet);
       res.status(204).end();
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'admin.remove',
+        targetType: 'admin',
+        targetId: `${walletChain}:${wallet}`,
+        metadata: null,
+      });
     } catch (error) {
       console.error('❌ Error removing program admin:', error);
       res.status(500).json({ status: 'error', message: 'Failed to remove program admin' });
@@ -407,6 +440,14 @@ class ProgramController {
       }
       const created = await programSponsorService.create({ ...req.body, programId: program.id });
       res.status(201).json({ status: 'success', data: created });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'sponsor.add',
+        targetType: 'sponsor',
+        targetId: created.id,
+        metadata: { name: created.name },
+      });
     } catch (error) {
       console.error('❌ Error creating program sponsor:', error);
       res.status(500).json({ status: 'error', message: 'Failed to create program sponsor' });
@@ -430,6 +471,14 @@ class ProgramController {
       }
       const updated = await programSponsorService.update(sponsorId, req.body);
       res.status(200).json({ status: 'success', data: updated });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'sponsor.update',
+        targetType: 'sponsor',
+        targetId: sponsorId,
+        metadata: { changedKeys: Object.keys(req.body || {}) },
+      });
     } catch (error) {
       console.error('❌ Error updating program sponsor:', error);
       res.status(500).json({ status: 'error', message: 'Failed to update program sponsor' });
@@ -449,6 +498,14 @@ class ProgramController {
       }
       await programSponsorService.delete(sponsorId);
       res.status(204).end();
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'sponsor.delete',
+        targetType: 'sponsor',
+        targetId: sponsorId,
+        metadata: { name: existing.name },
+      });
     } catch (error) {
       console.error('❌ Error deleting program sponsor:', error);
       res.status(500).json({ status: 'error', message: 'Failed to delete program sponsor' });
@@ -521,6 +578,21 @@ class ProgramController {
           inserted: dryRun ? [] : inserted || [],
         },
       });
+      if (!dryRun) {
+        auditLog.logSafe({
+          programId: program.id,
+          actor: { chain: req.user?.chain, wallet: req.user?.address },
+          action: 'signups.import',
+          targetType: 'signups_batch',
+          targetId: null,
+          metadata: {
+            newCount: summary.newCount,
+            duplicates: summary.duplicates,
+            skippedNoEmail: summary.skippedNoEmail,
+            totalParsed: summary.totalParsed,
+          },
+        });
+      }
     } catch (error) {
       console.error('❌ Error importing program signups:', error);
       res.status(500).json({ status: 'error', message: 'Failed to import program signups' });
@@ -542,18 +614,25 @@ class ProgramController {
       }
       await programSignupService.delete(signupId);
       res.status(204).end();
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'signup.delete',
+        targetType: 'signup',
+        targetId: signupId,
+        metadata: { email: existing.email },
+      });
     } catch (error) {
       console.error('❌ Error deleting program signup:', error);
       res.status(500).json({ status: 'error', message: 'Failed to delete program signup' });
     }
   }
+  // --- Audit log read endpoint ---
 
-  // --- Inbox (merged signups + applications) ---
-
-  async listInbox(req, res) {
+  async listAuditLog(req, res) {
     try {
       const { slug } = req.params;
-      const program = await programService.findBySlug(slug);
+      const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
