@@ -11,16 +11,22 @@ interface BrightnessRackProps {
 
 // --- SoundCloud Widget API integration ---
 
+interface SCSound {
+  title?: string | null;
+  genre?: string | null;
+}
+
 interface SCWidget {
   bind(event: string, cb: () => void): void;
   play(): void;
   pause(): void;
   setVolume(volume: number): void;
+  getCurrentSound(cb: (sound: SCSound | null) => void): void;
 }
 
 interface SCNamespace {
   Widget: ((iframe: HTMLIFrameElement) => SCWidget) & {
-    Events: { READY: string };
+    Events: { READY: string; PLAY: string };
   };
 }
 
@@ -109,6 +115,8 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const widgetRef = useRef<SCWidget | null>(null);
   const [muted, setMuted] = useState(true);
+  // Now-playing metadata pulled from the widget: current track title + genre.
+  const [nowPlaying, setNowPlaying] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -117,10 +125,20 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
         if (cancelled || !iframeRef.current || !window.SC) return;
         const widget = window.SC.Widget(iframeRef.current);
         widgetRef.current = widget;
+        const refreshTrack = () => {
+          widget.getCurrentSound((sound) => {
+            if (cancelled || !sound) return;
+            const parts = [sound.title, sound.genre].filter(Boolean);
+            setNowPlaying(parts.join(" · "));
+          });
+        };
         widget.bind(window.SC.Widget.Events.READY, () => {
           widget.setVolume(0);
           widget.play();
+          refreshTrack();
         });
+        // Each time a new track starts, refresh the displayed title + genre.
+        widget.bind(window.SC.Widget.Events.PLAY, refreshTrack);
       })
       .catch(() => {
         // Network-blocked or offline — leave audio inert; UI still works.
@@ -348,9 +366,17 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
         {/* Audio — artist credit + external links + mute toggle */}
         <div className="flex items-center gap-3 mt-2 pt-2 border-t border-hairline-subtle">
           <span className="label-hw min-w-[78px]">AUDIO</span>
-          <span className="font-mono text-[11px] text-display tabular-nums">
+          <span className="font-mono text-[11px] text-display tabular-nums shrink-0">
             pommeshdrms
           </span>
+          {nowPlaying && (
+            <span
+              className="label-hw-dim truncate min-w-0"
+              title={nowPlaying}
+            >
+              · {nowPlaying}
+            </span>
+          )}
           <span className="flex-1" />
           <a
             href="https://soundcloud.com/pommeshdrms"
