@@ -212,6 +212,19 @@ export type ApiAdminTierEntry = {
   createdAt?: string;
 };
 
+/** One row in the per-program audit log. */
+export type ApiAuditLogEntry = {
+  id: string;
+  programId: string;
+  actorChain: string | null;
+  actorWallet: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
 export type ApiProgram = {
   id: string;
@@ -1580,6 +1593,19 @@ export const api = {
       `/admin/global-admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
       { method: "DELETE", headers: adminAuthHeaders(authHeader) },
     );
+  },
+
+  // --- Program audit log ---
+
+  listProgramAuditLog: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+    options: { limit?: number } = {},
+  ): Promise<{ status: string; data: ApiAuditLogEntry[] }> => {
+    const qs = options.limit ? `?limit=${encodeURIComponent(String(options.limit))}` : "";
+    return request(`/programs/${encodeURIComponent(slug)}/audit-log${qs}`, {
+      headers: adminAuthHeaders(authHeader),
+    });
   },
 };
 

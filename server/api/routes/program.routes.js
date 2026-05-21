@@ -78,4 +78,7 @@ router.delete(
   programController.deleteSignup,
 );
 
+// --- Audit log ---
+router.get('/:slug/audit-log', requireProgramAdmin('slug'), programController.listAuditLog);
+
 export default router;

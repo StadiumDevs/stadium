@@ -14,6 +14,7 @@ import { ApplicationCard } from "@/components/admin/ApplicationCard";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
 import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
+import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -240,6 +241,11 @@ const AdminProgramPage = () => {
                 />
 
                 <ProgramSignupsSection
+                  programSlug={program.slug}
+                  signAuthHeader={getAdminAuth}
+                />
+
+                <ProgramAuditLogSection
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
                 />
