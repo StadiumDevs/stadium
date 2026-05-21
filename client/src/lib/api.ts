@@ -203,6 +203,15 @@ export type ApiProgramAdmin = {
   createdAt: string;
 };
 
+/** Tier-0 / tier-1 admin record. Same shape for both tables. */
+export type ApiAdminTierEntry = {
+  walletChain: "substrate" | "ethereum" | "solana";
+  wallet: string;
+  label?: string | null;
+  addedBy?: string | null;
+  createdAt?: string;
+};
+
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
 export type ApiProgram = {
   id: string;
@@ -247,6 +256,7 @@ export type ApiProgramSignup = {
   registeredAt?: string | null;
   source: string;
   rawRow?: Record<string, unknown> | null;
+  importedInBatchAt?: string | null;
   createdAt?: string;
 };
 
@@ -1181,11 +1191,20 @@ export const api = {
   listProgramSignups: async (
     slug: string,
     authHeader?: AdminAuthArg,
-  ): Promise<{ status: string; data: ApiProgramSignup[]; meta: { count: number } }> => {
+  ): Promise<{
+    status: string;
+    data: ApiProgramSignup[];
+    meta: { count: number; lastImportedAt: string | null };
+  }> => {
     if (USE_MOCK_DATA) {
       const { mockProgramSignups } = await import("./mockPrograms");
       const list = mockProgramSignups[slug] || [];
-      return { status: "success", data: list, meta: { count: list.length } };
+      const lastImportedAt = list.reduce<string | null>((acc, s) => {
+        if (!s.importedInBatchAt) return acc;
+        if (!acc || s.importedInBatchAt > acc) return s.importedInBatchAt;
+        return acc;
+      }, null);
+      return { status: "success", data: list, meta: { count: list.length, lastImportedAt } };
     }
     return request(`/programs/${encodeURIComponent(slug)}/signups`, {
       headers: adminAuthHeaders(authHeader),
@@ -1492,6 +1511,74 @@ export const api = {
         method: "DELETE",
         headers: adminAuthHeaders(authHeader),
       },
+    );
+  },
+
+  // --- Admin tiers (app_admins / global_admins) ---
+
+  /**
+   * Self-check: is the connected wallet an app_admin? Cheap probe used to
+   * decide whether to show the /admin/app-admins nav entry.
+   */
+  getMyAdminTier: async (
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { isAppAdmin: boolean; chain: string; address: string } }> => {
+    return request(`/admin/me/tier`, { headers: adminAuthHeaders(authHeader) });
+  },
+
+  listAppAdmins: async (
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiAdminTierEntry[] }> => {
+    return request(`/admin/app-admins`, { headers: adminAuthHeaders(authHeader) });
+  },
+
+  addAppAdmin: async (
+    payload: Pick<ApiAdminTierEntry, "walletChain" | "wallet" | "label">,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiAdminTierEntry }> => {
+    return request(`/admin/app-admins`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  removeAppAdmin: async (
+    wallet: string,
+    walletChain: ApiAdminTierEntry["walletChain"],
+    authHeader: AdminAuthArg,
+  ): Promise<void> => {
+    await request(
+      `/admin/app-admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
+      { method: "DELETE", headers: adminAuthHeaders(authHeader) },
+    );
+  },
+
+  listGlobalAdmins: async (
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiAdminTierEntry[] }> => {
+    return request(`/admin/global-admins`, { headers: adminAuthHeaders(authHeader) });
+  },
+
+  addGlobalAdmin: async (
+    payload: Pick<ApiAdminTierEntry, "walletChain" | "wallet" | "label">,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiAdminTierEntry }> => {
+    return request(`/admin/global-admins`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  removeGlobalAdmin: async (
+    wallet: string,
+    walletChain: ApiAdminTierEntry["walletChain"],
+    authHeader: AdminAuthArg,
+  ): Promise<void> => {
+    await request(
+      `/admin/global-admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
+      { method: "DELETE", headers: adminAuthHeaders(authHeader) },
     );
   },
 };

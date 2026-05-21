@@ -464,10 +464,11 @@ class ProgramController {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
       const signups = await programSignupService.listByProgramId(program.id);
+      const lastImportedAt = await programSignupRepository.lastImportedAt(program.id);
       res.status(200).json({
         status: 'success',
         data: signups,
-        meta: { count: signups.length },
+        meta: { count: signups.length, lastImportedAt },
       });
     } catch (error) {
       console.error('❌ Error listing program signups:', error);

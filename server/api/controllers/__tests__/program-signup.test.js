@@ -13,7 +13,7 @@ vi.mock('../../services/program-signup.service.js', () => ({
   },
 }));
 vi.mock('../../repositories/program-signup.repository.js', () => ({
-  default: { findById: vi.fn() },
+  default: { findById: vi.fn(), lastImportedAt: vi.fn().mockResolvedValue(null) },
 }));
 vi.mock('../../services/program-application.service.js', () => ({
   default: { listByProgram: vi.fn(), listByProject: vi.fn(), findOne: vi.fn(), create: vi.fn() },
