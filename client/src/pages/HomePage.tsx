@@ -181,7 +181,10 @@ const HomePage = () => {
       );
     }
 
-    if (showWinnersOnly) {
+    // When a search query is active, ignore the winners-only filter so
+    // non-winning matches still surface — the user clearly wants a
+    // specific project, regardless of category default.
+    if (showWinnersOnly && !searchQuery) {
       filtered = filtered.filter((p) => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0);
     }
 
@@ -306,7 +309,6 @@ const HomePage = () => {
             value={searchQuery}
             onChange={setSearchQuery}
             placeholder="search units..."
-            kbdHint="⌘K"
             className="flex-1 min-w-[200px]"
           />
           {hackathons.length > 0 && (

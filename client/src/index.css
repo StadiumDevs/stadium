@@ -162,3 +162,13 @@ code, pre { @apply font-mono; }
 @media (prefers-reduced-motion: reduce) {
   .led-pulse { animation: none; }
 }
+
+/* Hide scrollbar on horizontally-scrollable strips (nav tabs on mobile)
+   while keeping the content scrollable. Cross-browser shorthand. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
