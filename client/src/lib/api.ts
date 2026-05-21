@@ -203,6 +203,19 @@ export type ApiProgramAdmin = {
   createdAt: string;
 };
 
+/** One row in the unified program inbox (signups + applications merged). */
+export type ApiInboxEntry = {
+  source: "signup" | "application";
+  id: string;
+  when: string | null;
+  name: string | null;
+  email: string | null;
+  identifier: string;
+  status: string | null;
+  wallet: string | null;
+  walletChain: string | null;
+};
+
 /** Tier-0 / tier-1 admin record. Same shape for both tables. */
 export type ApiAdminTierEntry = {
   walletChain: "substrate" | "ethereum" | "solana";

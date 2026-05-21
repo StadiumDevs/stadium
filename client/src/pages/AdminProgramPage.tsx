@@ -249,7 +249,6 @@ const AdminProgramPage = () => {
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
                 />
-
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
                   <HardwareToggle
                     options={FILTER_OPTIONS}
