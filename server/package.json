@@ -12,6 +12,7 @@
     "dev": "nodemon server.js",
     "seed:dev": "node scripts/seed-dev.js",
     "seed:dogfooding": "node scripts/seed-dogfooding-program.js",
+    "bootstrap:app-admin": "node scripts/bootstrap-app-admin.js",
     "generate:multisig": "node scripts/generate-multisig.js",
     "generate:test-account": "node scripts/generate-test-account.js",
     "db:purge": "mongosh blockspace-stadium --eval \"db.dropDatabase()\" --quiet",

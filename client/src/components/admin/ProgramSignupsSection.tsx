@@ -31,6 +31,7 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [signups, setSignups] = useState<ApiProgramSignup[]>([]);
+  const [lastImportedAt, setLastImportedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -47,7 +48,10 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
       try {
         const authHeader = await signAuthHeader();
         const r = await api.listProgramSignups(programSlug, authHeader);
-        if (active) setSignups(r.data);
+        if (active) {
+          setSignups(r.data);
+          setLastImportedAt(r.meta?.lastImportedAt ?? null);
+        }
       } catch (e) {
         if (active) {
           toast({
@@ -151,17 +155,45 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
 
   const signupCount = useMemo(() => signups.length, [signups]);
 
+  // Staleness: render "X days ago" off lastImportedAt; nudge yellow once it
+  // crosses STALE_DAYS so the admin knows to pull a fresh CSV from Luma.
+  const STALE_DAYS = 7;
+  const daysSinceImport = useMemo(() => {
+    if (!lastImportedAt) return null;
+    const ms = Date.now() - new Date(lastImportedAt).getTime();
+    if (!Number.isFinite(ms) || ms < 0) return null;
+    return Math.floor(ms / (1000 * 60 * 60 * 24));
+  }, [lastImportedAt]);
+  const isStale = daysSinceImport !== null && daysSinceImport >= STALE_DAYS;
+  const lastImportedLabel = (() => {
+    if (!lastImportedAt) return "NEVER IMPORTED";
+    if (daysSinceImport === 0) return "LAST IMPORTED TODAY";
+    if (daysSinceImport === 1) return "LAST IMPORTED 1 DAY AGO";
+    return `LAST IMPORTED ${daysSinceImport} DAYS AGO`;
+  })();
+
   return (
     <div className="panel p-4 mb-3">
       <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline-subtle">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="label-hw text-display">·SIGNUPS</span>
           <span className="lcd px-2 py-[1px] font-mono text-[10px] text-display tabular-nums">
             {signupCount}
           </span>
+          <span className={isStale ? "label-hw text-amber-500" : "label-hw-dim"}>
+            ·{lastImportedLabel}
+          </span>
         </div>
         <span className="label-hw-dim">LUMA CSV IMPORT</span>
       </div>
+
+      {isStale && (
+        <div className="lcd p-3 mb-3 border border-amber-500/40">
+          <p className="label-hw text-amber-500">
+            ·LUMA MAY HAVE NEW SIGNUPS — PULL A FRESH CSV AND RE-IMPORT.
+          </p>
+        </div>
+      )}
 
       {/* CSV picker + preview / commit */}
       <div className="lcd p-3 space-y-3 mb-4">

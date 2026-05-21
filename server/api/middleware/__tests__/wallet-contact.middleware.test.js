@@ -45,6 +45,14 @@ vi.mock('../../repositories/program.repository.js', () => ({
   default: { findBySlug: vi.fn() },
 }));
 
+vi.mock('../../repositories/app-admin.repository.js', () => ({
+  default: { isAppAdmin: vi.fn().mockResolvedValue(false) },
+}));
+
+vi.mock('../../repositories/global-admin.repository.js', () => ({
+  default: { isGlobalAdmin: vi.fn().mockResolvedValue(false) },
+}));
+
 vi.mock('../../repositories/program-admin.repository.js', () => ({
   default: { isAdmin: vi.fn() },
 }));

@@ -11,6 +11,7 @@ const transformSignup = (row) => {
     registeredAt: row.registered_at,
     source: row.source,
     rawRow: row.raw_row,
+    importedInBatchAt: row.imported_in_batch_at,
     createdAt: row.created_at,
   };
 };
@@ -53,6 +54,9 @@ class ProgramSignupRepository {
    */
   async insertMany(rows) {
     if (!rows.length) return [];
+    // Stamp every row in a batch with the same timestamp so admins can read
+    // "last imported X days ago" off MAX(imported_in_batch_at).
+    const batchAt = new Date().toISOString();
     const payload = rows.map((r) => ({
       program_id: r.programId,
       email: r.email,
@@ -61,6 +65,7 @@ class ProgramSignupRepository {
       registered_at: r.registeredAt ?? null,
       source: r.source || 'luma',
       raw_row: r.rawRow ?? null,
+      imported_in_batch_at: batchAt,
     }));
     const { data, error } = await supabase
       .from('program_signups')
@@ -68,6 +73,19 @@ class ProgramSignupRepository {
       .select('*');
     if (error) throw error;
     return (data || []).map(transformSignup);
+  }
+
+  async lastImportedAt(programId) {
+    const { data, error } = await supabase
+      .from('program_signups')
+      .select('imported_in_batch_at')
+      .eq('program_id', programId)
+      .not('imported_in_batch_at', 'is', null)
+      .order('imported_in_batch_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.imported_in_batch_at ?? null;
   }
 
   async delete(id) {

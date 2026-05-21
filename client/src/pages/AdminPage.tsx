@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Loader2, LogOut, Wallet, CheckCircle, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -367,6 +368,13 @@ const AdminPage = () => {
                 <Plus className="h-3 w-3" /> CREATE PROJECT
               </RackBtn>
             )}
+            <Link
+              to="/admin/app-admins"
+              className="inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+              title="Manage app + global admins (app admins only)"
+            >
+              ADMIN TIERS ▸
+            </Link>
             <RackBtn onClick={() => setShowTestPaymentModal(true)}>TEST PAYMENT</RackBtn>
             <div className="lcd px-3 py-1.5 label-hw text-display">
               {(auth.account?.label || "ADMIN").toUpperCase()} · {formatAddress(auth.account?.address || "")}
