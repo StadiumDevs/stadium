@@ -143,45 +143,53 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/server.js`, `server/api/routes/admin-session.routes.js`
 - **Observed during**: security audit after #121 (substrate verifier P0)
 - **Suggestion**: `POST /api/admin/session` does SIWS signature verification (~50–200ms per call) and is unauthenticated. A burst of a few hundred req/sec could noticeably load the server. Add `express-rate-limit` with tight per-IP limits on `/api/admin/session` (e.g. 10/min) and a looser app-wide default (e.g. 200/min/IP). No new env vars needed.
+- **Promoted**: #127
 
 ## [2026-05-21] Add `helmet` security headers middleware
 - **Severity**: nit
 - **File(s)**: `server/server.js`
 - **Observed during**: security audit after #121
 - **Suggestion**: server doesn't set `X-Frame-Options`, `X-Content-Type-Options`, or CSP. Railway terminates TLS and may set some at the edge, but defense-in-depth at the app layer is cheap. Drop `app.use(helmet())` after the CORS middleware. No CSP customisation needed since the server only serves JSON, not HTML.
+- **Promoted**: #128
 
 ## [2026-05-21] `ADMIN_SESSION_SECRET` validation is lazy (first-call), not at startup
 - **Severity**: nit
 - **File(s)**: `server/api/auth/sessionToken.js:30`, `server/server.js`
 - **Observed during**: security audit after #121
 - **Suggestion**: `getSecret()` throws on the first `issueSessionToken`/`verifySessionToken` call if the env var is missing or under 32 chars. The server still boots successfully with a misconfigured secret, and the first admin to try logging in sees a 500. Move the check into `server.js` startup so misconfiguration fails fast and visibly in the deploy logs.
+- **Promoted**: #129
 
 ## [2026-05-21] `requireAdmin` and `requireTeamMemberOrAdmin` don't capture `req.user.chain`
 - **Severity**: nit
 - **File(s)**: `server/api/middleware/auth.middleware.js` (`requireAdmin`, `requireTeamMemberOrAdmin`)
 - **Observed during**: security audit after #121
 - **Suggestion**: `requireProgramAdmin` and `requireAppAdmin` both stamp `chain` onto `req.user`. The other two middlewares don't. Downstream `auditLog.logSafe({ actor: { chain: req.user?.chain, … } })` calls then record `actor_chain = null` for any admin or team-member action — a forensics gap, not a security flaw. Add `chain: auth.chain` to both `req.user` assignments.
+- **Promoted**: #130
 
 ## [2026-05-21] Audit-log coverage gaps on payment / payout actions
 - **Severity**: minor
 - **File(s)**: `server/api/controllers/project.controller.js` (`approveM2`, `requestChanges`, `confirmPayment`, `createContinuation`)
 - **Observed during**: security audit after #121
 - **Suggestion**: program-level mutations (`program.update`, `sponsor.*`, `signups.*`, `admin.*`, `application.<status>`) already log via `auditLog.logSafe`. Project-level mutations don't — `confirmPayment` in particular is high-value because it records on-chain payout proof. Wire `auditLog.logSafe` AFTER `res.json` for each, with `programId = project.program_id || null`. Continuations also worth auditing (post-M2 follow-up trail).
+- **Promoted**: #131
 
 ## [2026-05-21] Tighten `tsconfig.app.json` strict mode (phased)
 - **Severity**: minor
 - **File(s)**: `client/tsconfig.app.json`
 - **Observed during**: bug investigation in #120 — missing api methods typechecked as `any` because `noImplicitAny: false` and `strict: false`
 - **Suggestion**: turn on `strict: true` + `noImplicitAny: true` after a sweep cleanup. Wide blast radius — likely hundreds of errors. Phase: first ratchet just `noImplicitAny: true`, fix everything, then enable `strictNullChecks`, then `strict: true`. Each phase its own PR.
+- **Promoted**: #132
 
 ## [2026-05-21] Add a server boot smoke test
 - **Severity**: nit
 - **File(s)**: `server/tests/` (new)
 - **Observed during**: investigating #117's bad merge that broke prod for ~10 min
 - **Suggestion**: vitest currently tests handlers, repositories, and verifiers in isolation. None of the 243+ tests imports `server.js` end-to-end, so a route mounting an undefined controller method passes CI but crashes Railway at boot. Add a 1-test file that does `await import('../server.js')` with a 2s timeout, asserts the server starts listening, then closes. Would have caught #117 before merge.
+- **Promoted**: #133
 
 ## [2026-05-21] CSV import body parsers might need formula-injection defense on read path too
 - **Severity**: nit
 - **File(s)**: `server/api/services/program-signup.service.js` (Luma CSV importer)
 - **Observed during**: hardening CSV export (#122) for formula injection
 - **Suggestion**: #122 sanitises the inbox EXPORT. The Luma CSV IMPORT reads attacker-controllable rows from a third-party file and persists them. The values aren't re-emitted to a spreadsheet from a different surface (yet), so import-side sanitisation isn't urgent — but if any future feature exports a CSV that includes signup names/emails from this table, the same defense must run. Either: apply the prefix at import time (defense in depth, alters stored data), or factor `csvCell` from `program-inbox.service.js` into a shared `csv.util.js` and call it everywhere CSV is generated.
+- **Promoted**: #134
