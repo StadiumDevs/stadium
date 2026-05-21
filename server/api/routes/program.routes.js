@@ -83,4 +83,7 @@ router.delete(
 router.get('/:slug/inbox', requireProgramAdmin('slug'), programController.listInbox);
 router.get('/:slug/inbox.csv', requireProgramAdmin('slug'), programController.exportInboxCsv);
 
+// --- Audit log (per-program activity feed) ---
+router.get('/:slug/audit-log', requireProgramAdmin('slug'), programController.listAuditLog);
+
 export default router;
