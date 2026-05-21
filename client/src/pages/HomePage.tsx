@@ -33,6 +33,9 @@ type UnitForCard = {
   demoUrl?: string;
   githubUrl?: string;
   projectUrl?: string;
+  techStack?: string[];
+  categories?: string[];
+  teamSize?: number;
 };
 
 const FILTER_TO_CATEGORY: Record<string, string> = {
@@ -161,6 +164,9 @@ const HomePage = () => {
       demoUrl: p.demoUrl,
       githubUrl: p.projectRepo,
       projectUrl: p.id ? `/m2-program/${p.id}` : undefined,
+      techStack: Array.isArray(p.techStack) ? p.techStack : undefined,
+      categories: p.categories,
+      teamSize: p.teamMembers?.length,
     };
   }, []);
 
