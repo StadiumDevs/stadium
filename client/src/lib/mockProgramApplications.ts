@@ -11,7 +11,7 @@ import type { ApiProgramApplication } from "./api";
 export const mockProgramApplications: ApiProgramApplication[] = [
   {
     id: "app-plata-dogfooding-1",
-    programId: "dogfooding-2026-berlin",
+    programId: "dogfooding-2026-denver",
     projectId: "plata-mia-15ac43",
     status: "submitted",
     applicationFields: {

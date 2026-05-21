@@ -11,7 +11,7 @@ const ProgramsPage = () => {
   useEffect(() => {
     let active = true;
     api
-      .listPrograms({ status: "open" })
+      .listPrograms()
       .then((r) => {
         if (active) setPrograms(r.data);
       })
@@ -25,6 +25,11 @@ const ProgramsPage = () => {
       active = false;
     };
   }, []);
+
+  const openPrograms = programs.filter((p) => p.status === "open");
+  const pastPrograms = programs.filter(
+    (p) => p.status === "completed" || p.status === "closed",
+  );
 
   return (
     <div className="min-h-screen scanlines">
@@ -46,7 +51,7 @@ const ProgramsPage = () => {
             <span className="led led-sm" aria-hidden="true" /> ·GRID
           </div>
           <div className="label-hw-dim">
-            {loading ? "…" : `${programs.length} ${programs.length === 1 ? "PROGRAM" : "PROGRAMS"}`}
+            {loading ? "…" : `${openPrograms.length} ${openPrograms.length === 1 ? "PROGRAM" : "PROGRAMS"}`}
           </div>
         </div>
 
@@ -57,17 +62,35 @@ const ProgramsPage = () => {
             <div className="label-hw text-destructive mb-2">·ERROR</div>
             <p className="label-hw-dim">{error}</p>
           </div>
-        ) : programs.length === 0 ? (
+        ) : openPrograms.length === 0 ? (
           <div className="panel px-4 py-10 text-center">
             <div className="label-hw text-display mb-2">·NO PROGRAMS OPEN</div>
             <p className="label-hw-dim">Nothing open right now. Check back soon.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {programs.map((p, i) => (
+            {openPrograms.map((p, i) => (
               <ProgramRackCard key={p.id} program={p} number={String(i + 1).padStart(3, "0")} />
             ))}
           </div>
+        )}
+
+        {!loading && !error && pastPrograms.length > 0 && (
+          <>
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline mt-10">
+              <div className="label-hw text-display flex items-center gap-2">
+                <span className="led led-sm" aria-hidden="true" /> ·PAST PROGRAMS
+              </div>
+              <div className="label-hw-dim">
+                {`${pastPrograms.length} ${pastPrograms.length === 1 ? "PROGRAM" : "PROGRAMS"}`}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {pastPrograms.map((p, i) => (
+                <ProgramRackCard key={p.id} program={p} number={String(i + 1).padStart(3, "0")} />
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>
@@ -104,14 +127,23 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
 
   const href = customRouteForProgramType(program.programType) ?? `/programs/${program.slug}`;
 
+  const isOpen = program.status === "open";
+  const statusLabel = isOpen
+    ? "OPEN"
+    : program.status === "completed"
+      ? "COMPLETED"
+      : program.status === "closed"
+        ? "CLOSED"
+        : "DRAFT";
+
   return (
     <Link
       to={href}
       className="lcd block px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px] relative"
     >
       <div className="absolute top-3 right-3 flex items-center gap-1">
-        <span className="led led-sm led-pulse" aria-hidden="true" />
-        <span className="label-hw-dim">OPEN</span>
+        <span className={`led led-sm${isOpen ? " led-pulse" : ""}`} aria-hidden="true" />
+        <span className="label-hw-dim">{statusLabel}</span>
       </div>
 
       <div className="label-hw-dim mb-2">PROGRAM {number}</div>

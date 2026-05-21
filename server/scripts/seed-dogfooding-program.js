@@ -1,15 +1,12 @@
 /**
- * Idempotent seed for the 2026 Dogfooding program. Inserts one row into the
- * `programs` table with placeholder-but-realistic metadata. Final copy lands
- * in issue #48 (alpha readiness).
+ * Idempotent seed for the Dogfooding 2026 Denver program. Inserts one row into
+ * the `programs` table. Past event — event dates are left null until confirmed.
  *
  * Usage:
  *   node server/scripts/seed-dogfooding-program.js
  *   node server/scripts/seed-dogfooding-program.js --dry-run
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (from server/.env).
- *
- * Phase 1 revamp, issue #37. See docs/stadium-revamp-phase-1-spec.md §5.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -34,22 +31,23 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-// Dogfooding 2026 (Berlin, June 13–19).
+// Dogfooding 2026 Denver — past event. Event dates unknown at seed time;
+// fill event_starts_at / event_ends_at on Supabase once confirmed.
 const ROW = {
-  id: 'dogfooding-2026-berlin',
-  name: 'Dogfooding 2026',
-  slug: 'dogfooding-2026-berlin',
+  id: 'dogfooding-2026-denver',
+  name: 'Dogfooding 2026 Denver',
+  slug: 'dogfooding-2026-denver',
   program_type: 'dogfooding',
   description:
-    "A week in Berlin for past WebZero winners. Bring the thing you've been building, show it to the rest of the cohort, get structured feedback from builders who've shipped. No pitches, no sponsor deck — just a room full of people who want to help your project feel more real.",
-  status: 'open',
+    "Whether you're new to web3 or deep in it — when's the last time you actually used a new product, not just heard about one? Dogfooding Denver showcased 3–4 products built by WebZero hackathon teams. No jargon-filled panels, no slideshows — just hands-on time with real apps. Attendees picked a product, spent 30 minutes on guided tasks, and submitted feedback that went directly to the builders. No technical background or wallet required — just curiosity. The feedback shapes what gets built next.",
+  status: 'completed',
   owner: 'webzero',
-  applications_open_at: new Date().toISOString(),
-  // Close a couple of weeks before the event so we have time to review.
-  applications_close_at: '2026-05-30T23:59:59Z',
-  event_starts_at: '2026-06-13T00:00:00Z',
-  event_ends_at: '2026-06-19T23:59:59Z',
-  location: 'Berlin',
+  applications_open_at: null,
+  applications_close_at: null,
+  event_starts_at: null,
+  event_ends_at: null,
+  location: 'Denver',
+  event_url: 'https://luma.com/dogfooding',
   max_applicants: null,
 };
 
