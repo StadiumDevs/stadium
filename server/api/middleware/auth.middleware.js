@@ -25,6 +25,20 @@ import { consumeNonce } from '../auth/nonceStore.js';
 import { extractBearerToken, verifySessionToken } from '../auth/sessionToken.js';
 import programRepository from '../repositories/program.repository.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
+import appAdminRepository from '../repositories/app-admin.repository.js';
+import globalAdminRepository from '../repositories/global-admin.repository.js';
+
+/**
+ * Admin = signer is an app_admin (tier 0) OR a global_admin (tier 1)
+ * OR an entry in the legacy AUTHORIZED_SIGNERS env. Env stays as a
+ * fallback so an unsynced DB never locks out the team.
+ */
+async function isAdminWallet(chain, address) {
+  if (isAuthorizedSigner(chain, address)) return true;
+  if (await appAdminRepository.isAppAdmin(chain, address)) return true;
+  if (await globalAdminRepository.isGlobalAdmin(chain, address)) return true;
+  return false;
+}
 
 dotenv.config();
 
@@ -261,22 +275,50 @@ export const requireAdmin = async (req, res, next) => {
   }
 
   const signerAddress = auth.parsed.address;
-  if (!isAuthorizedSigner(auth.chain, signerAddress)) {
-    logError(`Authorization failed: ${signerAddress} is not authorized for multisig ${CURRENT_MULTISIG}`);
+  if (!(await isAdminWallet(auth.chain, signerAddress))) {
+    logError(`Authorization failed: ${signerAddress} is not an admin (app/global/env)`);
     return res.status(403).json({
       status: 'error',
-      message: 'Address is not authorized to sign for the multisig',
+      message: 'Address is not authorized as an admin',
       multisig: CURRENT_MULTISIG,
       network: NETWORK_CONFIG.networkName,
     });
   }
 
-  logSuccess(`Authorized signer ${signerAddress} can sign for multisig ${CURRENT_MULTISIG}`);
+  logSuccess(`Admin ${signerAddress} authorized`);
   req.user = {
     address: signerAddress,
     multisig: CURRENT_MULTISIG,
     network: NETWORK_CONFIG.environment,
   };
+  return next();
+};
+
+/**
+ * App admin only — tier 0. Used by the `/api/app-admins` routes that
+ * manage the admin lists themselves.
+ */
+export const requireAppAdmin = async (req, res, next) => {
+  log(`Initiating app-admin verification for ${req.method} ${req.originalUrl}`);
+  const auth = await resolveAuthIdentity(req, { checkDomain: true });
+  if (!auth.ok) {
+    return res.status(auth.status).json(auth.body);
+  }
+  if (auth.devBypass) {
+    req.user = { address: auth.parsed.address, chain: 'substrate', tier: 'app' };
+    return next();
+  }
+  const signerAddress = auth.parsed.address;
+  const ok = await appAdminRepository.isAppAdmin(auth.chain, signerAddress);
+  if (!ok) {
+    logError(`${signerAddress} is not an app_admin`);
+    return res.status(403).json({
+      status: 'error',
+      message: 'Only app admins can manage the admin lists',
+    });
+  }
+  logSuccess(`App admin ${signerAddress} authorized`);
+  req.user = { address: signerAddress, chain: auth.chain, tier: 'app' };
   return next();
 };
 
@@ -306,9 +348,9 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
 
   const signerAddress = auth.parsed.address;
 
-  // Authorized multisig signers are always allowed.
-  if (isAuthorizedSigner(auth.chain, signerAddress)) {
-    logSuccess(`Signer ${signerAddress} is authorized for multisig. Granting access.`);
+  // Any admin tier (app/global/env) is always allowed.
+  if (await isAdminWallet(auth.chain, signerAddress)) {
+    logSuccess(`Signer ${signerAddress} is an admin. Granting access.`);
     req.user = {
       address: signerAddress,
       multisig: CURRENT_MULTISIG,
@@ -428,8 +470,8 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
 
   const signerAddress = auth.parsed.address;
 
-  // Global authorized signers always pass.
-  if (isAuthorizedSigner(auth.chain, signerAddress)) {
+  // Any admin tier (app/global/env) always passes.
+  if (await isAdminWallet(auth.chain, signerAddress)) {
     logSuccess(`Global admin ${signerAddress} accessing program "${slug}".`);
     req.user = { address: signerAddress, chain: auth.chain, programSlug: slug, isGlobalAdmin: true };
     return next();

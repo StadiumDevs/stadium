@@ -62,6 +62,18 @@ vi.mock('../../repositories/program-admin.repository.js', () => ({
   },
 }));
 
+vi.mock('../../repositories/app-admin.repository.js', () => ({
+  default: {
+    isAppAdmin: vi.fn().mockResolvedValue(false),
+  },
+}));
+
+vi.mock('../../repositories/global-admin.repository.js', () => ({
+  default: {
+    isGlobalAdmin: vi.fn().mockResolvedValue(false),
+  },
+}));
+
 // Now import what we need
 import { verifySIWS, parseMessage } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
