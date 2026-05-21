@@ -100,4 +100,35 @@ describe('inboxToCsv', () => {
     expect(csv).toContain('"has ""quote"""');
     expect(csv).toContain('"line\nbreak"');
   });
+
+  it('neutralises CSV formula injection (=, +, -, @, tab, CR leading chars)', () => {
+    // Any cell starting with one of these characters is auto-executed as a
+    // formula by Excel / Google Sheets when the CSV is opened. The serialiser
+    // must prefix such cells with a single quote so the formula stays inert.
+    const csv = inboxToCsv([
+      { source: 'signup', when: '', identifier: '=cmd|/c calc!A1', name: null, email: null, status: null, wallet: null },
+      { source: 'signup', when: '', identifier: '+1234',         name: null, email: null, status: null, wallet: null },
+      { source: 'signup', when: '', identifier: '-SUM(A1:A2)',   name: null, email: null, status: null, wallet: null },
+      { source: 'signup', when: '', identifier: '@import',       name: null, email: null, status: null, wallet: null },
+      { source: 'signup', when: '', identifier: '\thidden',      name: null, email: null, status: null, wallet: null },
+    ]);
+    // Each cell gets a leading apostrophe so the spreadsheet treats it as text.
+    // RFC-4180 quoting only kicks in for cells containing `,` `"` `\n` `\r` —
+    // none of these payloads contain those, so they appear unquoted with just
+    // the apostrophe prefix.
+    expect(csv).toContain("'=cmd|/c calc!A1");
+    expect(csv).toContain("'+1234");
+    expect(csv).toContain("'-SUM(A1:A2)");
+    expect(csv).toContain("'@import");
+    expect(csv).toContain("'\thidden");
+  });
+
+  it('leaves legitimate values that happen to contain `=` mid-string alone', () => {
+    const csv = inboxToCsv([
+      { source: 'signup', when: '', identifier: 'alice=bob@x.com', name: null, email: null, status: null, wallet: null },
+    ]);
+    // No leading quote — the `=` is not in the first position.
+    expect(csv).toContain('alice=bob@x.com');
+    expect(csv).not.toContain("'alice=bob");
+  });
 });
