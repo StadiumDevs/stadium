@@ -282,27 +282,6 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
 
           <button
             type="button"
-            onClick={toggleAudio}
-            aria-label={muted ? "Unmute audio" : "Mute audio"}
-            aria-pressed={!muted}
-            title={muted ? "Unmute audio" : "Mute audio"}
-            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group"
-          >
-            {muted ? (
-              <VolumeX
-                className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
-                aria-hidden="true"
-              />
-            ) : (
-              <Volume2
-                className="h-3.5 w-3.5 text-display transition-colors duration-150"
-                aria-hidden="true"
-              />
-            )}
-          </button>
-
-          <button
-            type="button"
             onClick={() => setCollapsed(true)}
             aria-label="Collapse brightness controls"
             aria-expanded={true}
@@ -364,6 +343,55 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             value={paletteKey}
             onChange={setPalette}
           />
+        </div>
+
+        {/* Audio — artist credit + external links + mute toggle */}
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-hairline-subtle">
+          <span className="label-hw min-w-[78px]">AUDIO</span>
+          <span className="font-mono text-[11px] text-display tabular-nums">
+            pommeshdrms
+          </span>
+          <span className="flex-1" />
+          <a
+            href="https://soundcloud.com/pommeshdrms"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="pommeshdrms on SoundCloud (opens in new tab)"
+            title="pommeshdrms on SoundCloud"
+            className="lcd px-2 py-1 label-hw-dim hover:text-display transition-colors duration-200"
+          >
+            SC
+          </a>
+          <a
+            href="https://www.instagram.com/pommes_hdrms"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="pommes_hdrms on Instagram (opens in new tab)"
+            title="pommes_hdrms on Instagram"
+            className="lcd px-2 py-1 label-hw-dim hover:text-display transition-colors duration-200"
+          >
+            IG
+          </a>
+          <button
+            type="button"
+            onClick={toggleAudio}
+            aria-label={muted ? "Unmute audio" : "Mute audio"}
+            aria-pressed={!muted}
+            title={muted ? "Unmute audio" : "Mute audio"}
+            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group"
+          >
+            {muted ? (
+              <VolumeX
+                className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+                aria-hidden="true"
+              />
+            ) : (
+              <Volume2
+                className="h-3.5 w-3.5 text-display transition-colors duration-150"
+                aria-hidden="true"
+              />
+            )}
+          </button>
         </div>
       </div>
     </>
