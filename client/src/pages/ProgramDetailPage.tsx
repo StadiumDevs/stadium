@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { RotateCw } from "lucide-react";
+import { ChainPicker } from "@/components/auth/ChainPicker";
+import { getProvider } from "@/lib/auth/registry";
 import {
   api,
   type ApiProgram,
@@ -113,9 +115,27 @@ const ProgramDetailPage = () => {
   };
 
   const connectWallet = async () => {
+    const providerLabel = getProvider(auth.chain)?.label || "Wallet";
+    if (!auth.isAvailable) {
+      toast({
+        title: `${providerLabel} extension not detected`,
+        description:
+          "Install the wallet extension for your selected chain, then refresh and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const found = await auth.connect();
-      if (found[0]) auth.selectAccount(found[0]);
+      if (!found.length) {
+        toast({
+          title: `No accounts found in ${providerLabel}`,
+          description: "Open your wallet, create or unlock an account, then try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      auth.selectAccount(found[0]);
     } catch (e) {
       toast({
         title: "Couldn't connect wallet",
@@ -168,10 +188,22 @@ const ProgramDetailPage = () => {
     }
 
     if (!connectedAddress) {
+      const providerLabel = getProvider(auth.chain)?.label || "Wallet";
       return (
-        <RackButton onClick={connectWallet} disabled={auth.isConnecting}>
-          {auth.isConnecting ? "CONNECTING…" : "SIGN IN TO APPLY"}
-        </RackButton>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="label-hw-dim">CHAIN</span>
+            <ChainPicker value={auth.chain} onChange={auth.setChain} />
+          </div>
+          <RackButton onClick={connectWallet} disabled={auth.isConnecting}>
+            {auth.isConnecting ? "CONNECTING…" : "SIGN IN TO APPLY"}
+          </RackButton>
+          {!auth.isAvailable && (
+            <p className="label-hw-dim">
+              {providerLabel.toUpperCase()} EXTENSION NOT DETECTED — INSTALL IT, THEN REFRESH.
+            </p>
+          )}
+        </div>
       );
     }
 
