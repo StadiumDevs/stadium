@@ -4,7 +4,7 @@ All notable releases to Stadium are documented here.
 
 ## v1.0.0 — First official release
 
-Stadium is the home for **WebZero's builder programs on Polkadot**. It started as the site for a single hackathon and is now a recurring-events platform: hackathons, the M2 incubator, dogfooding sessions, and PitchOff competitions all live in one place, where builders show their work, the community explores it, and organizers run each event end to end.
+Stadium is the home for **WebZero's builder programs**. It started as the site for a single hackathon and is now a recurring-events platform: hackathons, the M2 incubator, dogfooding sessions, and PitchOff competitions all live in one place, where builders show their work, the community explores it, and organizers run each event end to end.
 
 ### Who it's for
 
@@ -27,7 +27,7 @@ Stadium is the home for **WebZero's builder programs on Polkadot**. It started a
 
 ### Show your work & take part — for builders & teams
 
-- **Sign in with your wallet** using SIWS (Sign-In With Substrate), with support for Polkadot/Substrate, Ethereum, and Solana wallets.
+- **Sign in with your wallet** using SIWS (Sign-In With Substrate), with multi-chain support across Substrate, Ethereum, and Solana wallets.
 - **Apply to a program** as a team — or, if you don't have a Stadium project yet, **apply as a non-member** and Stadium emails the right team on your behalf.
 - **Create and edit your project** — name, description, links, tech stack, and categories.
 - **Manage your team and payout address**, including per-member roles and socials.
@@ -62,6 +62,6 @@ Stadium is the home for **WebZero's builder programs on Polkadot**. It started a
 
 - **Client:** React 18 + Vite + TypeScript + Tailwind + shadcn/ui, deployed to Vercel.
 - **Server:** Express 5 (ESM) on Supabase (Postgres), deployed to Railway.
-- **Auth:** Polkadot-JS extension + SIWS, plus Supabase email magic-link for non-wallet admins.
+- **Auth:** multi-chain wallet sign-in via SIWS (Substrate, Ethereum, Solana), plus Supabase email magic-link for non-wallet admins.
 
 Live at <https://stadium.joinwebzero.com>.
