@@ -284,7 +284,7 @@ const HomePage = () => {
           <div className="panel p-4">
             <div className="label-hw mb-3">·INDEX / LIVE</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <LCDStat value={statsLoading ? "—" : stats.totalProjects} label="Total Units" size="lg" />
+              <LCDStat value={statsLoading ? "—" : stats.totalProjects} label="Total Entries" size="lg" />
               <LCDStat value={statsLoading ? "—" : stats.winners} label="Winners" showLED pulse />
               <LCDStat value={statsLoading ? "—" : stats.m2Graduates} label="In M2" showLED />
               <LCDStat value={statsLoading ? "—" : fmtUSD(stats.totalPaid)} label="Paid" size="sm" showLED />
@@ -298,7 +298,7 @@ const HomePage = () => {
             <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
               <div className="label-hw text-display flex items-center gap-2">
                 <span className="led led-sm led-pulse" aria-hidden="true" />
-                ·NOW SHOWING / UNIT {featuredUnit.unitNumber}
+                ·NOW SHOWING / ENTRY {featuredUnit.unitNumber}
               </div>
               {featuredUnit.date && <div className="label-hw-dim">{featuredUnit.date}</div>}
             </div>
@@ -314,7 +314,7 @@ const HomePage = () => {
           <InputBus
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="search units..."
+            placeholder="search entries..."
             className="flex-1 min-w-[200px]"
           />
           {hackathons.length > 0 && (
@@ -369,7 +369,7 @@ const HomePage = () => {
         <section className="mb-10">
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
             <div className="label-hw text-display">·DIRECTORY / GRID</div>
-            <div className="label-hw-dim">{filteredProjects.length} {filteredProjects.length === 1 ? "UNIT" : "UNITS"}</div>
+            <div className="label-hw-dim">{filteredProjects.length} {filteredProjects.length === 1 ? "ENTRY" : "ENTRIES"}</div>
           </div>
 
           {loading ? (
