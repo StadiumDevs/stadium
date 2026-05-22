@@ -29,20 +29,25 @@ export function ApplicationCard({
   programSlug,
   signAuthHeader,
   onUpdated,
+  readOnly = false,
 }: {
   application: ApiProgramApplication;
   programSlug: string;
   /**
    * Returns admin auth headers — either a cached session bearer or a fresh
    * one-shot SIWS payload. Same shape as `useWalletAuth.getAdminBearerHeaders`.
+   * Optional when `readOnly` (no mutating actions are rendered).
    */
-  signAuthHeader: () => Promise<AdminAuthArg>;
-  onUpdated: (next: ApiProgramApplication) => void;
+  signAuthHeader?: () => Promise<AdminAuthArg>;
+  onUpdated?: (next: ApiProgramApplication) => void;
+  /** Hide accept/reject — used for view-only (email) admins. */
+  readOnly?: boolean;
 }) {
   const [working, setWorking] = useState<"accept" | "reject" | null>(null);
   const { toast } = useToast();
 
   const doUpdate = async (next: ApiProgramApplication["status"]) => {
+    if (!signAuthHeader) return;
     setWorking(next === "accepted" ? "accept" : "reject");
     try {
       const authHeader = await signAuthHeader();
@@ -52,7 +57,7 @@ export function ApplicationCard({
         { status: next },
         authHeader,
       );
-      onUpdated(res.data);
+      onUpdated?.(res.data);
       toast({ title: `Application ${next}` });
     } catch (e) {
       const err = e as Error;
@@ -104,7 +109,7 @@ export function ApplicationCard({
             </p>
           </div>
         )}
-        {application.status === "submitted" && (
+        {!readOnly && application.status === "submitted" && (
           <div className="flex flex-wrap gap-2 pt-1">
             <button
               type="button"

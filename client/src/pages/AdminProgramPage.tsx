@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
+import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import { isAdmin as checkIsAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
 import {
   api,
@@ -55,6 +57,17 @@ const AdminProgramPage = () => {
   const { getAdminBearerHeaders } = auth;
   const getAdminAuth = useCallback(() => getAdminBearerHeaders(), [getAdminBearerHeaders]);
 
+  // Social (email magic link) auth — a parallel, view-only path. An invited
+  // email admin signs in here and reads their program; the server gates access
+  // on program_admin_emails. Wallet auth always takes precedence when present.
+  const social = useSocialAuth();
+  const [isSocialViewer, setIsSocialViewer] = useState(false);
+  const [socialProbing, setSocialProbing] = useState(false);
+  const [socialError, setSocialError] = useState<string | null>(null);
+  const [socialEmailInput, setSocialEmailInput] = useState("");
+  const [sendingLink, setSendingLink] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [applications, setApplications] = useState<ApiProgramApplication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +105,73 @@ const AdminProgramPage = () => {
       toast({
         title: "Couldn't load applications",
         description: err?.message || "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const sendMagicLink = async () => {
+    const email = socialEmailInput.trim();
+    if (!email) return;
+    setSendingLink(true);
+    try {
+      await social.signInWithEmail(email, window.location.href);
+      setLinkSent(true);
+      toast({ title: "Check your inbox", description: `We sent a sign-in link to ${email}.` });
+    } catch (e) {
+      toast({
+        title: "Couldn't send sign-in link",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingLink(false);
+    }
+  };
+
+  // After a social session appears (e.g. returning from the magic link), probe
+  // the program: a 200 means the email is authorized, a 403 means it isn't.
+  useEffect(() => {
+    if (!slug || !program || isAdminWallet) {
+      setIsSocialViewer(false);
+      return;
+    }
+    if (!social.isAuthed || !social.token) {
+      setIsSocialViewer(false);
+      return;
+    }
+    let active = true;
+    setSocialProbing(true);
+    setSocialError(null);
+    api
+      .listProgramApplications(slug, { "x-supabase-token": social.token })
+      .then((res) => {
+        if (!active) return;
+        setApplications(res.data);
+        setIsSocialViewer(true);
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        setIsSocialViewer(false);
+        if (e instanceof ApiError && e.status === 403) {
+          setSocialError(`${social.email ?? "This email"} is not an admin for this program.`);
+        } else {
+          setSocialError((e as Error)?.message ?? "Couldn't load this program.");
+        }
+      })
+      .finally(() => { if (active) setSocialProbing(false); });
+    return () => { active = false; };
+  }, [slug, program, isAdminWallet, social.isAuthed, social.token, social.email]);
+
+  const refreshSocial = async () => {
+    if (!slug || !social.token) return;
+    try {
+      const res = await api.listProgramApplications(slug, { "x-supabase-token": social.token });
+      setApplications(res.data);
+    } catch (e) {
+      toast({
+        title: "Couldn't refresh",
+        description: (e as Error)?.message || "Unknown error",
         variant: "destructive",
       });
     }
@@ -197,37 +277,7 @@ const AdminProgramPage = () => {
               </div>
             </header>
 
-            {!isAdminWallet ? (
-              <div className="panel p-6">
-                <div className="label-hw text-display mb-3">·ADMIN WALLET REQUIRED</div>
-                <p className="text-body text-sm mb-4">
-                  Connect a global admin wallet, or a wallet that has been assigned to this program via the admins panel.
-                </p>
-                <button
-                  type="button"
-                  onClick={connectWallet}
-                  disabled={auth.isConnecting}
-                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-2"
-                >
-                  {auth.isConnecting ? "CONNECTING…" : "CONNECT ADMIN WALLET"}
-                </button>
-                {errorData && (
-                  <div className="mt-4 lcd p-3 space-y-2">
-                    <div className="label-hw text-destructive">·NOT AN ADMIN</div>
-                    {errorData.walletAddresses.length > 0 && (
-                      <div>
-                        <div className="label-hw-dim mb-1">Your wallet addresses:</div>
-                        <ul className="space-y-1">
-                          {errorData.walletAddresses.map((a, i) => (
-                            <li key={i} className="font-mono text-[11px] text-body break-all">{a}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
+            {isAdminWallet ? (
               <>
                 <ProgramAdminsSection
                   programSlug={program.slug}
@@ -291,6 +341,127 @@ const AdminProgramPage = () => {
                   </div>
                 )}
               </>
+            ) : isSocialViewer ? (
+              <>
+                <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
+                  <span className="lcd inline-flex items-center gap-2 px-3 py-1.5">
+                    <span className="led led-sm" aria-hidden="true" />
+                    <span className="label-hw text-display">VIEW-ONLY</span>
+                  </span>
+                  <span className="label-hw-dim truncate min-w-0">{social.email}</span>
+                  <div className="flex-1" />
+                  <HardwareToggle options={FILTER_OPTIONS} value={filter} onChange={setFilter} />
+                  <button
+                    type="button"
+                    onClick={refreshSocial}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                  >
+                    REFRESH
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => social.signOut()}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-label-dim hover:text-display px-3 py-1.5"
+                  >
+                    SIGN OUT
+                  </button>
+                </div>
+
+                {filtered.length === 0 ? (
+                  <div className="panel px-4 py-10 text-center">
+                    <div className="label-hw text-display mb-2">·NO APPLICATIONS</div>
+                    <p className="label-hw-dim">No applications match the current filter.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filtered.map((a) => (
+                      <ApplicationCard
+                        key={a.id}
+                        application={a}
+                        programSlug={program.slug}
+                        readOnly
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="panel p-6 space-y-5">
+                <div>
+                  <div className="label-hw text-display mb-3">·SIGN IN TO ADMINISTER</div>
+                  <p className="text-body text-sm mb-4">
+                    Connect a global or per-program admin wallet, or sign in with the email you were invited with.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={connectWallet}
+                    disabled={auth.isConnecting}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-2"
+                  >
+                    {auth.isConnecting ? "CONNECTING…" : "CONNECT ADMIN WALLET"}
+                  </button>
+                  {errorData && (
+                    <div className="mt-4 lcd p-3 space-y-2">
+                      <div className="label-hw text-destructive">·NOT AN ADMIN</div>
+                      {errorData.walletAddresses.length > 0 && (
+                        <div>
+                          <div className="label-hw-dim mb-1">Your wallet addresses:</div>
+                          <ul className="space-y-1">
+                            {errorData.walletAddresses.map((a, i) => (
+                              <li key={i} className="font-mono text-[11px] text-body break-all">{a}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-hairline pt-5">
+                  <div className="label-hw text-display mb-2">·SIGN IN WITH EMAIL</div>
+                  {!social.isAvailable ? (
+                    <p className="label-hw-dim">Email sign-in isn't configured in this environment.</p>
+                  ) : socialProbing ? (
+                    <div className="flex items-center gap-2 label-hw-dim">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> CHECKING ACCESS…
+                    </div>
+                  ) : social.isAuthed ? (
+                    <div className="lcd p-3 space-y-2">
+                      <div className="label-hw text-destructive">·NOT AUTHORIZED</div>
+                      <p className="label-hw-dim">
+                        {socialError ?? `${social.email} is not an admin for this program.`}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => social.signOut()}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                      >
+                        SIGN OUT
+                      </button>
+                    </div>
+                  ) : linkSent ? (
+                    <p className="label-hw-dim">Check your inbox for a one-time sign-in link.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2 md:flex-row">
+                      <input
+                        type="email"
+                        placeholder="you@email.com"
+                        value={socialEmailInput}
+                        onChange={(e) => setSocialEmailInput(e.target.value)}
+                        className="md:flex-1 font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+                      />
+                      <button
+                        type="button"
+                        onClick={sendMagicLink}
+                        disabled={sendingLink || !socialEmailInput.trim()}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-2"
+                      >
+                        {sendingLink ? "SENDING…" : "EMAIL ME A LINK"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </>
         ) : null}

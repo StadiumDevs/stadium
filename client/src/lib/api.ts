@@ -203,6 +203,14 @@ export type ApiProgramAdmin = {
   createdAt: string;
 };
 
+/** An email-keyed program admin (social sign-in onboarding). View-only. */
+export type ApiProgramAdminEmail = {
+  programId: string;
+  email: string;
+  invitedBy: string | null;
+  createdAt: string;
+};
+
 /** One row in the unified program inbox (signups + applications merged). */
 export type ApiInboxEntry = {
   source: "signup" | "application";
@@ -1622,6 +1630,55 @@ export const api = {
     if (USE_MOCK_DATA) return;
     await request(
       `/programs/${encodeURIComponent(slug)}/admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
+      {
+        method: "DELETE",
+        headers: adminAuthHeaders(authHeader),
+      },
+    );
+  },
+
+  // --- Email-keyed program admins (social sign-in onboarding) ---
+
+  listProgramAdminEmails: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramAdminEmail[] }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success", data: [] };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins/emails`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  inviteProgramAdminEmail: async (
+    slug: string,
+    email: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramAdminEmail; emailSent: boolean; emailReason: string | null }> => {
+    if (USE_MOCK_DATA) {
+      return {
+        status: "success",
+        data: { programId: slug, email: email.trim().toLowerCase(), invitedBy: null, createdAt: new Date().toISOString() },
+        emailSent: false,
+        emailReason: "mock_mode",
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins/invite`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  removeProgramAdminEmail: async (
+    slug: string,
+    email: string,
+    authHeader: AdminAuthArg,
+  ): Promise<void> => {
+    if (USE_MOCK_DATA) return;
+    await request(
+      `/programs/${encodeURIComponent(slug)}/admins/emails/${encodeURIComponent(email)}`,
       {
         method: "DELETE",
         headers: adminAuthHeaders(authHeader),
