@@ -34,6 +34,7 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
   const [lastImportedAt, setLastImportedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [csvText, setCsvText] = useState<string | null>(null);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
@@ -256,7 +257,9 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
         </div>
         {!csvText && (
           <p className="label-hw-dim">
-            EXPORT YOUR LUMA EVENT REGISTRATIONS AS CSV (NAME, EMAIL, WALLET, REGISTERED-AT COLUMNS RECOGNIZED).
+            IMPORT A LUMA OR TYPEFORM/TALLY CSV. RECOGNIZED: NAME, EMAIL OR TELEGRAM, WALLET, REGISTERED-AT.
+            EVERY OTHER COLUMN IS KEPT AND SHOWN UNDER ·DETAILS (ADMIN-ONLY); THE PUBLIC PAGE SHOWS ONLY
+            PROJECT DETAILS + CONTRIBUTOR NAMES.
           </p>
         )}
         {preview && (
@@ -303,37 +306,67 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
       ) : (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between label-hw-dim">
-            <span>·EMAIL · NAME · WALLET</span>
+            <span>·NAME · CONTACT · WALLET</span>
             <span>REGISTERED</span>
           </div>
-          {signups.map((s) => (
-            <div
-              key={s.id}
-              className="lcd px-3 py-2 flex items-center justify-between gap-3"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="font-mono text-[12px] text-display truncate">{s.email}</div>
-                <div className="label-hw-dim truncate">
-                  {(s.name || "—").toUpperCase()}
-                  {s.wallet ? ` · ${truncateAddress(s.wallet)}` : ""}
+          {signups.map((s) => {
+            // The public page shows only project details + contributor names.
+            // Everything else from the submission (Telegram contact, prompt,
+            // dates, etc.) is admin-only and lives in raw_row — surfaced here.
+            const rawEntries = s.rawRow
+              ? Object.entries(s.rawRow).filter(([, v]) => v != null && String(v).trim() !== "")
+              : [];
+            const isSurrogate = /@telegram\.imported$/i.test(s.email);
+            const expanded = expandedId === s.id;
+            return (
+              <div key={s.id} className="lcd px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : s.id)}
+                    aria-expanded={expanded}
+                    className="min-w-0 flex-1 text-left group"
+                  >
+                    <div className="font-mono text-[12px] text-display truncate">
+                      {(s.name || "—").toUpperCase()}
+                    </div>
+                    <div className="label-hw-dim truncate">
+                      {isSurrogate ? "TELEGRAM IMPORT" : s.email}
+                      {s.wallet ? ` · ${truncateAddress(s.wallet)}` : ""}
+                      {rawEntries.length > 0 ? ` · ${expanded ? "HIDE" : "DETAILS ▾"}` : ""}
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="font-mono text-[10px] text-label-mid tabular-nums">
+                      {formatDate(s.registeredAt).toUpperCase()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(s.id)}
+                      disabled={busyId === s.id}
+                      aria-label="Remove signup"
+                      className="inline-flex items-center justify-center border border-hairline text-label-mid hover:text-destructive hover:border-destructive hover:bg-panel-deep disabled:opacity-50 w-7 h-7"
+                    >
+                      {busyId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    </button>
+                  </div>
                 </div>
+
+                {expanded && rawEntries.length > 0 && (
+                  <dl className="mt-2 pt-2 border-t border-hairline-subtle space-y-1.5">
+                    {rawEntries.map(([k, v]) => (
+                      <div key={k} className="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-x-3">
+                        <dt className="label-hw-dim sm:text-right break-words">{k}</dt>
+                        <dd className="text-body text-[12px] whitespace-pre-line break-words">
+                          {String(v)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="font-mono text-[10px] text-label-mid tabular-nums">
-                  {formatDate(s.registeredAt).toUpperCase()}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(s.id)}
-                  disabled={busyId === s.id}
-                  aria-label="Remove signup"
-                  className="inline-flex items-center justify-center border border-hairline text-label-mid hover:text-destructive hover:border-destructive hover:bg-panel-deep disabled:opacity-50 w-7 h-7"
-                >
-                  {busyId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
