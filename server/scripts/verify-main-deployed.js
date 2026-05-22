@@ -39,7 +39,7 @@ const actualRepoRoot = (() => {
 dotenv.config({ path: path.join(scriptRepoRoot, 'server', '.env') });
 
 const API_BASE = process.env.API_BASE_URL || 'https://stadium-production-996a.up.railway.app/api';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://client-n7lu4qlus-sachalanskys-projects.vercel.app';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://stadium.joinwebzero.com';
 
 const results = { passed: 0, failed: 0, warnings: 0 };
 const errors = [];
