@@ -1,4 +1,5 @@
 import { Router, text, json } from 'express';
+import rateLimit from 'express-rate-limit';
 import programController from '../controllers/program.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
@@ -15,6 +16,21 @@ const csvBody = [
   text({ type: 'text/csv', limit: '5mb' }),
   json({ limit: '5mb' }),
 ];
+
+// The non-member apply route is public, unauthenticated, and emails the team.
+// The global apiLimiter (200/min) is too loose to stop someone flooding the
+// inbox, so cap this one route hard per IP. Generous enough for a real person
+// applying to a few programs (incl. retries); tight enough to kill a flood.
+const nonMemberApplyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: 'Too many applications from this network. Please try again later.',
+  },
+});
 
 // --- Public, Read-Only Routes ---
 router.get('/', programController.list);
@@ -38,7 +54,13 @@ router.post(
   programController.createApplication,
 );
 // Public: someone without a Stadium project applies; emails the team (no auth).
-router.post('/:slug/applications/non-member', programController.submitNonMemberApplication);
+// Rate-limited per IP (see nonMemberApplyLimiter) since it's an unauthenticated
+// email trigger.
+router.post(
+  '/:slug/applications/non-member',
+  nonMemberApplyLimiter,
+  programController.submitNonMemberApplication,
+);
 router.patch(
   '/:slug/applications/:applicationId',
   requireProgramAdmin('slug'),
