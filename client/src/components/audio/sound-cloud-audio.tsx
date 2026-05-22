@@ -21,8 +21,6 @@ interface SCWidget {
   bind(event: string, cb: (data?: SCProgress) => void): void;
   play(): void;
   pause(): void;
-  next(): void;
-  prev(): void;
   seekTo(milliseconds: number): void;
   setVolume(volume: number): void;
   getCurrentSound(cb: (sound: SCSound | null) => void): void;
@@ -154,16 +152,6 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
     });
   }, []);
 
-  const next = useCallback(() => {
-    widgetRef.current?.next();
-    setPositionMs(0);
-  }, []);
-
-  const prev = useCallback(() => {
-    widgetRef.current?.prev();
-    setPositionMs(0);
-  }, []);
-
   const seek = useCallback((ms: number) => {
     lastSeekRef.current = Date.now();
     setPositionMs(ms);
@@ -172,7 +160,7 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
 
   return (
     <SoundCloudAudioContext.Provider
-      value={{ muted, toggle, title, genre, artworkUrl, positionMs, durationMs, next, prev, seek }}
+      value={{ muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek }}
     >
       {children}
       {/* Hidden, persistent across navigation: 1×1, transparent, no pointer events. */}

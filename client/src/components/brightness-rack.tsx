@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { ChevronDown, ChevronUp, Music, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, ChevronUp, FastForward, Music, Rewind, Volume2, VolumeX } from "lucide-react";
 import { useBrightness } from "@/hooks/use-brightness";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useSoundCloudAudio } from "@/components/audio/use-sound-cloud-audio";
@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils";
 interface BrightnessRackProps {
   className?: string;
 }
+
+// How far the rewind / fast-forward buttons jump within the current track.
+const SKIP_MS = 15000;
 
 // SoundCloud reports times in ms. Render as m:ss.
 function formatTime(ms: number): string {
@@ -43,7 +46,7 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
   } = useBrightness();
 
   // Audio state lives in a provider above the router (persists across nav).
-  const { muted, toggle, title, genre, artworkUrl, positionMs, durationMs, next, prev, seek } =
+  const { muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek } =
     useSoundCloudAudio();
 
   // Once the user touches anything (slider, AUTO toggle, palette), collapse
@@ -314,18 +317,19 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
         </div>
       </div>
 
-      {/* Audio transport — previous · seek · next + elapsed/total */}
+      {/* Audio transport — rewind 15s · seek · forward 15s + elapsed/total */}
       <div className="flex items-center gap-3 mt-2">
         <span className="min-w-[78px]" aria-hidden="true" />
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <button
             type="button"
-            onClick={prev}
-            aria-label="Previous track"
-            title="Previous track"
-            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0"
+            onClick={() => seek(Math.max(0, positionMs - SKIP_MS))}
+            disabled={durationMs <= 0}
+            aria-label="Skip back 15 seconds"
+            title="Skip back 15 seconds"
+            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <SkipBack
+            <Rewind
               className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
               aria-hidden="true"
             />
@@ -367,12 +371,13 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
 
           <button
             type="button"
-            onClick={next}
-            aria-label="Next track"
-            title="Next track"
-            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0"
+            onClick={() => seek(Math.min(durationMs, positionMs + SKIP_MS))}
+            disabled={durationMs <= 0}
+            aria-label="Skip forward 15 seconds"
+            title="Skip forward 15 seconds"
+            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <SkipForward
+            <FastForward
               className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
               aria-hidden="true"
             />
