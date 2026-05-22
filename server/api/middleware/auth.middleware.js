@@ -290,6 +290,7 @@ export const requireAdmin = async (req, res, next) => {
   logSuccess(`Admin ${signerAddress} authorized`);
   req.user = {
     address: signerAddress,
+    chain: auth.chain,
     multisig: CURRENT_MULTISIG,
     network: NETWORK_CONFIG.environment,
   };
@@ -355,6 +356,7 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     logSuccess(`Signer ${signerAddress} is an admin. Granting access.`);
     req.user = {
       address: signerAddress,
+      chain: auth.chain,
       multisig: CURRENT_MULTISIG,
       network: NETWORK_CONFIG.environment,
     };
@@ -384,7 +386,7 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
 
     if (isTeamMember) {
       logSuccess(`Signer ${signerAddress} is a team member of project ${projectId}. Granting access.`);
-      req.user = { address: signerAddress };
+      req.user = { address: signerAddress, chain: auth.chain };
       return next();
     }
 

@@ -1,6 +1,7 @@
 import programApplicationService from './program-application.service.js';
 import programSignupService from './program-signup.service.js';
 import projectService from './project.service.js';
+import { csvCell, csvRow } from '../utils/csv.js';
 
 /**
  * Per-program inbox — one merged feed of `program_signups` (Luma CSV
@@ -91,25 +92,8 @@ class ProgramInboxService {
 
 export default new ProgramInboxService();
 
-// CSV serialisation lives here so the controller stays thin. Escapes
-// double-quotes per RFC 4180.
-//
-// SECURITY: also defends against CSV formula injection (Excel / Google Sheets
-// auto-execute any cell starting with `=`, `+`, `-`, `@`, `\t`, `\r`). User-
-// submitted fields (name, email, identifier, wallet) flow into the export an
-// admin downloads, so a malicious applicant could exfiltrate the admin's data
-// via `=WEBSERVICE(…)` or `=HYPERLINK(…)`. Prefixing such cells with a single
-// quote neuters the formula while leaving the visible value intact (the quote
-// is a sentinel that the spreadsheet strips on display).
-const FORMULA_INJECTION_LEAD = /^[=+\-@\t\r]/;
-const csvCell = (val) => {
-  if (val == null) return '';
-  let s = String(val);
-  if (FORMULA_INJECTION_LEAD.test(s)) s = `'${s}`;
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-};
-
+// CSV serialisation lives here so the controller stays thin. Cell escaping +
+// formula-injection defense come from the shared ../utils/csv.js helper.
 export function inboxToCsv(rows, { programSlug } = {}) {
   const header = [
     'source',
@@ -120,12 +104,10 @@ export function inboxToCsv(rows, { programSlug } = {}) {
     'status',
     'wallet',
   ];
-  const lines = [header.join(',')];
+  const lines = [header.map(csvCell).join(',')];
   for (const r of rows) {
     lines.push(
-      [r.source, r.when, r.identifier, r.name, r.email, r.status, r.wallet]
-        .map(csvCell)
-        .join(','),
+      csvRow([r.source, r.when, r.identifier, r.name, r.email, r.status, r.wallet]),
     );
   }
   // Stamp the slug in a trailing comment so the export is self-identifying

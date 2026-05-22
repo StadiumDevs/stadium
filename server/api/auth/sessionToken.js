@@ -43,6 +43,15 @@ function getTtlSeconds() {
   return DEFAULT_TTL_SECONDS;
 }
 
+/**
+ * Fail fast at server boot if ADMIN_SESSION_SECRET is missing or too short,
+ * rather than at the first admin sign-in (when getSecret() would otherwise
+ * throw). Call this once during startup.
+ */
+export function assertSessionSecret() {
+  getSecret();
+}
+
 /** Allow tests to reset module-scoped caches between cases. */
 export function _resetCacheForTests() {
   cachedSecret = null;
