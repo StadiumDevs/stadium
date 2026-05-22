@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { ChevronDown, ChevronUp, Music, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, ChevronUp, FastForward, Music, Rewind, Volume2, VolumeX } from "lucide-react";
 import { useBrightness } from "@/hooks/use-brightness";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useSoundCloudAudio } from "@/components/audio/use-sound-cloud-audio";
@@ -8,6 +8,18 @@ import { cn } from "@/lib/utils";
 
 interface BrightnessRackProps {
   className?: string;
+}
+
+// How far the rewind / fast-forward buttons jump within the current track.
+const SKIP_MS = 15000;
+
+// SoundCloud reports times in ms. Render as m:ss.
+function formatTime(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "0:00";
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 // 4-hour clock ticks plotted at the brightness % the solar curve would produce
@@ -34,7 +46,8 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
   } = useBrightness();
 
   // Audio state lives in a provider above the router (persists across nav).
-  const { muted, toggle, title, genre, artworkUrl } = useSoundCloudAudio();
+  const { muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek } =
+    useSoundCloudAudio();
 
   // Once the user touches anything (slider, AUTO toggle, palette), collapse
   // automatically. After that, expand/collapse is entirely user-driven via the
@@ -302,6 +315,86 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             )}
           </button>
         </div>
+      </div>
+
+      {/* Audio transport — rewind 15s · seek · forward 15s + elapsed/total */}
+      <div className="flex items-center gap-3 mt-2">
+        <span className="min-w-[78px]" aria-hidden="true" />
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <button
+            type="button"
+            onClick={() => seek(Math.max(0, positionMs - SKIP_MS))}
+            disabled={durationMs <= 0}
+            aria-label="Skip back 15 seconds"
+            title="Skip back 15 seconds"
+            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Rewind
+              className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+              aria-hidden="true"
+            />
+          </button>
+
+          <div className="flex-1 relative h-[18px] min-w-0">
+            {/* Track */}
+            <div className="absolute top-[8px] left-0 right-0 h-[2px] bg-panel-deep border border-hairline" />
+            {/* Elapsed fill */}
+            <div
+              className="absolute top-[8px] left-0 h-[2px] bg-display pointer-events-none"
+              style={{ width: `${durationMs > 0 ? (positionMs / durationMs) * 100 : 0}%` }}
+              aria-hidden="true"
+            />
+            <input
+              type="range"
+              min={0}
+              max={durationMs > 0 ? durationMs : 1}
+              step={1000}
+              value={positionMs}
+              disabled={durationMs <= 0}
+              aria-label="Seek track position"
+              onChange={(e) => seek(parseInt(e.target.value, 10))}
+              className={cn(
+                "absolute inset-0 w-full h-[18px] bg-transparent appearance-none cursor-ew-resize z-10",
+                "disabled:cursor-not-allowed",
+                "[&::-webkit-slider-thumb]:appearance-none",
+                "[&::-webkit-slider-thumb]:w-[10px] [&::-webkit-slider-thumb]:h-[14px]",
+                "[&::-webkit-slider-thumb]:bg-gradient-to-b [&::-webkit-slider-thumb]:from-[#DDDDDD] [&::-webkit-slider-thumb]:to-[#888888]",
+                "[&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-black",
+                "[&::-webkit-slider-thumb]:cursor-ew-resize",
+                "[&::-moz-range-thumb]:w-[10px] [&::-moz-range-thumb]:h-[14px]",
+                "[&::-moz-range-thumb]:bg-[linear-gradient(180deg,#DDDDDD_0%,#888888_100%)]",
+                "[&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-black",
+                "[&::-moz-range-thumb]:rounded-none [&::-moz-range-thumb]:cursor-ew-resize",
+              )}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => seek(Math.min(durationMs, positionMs + SKIP_MS))}
+            disabled={durationMs <= 0}
+            aria-label="Skip forward 15 seconds"
+            title="Skip forward 15 seconds"
+            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FastForward
+              className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+              aria-hidden="true"
+            />
+          </button>
+
+          <span className="label-hw-dim text-[9px] tabular-nums shrink-0 min-w-[66px] text-right">
+            {formatTime(positionMs)} / {formatTime(durationMs)}
+          </span>
+        </div>
+      </div>
+
+      {/* Curation framing */}
+      <div className="flex items-center gap-3 mt-1">
+        <span className="min-w-[78px]" aria-hidden="true" />
+        <span className="label-hw-dim text-[8px] tracking-[0.18em]">
+          FEATURING ARTISTS WE LOVE
+        </span>
       </div>
     </div>
   );

@@ -13,17 +13,23 @@ interface SCSound {
   user?: { username?: string | null; avatar_url?: string | null } | null;
 }
 
+interface SCProgress {
+  currentPosition?: number;
+}
+
 interface SCWidget {
-  bind(event: string, cb: () => void): void;
+  bind(event: string, cb: (data?: SCProgress) => void): void;
   play(): void;
   pause(): void;
+  seekTo(milliseconds: number): void;
   setVolume(volume: number): void;
   getCurrentSound(cb: (sound: SCSound | null) => void): void;
+  getDuration(cb: (milliseconds: number) => void): void;
 }
 
 interface SCNamespace {
   Widget: ((iframe: HTMLIFrameElement) => SCWidget) & {
-    Events: { READY: string; PLAY: string };
+    Events: { READY: string; PLAY: string; PLAY_PROGRESS: string };
   };
 }
 
@@ -82,6 +88,12 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState("");
   const [artworkUrl, setArtworkUrl] = useState("");
+  // Transport: current position + track length (ms) for the seek slider.
+  const [positionMs, setPositionMs] = useState(0);
+  const [durationMs, setDurationMs] = useState(0);
+  // Timestamp of the last user seek — suppresses PLAY_PROGRESS snap-back for a
+  // brief window so the thumb doesn't fight the user mid-drag.
+  const lastSeekRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,13 +110,27 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
             const art = sound.artwork_url || sound.user?.avatar_url || "";
             setArtworkUrl(art ? upscaleArtwork(art) : "");
           });
+          widget.getDuration((ms) => {
+            if (!cancelled) setDurationMs(ms || 0);
+          });
         };
         widget.bind(window.SC.Widget.Events.READY, () => {
           widget.setVolume(0);
           widget.play();
           refreshTrack();
         });
-        widget.bind(window.SC.Widget.Events.PLAY, refreshTrack);
+        // New track: refresh metadata + duration and reset the position thumb.
+        widget.bind(window.SC.Widget.Events.PLAY, () => {
+          setPositionMs(0);
+          refreshTrack();
+        });
+        // Advance the seek thumb as the track plays (ignored briefly after a seek).
+        widget.bind(window.SC.Widget.Events.PLAY_PROGRESS, (data) => {
+          if (cancelled || Date.now() - lastSeekRef.current < 400) return;
+          if (data && typeof data.currentPosition === "number") {
+            setPositionMs(data.currentPosition);
+          }
+        });
       })
       .catch(() => {
         // Network-blocked or offline — leave audio inert; UI still works.
@@ -126,8 +152,16 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
     });
   }, []);
 
+  const seek = useCallback((ms: number) => {
+    lastSeekRef.current = Date.now();
+    setPositionMs(ms);
+    widgetRef.current?.seekTo(ms);
+  }, []);
+
   return (
-    <SoundCloudAudioContext.Provider value={{ muted, toggle, title, genre, artworkUrl }}>
+    <SoundCloudAudioContext.Provider
+      value={{ muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek }}
+    >
       {children}
       {/* Hidden, persistent across navigation: 1×1, transparent, no pointer events. */}
       <iframe
