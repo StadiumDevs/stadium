@@ -30,6 +30,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletAuth } from '@/lib/auth/useWalletAuth';
 import { Navigation } from "@/components/Navigation";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getCurrentProgramWeek } from "@/lib/projectUtils";
 import { calculateTotalPaidUSD, formatPaymentAmount, getTotalByCurrency } from "@/lib/paymentUtils";
@@ -1277,44 +1278,7 @@ const ProjectDetailsPage = () => {
           </div>
         </div>
       </main>
-      {/* Footer */}
-      <footer className="border-t bg-muted/50 py-8 mt-16">
-        <div className="container">
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="flex items-center space-x-2">
-            <span className="text-sm text-muted-foreground">
-                Created with ❤️ by the cracked devs at{' '}
-                <a
-                  href="https://www.joinwebzero.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline transition-colors"
-                >
-                  WebZero
-                </a>
-              </span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <a
-                href="https://github.com/JoinWebZero/"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                GitHub
-              </a>
-              <a
-                href="https://x.com/JoinWebZero"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                X
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
       {/* Modal for deliverable upload */}
       <Dialog open={deliverableModalOpen} onOpenChange={setDeliverableModalOpen}>
         <DialogContent className="w-full max-w-xs sm:max-w-md md:max-w-lg">

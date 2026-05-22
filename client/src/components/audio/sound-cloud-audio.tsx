@@ -29,7 +29,7 @@ interface SCWidget {
 
 interface SCNamespace {
   Widget: ((iframe: HTMLIFrameElement) => SCWidget) & {
-    Events: { READY: string; PLAY: string; PLAY_PROGRESS: string };
+    Events: { READY: string; PLAY: string; PLAY_PROGRESS: string; FINISH: string };
   };
 }
 
@@ -130,6 +130,14 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
           if (data && typeof data.currentPosition === "number") {
             setPositionMs(data.currentPosition);
           }
+        });
+        // Loop forever: when the profile's tracks run out, restart from the top so
+        // the music never stops (it already survives navigation — the iframe lives
+        // above the router).
+        widget.bind(window.SC.Widget.Events.FINISH, () => {
+          if (cancelled) return;
+          widget.seekTo(0);
+          widget.play();
         });
       })
       .catch(() => {

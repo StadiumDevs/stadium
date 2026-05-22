@@ -24,7 +24,12 @@ export function Navigation() {
             online label collapses to just the LED dot on small screens. */}
         <div className="flex items-center justify-between h-12 gap-2 sm:gap-4">
           <Link to="/" className="flex items-center gap-2 group flex-shrink-0">
-            <span className="led" aria-hidden="true" />
+            <img
+              src="/favicon.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-5 w-5 sm:h-6 sm:w-6"
+            />
             <span className="font-mono font-bold text-[13px] sm:text-[15px] text-display tracking-wide">
               STADIUM <span className="text-label-dim font-normal text-[10px] sm:text-[11px]">|||</span>
             </span>
