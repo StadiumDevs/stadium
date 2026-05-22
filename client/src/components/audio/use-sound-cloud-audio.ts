@@ -6,6 +6,12 @@ export type SoundCloudAudioValue = {
   title: string;
   genre: string;
   artworkUrl: string;
+  // Transport: current position + track length (ms) and playback controls.
+  positionMs: number;
+  durationMs: number;
+  next: () => void;
+  prev: () => void;
+  seek: (ms: number) => void;
 };
 
 export const SoundCloudAudioContext = createContext<SoundCloudAudioValue>({
@@ -14,6 +20,11 @@ export const SoundCloudAudioContext = createContext<SoundCloudAudioValue>({
   title: "",
   genre: "",
   artworkUrl: "",
+  positionMs: 0,
+  durationMs: 0,
+  next: () => {},
+  prev: () => {},
+  seek: () => {},
 });
 
 export function useSoundCloudAudio() {
