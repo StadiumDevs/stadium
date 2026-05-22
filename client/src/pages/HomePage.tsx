@@ -10,7 +10,8 @@ import { InputBus } from "@/components/input-bus";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { NoProjectsFound } from "@/components/EmptyState";
-import { api, type ApiProject, API_BASE_URL } from "@/lib/api";
+import { ProgramSpaces } from "@/components/program-spaces";
+import { api, type ApiProject, type ApiProgram, API_BASE_URL } from "@/lib/api";
 import { isMainTrackWinner } from "@/lib/projectUtils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -58,6 +59,7 @@ const HomePage = () => {
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [hackathons, setHackathons] = useState<{ id: string; name: string }[]>([]);
   const [allProjects, setAllProjects] = useState<ApiProject[]>([]);
+  const [allPrograms, setAllPrograms] = useState<ApiProgram[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -78,6 +80,7 @@ const HomePage = () => {
         const apiProjects: ApiProject[] = Array.isArray(projectsResp?.data) ? projectsResp.data : [];
         setAllProjects(apiProjects);
         setStatsLoading(false);
+        setAllPrograms(programsResp?.data ?? []);
         const eventPrograms = (programsResp?.data ?? []).filter(
           (p) => p.programType === "hackathon",
         );
@@ -261,11 +264,18 @@ const HomePage = () => {
         {/* Hero */}
         <section className="pt-8 pb-10">
           <div className="label-hw-dim mb-3">·DIRECTORY / NOW SHOWING</div>
-          <h1 className="font-display text-6xl md:text-7xl lg:text-8xl uppercase tracking-tight text-display leading-[0.9] mb-4">
-            Stadium
-          </h1>
+          <div className="flex items-center gap-3 md:gap-4 mb-4">
+            <img
+              src="/favicon.svg"
+              alt="Stadium"
+              className="h-12 w-12 md:h-14 md:w-14 lg:h-16 lg:w-16 flex-shrink-0"
+            />
+            <h1 className="font-display text-6xl md:text-7xl lg:text-8xl uppercase tracking-tight text-display leading-[0.9]">
+              Stadium
+            </h1>
+          </div>
           <p className="text-body text-base md:text-lg max-w-xl leading-relaxed">
-            Stuff people have built here.
+            Stuff people build here. Browse our programs, leave your mark.
           </p>
 
           <div className="pt-8">
@@ -284,7 +294,7 @@ const HomePage = () => {
           <div className="panel p-4">
             <div className="label-hw mb-3">·INDEX / LIVE</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <LCDStat value={statsLoading ? "—" : stats.totalProjects} label="Total Units" size="lg" />
+              <LCDStat value={statsLoading ? "—" : stats.totalProjects} label="Total Entries" size="lg" />
               <LCDStat value={statsLoading ? "—" : stats.winners} label="Winners" showLED pulse />
               <LCDStat value={statsLoading ? "—" : stats.m2Graduates} label="In M2" showLED />
               <LCDStat value={statsLoading ? "—" : fmtUSD(stats.totalPaid)} label="Paid" size="sm" showLED />
@@ -292,13 +302,16 @@ const HomePage = () => {
           </div>
         </section>
 
+        {/* Programs — entry point to all WebZero program types */}
+        <ProgramSpaces programs={allPrograms} />
+
         {/* Now Showing — single featured unit */}
         {featuredUnit && (
           <section className="mb-10">
             <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
               <div className="label-hw text-display flex items-center gap-2">
                 <span className="led led-sm led-pulse" aria-hidden="true" />
-                ·NOW SHOWING / UNIT {featuredUnit.unitNumber}
+                ·NOW SHOWING / ENTRY {featuredUnit.unitNumber}
               </div>
               {featuredUnit.date && <div className="label-hw-dim">{featuredUnit.date}</div>}
             </div>
@@ -314,7 +327,7 @@ const HomePage = () => {
           <InputBus
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="search units..."
+            placeholder="search entries..."
             className="flex-1 min-w-[200px]"
           />
           {hackathons.length > 0 && (
@@ -369,7 +382,7 @@ const HomePage = () => {
         <section className="mb-10">
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
             <div className="label-hw text-display">·DIRECTORY / GRID</div>
-            <div className="label-hw-dim">{filteredProjects.length} {filteredProjects.length === 1 ? "UNIT" : "UNITS"}</div>
+            <div className="label-hw-dim">{filteredProjects.length} {filteredProjects.length === 1 ? "ENTRY" : "ENTRIES"}</div>
           </div>
 
           {loading ? (

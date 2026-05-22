@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
+import { UnitCard } from "@/components/unit-card";
 import { RotateCw } from "lucide-react";
 import { ChainPicker } from "@/components/auth/ChainPicker";
 import { getProvider } from "@/lib/auth/registry";
@@ -17,6 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
 import { isAdmin } from "@/lib/constants";
 import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
+import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
+import { ProgramContent } from "@/components/program/ProgramContent";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
   if (!from && !to) return null;
@@ -47,7 +50,10 @@ const ProgramDetailPage = () => {
   const [myApplications, setMyApplications] = useState<ApiProgramApplication[]>([]);
   const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
   const [projects, setProjects] = useState<ApiProgramProject[]>([]);
+  const [entries, setEntries] = useState<ApiProject[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [nonMemberOpen, setNonMemberOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
   // accepts admins). Without this branch, the page would dead-end at "You need to be a team member"
@@ -128,6 +134,20 @@ const ProgramDetailPage = () => {
       .listProgramProjects(slug)
       .then((r) => { if (active) setProjects(r.data); })
       .catch(() => { if (active) setProjects([]); });
+    return () => { active = false; };
+  }, [slug, program]);
+
+  // Stadium project entries belonging to this program (hackathons etc.).
+  // Server filters on hackathon_id, backfilled to match program slugs.
+  useEffect(() => {
+    if (!slug || !program) { setEntries([]); return; }
+    let active = true;
+    api
+      .getProjects({ hackathonId: slug, limit: 500 })
+      .then((r: { data?: ApiProject[] }) => {
+        if (active) setEntries(Array.isArray(r?.data) ? r.data : []);
+      })
+      .catch(() => { if (active) setEntries([]); });
     return () => { active = false; };
   }, [slug, program]);
 
@@ -246,7 +266,7 @@ const ProgramDetailPage = () => {
           </RackButton>
           {!auth.isAvailable && (
             <p className="label-hw-dim">
-              {providerLabel.toUpperCase()} EXTENSION NOT DETECTED — INSTALL IT, THEN REFRESH.
+              {providerLabel.toUpperCase()} EXTENSION NOT DETECTED. INSTALL IT, THEN REFRESH.
             </p>
           )}
         </div>
@@ -278,7 +298,7 @@ const ProgramDetailPage = () => {
           {isUserAdmin && myProjects.length === 0 ? "APPLY ON BEHALF OF…" : "APPLY WITH MY PROJECT"}
         </RackButton>
         {isUserAdmin && (
-          <p className="label-hw-dim">ADMIN MODE — APPLY ON BEHALF OF ANY PROJECT</p>
+          <p className="label-hw-dim">ADMIN MODE: APPLY ON BEHALF OF ANY PROJECT</p>
         )}
       </div>
     );
@@ -344,6 +364,8 @@ const ProgramDetailPage = () => {
                 </p>
               </div>
             )}
+
+            <ProgramContent sections={program.content} />
 
             {(applicationsRange || eventRange || program.eventUrl) && (
               <div className="panel p-4 mb-4">
@@ -421,7 +443,40 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
-            {projects.length > 0 && (
+            {entries.length > 0 && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·PROJECTS</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {entries.map((p, i) => {
+                    const isWinner = Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0;
+                    const dateStr = p.completionDate || p.submittedDate || p.hackathon?.endDate;
+                    const date = dateStr
+                      ? new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "2-digit" }).toUpperCase()
+                      : undefined;
+                    return (
+                      <UnitCard
+                        key={p.id}
+                        unitNumber={String(i + 1).padStart(3, "0")}
+                        title={p.projectName}
+                        author={p.teamMembers?.[0]?.name || "Unknown"}
+                        description={p.description}
+                        track={p.bountyPrize?.[0]?.name || p.categories?.[0] || "Other"}
+                        isWinner={isWinner}
+                        isM2={p.m2Status === "completed"}
+                        date={date}
+                        prize={p.bountyPrize?.[0]?.amount ? `$${p.bountyPrize[0].amount.toLocaleString()}` : undefined}
+                        demoUrl={p.demoUrl}
+                        githubUrl={p.projectRepo}
+                        projectUrl={`/m2-program/${p.id}`}
+                        onClick={() => navigate(`/m2-program/${p.id}`)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {entries.length === 0 && projects.length > 0 && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·PROJECTS</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -487,6 +542,17 @@ const ProgramDetailPage = () => {
                   </p>
                 )}
               </div>
+              {program.status === "open" && (
+                <div className="mt-3 pt-3 border-t border-hairline-subtle">
+                  <button
+                    type="button"
+                    onClick={() => setNonMemberOpen(true)}
+                    className="font-mono text-[11px] tracking-[0.08em] text-display hover:underline"
+                  >
+                    Don't have a Stadium project yet? Apply here ▸
+                  </button>
+                </div>
+              )}
             </div>
 
             {connectedAddress && projectsForApply.length > 0 && (
@@ -499,6 +565,12 @@ const ProgramDetailPage = () => {
                 onApplied={handleApplied}
               />
             )}
+
+            <NonMemberApplyModal
+              open={nonMemberOpen}
+              onOpenChange={setNonMemberOpen}
+              program={program}
+            />
           </article>
         ) : null}
       </main>

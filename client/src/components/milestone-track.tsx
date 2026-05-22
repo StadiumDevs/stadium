@@ -37,7 +37,7 @@ export function MilestoneTrack({
           <div
             key={i}
             title={title}
-            aria-label={title + (isCompleted ? " — completed" : isCurrent ? " — in progress" : " — pending")}
+            aria-label={title + (isCompleted ? ", completed" : isCurrent ? ", in progress" : ", pending")}
             className={cn(
               sz.w, sz.h,
               isCurrent

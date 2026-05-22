@@ -10,7 +10,7 @@ const NotFound = () => {
         <h1 className="font-display text-7xl uppercase tracking-tight text-display leading-none mb-4">
           404
         </h1>
-        <p className="text-body text-base mb-2">No unit found at this address.</p>
+        <p className="text-body text-base mb-2">No entry found at this address.</p>
         <p className="label-hw-dim mb-6 break-all">{location.pathname}</p>
         <Link
           to="/"

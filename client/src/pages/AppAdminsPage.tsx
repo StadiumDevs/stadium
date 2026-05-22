@@ -130,8 +130,8 @@ const AppAdminsPage = () => {
           <>
             <AdminTierSection
               title="App Admins"
-              description="Tier 0 — manage admin lists themselves. Cannot remove the last one."
-              emptyHint="No app admins. This should be impossible — bootstrap script must have run."
+              description="Tier 0: manage admin lists themselves. Cannot remove the last one."
+              emptyHint="No app admins. This should be impossible; the bootstrap script must have run."
               load={(a) => api.listAppAdmins(a)}
               add={(p, a) => api.addAppAdmin(p, a)}
               remove={(w, c, a) => api.removeAppAdmin(w, c, a)}
@@ -139,7 +139,7 @@ const AppAdminsPage = () => {
             />
             <AdminTierSection
               title="Global Admins"
-              description="Tier 1 — administer every program. Initial entries seeded from AUTHORIZED_SIGNERS env at bootstrap."
+              description="Tier 1: administer every program. Initial entries seeded from AUTHORIZED_SIGNERS env at bootstrap."
               emptyHint="No global admins yet. Add wallets that should administer every program."
               load={(a) => api.listGlobalAdmins(a)}
               add={(p, a) => api.addGlobalAdmin(p, a)}

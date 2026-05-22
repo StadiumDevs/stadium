@@ -122,7 +122,7 @@ export const mockPrograms: ApiProgram[] = [
     slug: "dogfooding-2026-denver",
     programType: "dogfooding",
     description:
-      "Whether you're new to web3 or deep in it — when's the last time you actually used a new product, not just heard about one? Dogfooding Denver showcased 3–4 products built by WebZero hackathon teams. No jargon-filled panels, no slideshows — just hands-on time with real apps. Attendees picked a product, spent 30 minutes on guided tasks, and submitted feedback that went directly to the builders. No technical background or wallet required — just curiosity. The feedback shapes what gets built next.",
+      "Whether you're new to web3 or deep in it: when's the last time you actually used a new product, not just heard about one? Dogfooding Denver showcased 3–4 products built by WebZero hackathon teams. No jargon-filled panels, no slideshows, just hands-on time with real apps. Attendees picked a product, spent 30 minutes on guided tasks, and submitted feedback that went directly to the builders. No technical background or wallet required, just curiosity. The feedback shapes what gets built next.",
     status: "completed",
     owner: "webzero",
     applicationsOpenAt: null,
@@ -132,6 +132,175 @@ export const mockPrograms: ApiProgram[] = [
     location: "Denver",
     maxApplicants: null,
     eventUrl: "https://luma.com/dogfooding",
+    content: [
+      {
+        type: "text",
+        title: "Why you're here",
+        body:
+          "The products you're about to try are early. Really early. They're being built right now by teams coming out of WebZero hackathons, and they need people like you to use them, break them, and tell them what's working, what's not, what you like and what could be improved.\n\nThis isn't a demo. You're not here to watch. You're here to get your hands on things before anyone else and have a real say in what gets built next.\n\nPlay a role in helping our builders validate what they're creating. Your feedback goes directly to them.",
+      },
+      {
+        type: "text",
+        title: "What makes this different",
+        body:
+          "Most web3 events are panels and pitches. You sit, you listen, you leave.\n\nToday you'll actually use products. You'll get stuck, figure things out, maybe get frustrated, hopefully get surprised. That's the point. Real usage, real feedback, real impact, and getting to be among the first to try cutting-edge web3 products.",
+      },
+      {
+        type: "steps",
+        title: "What you need to do",
+        items: [
+          "Pick a product",
+          "Use it for ~30 minutes (follow the guided tasks)",
+          "Fill out the feedback form for that product",
+          "Repeat with another product if you want",
+        ],
+      },
+      {
+        type: "text",
+        title: "The debrief",
+        body:
+          "At the end, we'll come together and share what stood out: what surprised you, what worked, what didn't. The builders aren't all here in person, but we're keeping track of your feedback and sending it straight to them. At the end we'll also draw the lucky raffle winner.",
+      },
+      {
+        type: "cta",
+        title: "Feedback form",
+        label: "Open the feedback form",
+        url: "https://vuqtecqlwni.typeform.com/to/SRtkKFuI",
+      },
+      {
+        type: "schedule",
+        title: "Schedule",
+        rows: [
+          { time: "1:00 PM", label: "Doors open" },
+          { time: "1:15 PM", label: "Product previews" },
+          { time: "1:25 PM", label: "Hands-on time" },
+          { time: "3:15 PM", label: "Group debrief" },
+          { time: "3:40 PM", label: "Raffle & wrap-up" },
+        ],
+      },
+      {
+        type: "lineup",
+        title: "The products",
+        items: [
+          {
+            name: "Open Arkiv",
+            blurb:
+              "A censorship-resistant, offline-first data submission protocol for journalists, whistleblowers, and citizens in high-risk environments.",
+            tryItems: ["Download the TestFlight app", "Start sending messages"],
+            links: [
+              { label: "Website", url: "https://openarkiv.vercel.app/" },
+              {
+                label: "More info",
+                url: "https://stadium.joinwebzero.com/m2-program/openarkiv-8bc72d",
+              },
+            ],
+          },
+          {
+            name: "Khoj",
+            blurb: "A treasure hunt app that turns Web3 onboarding into an adventure.",
+            tryItems: [
+              "Create or join a team to start the treasure hunt",
+              "Complete the treasure hunt",
+            ],
+            links: [
+              { label: "Play", url: "https://playkhoj.com/" },
+              { label: "Docs", url: "https://docs.playkhoj.com/" },
+            ],
+          },
+          {
+            name: "Kinectica",
+            blurb: "Access to eSIM data plans using any stablecoin.",
+            tryItems: [
+              "Go to the dashboard and connect your wallet",
+              "Mint an account",
+              "Mint an NFT",
+              "Load the account into the NFT",
+              "Load the QR code into your phone as an eSIM",
+            ],
+            links: [{ label: "Dashboard", url: "https://dash.kinecta.app/" }],
+          },
+          {
+            name: "Station",
+            blurb: "Music streaming for the decentralized curious.",
+            tryItems: [
+              "Set up your own cloud server (Hetzner credits provided, no out-of-pocket cost)",
+              "Host your own music",
+              "Play it back via the web app",
+            ],
+            links: [
+              { label: "Docs", url: "https://docs.qnch.network/getting-started/quick-start" },
+              { label: "Listener app", url: "https://beta.qnch.network" },
+            ],
+          },
+        ],
+      },
+      {
+        type: "text",
+        title: "Giving good feedback",
+        body:
+          "Be honest. \"This confused me\" is more useful than \"it was fine.\" The builders want to know: What was confusing? Where did you get stuck? What worked well? Would you use this again?",
+      },
+      {
+        type: "stats",
+        title: "Feedback snapshot",
+        items: [
+          { label: "Products tested", value: "4" },
+          { label: "Khoj ease (avg)", value: "5/7" },
+          { label: "Would recommend", value: "All yes" },
+        ],
+      },
+      {
+        type: "feedback",
+        title: "What attendees said",
+        items: [
+          {
+            product: "Station / Kinectica",
+            quote:
+              "It worked. Currently there are a lot of steps and it does require a wallet, which is fine, but will be a barrier for non-web3 users.",
+            recommend: true,
+          },
+          {
+            product: "Station / Kinectica",
+            quote:
+              "Pretty easy! But knowing you need to connect via the in-wallet browser would be a good tip in the documentation.",
+            recommend: true,
+          },
+          {
+            product: "Station / Kinectica",
+            quote:
+              "It was complicated and a teammate had to help me. Confusing at first having to be in MetaMask and explore for Kinectica.",
+            recommend: true,
+          },
+          {
+            product: "Khoj",
+            quote:
+              "If I wasn't already familiar with web3 wallets, getting testnet funds would have been challenging. Make it clearer that a team shares the same set of picture clues. We thought there were 6 per user. And there's no way to skip a clue if you're playing in a bigger space.",
+            rating: "5/7",
+            recommend: true,
+          },
+          {
+            product: "Khoj",
+            quote:
+              "I'd like to see in-app instructions: more one step at a time. It's hard to bounce back and forth to an instructions list. The steps themselves were easy.",
+            rating: "5/7",
+            recommend: true,
+          },
+          {
+            product: "Khoj",
+            quote:
+              "Confusing because you needed to refer to the docs. The in-game screens didn't have the necessary detail. Thankfully an organiser helped us.",
+            rating: "6/7",
+            recommend: true,
+          },
+        ],
+      },
+      {
+        type: "text",
+        title: "Raffle",
+        body:
+          "Every feedback survey you submit = one raffle entry. More surveys, more chances to win exclusive WebZero merch.",
+      },
+    ],
     createdAt: "2026-02-01T00:00:00Z",
     updatedAt: "2026-02-21T00:00:00Z",
   },

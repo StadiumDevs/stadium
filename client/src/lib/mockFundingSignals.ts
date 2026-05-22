@@ -15,7 +15,7 @@ export const mockFundingSignals: Record<string, ApiFundingSignal> = {
     fundingType: "grant",
     amountRange: "30k–60k USD",
     description:
-      "Applying for the Web3 Foundation grant to extend the stealth-transfer primitives beyond Asset Hub — happy to chat with anyone who's been through that review.",
+      "Applying for the Web3 Foundation grant to extend the stealth-transfer primitives beyond Asset Hub. Happy to chat with anyone who's been through that review.",
     updatedBy: "mock-wallet",
     updatedAt: "2026-04-18T12:00:00Z",
   },

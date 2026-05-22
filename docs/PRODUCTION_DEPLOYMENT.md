@@ -4,47 +4,32 @@ Instructions for a **code agent** or automation to update production after code 
 
 ---
 
-## 🚀 One-command deploy (recommended)
+## 🚀 How deploys happen (automatic on merge to `main`)
 
-From the **repo root**, run:
+**Deploys are automatic.** Railway (server) and Vercel (client) are connected to
+this GitHub repo and deploy on every push to **`main`**. The normal flow is:
 
-```bash
-node server/scripts/deploy-all.js
-```
+1. Open a PR into `develop`, get it reviewed/merged.
+2. Promote `develop → main` (PR). Merging to `main` **auto-deploys both** the
+   Railway server and the Vercel client — no manual deploy command needed.
+3. **Data changes are NOT automatic.** Supabase schema migrations and any data
+   backfills must be applied separately (see "Database (Supabase)" below). A
+   merge does not run migrations or seed data.
 
-Or from **server/**:
+> The old `server/scripts/deploy-all.js` "one-command deploy" was **removed** —
+> it re-ran stale one-off data mutations and required local Railway/Vercel CLI
+> auth. Use the auto-deploy flow above. If you ever need a manual deploy (e.g.
+> the GitHub integration is down), the CLI fallback is in
+> "Deploy server / client" below.
 
-```bash
-cd server
-npm run deploy:all
-```
-
-This single command:
-
-1. ✅ Checks Git (on main, clean, up to date) — auto-commits/pushes if needed
-2. ✅ Applies Supabase migrations (`supabase db push` if any pending)
-3. ✅ Updates Symbiosis M2 status:
-   - Sets main-track winners to `m2_status='building'` (for Program Overview)
-   - Sets completed projects to `m2_status='completed'` (for Recently Shipped)
-4. ✅ Applies Symbiosis payouts:
-   - Updates `payments` table with M1/M2/BOUNTY payments
-   - Updates project `m2_status` and `completion_date` based on payouts
-5. ✅ Deploys Railway server (`railway up --detach`)
-6. ✅ Deploys Vercel client (`vercel --prod`)
-7. ✅ Quick verification (API/frontend reachable)
-
-**Note:** Steps 3-4 require `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your environment. If not set, they will skip with a warning (projects may already be updated).
-
-**After it finishes**, wait 1-2 minutes for Railway build, then run:
+**After a deploy**, verify with (read-only):
 
 ```bash
 cd server
-npm run verify:production
+API_BASE_URL=https://stadium-production-996a.up.railway.app/api \
+FRONTEND_URL=https://stadium.joinwebzero.com \
+npm run verify:main-deployed
 ```
-
-For full verification that everything matches main and works correctly.
-
----
 
 ---
 

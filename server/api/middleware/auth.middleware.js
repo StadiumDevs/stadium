@@ -25,8 +25,10 @@ import { consumeNonce } from '../auth/nonceStore.js';
 import { extractBearerToken, verifySessionToken } from '../auth/sessionToken.js';
 import programRepository from '../repositories/program.repository.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
+import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
 import appAdminRepository from '../repositories/app-admin.repository.js';
 import globalAdminRepository from '../repositories/global-admin.repository.js';
+import { getSupabaseUser, extractSupabaseToken } from '../auth/supabaseUser.js';
 
 /**
  * Admin = signer is an app_admin (tier 0) OR a global_admin (tier 1)
@@ -288,6 +290,7 @@ export const requireAdmin = async (req, res, next) => {
   logSuccess(`Admin ${signerAddress} authorized`);
   req.user = {
     address: signerAddress,
+    chain: auth.chain,
     multisig: CURRENT_MULTISIG,
     network: NETWORK_CONFIG.environment,
   };
@@ -353,6 +356,7 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
     logSuccess(`Signer ${signerAddress} is an admin. Granting access.`);
     req.user = {
       address: signerAddress,
+      chain: auth.chain,
       multisig: CURRENT_MULTISIG,
       network: NETWORK_CONFIG.environment,
     };
@@ -382,7 +386,7 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
 
     if (isTeamMember) {
       logSuccess(`Signer ${signerAddress} is a team member of project ${projectId}. Granting access.`);
-      req.user = { address: signerAddress };
+      req.user = { address: signerAddress, chain: auth.chain };
       return next();
     }
 
@@ -507,6 +511,55 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
     logError(`Database error during program-admin check: ${err.message}`);
     return res.status(500).json({ status: 'error', message: 'Internal server error during authorization' });
   }
+};
+
+/**
+ * Read-only program access for social (email) admins, with a wallet fallback.
+ *
+ * First tries the social path: a valid Supabase Auth token (`x-supabase-token`)
+ * whose verified email is listed in `program_admin_emails` for this program.
+ * That grants VIEW access only (`req.user.viewOnly = true`) — it never unlocks
+ * the mutation routes, which keep the stricter wallet-keyed `requireProgramAdmin`
+ * / `requireAdmin` gates. If there's no valid email-admin token, behavior is
+ * identical to `requireProgramAdmin` (wallet admins are unaffected).
+ *
+ * Apply this only to GET/read routes a viewing admin needs.
+ */
+export const requireProgramViewer = (slugParam = 'slug') => async (req, res, next) => {
+  const slug = req.params?.[slugParam];
+  if (!slug || typeof slug !== 'string') {
+    return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
+  }
+
+  const token = extractSupabaseToken(req);
+  if (token) {
+    const user = await getSupabaseUser(token);
+    if (user?.email) {
+      try {
+        const program = await programRepository.findBySlug(slug);
+        if (!program) {
+          return res.status(404).json({ status: 'error', message: 'Program not found' });
+        }
+        if (await programAdminEmailRepository.isAdminByEmail(program.id, user.email)) {
+          logSuccess(`Email admin ${user.email} viewing program "${slug}".`);
+          req.user = {
+            email: user.email,
+            supabaseUserId: user.id,
+            programSlug: slug,
+            programId: program.id,
+            isGlobalAdmin: false,
+            viewOnly: true,
+          };
+          return next();
+        }
+      } catch (err) {
+        logError(`Email-admin viewer check failed, falling back to wallet: ${err.message}`);
+      }
+    }
+  }
+
+  // No valid email-admin token — defer entirely to the wallet program-admin gate.
+  return requireProgramAdmin(slugParam)(req, res, next);
 };
 
 /**

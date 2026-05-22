@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import connectToSupabase, { supabase } from "./db.js";
 import m2ProgramRoutes from './api/routes/m2-program.routes.js';
 import programRoutes from './api/routes/program.routes.js';
@@ -7,10 +9,40 @@ import walletContactRoutes from './api/routes/wallet-contact.routes.js';
 import adminSessionRoutes from './api/routes/admin-session.routes.js';
 import adminTiersRoutes from './api/routes/admin-tiers.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
+import { assertSessionSecret } from './api/auth/sessionToken.js';
 import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
 const app = express();
 const PORT = process.env.PORT || 2000;
+
+// Railway terminates TLS at a proxy, so trust the first hop for correct client
+// IPs (used by rate limiting). A specific value avoids express-rate-limit's
+// permissive-trust-proxy validation error.
+app.set('trust proxy', 1);
+
+// Security headers. This is a JSON API (no HTML), so CSP is unnecessary; allow
+// the separately-hosted SPA to read responses cross-origin (#128).
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
+// Rate limiting (#127): a generous app-wide default plus a tight limit on the
+// unauthenticated, signature-verifying admin session endpoint.
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: 'error', message: 'Too many requests, slow down.' },
+});
+const sessionLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { status: 'error', message: 'Too many sign-in attempts, try again shortly.' },
+});
 
 // CORS Configuration: allow explicit list + any Vercel deployment (*.vercel.app)
 // In non-production, also allow any http://localhost:* or http://127.0.0.1:*
@@ -36,19 +68,20 @@ const allowOrigin = (origin, cb) => {
 app.use(cors({
     origin: allowOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth', 'x-supabase-token'],
     credentials: true,
     optionsSuccessStatus: 200
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
+app.use(apiLimiter);
 
 // API Routes
 app.use('/api/m2-program', m2ProgramRoutes);
 app.use('/api/programs', programRoutes);
 app.use('/api/wallet-contacts', walletContactRoutes);
-app.use('/api/admin/session', adminSessionRoutes);
+app.use('/api/admin/session', sessionLimiter, adminSessionRoutes);
 app.use('/api/admin', adminTiersRoutes);
 
 // Backward compatibility: Keep old /api/projects route as alias
@@ -104,6 +137,9 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
     try {
+        // Fail fast if the session-signing secret is missing/too short, rather
+        // than at the first admin sign-in.
+        assertSessionSecret();
         await connectToSupabase();
         app.listen(PORT, () => {
             console.log(`✅ Server is running on port ${PORT}`);

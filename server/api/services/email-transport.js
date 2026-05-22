@@ -15,8 +15,8 @@ export async function getEmailTransport() {
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   return {
-    async send({ from, to, subject, html, text }) {
-      const { data, error } = await resend.emails.send({ from, to, subject, html, text });
+    async send({ from, to, cc, subject, html, text }) {
+      const { data, error } = await resend.emails.send({ from, to, cc, subject, html, text });
       if (error) throw new Error(error.message ?? String(error));
       return { id: data.id };
     },

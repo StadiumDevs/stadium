@@ -1,8 +1,10 @@
 import { Router, text, json } from 'express';
+import rateLimit from 'express-rate-limit';
 import programController from '../controllers/program.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
+  requireProgramViewer,
 } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -14,6 +16,21 @@ const csvBody = [
   text({ type: 'text/csv', limit: '5mb' }),
   json({ limit: '5mb' }),
 ];
+
+// The non-member apply route is public, unauthenticated, and emails the team.
+// The global apiLimiter (200/min) is too loose to stop someone flooding the
+// inbox, so cap this one route hard per IP. Generous enough for a real person
+// applying to a few programs (incl. retries); tight enough to kill a flood.
+const nonMemberApplyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: 'Too many applications from this network. Please try again later.',
+  },
+});
 
 // --- Public, Read-Only Routes ---
 router.get('/', programController.list);
@@ -28,13 +45,21 @@ router.patch('/:slug', requireAdmin, programController.updateProgram);
 // --- Phase 1 revamp: applications (#43, #47) ---
 router.get(
   '/:slug/applications',
-  requireProgramAdmin('slug'),
+  requireProgramViewer('slug'),
   programController.listApplicationsForProgram,
 );
 router.post(
   '/:slug/applications',
   requireTeamMemberOrAdminByBodyProject,
   programController.createApplication,
+);
+// Public: someone without a Stadium project applies; emails the team (no auth).
+// Rate-limited per IP (see nonMemberApplyLimiter) since it's an unauthenticated
+// email trigger.
+router.post(
+  '/:slug/applications/non-member',
+  nonMemberApplyLimiter,
+  programController.submitNonMemberApplication,
 );
 router.patch(
   '/:slug/applications/:applicationId',
@@ -43,8 +68,13 @@ router.patch(
 );
 
 // --- Phase 3 (#95): per-event admins ---
-// Read = program admin or global; mutate = global only.
-router.get('/:slug/admins', requireProgramAdmin('slug'), programController.listAdmins);
+// Read = program admin (wallet or email) or global; mutate = global only.
+// Email-admin routes are placed before the wallet :wallet param route so the
+// extra path segment ("emails") is matched first.
+router.post('/:slug/admins/invite', requireAdmin, programController.inviteAdminEmail);
+router.get('/:slug/admins/emails', requireProgramViewer('slug'), programController.listAdminEmails);
+router.delete('/:slug/admins/emails/:email', requireAdmin, programController.removeAdminEmail);
+router.get('/:slug/admins', requireProgramViewer('slug'), programController.listAdmins);
 router.post('/:slug/admins', requireAdmin, programController.addAdmin);
 router.delete('/:slug/admins/:wallet', requireAdmin, programController.removeAdmin);
 
@@ -67,7 +97,7 @@ router.delete(
 // All admin — same gate as applications. CSV body parsers stack with the
 // shared SIWS middleware: parser runs first to produce req.body, then
 // requireProgramAdmin reads x-siws-auth from headers.
-router.get('/:slug/signups', requireProgramAdmin('slug'), programController.listSignups);
+router.get('/:slug/signups', requireProgramViewer('slug'), programController.listSignups);
 router.post(
   '/:slug/signups/import',
   ...csvBody,
@@ -82,10 +112,10 @@ router.delete(
 
 // --- Inbox (merged signups + applications) ---
 // Admin-only — both source rows are gated; the merge inherits that.
-router.get('/:slug/inbox', requireProgramAdmin('slug'), programController.listInbox);
-router.get('/:slug/inbox.csv', requireProgramAdmin('slug'), programController.exportInboxCsv);
+router.get('/:slug/inbox', requireProgramViewer('slug'), programController.listInbox);
+router.get('/:slug/inbox.csv', requireProgramViewer('slug'), programController.exportInboxCsv);
 
 // --- Audit log (per-program activity feed) ---
-router.get('/:slug/audit-log', requireProgramAdmin('slug'), programController.listAuditLog);
+router.get('/:slug/audit-log', requireProgramViewer('slug'), programController.listAuditLog);
 
 export default router;

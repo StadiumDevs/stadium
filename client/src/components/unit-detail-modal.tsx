@@ -76,7 +76,7 @@ export function UnitDetailModal({ open, onOpenChange, unit }: UnitDetailModalPro
         <DialogHeader className="px-5 pt-5 pb-3">
           <div className="flex items-start justify-between gap-3 mb-1">
             <div className="label-hw-dim">
-              UNIT {unit.unitNumber}{unit.date && ` · ${unit.date}`}
+              ENTRY {unit.unitNumber}{unit.date && ` · ${unit.date}`}
             </div>
             <div className="flex gap-1 flex-shrink-0">
               {unit.isWinner && (

@@ -74,6 +74,20 @@ vi.mock('../../repositories/global-admin.repository.js', () => ({
   },
 }));
 
+vi.mock('../../repositories/program-admin-email.repository.js', () => ({
+  default: {
+    isAdminByEmail: vi.fn().mockResolvedValue(false),
+    list: vi.fn(),
+    add: vi.fn(),
+    remove: vi.fn(),
+  },
+}));
+
+vi.mock('../../auth/supabaseUser.js', () => ({
+  getSupabaseUser: vi.fn().mockResolvedValue(null),
+  extractSupabaseToken: () => null,
+}));
+
 // Now import what we need
 import { verifySIWS, parseMessage } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
@@ -254,6 +268,7 @@ describe('requireAdmin', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user).toEqual({
       address: '5FakeAdmin1',
+      chain: 'substrate',
       multisig: '5FakeMultisig',
       network: 'development',
     });
@@ -363,6 +378,7 @@ describe('requireTeamMemberOrAdmin', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user).toEqual({
       address: '5FakeAdmin1',
+      chain: 'substrate',
       multisig: '5FakeMultisig',
       network: 'development',
     });
@@ -394,7 +410,7 @@ describe('requireTeamMemberOrAdmin', () => {
     await requireTeamMemberOrAdmin(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.user).toEqual({ address: '5TeamMember1' });
+    expect(req.user).toEqual({ address: '5TeamMember1', chain: 'substrate' });
   });
 
   it('returns 403 when signer is neither admin nor team member', async () => {

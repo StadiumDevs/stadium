@@ -24,6 +24,12 @@ Do **not** manually edit `- **Promoted**` lines.
 
 <!-- entries start below this line -->
 
+## [2026-05-22] Admin editing for program `content` (templatable sections)
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/ProgramFormModal.tsx`; renderer `client/src/components/program/ProgramContent.tsx`; type `ApiProgram.content` in `client/src/lib/api.ts`
+- **Observed during**: adding templatable `programs.content` JSONB + section renderer (Dogfooding Denver rich content)
+- **Suggestion**: the `content` column + server validation (`validateProgramContent`) + renderer ship now, but admins can't author it in the UI — prod content is set by migration/seed and previews use the mock fixture. Add a per-section editor (or a validated raw-JSON textarea gated by `validateProgramContent`) to `ProgramFormModal` so events can be authored without a redeploy.
+
 ## [2026-04-23] `requireTeamMemberOrAdmin` missing SIWS domain check
 - **Severity**: minor
 - **File(s)**: `server/api/middleware/auth.middleware.js` (`requireTeamMemberOrAdmin`)

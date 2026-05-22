@@ -159,7 +159,7 @@ const M2ProgramPage = () => {
             M2 Incubator
           </h1>
           <p className="text-[13px] text-body leading-relaxed max-w-2xl">
-            The post-event track for WebZero winners — keep building what you shipped, with a mentor and a defined Milestone 2.
+            The post-event track for WebZero winners: keep building what you shipped, with a mentor and a defined Milestone 2.
           </p>
         </div>
 
@@ -189,7 +189,7 @@ const M2ProgramPage = () => {
           <InputBus
             value={search}
             onChange={setSearch}
-            placeholder="search teams or units..."
+            placeholder="search teams or entries..."
             kbdHint="⌘K"
             className="flex-1 min-w-[200px]"
           />
@@ -245,7 +245,7 @@ const M2ProgramPage = () => {
 
             {filtered.length === 0 && (
               <div className="panel px-4 py-10 text-center">
-                <div className="label-hw text-display mb-2">·NO UNITS MATCH</div>
+                <div className="label-hw text-display mb-2">·NO ENTRIES MATCH</div>
                 <p className="label-hw-dim">
                   {view === "mine" && !connectedAddress
                     ? "Connect a wallet to see your teams."
@@ -288,7 +288,7 @@ function M2Rack({
 
       <div className="hidden md:grid grid-cols-[32px_1fr_220px_90px_70px] gap-2 px-4 py-2 bg-shell border-b border-hairline-subtle">
         <div />
-        <div className="label-hw-dim">UNIT / TEAM</div>
+        <div className="label-hw-dim">ENTRY / TEAM</div>
         <div className="label-hw-dim">MILESTONES</div>
         <div className="label-hw-dim">PRIZE</div>
         <div />
@@ -316,7 +316,7 @@ function M2Row({ team, onClick }: { team: Team; onClick: () => void }) {
       </div>
 
       <div>
-        <div className="label-hw-dim mb-0.5">UNIT {team.unitNumber}</div>
+        <div className="label-hw-dim mb-0.5">ENTRY {team.unitNumber}</div>
         <div className="font-display text-base uppercase tracking-tight text-display leading-tight">
           {team.title}
         </div>

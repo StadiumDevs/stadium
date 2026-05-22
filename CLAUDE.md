@@ -38,7 +38,7 @@ Always run from the subdir, not the repo root.
 - `npm test` — `vitest run`
 - `npm start` — `node server.js`
 - `npm run seed:dev`, `npm run db:migrate`, `npm run db:reset` — local Mongo tooling (destructive; run only when asked)
-- `npm run verify:production`, `npm run verify:main-deployed`, `npm run deploy:all` — operational
+- `npm run verify:production`, `npm run verify:main-deployed` — operational (read-only prod health checks). Deploys are automatic: merging to `main` triggers Railway (server) + Vercel (client) via their GitHub integrations.
 
 ---
 

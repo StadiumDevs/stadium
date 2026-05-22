@@ -203,6 +203,14 @@ export type ApiProgramAdmin = {
   createdAt: string;
 };
 
+/** An email-keyed program admin (social sign-in onboarding). View-only. */
+export type ApiProgramAdminEmail = {
+  programId: string;
+  email: string;
+  invitedBy: string | null;
+  createdAt: string;
+};
+
 /** One row in the unified program inbox (signups + applications merged). */
 export type ApiInboxEntry = {
   source: "signup" | "application";
@@ -252,6 +260,41 @@ export type ApiAuditLogEntry = {
 };
 
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
+/** A single curated link on a lineup item (website, docs, more-info). */
+export type ProgramContentLink = { label: string; url: string };
+
+/** One product/project showcased in a `lineup` content section. */
+export type ProgramLineupItem = {
+  name: string;
+  blurb?: string;
+  tryItems?: string[];
+  links?: ProgramContentLink[];
+};
+
+/** One verbatim highlight in a `feedback` content section. */
+export type ProgramFeedbackItem = {
+  product?: string;
+  quote: string;
+  rating?: string;
+  recommend?: boolean;
+};
+
+/** One metric tile in a `stats` content section. */
+export type ProgramStat = { label: string; value: string };
+
+/**
+ * Ordered, typed section that renders as an on-brand panel on the program
+ * detail page. Stored as JSONB in `programs.content`; reusable per program.
+ */
+export type ProgramContentSection =
+  | { type: "text"; title?: string; body: string }
+  | { type: "steps"; title?: string; items: string[] }
+  | { type: "schedule"; title?: string; rows: { time: string; label: string }[] }
+  | { type: "lineup"; title?: string; items: ProgramLineupItem[] }
+  | { type: "stats"; title?: string; items: ProgramStat[] }
+  | { type: "feedback"; title?: string; items: ProgramFeedbackItem[] }
+  | { type: "cta"; title?: string; label: string; url: string };
+
 export type ApiProgram = {
   id: string;
   name: string;
@@ -267,6 +310,7 @@ export type ApiProgram = {
   location?: string | null;
   maxApplicants?: number | null;
   eventUrl?: string | null;
+  content?: ProgramContentSection[] | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -1522,6 +1566,24 @@ export const api = {
   },
 
   /**
+   * Public: someone without a Stadium project applies to a program. Emails the
+   * team (info@ + cc sacha@); no auth. `company` is a honeypot — leave empty.
+   */
+  submitNonMemberApplication: async (
+    slug: string,
+    payload: { name: string; email: string; walletAddress?: string; pitch: string; company?: string },
+  ): Promise<{ status: string }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success" };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/applications/non-member`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * Per-event admins (Phase 3 #95). Read is gated on requireProgramAdmin
    * (global admins and per-program admins can list). Add/remove are gated
    * on requireAdmin (global admins only).
@@ -1568,6 +1630,55 @@ export const api = {
     if (USE_MOCK_DATA) return;
     await request(
       `/programs/${encodeURIComponent(slug)}/admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
+      {
+        method: "DELETE",
+        headers: adminAuthHeaders(authHeader),
+      },
+    );
+  },
+
+  // --- Email-keyed program admins (social sign-in onboarding) ---
+
+  listProgramAdminEmails: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramAdminEmail[] }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success", data: [] };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins/emails`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  inviteProgramAdminEmail: async (
+    slug: string,
+    email: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramAdminEmail; emailSent: boolean; emailReason: string | null }> => {
+    if (USE_MOCK_DATA) {
+      return {
+        status: "success",
+        data: { programId: slug, email: email.trim().toLowerCase(), invitedBy: null, createdAt: new Date().toISOString() },
+        emailSent: false,
+        emailReason: "mock_mode",
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/admins/invite`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  removeProgramAdminEmail: async (
+    slug: string,
+    email: string,
+    authHeader: AdminAuthArg,
+  ): Promise<void> => {
+    if (USE_MOCK_DATA) return;
+    await request(
+      `/programs/${encodeURIComponent(slug)}/admins/emails/${encodeURIComponent(email)}`,
       {
         method: "DELETE",
         headers: adminAuthHeaders(authHeader),

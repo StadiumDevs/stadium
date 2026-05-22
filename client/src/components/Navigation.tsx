@@ -24,7 +24,12 @@ export function Navigation() {
             online label collapses to just the LED dot on small screens. */}
         <div className="flex items-center justify-between h-12 gap-2 sm:gap-4">
           <Link to="/" className="flex items-center gap-2 group flex-shrink-0">
-            <span className="led" aria-hidden="true" />
+            <img
+              src="/favicon.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-5 w-5 sm:h-6 sm:w-6"
+            />
             <span className="font-mono font-bold text-[13px] sm:text-[15px] text-display tracking-wide">
               STADIUM <span className="text-label-dim font-normal text-[10px] sm:text-[11px]">|||</span>
             </span>
@@ -77,9 +82,17 @@ export function Navigation() {
               </kbd>
             </button>
 
-            {/* Status dot — label hidden on small screens. */}
-            <span className="led" aria-hidden="true" />
-            <span className="label-hw hidden sm:inline">ONLINE</span>
+            {/* Version badge — live dot + link to the release notes. */}
+            <a
+              href="https://github.com/StadiumDevs/stadium/releases/tag/v1.0.0"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Stadium v1.0 — release notes"
+              className="inline-flex items-center gap-1.5 label-hw normal-case hover:text-display transition-colors"
+            >
+              <span className="led" aria-hidden="true" />
+              <span>v1.0</span>
+            </a>
           </div>
         </div>
 

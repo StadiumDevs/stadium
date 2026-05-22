@@ -436,14 +436,14 @@ const AdminPage = () => {
 
           {projectsUnderReview.length === 0 ? (
             <p className="label-hw-dim py-6 text-center">
-              All M2 submissions are reviewed — nothing pending.
+              All M2 submissions are reviewed. Nothing pending.
             </p>
           ) : (
             <div className="space-y-3">
               {projectsUnderReview.map((project) => (
                 <div key={project.id} className="lcd p-4">
                   <div className="mb-3">
-                    <div className="label-hw-dim mb-1">UNIT · SUBMITTED {formatDate(project.finalSubmission?.submittedDate || project.submittedDate)}</div>
+                    <div className="label-hw-dim mb-1">ENTRY · SUBMITTED {formatDate(project.finalSubmission?.submittedDate || project.submittedDate)}</div>
                     <h3 className="font-display text-2xl uppercase tracking-tight text-display leading-tight">
                       {project.projectName}
                     </h3>

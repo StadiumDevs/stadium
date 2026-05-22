@@ -3,7 +3,7 @@
  *
  * Usage (from server/):
  *   API_BASE_URL=https://stadium-production-996a.up.railway.app/api \
- *   FRONTEND_URL=https://client-xxx.sachalanskys-projects.vercel.app \
+ *   FRONTEND_URL=https://stadium.joinwebzero.com \
  *   node scripts/verify-production.js
  *
  * Or set in .env:
@@ -15,7 +15,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const API_BASE = process.env.API_BASE_URL || 'https://stadium-production-996a.up.railway.app/api';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://client-n7lu4qlus-sachalanskys-projects.vercel.app';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://stadium.joinwebzero.com';
 
 const results = { passed: 0, failed: 0, warnings: 0 };
 const errors = [];

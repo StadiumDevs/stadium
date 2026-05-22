@@ -191,7 +191,7 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
       {isStale && (
         <div className="lcd p-3 mb-3 border border-amber-500/40">
           <p className="label-hw text-amber-500">
-            ·LUMA MAY HAVE NEW SIGNUPS — PULL A FRESH CSV AND RE-IMPORT.
+            ·LUMA MAY HAVE NEW SIGNUPS. PULL A FRESH CSV AND RE-IMPORT.
           </p>
         </div>
       )}
@@ -288,7 +288,7 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
             <ul className="font-mono text-[11px] space-y-0.5">
               {preview.newPreview.map((r, i) => (
                 <li key={i} className="text-body">
-                  {r.email}{r.name ? ` — ${r.name}` : ""}{r.wallet ? ` · ${truncateAddress(r.wallet)}` : ""}
+                  {r.email}{r.name ? ` · ${r.name}` : ""}{r.wallet ? ` · ${truncateAddress(r.wallet)}` : ""}
                 </li>
               ))}
             </ul>

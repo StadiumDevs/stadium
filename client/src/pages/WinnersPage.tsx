@@ -158,7 +158,7 @@ const WinnersPage = () => {
               <span className="led led-sm" aria-hidden="true" /> ·GRID
             </div>
             <div className="label-hw-dim">
-              {loading ? "…" : `${winners.length} ${winners.length === 1 ? "UNIT" : "UNITS"}`}
+              {loading ? "…" : `${winners.length} ${winners.length === 1 ? "ENTRY" : "ENTRIES"}`}
             </div>
           </div>
 
