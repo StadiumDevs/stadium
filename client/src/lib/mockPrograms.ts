@@ -245,11 +245,25 @@ export function projectSummaryFromMockSignups(
  */
 const HEADER_SYNONYMS = {
   email: ["email", "emailaddress", "mail"],
-  name: ["name", "fullname", "attendeename"],
+  name: ["name", "fullname", "attendeename", "pleaseenteryourname", "yourname"],
   wallet: ["wallet", "walletaddress", "address", "cryptowallet", "web3wallet"],
+  telegram: [
+    "telegram",
+    "telegramhandle",
+    "telegramusername",
+    "telegramcontact",
+    "pleaseprovideyourtelegramcontact",
+  ],
 };
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+// Mirror of the server parser's Telegram surrogate (luma-csv.parser.js) so the
+// preview import behaves like the real one for email-less form exports.
+const telegramSurrogateMock = (raw: string): string => {
+  const handle = raw.trim().replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9_]/g, "");
+  return handle ? `${handle}@telegram.imported` : "";
+};
 
 function parseCsvLine(line: string): string[] {
   const out: string[] = [];
@@ -299,27 +313,51 @@ export function importMockSignups(
   const emailIdx = idx(HEADER_SYNONYMS.email);
   const nameIdx = idx(HEADER_SYNONYMS.name);
   const walletIdx = idx(HEADER_SYNONYMS.wallet);
+  const telegramIdx = idx(HEADER_SYNONYMS.telegram);
 
   const existing = mockProgramSignups[slug] || [];
   const existingEmails = new Set(existing.map((s) => s.email));
 
   let totalParsed = 0;
   let skipped = 0;
-  const newRows: Array<{ email: string; name?: string | null; wallet?: string | null }> = [];
+  type MockRow = {
+    email: string;
+    name?: string | null;
+    wallet?: string | null;
+    rawRow: Record<string, string>;
+  };
+  const newRows: MockRow[] = [];
   const duplicates: Array<{ email: string; name?: string | null }> = [];
 
   for (let i = 1; i < lines.length; i += 1) {
     totalParsed += 1;
     const cols = parseCsvLine(lines[i]);
-    const emailRaw = emailIdx >= 0 ? (cols[emailIdx] || "").trim().toLowerCase() : "";
-    if (!emailRaw || !emailRaw.includes("@")) { skipped += 1; continue; }
+
+    // Preserve every column so the public PROJECTS aggregate can read the
+    // "which project" value out of rawRow, exactly like the server.
+    const rawRow: Record<string, string> = {};
+    header.forEach((h, c) => { rawRow[h] = (cols[c] ?? "").trim(); });
+
+    // Identity: real email column wins; otherwise a Telegram surrogate.
+    let email = "";
+    if (emailIdx >= 0) {
+      email = (cols[emailIdx] || "").trim().toLowerCase();
+      if (!email || !email.includes("@")) { skipped += 1; continue; }
+    } else if (telegramIdx >= 0) {
+      email = telegramSurrogateMock(cols[telegramIdx] || "");
+      if (!email) { skipped += 1; continue; }
+    } else {
+      skipped += 1;
+      continue;
+    }
+
     const name = nameIdx >= 0 ? (cols[nameIdx] || "").trim() || null : null;
     const wallet = walletIdx >= 0 ? (cols[walletIdx] || "").trim() || null : null;
-    if (existingEmails.has(emailRaw)) {
-      duplicates.push({ email: emailRaw, name });
+    if (existingEmails.has(email)) {
+      duplicates.push({ email, name });
     } else {
-      newRows.push({ email: emailRaw, name, wallet });
-      existingEmails.add(emailRaw);
+      newRows.push({ email, name, wallet, rawRow });
+      existingEmails.add(email);
     }
   }
 
@@ -332,6 +370,7 @@ export function importMockSignups(
       wallet: r.wallet,
       registeredAt: new Date().toISOString(),
       source: "luma",
+      rawRow: r.rawRow,
       createdAt: new Date().toISOString(),
     }));
     mockProgramSignups[slug] = [...existing, ...inserted];
@@ -342,7 +381,7 @@ export function importMockSignups(
     skippedNoEmail: skipped,
     duplicates: duplicates.length,
     newCount: newRows.length,
-    newPreview: newRows.slice(0, 5),
+    newPreview: newRows.slice(0, 5).map(({ email, name, wallet }) => ({ email, name, wallet })),
     duplicatePreview: duplicates.slice(0, 5),
   };
 }

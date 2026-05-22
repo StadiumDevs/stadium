@@ -76,4 +76,49 @@ describe('parseLumaCsv', () => {
     const r = await parseLumaCsv(csv);
     expect(r.rows[0].registeredAt).toBeNull();
   });
+
+  // --- Tally/Typeform exports: no email column, Telegram-surrogate identity ---
+
+  it('uses a Telegram surrogate when there is no email column', async () => {
+    const csv = [
+      'Please enter your name,Please provide your Telegram contact,Which project would you like to try?',
+      'Ada,@ada_dev,Proof of Thought',
+      'Bo,bo.handle,Chain of Providence',
+    ].join('\n');
+    const r = await parseLumaCsv(csv);
+    expect(r.skipped).toBe(0);
+    expect(r.rows).toHaveLength(2);
+    expect(r.rows[0]).toMatchObject({
+      email: 'ada_dev@telegram.imported',
+      name: 'Ada',
+      telegram: '@ada_dev',
+    });
+    // The project column is preserved in rawRow for the public aggregate.
+    expect(r.rows[0].rawRow['Which project would you like to try?']).toBe('Proof of Thought');
+    // Non-@ handles are sanitised too (dots dropped).
+    expect(r.rows[1].email).toBe('bohandle@telegram.imported');
+  });
+
+  it('skips email-less rows whose Telegram handle sanitises to nothing', async () => {
+    const csv = [
+      'Name,Telegram',
+      'Ghost,@@@',
+      'Real,@real_one',
+    ].join('\n');
+    const r = await parseLumaCsv(csv);
+    expect(r.totalParsed).toBe(2);
+    expect(r.skipped).toBe(1);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0].email).toBe('real_one@telegram.imported');
+  });
+
+  it('prefers a real email column over Telegram when both are present', async () => {
+    const csv = [
+      'Name,Email,Telegram',
+      'Cleo,cleo@example.com,@cleo',
+    ].join('\n');
+    const r = await parseLumaCsv(csv);
+    expect(r.rows[0].email).toBe('cleo@example.com');
+    expect(r.rows[0].telegram).toBe('@cleo');
+  });
 });
