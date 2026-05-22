@@ -159,7 +159,7 @@ const M2ProgramPage = () => {
             M2 Incubator
           </h1>
           <p className="text-[13px] text-body leading-relaxed max-w-2xl">
-            The post-event track for WebZero winners — keep building what you shipped, with a mentor and a defined Milestone 2.
+            The post-event track for WebZero winners: keep building what you shipped, with a mentor and a defined Milestone 2.
           </p>
         </div>
 

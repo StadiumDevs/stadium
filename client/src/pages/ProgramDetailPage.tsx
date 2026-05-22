@@ -266,7 +266,7 @@ const ProgramDetailPage = () => {
           </RackButton>
           {!auth.isAvailable && (
             <p className="label-hw-dim">
-              {providerLabel.toUpperCase()} EXTENSION NOT DETECTED — INSTALL IT, THEN REFRESH.
+              {providerLabel.toUpperCase()} EXTENSION NOT DETECTED. INSTALL IT, THEN REFRESH.
             </p>
           )}
         </div>
@@ -298,7 +298,7 @@ const ProgramDetailPage = () => {
           {isUserAdmin && myProjects.length === 0 ? "APPLY ON BEHALF OF…" : "APPLY WITH MY PROJECT"}
         </RackButton>
         {isUserAdmin && (
-          <p className="label-hw-dim">ADMIN MODE — APPLY ON BEHALF OF ANY PROJECT</p>
+          <p className="label-hw-dim">ADMIN MODE: APPLY ON BEHALF OF ANY PROJECT</p>
         )}
       </div>
     );

@@ -122,7 +122,7 @@ export const mockPrograms: ApiProgram[] = [
     slug: "dogfooding-2026-denver",
     programType: "dogfooding",
     description:
-      "Whether you're new to web3 or deep in it — when's the last time you actually used a new product, not just heard about one? Dogfooding Denver showcased 3–4 products built by WebZero hackathon teams. No jargon-filled panels, no slideshows — just hands-on time with real apps. Attendees picked a product, spent 30 minutes on guided tasks, and submitted feedback that went directly to the builders. No technical background or wallet required — just curiosity. The feedback shapes what gets built next.",
+      "Whether you're new to web3 or deep in it: when's the last time you actually used a new product, not just heard about one? Dogfooding Denver showcased 3–4 products built by WebZero hackathon teams. No jargon-filled panels, no slideshows, just hands-on time with real apps. Attendees picked a product, spent 30 minutes on guided tasks, and submitted feedback that went directly to the builders. No technical background or wallet required, just curiosity. The feedback shapes what gets built next.",
     status: "completed",
     owner: "webzero",
     applicationsOpenAt: null,
@@ -137,13 +137,13 @@ export const mockPrograms: ApiProgram[] = [
         type: "text",
         title: "Why you're here",
         body:
-          "The products you're about to try are early. Really early. They're being built right now by teams coming out of WebZero hackathons — and they need people like you to use them, break them, and tell them what's working, what's not, what you like and what could be improved.\n\nThis isn't a demo. You're not here to watch. You're here to get your hands on things before anyone else and have a real say in what gets built next.\n\nPlay a role in helping our builders validate what they're creating. Your feedback goes directly to them.",
+          "The products you're about to try are early. Really early. They're being built right now by teams coming out of WebZero hackathons, and they need people like you to use them, break them, and tell them what's working, what's not, what you like and what could be improved.\n\nThis isn't a demo. You're not here to watch. You're here to get your hands on things before anyone else and have a real say in what gets built next.\n\nPlay a role in helping our builders validate what they're creating. Your feedback goes directly to them.",
       },
       {
         type: "text",
         title: "What makes this different",
         body:
-          "Most web3 events are panels and pitches. You sit, you listen, you leave.\n\nToday you'll actually use products. You'll get stuck, figure things out, maybe get frustrated, hopefully get surprised. That's the point. Real usage, real feedback, real impact — and getting to be among the first to try cutting-edge web3 products.",
+          "Most web3 events are panels and pitches. You sit, you listen, you leave.\n\nToday you'll actually use products. You'll get stuck, figure things out, maybe get frustrated, hopefully get surprised. That's the point. Real usage, real feedback, real impact, and getting to be among the first to try cutting-edge web3 products.",
       },
       {
         type: "steps",
@@ -159,7 +159,7 @@ export const mockPrograms: ApiProgram[] = [
         type: "text",
         title: "The debrief",
         body:
-          "At the end, we'll come together and share what stood out — what surprised you, what worked, what didn't. The builders aren't all here in person, but we're keeping track of your feedback and sending it straight to them. At the end we'll also draw the lucky raffle winner.",
+          "At the end, we'll come together and share what stood out: what surprised you, what worked, what didn't. The builders aren't all here in person, but we're keeping track of your feedback and sending it straight to them. At the end we'll also draw the lucky raffle winner.",
       },
       {
         type: "cta",
@@ -223,7 +223,7 @@ export const mockPrograms: ApiProgram[] = [
             name: "Station",
             blurb: "Music streaming for the decentralized curious.",
             tryItems: [
-              "Set up your own cloud server (Hetzner credits provided — no out-of-pocket cost)",
+              "Set up your own cloud server (Hetzner credits provided, no out-of-pocket cost)",
               "Host your own music",
               "Play it back via the web app",
             ],
@@ -256,7 +256,7 @@ export const mockPrograms: ApiProgram[] = [
           {
             product: "Station / Kinectica",
             quote:
-              "It worked. Currently there are a lot of steps and it does require a wallet — which is fine, but will be a barrier for non-web3 users.",
+              "It worked. Currently there are a lot of steps and it does require a wallet, which is fine, but will be a barrier for non-web3 users.",
             recommend: true,
           },
           {
@@ -274,21 +274,21 @@ export const mockPrograms: ApiProgram[] = [
           {
             product: "Khoj",
             quote:
-              "If I wasn't already familiar with web3 wallets, getting testnet funds would have been challenging. Make it clearer that a team shares the same set of picture clues — we thought there were 6 per user. And there's no way to skip a clue if you're playing in a bigger space.",
+              "If I wasn't already familiar with web3 wallets, getting testnet funds would have been challenging. Make it clearer that a team shares the same set of picture clues. We thought there were 6 per user. And there's no way to skip a clue if you're playing in a bigger space.",
             rating: "5/7",
             recommend: true,
           },
           {
             product: "Khoj",
             quote:
-              "I'd like to see in-app instructions — more one step at a time. It's hard to bounce back and forth to an instructions list. The steps themselves were easy.",
+              "I'd like to see in-app instructions: more one step at a time. It's hard to bounce back and forth to an instructions list. The steps themselves were easy.",
             rating: "5/7",
             recommend: true,
           },
           {
             product: "Khoj",
             quote:
-              "Confusing because you needed to refer to the docs — the in-game screens didn't have the necessary detail. Thankfully an organiser helped us.",
+              "Confusing because you needed to refer to the docs. The in-game screens didn't have the necessary detail. Thankfully an organiser helped us.",
             rating: "6/7",
             recommend: true,
           },

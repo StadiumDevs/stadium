@@ -139,7 +139,7 @@ export function ApplyToProgramModal({
             APPLY TO {program.name.toUpperCase()}
           </DialogTitle>
           <DialogDescription className="text-body">
-            Bring the project you already built — we'll pull the rest from its Stadium page.
+            Bring the project you already built, and we'll pull the rest from its Stadium page.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

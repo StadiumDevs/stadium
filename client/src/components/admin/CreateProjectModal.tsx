@@ -197,7 +197,7 @@ export function CreateProjectModal({
             <Label htmlFor="cp-id">
               ID{" "}
               <span className="text-muted-foreground text-xs font-normal">
-                (optional — auto-derived from name if blank)
+                (optional, auto-derived from name if blank)
               </span>
             </Label>
             <Input

@@ -16,7 +16,7 @@ export const mockProgramApplications: ApiProgramApplication[] = [
     status: "submitted",
     applicationFields: {
       feedback_focus:
-        "We'd love structured feedback on the UX of our stealth-transfer flow — specifically whether the one-step deposit is discoverable.",
+        "We'd love structured feedback on the UX of our stealth-transfer flow, specifically whether the one-step deposit is discoverable.",
     },
     submittedBy: "mock-wallet",
     submittedAt: "2026-04-22T11:30:00Z",

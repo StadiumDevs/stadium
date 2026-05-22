@@ -102,7 +102,7 @@ export function ProgramsTable({ connectedAddress }: { connectedAddress?: string 
         <p className="label-hw text-destructive py-6">·{error.toUpperCase()}</p>
       ) : programs.length === 0 ? (
         <p className="text-body text-sm py-6">
-          No programs yet — create one to open applications to past winners.
+          No programs yet. Create one to open applications to past winners.
         </p>
       ) : (
         <Table>
