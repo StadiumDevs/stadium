@@ -8,6 +8,8 @@ import projectService from '../services/project.service.js';
 import notificationService from '../services/notification.service.js';
 import nonMemberApplicationService, { validateNonMemberApplication } from '../services/non-member-application.service.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
+import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
+import programAdminInviteService from '../services/program-admin-invite.service.js';
 import programSignupRepository from '../repositories/program-signup.repository.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
 import { validateProgram, validateSponsor } from '../utils/validation.js';
@@ -15,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import logger from '../utils/logger.js';
 
 const VALID_CHAINS = ['substrate', 'ethereum', 'solana'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 class ProgramController {
   async list(req, res) {
@@ -409,6 +412,92 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error removing program admin:', error);
       res.status(500).json({ status: 'error', message: 'Failed to remove program admin' });
+    }
+  }
+
+  // --- Email-keyed program admins (social sign-in onboarding) ---
+
+  async listAdminEmails(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const admins = await programAdminEmailRepository.list(program.id);
+      res.status(200).json({ status: 'success', data: admins });
+    } catch (error) {
+      console.error('❌ Error listing email admins:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to list email admins' });
+    }
+  }
+
+  async inviteAdminEmail(req, res) {
+    try {
+      const { slug } = req.params;
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      if (!email || !EMAIL_RE.test(email)) {
+        return res.status(422).json({ status: 'error', message: 'A valid email is required' });
+      }
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const added = await programAdminEmailRepository.add(program.id, email, req.user?.address ?? null);
+
+      // The grant has landed; emailing the invite is best-effort so a missing
+      // Resend config (or a transient send error) never loses the grant.
+      let emailSent = false;
+      let emailReason = null;
+      try {
+        const result = await programAdminInviteService.send({
+          email: added.email,
+          programName: program.name,
+          slug: program.slug,
+        });
+        emailSent = result.ok;
+        emailReason = result.ok ? null : result.reason;
+      } catch (err) {
+        emailReason = 'send_failed';
+        logger.error('Program admin invite email failed:', err);
+      }
+
+      res.status(201).json({ status: 'success', data: added, emailSent, emailReason });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'admin.invite_email',
+        targetType: 'admin',
+        targetId: `email:${added.email}`,
+        metadata: { emailSent },
+      });
+    } catch (error) {
+      console.error('❌ Error inviting email admin:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to invite admin' });
+    }
+  }
+
+  async removeAdminEmail(req, res) {
+    try {
+      const { slug, email } = req.params;
+      const target = decodeURIComponent(email);
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      await programAdminEmailRepository.remove(program.id, target);
+      res.status(204).end();
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'admin.remove_email',
+        targetType: 'admin',
+        targetId: `email:${target}`,
+        metadata: null,
+      });
+    } catch (error) {
+      console.error('❌ Error removing email admin:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to remove email admin' });
     }
   }
 

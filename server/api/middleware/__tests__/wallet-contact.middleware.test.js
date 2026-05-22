@@ -57,6 +57,15 @@ vi.mock('../../repositories/program-admin.repository.js', () => ({
   default: { isAdmin: vi.fn() },
 }));
 
+vi.mock('../../repositories/program-admin-email.repository.js', () => ({
+  default: { isAdminByEmail: vi.fn().mockResolvedValue(false), list: vi.fn(), add: vi.fn(), remove: vi.fn() },
+}));
+
+vi.mock('../../auth/supabaseUser.js', () => ({
+  getSupabaseUser: vi.fn().mockResolvedValue(null),
+  extractSupabaseToken: () => null,
+}));
+
 import { parseMessage, verifySIWS } from '@talismn/siws';
 import { signatureVerify, decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';

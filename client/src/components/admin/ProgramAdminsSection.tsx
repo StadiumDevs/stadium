@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { Trash2, Loader2 } from "lucide-react";
-import { api, type ApiProgramAdmin, ApiError } from "@/lib/api";
+import { Trash2, Loader2, Mail } from "lucide-react";
+import { api, type ApiProgramAdmin, type ApiProgramAdminEmail, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 type ChainOption = ApiProgramAdmin["walletChain"];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Per-event admin management (Phase 3 #95). Lists `program_admins` and lets
@@ -24,17 +26,24 @@ export function ProgramAdminsSection({
 }) {
   const { toast } = useToast();
   const [admins, setAdmins] = useState<ApiProgramAdmin[]>([]);
+  const [emailAdmins, setEmailAdmins] = useState<ApiProgramAdminEmail[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [wallet, setWallet] = useState("");
   const [chain, setChain] = useState<ChainOption>("substrate");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const authHeader = await signAuthHeader();
-      const res = await api.listProgramAdmins(programSlug, authHeader);
-      setAdmins(res.data);
+      const [walletRes, emailRes] = await Promise.all([
+        api.listProgramAdmins(programSlug, authHeader),
+        api.listProgramAdminEmails(programSlug, authHeader),
+      ]);
+      setAdmins(walletRes.data);
+      setEmailAdmins(emailRes.data);
     } catch (e) {
       const err = e as Error;
       toast({
@@ -46,6 +55,46 @@ export function ProgramAdminsSection({
       setLoading(false);
     }
   }, [programSlug, signAuthHeader, toast]);
+
+  const handleInvite = async () => {
+    const email = inviteEmail.trim();
+    if (!EMAIL_RE.test(email)) {
+      toast({ title: "Enter a valid email", variant: "destructive" });
+      return;
+    }
+    setInviting(true);
+    try {
+      const authHeader = await signAuthHeader();
+      const res = await api.inviteProgramAdminEmail(programSlug, email, authHeader);
+      setEmailAdmins((prev) =>
+        prev.some((a) => a.email === res.data.email) ? prev : [...prev, res.data],
+      );
+      setInviteEmail("");
+      toast({
+        title: "Admin invited",
+        description: res.emailSent
+          ? `Onboarding email sent to ${res.data.email}.`
+          : `Added, but no email went out (${res.emailReason ?? "email not configured"}). Share the sign-in link manually.`,
+      });
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : (e as Error)?.message;
+      toast({ title: "Couldn't invite admin", description: msg || "Unknown error", variant: "destructive" });
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleRemoveEmail = async (admin: ApiProgramAdminEmail) => {
+    try {
+      const authHeader = await signAuthHeader();
+      await api.removeProgramAdminEmail(programSlug, admin.email, authHeader);
+      setEmailAdmins((prev) => prev.filter((a) => a.email !== admin.email));
+      toast({ title: "Admin removed" });
+    } catch (e) {
+      const err = e as Error;
+      toast({ title: "Couldn't remove admin", description: err?.message || "Unknown error", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (programSlug) load();
@@ -169,6 +218,62 @@ export function ProgramAdminsSection({
           </button>
         </div>
       )}
+
+      {/* Email admins — onboard non-wallet partners via an email magic link. */}
+      <div className="mt-4 border-t border-hairline pt-4">
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <div className="label-hw text-display">·EMAIL ADMINS</div>
+          <p className="label-hw-dim hidden md:block">
+            View-only. They sign in with their email, no wallet needed.
+          </p>
+        </div>
+
+        {emailAdmins.length === 0 ? (
+          <p className="label-hw-dim py-1">No email admins yet.</p>
+        ) : (
+          <ul className="divide-y divide-hairline">
+            {emailAdmins.map((a) => (
+              <li key={a.email} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0 flex items-center gap-2">
+                  <Mail className="h-3.5 w-3.5 text-label-mid shrink-0" aria-hidden="true" />
+                  <span className="truncate font-mono text-[12px] text-display">{a.email}</span>
+                </div>
+                {isGlobalAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveEmail(a)}
+                    aria-label={`Remove ${a.email}`}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-destructive hover:bg-destructive/10 px-2 py-1 inline-flex items-center gap-1"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    REMOVE
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {isGlobalAdmin && (
+          <div className="mt-3 flex flex-col gap-2 md:flex-row">
+            <input
+              type="email"
+              placeholder="invitee@email.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              className="md:flex-1 font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+            />
+            <button
+              type="button"
+              onClick={handleInvite}
+              disabled={inviting || !inviteEmail.trim()}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center justify-center gap-1.5"
+            >
+              {inviting ? "INVITING…" : "INVITE BY EMAIL"}
+            </button>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
