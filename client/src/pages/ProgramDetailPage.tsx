@@ -8,12 +8,14 @@ import {
   api,
   type ApiProgram,
   type ApiProgramSponsor,
+  type ApiProgramProject,
   type ApiProject,
   type ApiProgramApplication,
   ApiError,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
+import { isAdmin } from "@/lib/constants";
 import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
@@ -44,7 +46,17 @@ const ProgramDetailPage = () => {
   const [myProjects, setMyProjects] = useState<ApiProject[]>([]);
   const [myApplications, setMyApplications] = useState<ApiProgramApplication[]>([]);
   const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
+  const [projects, setProjects] = useState<ApiProgramProject[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
+  // accepts admins). Without this branch, the page would dead-end at "You need to be a team member"
+  // even though the server would have let them through.
+  const isUserAdmin = useMemo(
+    () => isAdmin(connectedAddress ?? undefined, auth.chain),
+    [connectedAddress, auth.chain],
+  );
+  const [allProjects, setAllProjects] = useState<ApiProject[]>([]);
 
   useEffect(() => {
     if (!slug) return;
@@ -74,6 +86,28 @@ const ProgramDetailPage = () => {
     return () => { active = false; };
   }, [connectedAddress]);
 
+  // Admins get the full project list so they can apply on behalf of any project.
+  // Limit is generous; we expect <500 projects historically. Response shape is
+  // `{ status, data: ApiProject[], meta }` per server/api/repositories/project.repository.js.
+  useEffect(() => {
+    if (!isUserAdmin) { setAllProjects([]); return; }
+    let active = true;
+    api
+      .getProjects({ limit: 500 })
+      .then((r: { data?: ApiProject[] }) => {
+        if (!active) return;
+        setAllProjects(Array.isArray(r?.data) ? r.data : []);
+      })
+      .catch(() => { if (active) setAllProjects([]); });
+    return () => { active = false; };
+  }, [isUserAdmin]);
+
+  // The list the apply modal renders: admin sees everything, normal user sees their team's projects.
+  const projectsForApply = useMemo(
+    () => (isUserAdmin && allProjects.length > 0 ? allProjects : myProjects),
+    [isUserAdmin, allProjects, myProjects],
+  );
+
   // Load sponsors once we know the program exists.
   useEffect(() => {
     if (!slug || !program) { setSponsors([]); return; }
@@ -82,6 +116,18 @@ const ProgramDetailPage = () => {
       .listProgramSponsors(slug)
       .then((r) => { if (active) setSponsors(r.data); })
       .catch(() => { if (active) setSponsors([]); });
+    return () => { active = false; };
+  }, [slug, program]);
+
+  // Public, PII-free project aggregate (distinct projects + interest counts
+  // derived from the program's signups). Empty for programs without submissions.
+  useEffect(() => {
+    if (!slug || !program) { setProjects([]); return; }
+    let active = true;
+    api
+      .listProgramProjects(slug)
+      .then((r) => { if (active) setProjects(r.data); })
+      .catch(() => { if (active) setProjects([]); });
     return () => { active = false; };
   }, [slug, program]);
 
@@ -207,7 +253,17 @@ const ProgramDetailPage = () => {
       );
     }
 
-    if (myProjects.length === 0) {
+    if (projectsForApply.length === 0) {
+      if (isUserAdmin) {
+        // Admin signed in but the all-projects fetch is still pending or empty —
+        // surface a soft loading state instead of the gate copy.
+        return (
+          <div className="space-y-1">
+            <RackButton disabled>APPLY</RackButton>
+            <p className="label-hw-dim">LOADING PROJECTS…</p>
+          </div>
+        );
+      }
       return (
         <div className="space-y-1">
           <RackButton disabled>APPLY</RackButton>
@@ -216,7 +272,16 @@ const ProgramDetailPage = () => {
       );
     }
 
-    return <RackButton onClick={() => setModalOpen(true)}>APPLY WITH MY PROJECT</RackButton>;
+    return (
+      <div className="space-y-1">
+        <RackButton onClick={() => setModalOpen(true)}>
+          {isUserAdmin && myProjects.length === 0 ? "APPLY ON BEHALF OF…" : "APPLY WITH MY PROJECT"}
+        </RackButton>
+        {isUserAdmin && (
+          <p className="label-hw-dim">ADMIN MODE — APPLY ON BEHALF OF ANY PROJECT</p>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -356,6 +421,62 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
+            {projects.length > 0 && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·PROJECTS</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {projects.map((p, i) => (
+                    <div key={`${p.name}-${i}`} className="lcd p-3 space-y-2">
+                      <div className="font-display text-base tracking-tight text-display uppercase leading-tight">
+                        {p.name}
+                      </div>
+                      {p.description && (
+                        <p className="text-body text-sm leading-relaxed line-clamp-4">
+                          {p.description}
+                        </p>
+                      )}
+                      {p.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {p.tags.map((t) => (
+                            <span
+                              key={t}
+                              className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {(p.repoUrl || p.docsUrl) && (
+                        <div className="flex flex-wrap gap-3 pt-1">
+                          {p.repoUrl && (
+                            <a
+                              href={p.repoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[11px] text-display hover:underline break-all"
+                            >
+                              REPO ▸
+                            </a>
+                          )}
+                          {p.docsUrl && (
+                            <a
+                              href={p.docsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[11px] text-display hover:underline break-all"
+                            >
+                              DOCS ▸
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="panel p-4">
               <div className="label-hw mb-3">·APPLY</div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -368,12 +489,12 @@ const ProgramDetailPage = () => {
               </div>
             </div>
 
-            {connectedAddress && myProjects.length > 0 && (
+            {connectedAddress && projectsForApply.length > 0 && (
               <ApplyToProgramModal
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 program={program}
-                projects={myProjects}
+                projects={projectsForApply}
                 connectedAddress={connectedAddress}
                 onApplied={handleApplied}
               />

@@ -299,6 +299,15 @@ export type ApiProgramSignup = {
   createdAt?: string;
 };
 
+/** Public, PII-free project card from GET /programs/:slug/projects. */
+export type ApiProgramProject = {
+  name: string;
+  description?: string | null;
+  repoUrl?: string | null;
+  docsUrl?: string | null;
+  tags: string[];
+};
+
 /** Summary returned by POST /programs/:slug/signups/import. */
 export type ProgramSignupImportSummary = {
   dryRun: boolean;
@@ -1223,6 +1232,19 @@ export const api = {
       headers: adminAuthHeaders(authHeader),
     });
     return { status: "success" };
+  },
+
+  // --- Program projects (public, PII-free aggregate from signups) ---
+
+  listProgramProjects: async (
+    slug: string,
+  ): Promise<{ status: string; data: ApiProgramProject[]; meta: { count: number } }> => {
+    if (USE_MOCK_DATA) {
+      const { projectCardsFromMockSignups } = await import("./mockPrograms");
+      const data = projectCardsFromMockSignups(slug);
+      return { status: "success", data, meta: { count: data.length } };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/projects`);
   },
 
   // --- Program signups (Luma CSV) ---
