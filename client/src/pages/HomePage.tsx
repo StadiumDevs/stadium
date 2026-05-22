@@ -275,7 +275,7 @@ const HomePage = () => {
             </h1>
           </div>
           <p className="text-body text-base md:text-lg max-w-xl leading-relaxed">
-            Stuff people have built here.
+            Stuff people build here. Browse our programs, leave your mark.
           </p>
 
           <div className="pt-8">

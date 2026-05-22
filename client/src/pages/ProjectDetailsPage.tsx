@@ -16,12 +16,6 @@ import {
   AlertTriangle,
   Upload,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +61,7 @@ function SummaryWithBullets({ text }: { text: string }) {
   const bulletPattern = /^[-•*·]\s+/;
   const lines = text.split("\n");
   return (
-    <ul className="list-disc pl-4 space-y-1 text-sm text-muted-foreground leading-relaxed">
+    <ul className="list-disc pl-4 space-y-1 text-body text-sm leading-relaxed">
       {lines.map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) return <li key={i} className="list-none h-2" aria-hidden="true" />;
@@ -971,10 +965,10 @@ const ProjectDetailsPage = () => {
             {/* Tabs Section */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="milestones">Milestones</TabsTrigger>
-                <TabsTrigger value="team">Team & Payments</TabsTrigger>
-                <TabsTrigger value="updates">Updates</TabsTrigger>
+                <TabsTrigger value="overview" className="font-mono text-[10px] sm:text-[11px] tracking-[0.12em] uppercase">Overview</TabsTrigger>
+                <TabsTrigger value="milestones" className="font-mono text-[10px] sm:text-[11px] tracking-[0.12em] uppercase">Milestones</TabsTrigger>
+                <TabsTrigger value="team" className="font-mono text-[10px] sm:text-[11px] tracking-[0.12em] uppercase">Team &amp; Payments</TabsTrigger>
+                <TabsTrigger value="updates" className="font-mono text-[10px] sm:text-[11px] tracking-[0.12em] uppercase">Updates</TabsTrigger>
               </TabsList>
 
               {/* Overview Tab */}
@@ -1007,109 +1001,104 @@ const ProjectDetailsPage = () => {
 
                 {/* Final Deliverables */}
                 {project.finalSubmission && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <FileText className="w-5 h-5" />
-                        Final Deliverables
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                  <div className="panel p-4">
+                    <div className="label-hw text-display mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4" aria-hidden="true" /> ·FINAL DELIVERABLES
+                    </div>
+                    <div className="space-y-2">
                       {project.liveUrl && project.liveUrl !== "nan" && (
-                        <a 
+                        <a
                           href={project.liveUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                          className="flex items-center gap-3 p-3 border border-hairline hover:bg-panel-deep transition-colors"
                         >
-                          <Globe className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                          <Globe className="w-4 h-4 text-label-mid" aria-hidden="true" />
                           <div className="flex-1">
-                            <div className="text-sm font-medium">Live site</div>
-                            <div className="text-xs text-muted-foreground">Visit the project</div>
+                            <div className="font-mono text-[11px] tracking-wide text-display">LIVE SITE</div>
+                            <div className="label-hw-dim">Visit the project</div>
                           </div>
-                          <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                          <ExternalLink className="w-3.5 h-3.5 text-label-mid" aria-hidden="true" />
                         </a>
                       )}
-                      <a 
+                      <a
                         href={project.finalSubmission.repoUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        className="flex items-center gap-3 p-3 border border-hairline hover:bg-panel-deep transition-colors"
                       >
-                        <Github className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                        <Github className="w-4 h-4 text-label-mid" aria-hidden="true" />
                         <div className="flex-1">
-                          <div className="text-sm font-medium">GitHub Repository</div>
-                          <div className="text-xs text-muted-foreground">View source code</div>
+                          <div className="font-mono text-[11px] tracking-wide text-display">GITHUB REPOSITORY</div>
+                          <div className="label-hw-dim">View source code</div>
                         </div>
-                        <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        <ExternalLink className="w-3.5 h-3.5 text-label-mid" aria-hidden="true" />
                       </a>
-                      
-                      <a 
+
+                      <a
                         href={project.finalSubmission.demoUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        className="flex items-center gap-3 p-3 border border-hairline hover:bg-panel-deep transition-colors"
                       >
-                        <Video className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                        <Video className="w-4 h-4 text-label-mid" aria-hidden="true" />
                         <div className="flex-1">
-                          <div className="text-sm font-medium">Demo Video</div>
-                          <div className="text-xs text-muted-foreground">Watch the demo</div>
+                          <div className="font-mono text-[11px] tracking-wide text-display">DEMO VIDEO</div>
+                          <div className="label-hw-dim">Watch the demo</div>
                         </div>
-                        <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        <ExternalLink className="w-3.5 h-3.5 text-label-mid" aria-hidden="true" />
                       </a>
-                      
-                      <a 
+
+                      <a
                         href={project.finalSubmission.docsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                        className="flex items-center gap-3 p-3 border border-hairline hover:bg-panel-deep transition-colors"
                       >
-                        <FileText className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                        <FileText className="w-4 h-4 text-label-mid" aria-hidden="true" />
                         <div className="flex-1">
-                          <div className="text-sm font-medium">Documentation</div>
-                          <div className="text-xs text-muted-foreground">View docs</div>
+                          <div className="font-mono text-[11px] tracking-wide text-display">DOCUMENTATION</div>
+                          <div className="label-hw-dim">View docs</div>
                         </div>
-                        <ExternalLink className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                        <ExternalLink className="w-3.5 h-3.5 text-label-mid" aria-hidden="true" />
                       </a>
-                      
+
                       {project.finalSubmission.summary && (
-                        <div className="mt-4 p-4 bg-muted/20 rounded-lg">
-                          <h4 className="text-sm font-medium mb-2">Summary:</h4>
+                        <div className="mt-3 p-3 border border-hairline">
+                          <div className="label-hw-dim mb-2">·SUMMARY</div>
                           <SummaryWithBullets text={project.finalSubmission.summary} />
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* No final submission: show placeholder or fallback for completed/under_review */}
                 {!project.finalSubmission && (
-                  <Card>
-                    <CardContent className="py-8 text-center">
-                      <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                      {project.m2Status === 'completed' || project.m2Status === 'under_review' ? (
-                        <>
-                          <h3 className="font-medium mb-2">Deliverables not recorded</h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            This project was marked {project.m2Status === 'completed' ? 'completed' : 'under review'} but no final submission (repo, demo, docs) was stored. You can submit or update deliverables below to add them here.
-                          </p>
-                          {project.liveUrl && project.liveUrl !== "nan" && (
-                            <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-primary hover:underline">
-                              <Globe className="h-4 w-4" />
-                              <span>Visit live site</span>
-                            </a>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <h3 className="font-medium mb-2">No Deliverables Yet</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Final deliverables will appear here once the team submits them.
-                          </p>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
+                  <div className="panel p-8 text-center">
+                    <FileText className="w-10 h-10 mx-auto text-label-mid mb-4" aria-hidden="true" />
+                    {project.m2Status === 'completed' || project.m2Status === 'under_review' ? (
+                      <>
+                        <div className="label-hw text-display mb-2">·DELIVERABLES NOT RECORDED</div>
+                        <p className="text-body text-sm mb-4 max-w-md mx-auto">
+                          This project was marked {project.m2Status === 'completed' ? 'completed' : 'under review'} but no final submission (repo, demo, docs) was stored. You can submit or update deliverables below to add them here.
+                        </p>
+                        {project.liveUrl && project.liveUrl !== "nan" && (
+                          <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5">
+                            <Globe className="h-3 w-3" aria-hidden="true" />
+                            VISIT LIVE SITE
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="label-hw text-display mb-2">·NO DELIVERABLES YET</div>
+                        <p className="text-body text-sm max-w-md mx-auto">
+                          Final deliverables will appear here once the team submits them.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 )}
               </TabsContent>
 
@@ -1162,81 +1151,75 @@ const ProjectDetailsPage = () => {
 
                     {/* Submission Status for building/under_review */}
                     {(project.m2Status === 'building' || project.m2Status === 'under_review') && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Submission Status</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {project.m2Status === 'under_review' && project.finalSubmission ? (
-                            <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/30">
-                              <div className="flex items-center gap-3 mb-2">
-                                <Clock className="w-5 h-5 text-yellow-500" aria-hidden="true" />
-                                <span className="font-medium text-lg">Under Review</span>
+                      <div className="panel p-4">
+                        <div className="label-hw text-display mb-3">·SUBMISSION STATUS</div>
+                        {project.m2Status === 'under_review' && project.finalSubmission ? (
+                          <div className="bg-yellow-500/10 p-4 border border-yellow-500/30">
+                            <div className="flex items-center gap-3 mb-2">
+                              <Clock className="w-4 h-4 text-yellow-500" aria-hidden="true" />
+                              <span className="font-mono text-[12px] tracking-wide text-display">UNDER REVIEW</span>
+                            </div>
+                            <p className="text-body text-sm">
+                              Submitted on {new Date(project.finalSubmission.submittedDate).toLocaleDateString('en-US', {
+                                month: 'long',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {project.changesRequested && (
+                              <div className="bg-yellow-500/10 p-4 border border-yellow-500/30">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <AlertTriangle className="w-4 h-4 text-yellow-500" aria-hidden="true" />
+                                  <span className="font-mono text-[12px] tracking-wide text-display">CHANGES REQUESTED</span>
+                                </div>
+                                <div className="border border-hairline p-3">
+                                  <p className="text-body text-sm whitespace-pre-wrap">{project.changesRequested.feedback}</p>
+                                </div>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                Submitted on {new Date(project.finalSubmission.submittedDate).toLocaleDateString('en-US', { 
-                                  month: 'long', 
-                                  day: 'numeric', 
-                                  year: 'numeric' 
-                                })}
+                            )}
+
+                            <div className="border border-hairline p-4">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-2 h-2 rounded-full bg-blue-500" aria-hidden="true" />
+                                <span className="font-mono text-[11px] tracking-wide text-display">
+                                  STATUS: {project.changesRequested ? 'RESUBMISSION REQUIRED' : 'NOT YET SUBMITTED'}
+                                </span>
+                              </div>
+                              <p className="text-body text-sm">
+                                {project.changesRequested
+                                  ? 'Please address the requested changes and resubmit'
+                                  : 'Available for submission starting Week 5'
+                                }
                               </p>
                             </div>
-                          ) : (
-                            <div className="space-y-4">
-                              {project.changesRequested && (
-                                <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/30">
-                                  <div className="flex items-center gap-3 mb-3">
-                                    <AlertTriangle className="w-5 h-5 text-yellow-500" aria-hidden="true" />
-                                    <span className="font-medium text-lg">Changes Requested</span>
-                                  </div>
-                                  <div className="bg-muted/30 rounded p-3">
-                                    <p className="text-sm whitespace-pre-wrap">{project.changesRequested.feedback}</p>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              <div className="bg-muted/30 rounded-lg p-4">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" aria-hidden="true" />
-                                  <span className="font-medium">
-                                    Status: {project.changesRequested ? 'Resubmission Required' : 'Not yet submitted'}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  {project.changesRequested 
-                                    ? 'Please address the requested changes and resubmit'
-                                    : 'Available for submission starting Week 5'
-                                  }
-                                </p>
-                              </div>
-                              
-                              {/* Submission button */}
-                              {isTeamMember && isSubmissionWeek && (
-                                <Button 
-                                  className="w-full"
-                                  size="lg"
-                                  onClick={() => setFinalSubmissionModalOpen(true)}
-                                >
-                                  <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
-                                  {project.changesRequested ? 'Resubmit M2 Deliverables' : 'Submit M2 Deliverables'}
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
+
+                            {/* Submission button */}
+                            {isTeamMember && isSubmissionWeek && (
+                              <Button
+                                className="w-full"
+                                size="lg"
+                                onClick={() => setFinalSubmissionModalOpen(true)}
+                              >
+                                <Upload className="w-4 h-4 mr-2" aria-hidden="true" />
+                                {project.changesRequested ? 'Resubmit M2 Deliverables' : 'Submit M2 Deliverables'}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </>
                 ) : (
-                  <Card>
-                    <CardContent className="py-8 text-center">
-                      <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="font-medium mb-2">Not in M2 Program</h3>
-                      <p className="text-sm text-muted-foreground">
-                        This project is not currently enrolled in the M2 Incubator program.
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <div className="panel p-8 text-center">
+                    <Clock className="w-10 h-10 mx-auto text-label-mid mb-4" aria-hidden="true" />
+                    <div className="label-hw text-display mb-2">·NOT IN M2 PROGRAM</div>
+                    <p className="text-body text-sm max-w-md mx-auto">
+                      This project is not currently enrolled in the M2 Incubator program.
+                    </p>
+                  </div>
                 )}
               </TabsContent>
 
