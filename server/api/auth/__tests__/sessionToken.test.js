@@ -3,6 +3,7 @@ import {
   issueSessionToken,
   verifySessionToken,
   extractBearerToken,
+  assertSessionSecret,
   _resetCacheForTests,
 } from '../sessionToken.js';
 
@@ -78,6 +79,26 @@ describe('issueSessionToken + verifySessionToken', () => {
     expect(() => issueSessionToken({ address: 'a', chain: 'substrate' })).toThrow(
       /ADMIN_SESSION_SECRET/,
     );
+  });
+});
+
+describe('assertSessionSecret (boot-time validation)', () => {
+  it('passes when the secret is configured and long enough', () => {
+    process.env.ADMIN_SESSION_SECRET = FRESH_SECRET;
+    _resetCacheForTests();
+    expect(() => assertSessionSecret()).not.toThrow();
+  });
+
+  it('throws at boot when the secret is missing', () => {
+    delete process.env.ADMIN_SESSION_SECRET;
+    _resetCacheForTests();
+    expect(() => assertSessionSecret()).toThrow(/ADMIN_SESSION_SECRET/);
+  });
+
+  it('throws at boot when the secret is too short', () => {
+    process.env.ADMIN_SESSION_SECRET = 'short';
+    _resetCacheForTests();
+    expect(() => assertSessionSecret()).toThrow(/ADMIN_SESSION_SECRET/);
   });
 
   it('uses the configured TTL when present', () => {

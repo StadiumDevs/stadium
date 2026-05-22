@@ -9,6 +9,7 @@ import walletContactRoutes from './api/routes/wallet-contact.routes.js';
 import adminSessionRoutes from './api/routes/admin-session.routes.js';
 import adminTiersRoutes from './api/routes/admin-tiers.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
+import { assertSessionSecret } from './api/auth/sessionToken.js';
 import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
 const app = express();
@@ -136,6 +137,9 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
     try {
+        // Fail fast if the session-signing secret is missing/too short, rather
+        // than at the first admin sign-in.
+        assertSessionSecret();
         await connectToSupabase();
         app.listen(PORT, () => {
             console.log(`✅ Server is running on port ${PORT}`);
