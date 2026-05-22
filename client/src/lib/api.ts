@@ -299,10 +299,13 @@ export type ApiProgramSignup = {
   createdAt?: string;
 };
 
-/** Public, PII-free project aggregate from GET /programs/:slug/projects. */
+/** Public, PII-free project card from GET /programs/:slug/projects. */
 export type ApiProgramProject = {
-  project: string;
-  count: number;
+  name: string;
+  description?: string | null;
+  repoUrl?: string | null;
+  docsUrl?: string | null;
+  tags: string[];
 };
 
 /** Summary returned by POST /programs/:slug/signups/import. */
@@ -1237,8 +1240,8 @@ export const api = {
     slug: string,
   ): Promise<{ status: string; data: ApiProgramProject[]; meta: { count: number } }> => {
     if (USE_MOCK_DATA) {
-      const { projectSummaryFromMockSignups } = await import("./mockPrograms");
-      const data = projectSummaryFromMockSignups(slug);
+      const { projectCardsFromMockSignups } = await import("./mockPrograms");
+      const data = projectCardsFromMockSignups(slug);
       return { status: "success", data, meta: { count: data.length } };
     }
     return request(`/programs/${encodeURIComponent(slug)}/projects`);

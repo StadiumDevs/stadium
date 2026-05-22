@@ -178,19 +178,35 @@ export const mockProgramSponsors: Record<string, ApiProgramSponsor[]> = {
   ],
 };
 
-// Illustrative PitchOff! Denver signups so the preview renders the public
-// PROJECTS aggregate. Attendee fields are placeholders — only the "which
-// project" raw_row column drives the public view.
-const PITCHOFF_PROJECT_COL = "Which project would you like to try?";
-const pitchoffSignup = (n: number, project: string): ApiProgramSignup => ({
+// PitchOff! Denver builder submissions (preview/mock only — prod reads
+// Supabase). BEST-EFFORT transcription from the responses screenshot: names +
+// tools are as legible as the export allowed; descriptions and repo/doc URLs
+// were not readable and are left blank pending the real CSV import (#143).
+// Telegram/contact fields are intentionally omitted (PII).
+const BUILD_COL = "What did you build?";
+const REPO_COL = "GitHub or other repo URL";
+const DOCS_COL = "README or project doc link";
+const TOOLS_COL = "Built with (tools)";
+
+const builderSignup = (
+  n: number,
+  name: string,
+  tools: string,
+  extra: { description?: string; repo?: string; docs?: string } = {},
+): ApiProgramSignup => ({
   id: `pitchoff-signup-${n}`,
   programId: "pitchoff-2026-denver",
-  email: `attendee${n}@example.com`,
-  name: `Attendee ${n}`,
+  email: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}@telegram.imported`,
+  name,
   wallet: null,
   registeredAt: "2026-02-21T18:00:00Z",
   source: "luma",
-  rawRow: { [PITCHOFF_PROJECT_COL]: project },
+  rawRow: {
+    [BUILD_COL]: extra.description ?? "",
+    [REPO_COL]: extra.repo ?? "",
+    [DOCS_COL]: extra.docs ?? "",
+    [TOOLS_COL]: tools,
+  },
   importedInBatchAt: "2026-02-22T00:00:00Z",
   createdAt: "2026-02-22T00:00:00Z",
 });
@@ -198,44 +214,62 @@ const pitchoffSignup = (n: number, project: string): ApiProgramSignup => ({
 /** Per-program signup fixtures (mock mode). */
 export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
   "pitchoff-2026-denver": [
-    pitchoffSignup(1, "Proof of Thought"),
-    pitchoffSignup(2, "Chain of Providence"),
-    pitchoffSignup(3, "Proof of Thought"),
-    pitchoffSignup(4, "Sproto Gremlins"),
-    pitchoffSignup(5, "Proof of Thought"),
-    pitchoffSignup(6, "Chain of Providence"),
-    pitchoffSignup(7, "Sproto Gremlins"),
-    pitchoffSignup(8, "Proof of Thought"),
+    builderSignup(1, "Abha Pankesh & Pratyush Sawant", "Claude"),
+    builderSignup(2, "Aditya Parmar", "Claude, Cursor, Codex"),
+    builderSignup(3, "Stephen Phillips", "Next.js, Hardhat"),
+    builderSignup(4, "Sergey Buryin", "Cursor, React"),
+    builderSignup(5, "Michael Fitzpatrick", "Claude"),
+    builderSignup(6, "Laura Walker", "Replit, ChatGPT"),
   ],
 };
 
-// Mirror of the server's project-summary aggregation (program-signup.service):
-// group signups by the raw_row column whose header mentions "project",
-// returning [{ project, count }] sorted by count desc then alpha. PII-free.
-export function projectSummaryFromMockSignups(
-  slug: string,
-): Array<{ project: string; count: number }> {
+// Mirror of the server's project-card derivation (program-signup.service):
+// one signup row = one public-safe project card; fields detected from raw_row
+// by header keyword; PII columns ignored; empty cards dropped.
+const MOCK_PII_RE = /email|telegram|phone|contact|discord|whatsapp|wallet|address/i;
+const MOCK_TITLE_RE = /project\s*(name|title)|name of (the )?project/i;
+const MOCK_BUILD_RE = /what did you build|describe|description|elevator|pitch/i;
+const MOCK_REPO_RE = /github|gitlab|repo/i;
+const MOCK_DOCS_RE = /readme|\bdoc(s|ument)?\b|deck|slide|notion|figma|loom|demo/i;
+const MOCK_TAGS_RE = /tool|stack|built with|\btags?\b|tech/i;
+
+function mockPick(raw: Record<string, unknown>, re: RegExp): string | null {
+  for (const key of Object.keys(raw)) {
+    if (re.test(key) && !MOCK_PII_RE.test(key)) {
+      const v = raw[key];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+  }
+  return null;
+}
+
+const mockIsUrl = (s: string | null): s is string => !!s && /^https?:\/\/\S+/i.test(s.trim());
+
+export function projectCardsFromMockSignups(slug: string): Array<{
+  name: string;
+  description?: string | null;
+  repoUrl?: string | null;
+  docsUrl?: string | null;
+  tags: string[];
+}> {
   const signups = mockProgramSignups[slug] || [];
-  if (signups.length === 0) return [];
-  let projectKey: string | null = null;
+  const cards = [];
   for (const s of signups) {
-    const raw = s.rawRow;
-    if (!raw) continue;
-    const key = Object.keys(raw).find((k) => /project/i.test(k));
-    if (key) { projectKey = key; break; }
+    const raw = (s.rawRow ?? {}) as Record<string, unknown>;
+    const repoRaw = mockPick(raw, MOCK_REPO_RE);
+    const docsRaw = mockPick(raw, MOCK_DOCS_RE);
+    const tagsRaw = mockPick(raw, MOCK_TAGS_RE);
+    const card = {
+      name: mockPick(raw, MOCK_TITLE_RE) || (s.name ? s.name.trim() : null) || "Untitled project",
+      description: mockPick(raw, MOCK_BUILD_RE),
+      repoUrl: mockIsUrl(repoRaw) ? repoRaw : null,
+      docsUrl: mockIsUrl(docsRaw) ? docsRaw : null,
+      tags: tagsRaw ? tagsRaw.split(/[,;/|]+/).map((t) => t.trim()).filter(Boolean).slice(0, 8) : [],
+    };
+    if (!card.description && !card.repoUrl && !card.docsUrl && card.tags.length === 0) continue;
+    cards.push(card);
   }
-  if (!projectKey) return [];
-  const counts = new Map<string, number>();
-  for (const s of signups) {
-    const value = s.rawRow?.[projectKey];
-    if (typeof value !== "string") continue;
-    const name = value.trim();
-    if (!name) continue;
-    counts.set(name, (counts.get(name) || 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([project, count]) => ({ project, count }))
-    .sort((a, b) => b.count - a.count || a.project.localeCompare(b.project));
+  return cards;
 }
 
 /**

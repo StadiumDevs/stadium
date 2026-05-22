@@ -7,52 +7,71 @@ vi.mock('../../repositories/program-signup.repository.js', () => ({
 const signupRepository = (await import('../../repositories/program-signup.repository.js')).default;
 const signupService = (await import('../program-signup.service.js')).default;
 
-const signup = (raw) => ({ id: Math.random().toString(36), email: 'x@y.z', rawRow: raw });
+const signup = (raw, name = null) => ({ id: Math.random().toString(36), email: 'x@y.z', name, rawRow: raw });
 
-describe('ProgramSignupService.projectSummaryByProgramId', () => {
+describe('ProgramSignupService.projectCardsByProgramId', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns [] when there are no signups', async () => {
     signupRepository.listByProgramId.mockResolvedValue([]);
-    expect(await signupService.projectSummaryByProgramId('p1')).toEqual([]);
+    expect(await signupService.projectCardsByProgramId('p1')).toEqual([]);
   });
 
-  it('returns [] when no raw_row column mentions "project"', async () => {
+  it('maps a builder-submission row to a public-safe card', async () => {
     signupRepository.listByProgramId.mockResolvedValue([
-      signup({ Name: 'Ada', Telegram: '@ada' }),
+      signup(
+        {
+          'What did you build?': 'A zk proof-of-thought engine.',
+          'GitHub or other repo URL': 'https://github.com/acme/pot',
+          'README or project doc link': 'https://docs.google.com/d/abc',
+          'Built with (tools)': 'Claude, Cursor, Codex',
+          'Please provide your Telegram contact': '@secret_handle',
+        },
+        'Ada Lovelace',
+      ),
     ]);
-    expect(await signupService.projectSummaryByProgramId('p1')).toEqual([]);
+    const [card] = await signupService.projectCardsByProgramId('p1');
+    expect(card).toEqual({
+      name: 'Ada Lovelace',
+      description: 'A zk proof-of-thought engine.',
+      repoUrl: 'https://github.com/acme/pot',
+      docsUrl: 'https://docs.google.com/d/abc',
+      tags: ['Claude', 'Cursor', 'Codex'],
+    });
   });
 
-  it('aggregates by the project column, sorted by count desc then alpha', async () => {
+  it('never leaks PII columns (telegram/email/contact)', async () => {
     signupRepository.listByProgramId.mockResolvedValue([
-      signup({ Name: 'A', 'Which project would you like to try?': 'Proof of Thought' }),
-      signup({ Name: 'B', 'Which project would you like to try?': 'Chain of Providence' }),
-      signup({ Name: 'C', 'Which project would you like to try?': 'Proof of Thought' }),
-      signup({ Name: 'D', 'Which project would you like to try?': 'Proof of Thought' }),
-      signup({ Name: 'E', 'Which project would you like to try?': 'Chain of Providence' }),
+      signup(
+        {
+          'What did you build?': 'Thing',
+          'Telegram contact': '@handle',
+          Email: 'real@person.com',
+        },
+        'Builder',
+      ),
     ]);
-    const result = await signupService.projectSummaryByProgramId('p1');
-    expect(result).toEqual([
-      { project: 'Proof of Thought', count: 3 },
-      { project: 'Chain of Providence', count: 2 },
-    ]);
+    const [card] = await signupService.projectCardsByProgramId('p1');
+    const blob = JSON.stringify(card);
+    expect(blob).not.toContain('@handle');
+    expect(blob).not.toContain('real@person.com');
   });
 
-  it('trims values, ignores empty/whitespace/non-string, and never leaks PII', async () => {
+  it('drops non-URL repo/doc values and rows with no project signal', async () => {
     signupRepository.listByProgramId.mockResolvedValue([
-      signup({ 'Project pick': '  Sproto Gremlins  ' }),
-      signup({ 'Project pick': '' }),
-      signup({ 'Project pick': '   ' }),
-      signup({ 'Project pick': 42 }),
-      signup({ 'Project pick': 'Sproto Gremlins' }),
-      signup(null),
+      signup({ 'GitHub repo': 'N/A', 'README link': 'tbd' }, 'NoLinks'),
+      signup({ 'What did you build?': 'Real one', 'GitHub repo': 'https://github.com/a/b' }, 'Real'),
     ]);
-    const result = await signupService.projectSummaryByProgramId('p1');
-    expect(result).toEqual([{ project: 'Sproto Gremlins', count: 2 }]);
-    // PII-free: every entry has only the two safe keys.
-    for (const row of result) {
-      expect(Object.keys(row).sort()).toEqual(['count', 'project']);
-    }
+    const cards = await signupService.projectCardsByProgramId('p1');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({ name: 'Real', repoUrl: 'https://github.com/a/b' });
+  });
+
+  it('falls back to "Untitled project" when no name is available', async () => {
+    signupRepository.listByProgramId.mockResolvedValue([
+      signup({ 'What did you build?': 'Anon build' }, null),
+    ]);
+    const [card] = await signupService.projectCardsByProgramId('p1');
+    expect(card.name).toBe('Untitled project');
   });
 });

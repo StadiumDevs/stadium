@@ -425,18 +425,52 @@ const ProgramDetailPage = () => {
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·PROJECTS</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {projects.map((p) => (
-                    <div
-                      key={p.project}
-                      className="lcd px-3 py-2 flex items-center justify-between gap-3"
-                    >
-                      <span className="text-body text-sm leading-snug">{p.project}</span>
-                      <span
-                        className="border border-hairline text-label-mid bg-panel-deep px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase whitespace-nowrap"
-                        title={`${p.count} ${p.count === 1 ? "person" : "people"} interested`}
-                      >
-                        {p.count} INTERESTED
-                      </span>
+                  {projects.map((p, i) => (
+                    <div key={`${p.name}-${i}`} className="lcd p-3 space-y-2">
+                      <div className="font-display text-base tracking-tight text-display uppercase leading-tight">
+                        {p.name}
+                      </div>
+                      {p.description && (
+                        <p className="text-body text-sm leading-relaxed line-clamp-4">
+                          {p.description}
+                        </p>
+                      )}
+                      {p.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {p.tags.map((t) => (
+                            <span
+                              key={t}
+                              className="border border-hairline text-label-mid px-2 py-[1px] font-mono text-[10px] tracking-[0.12em] uppercase"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {(p.repoUrl || p.docsUrl) && (
+                        <div className="flex flex-wrap gap-3 pt-1">
+                          {p.repoUrl && (
+                            <a
+                              href={p.repoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[11px] text-display hover:underline break-all"
+                            >
+                              REPO ▸
+                            </a>
+                          )}
+                          {p.docsUrl && (
+                            <a
+                              href={p.docsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[11px] text-display hover:underline break-all"
+                            >
+                              DOCS ▸
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

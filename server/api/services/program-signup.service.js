@@ -1,20 +1,35 @@
 import signupRepository from '../repositories/program-signup.repository.js';
 import { parseLumaCsv } from '../utils/luma-csv.parser.js';
 
-// Heuristic: the signup CSV's "which project…" column lands in raw_row under
-// its original header. We don't know the exact wording per export, so match any
-// header mentioning "project". First match wins.
-const PROJECT_KEY_RE = /project/i;
+// Builder-submission signups carry rich per-project fields in raw_row under
+// their original headers. We detect each field by header keyword, skipping any
+// header that looks like PII so contact details never reach the public view.
+const PII_RE = /email|telegram|phone|contact|discord|whatsapp|wallet|address/i;
+const TITLE_RE = /project\s*(name|title)|name of (the )?project/i;
+const BUILD_RE = /what did you build|describe|description|elevator|pitch/i;
+const REPO_RE = /github|gitlab|repo/i;
+const DOCS_RE = /readme|\bdoc(s|ument)?\b|deck|slide|notion|figma|loom|demo/i;
+const TAGS_RE = /tool|stack|built with|\btags?\b|tech/i;
 
-function findProjectKey(signups) {
-  for (const s of signups) {
-    const raw = s.rawRow;
-    if (!raw || typeof raw !== 'object') continue;
-    for (const key of Object.keys(raw)) {
-      if (PROJECT_KEY_RE.test(key)) return key;
+function pickValue(raw, re) {
+  for (const key of Object.keys(raw)) {
+    if (re.test(key) && !PII_RE.test(key)) {
+      const v = raw[key];
+      if (typeof v === 'string' && v.trim()) return v.trim();
     }
   }
   return null;
+}
+
+const isUrl = (s) => typeof s === 'string' && /^https?:\/\/\S+/i.test(s.trim());
+
+function toTags(value) {
+  if (!value) return [];
+  return value
+    .split(/[,;/|]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 8);
 }
 
 class ProgramSignupService {
@@ -27,31 +42,33 @@ class ProgramSignupService {
   }
 
   /**
-   * Aggregate the distinct projects attendees picked, from the signup raw_row
-   * column whose header mentions "project". Returns [{ project, count }] sorted
-   * by count desc (ties broken alphabetically). PII-free by construction — only
-   * project labels + counts are returned, never attendee rows.
+   * Public, PII-free project cards derived from builder-submission signups.
+   * One signup row = one project. Fields are detected from raw_row by header
+   * keyword; contact/PII columns are never read. Returns
+   * [{ name, description, repoUrl, docsUrl, tags }]. Cards with neither a
+   * description nor any link are dropped (likely non-builder rows).
    */
-  async projectSummaryByProgramId(programId) {
+  async projectCardsByProgramId(programId) {
     const signups = await signupRepository.listByProgramId(programId);
-    if (!signups.length) return [];
-
-    const projectKey = findProjectKey(signups);
-    if (!projectKey) return [];
-
-    const counts = new Map();
+    const cards = [];
     for (const s of signups) {
-      const raw = s.rawRow;
-      if (!raw || typeof raw !== 'object') continue;
-      const value = raw[projectKey];
-      if (typeof value !== 'string') continue;
-      const name = value.trim();
-      if (!name) continue;
-      counts.set(name, (counts.get(name) || 0) + 1);
+      const raw = s.rawRow && typeof s.rawRow === 'object' ? s.rawRow : {};
+      const repoRaw = pickValue(raw, REPO_RE);
+      const docsRaw = pickValue(raw, DOCS_RE);
+      const card = {
+        name: pickValue(raw, TITLE_RE) || (s.name ? s.name.trim() : null) || 'Untitled project',
+        description: pickValue(raw, BUILD_RE),
+        repoUrl: isUrl(repoRaw) ? repoRaw : null,
+        docsUrl: isUrl(docsRaw) ? docsRaw : null,
+        tags: toTags(pickValue(raw, TAGS_RE)),
+      };
+      // Drop rows that carry no project signal at all.
+      if (!card.description && !card.repoUrl && !card.docsUrl && card.tags.length === 0) {
+        continue;
+      }
+      cards.push(card);
     }
-    return [...counts.entries()]
-      .map(([project, count]) => ({ project, count }))
-      .sort((a, b) => b.count - a.count || a.project.localeCompare(b.project));
+    return cards;
   }
 
   /**

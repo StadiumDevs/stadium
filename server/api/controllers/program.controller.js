@@ -522,7 +522,7 @@ class ProgramController {
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
-      const projects = await programSignupService.projectSummaryByProgramId(program.id);
+      const projects = await programSignupService.projectCardsByProgramId(program.id);
       res.status(200).json({
         status: 'success',
         data: projects,
