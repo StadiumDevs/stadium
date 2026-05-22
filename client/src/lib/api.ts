@@ -252,6 +252,41 @@ export type ApiAuditLogEntry = {
 };
 
 /** Shape of a row in the `programs` table (Phase 1 revamp). */
+/** A single curated link on a lineup item (website, docs, more-info). */
+export type ProgramContentLink = { label: string; url: string };
+
+/** One product/project showcased in a `lineup` content section. */
+export type ProgramLineupItem = {
+  name: string;
+  blurb?: string;
+  tryItems?: string[];
+  links?: ProgramContentLink[];
+};
+
+/** One verbatim highlight in a `feedback` content section. */
+export type ProgramFeedbackItem = {
+  product?: string;
+  quote: string;
+  rating?: string;
+  recommend?: boolean;
+};
+
+/** One metric tile in a `stats` content section. */
+export type ProgramStat = { label: string; value: string };
+
+/**
+ * Ordered, typed section that renders as an on-brand panel on the program
+ * detail page. Stored as JSONB in `programs.content`; reusable per program.
+ */
+export type ProgramContentSection =
+  | { type: "text"; title?: string; body: string }
+  | { type: "steps"; title?: string; items: string[] }
+  | { type: "schedule"; title?: string; rows: { time: string; label: string }[] }
+  | { type: "lineup"; title?: string; items: ProgramLineupItem[] }
+  | { type: "stats"; title?: string; items: ProgramStat[] }
+  | { type: "feedback"; title?: string; items: ProgramFeedbackItem[] }
+  | { type: "cta"; title?: string; label: string; url: string };
+
 export type ApiProgram = {
   id: string;
   name: string;
@@ -267,6 +302,7 @@ export type ApiProgram = {
   location?: string | null;
   maxApplicants?: number | null;
   eventUrl?: string | null;
+  content?: ProgramContentSection[] | null;
   createdAt?: string;
   updatedAt?: string;
 };

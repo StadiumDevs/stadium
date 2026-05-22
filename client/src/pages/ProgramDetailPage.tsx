@@ -19,6 +19,7 @@ import { useWalletAuth } from "@/lib/auth/useWalletAuth";
 import { isAdmin } from "@/lib/constants";
 import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
+import { ProgramContent } from "@/components/program/ProgramContent";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
   if (!from && !to) return null;
@@ -363,6 +364,8 @@ const ProgramDetailPage = () => {
                 </p>
               </div>
             )}
+
+            <ProgramContent sections={program.content} />
 
             {(applicationsRange || eventRange || program.eventUrl) && (
               <div className="panel p-4 mb-4">
