@@ -60,8 +60,9 @@ export function ProgramSpaces({ programs }: { programs: ApiProgram[] }) {
         </div>
       </div>
       <p className="text-body text-sm md:text-base max-w-2xl leading-relaxed mb-3">
-        WebZero is where builders ship — then keep going. Start at a hackathon, go deeper in M2,
-        get real feedback at a dogfooding, and put it in front of the room at PitchOff. Find your lane.
+        WebZero is where the best people come together in the same room to explore their creative
+        potential — and build something cool. Each program is tied to a specific event, with prizes
+        ranging from cash to event tickets to exclusive merch.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {SPACES.map(({ type, label, blurb, href, Icon }) => {
