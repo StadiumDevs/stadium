@@ -323,7 +323,7 @@ export function TeamPaymentSection({
             {/* Row 1: Name and Role */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground">Name *</Label>
+                <Label className="text-xs text-label-dim">Name *</Label>
                 <Input
                   value={member.name}
                   onChange={(e) => updateMember(index, 'name', e.target.value)}
@@ -332,7 +332,7 @@ export function TeamPaymentSection({
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Role</Label>
+                <Label className="text-xs text-label-dim">Role</Label>
                 <Input
                   value={member.role || ""}
                   onChange={(e) => updateMember(index, 'role', e.target.value)}
@@ -345,7 +345,7 @@ export function TeamPaymentSection({
             {/* Row 2: Wallet Address + chain */}
             <div className="grid grid-cols-[1fr_auto] gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground">Wallet Address</Label>
+                <Label className="text-xs text-label-dim">Wallet Address</Label>
                 <Input
                   value={member.walletAddress || ""}
                   onChange={(e) => updateMember(index, 'walletAddress', e.target.value)}
@@ -354,7 +354,7 @@ export function TeamPaymentSection({
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Chain</Label>
+                <Label className="text-xs text-label-dim">Chain</Label>
                 <Select
                   value={member.walletChain || 'substrate'}
                   onValueChange={(v) => updateMemberChain(index, v as WalletChain)}
@@ -374,7 +374,7 @@ export function TeamPaymentSection({
             {/* Row 3: Social Links */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Label className="text-xs text-label-dim flex items-center gap-1">
                   <Twitter className="h-3 w-3" /> Twitter
                 </Label>
                 <Input
@@ -385,7 +385,7 @@ export function TeamPaymentSection({
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Label className="text-xs text-label-dim flex items-center gap-1">
                   <Github className="h-3 w-3" /> GitHub
                 </Label>
                 <Input
@@ -399,7 +399,7 @@ export function TeamPaymentSection({
             
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Label className="text-xs text-label-dim flex items-center gap-1">
                   <Linkedin className="h-3 w-3" /> LinkedIn
                 </Label>
                 <Input
@@ -410,7 +410,7 @@ export function TeamPaymentSection({
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Label className="text-xs text-label-dim flex items-center gap-1">
                   <Globe className="h-3 w-3" /> Website
                 </Label>
                 <Input
@@ -481,7 +481,7 @@ export function TeamPaymentSection({
               teamMembers.length > 0 ? (
                 teamMembers.map((member, index) => renderReadOnlyMember(member, index))
               ) : (
-                <p className="text-sm text-muted-foreground">No team members listed</p>
+                <p className="text-sm text-label-dim">No team members listed</p>
               )
             )}
           </div>
@@ -499,7 +499,7 @@ export function TeamPaymentSection({
           {/* Payout Address */}
           {isEditing ? (
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Payout Wallet Address</Label>
+              <Label className="text-xs text-label-dim">Payout Wallet Address</Label>
               <div className="grid grid-cols-[1fr_auto] gap-3">
                 <Input
                   value={editedPayoutAddress}
@@ -521,7 +521,7 @@ export function TeamPaymentSection({
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-label-dim">
                 This address will receive M2 milestone payments. Automated payouts
                 run on Polkadot; other chains are settled manually.
               </p>

@@ -3,7 +3,6 @@ import { ChevronDown, ChevronUp, FastForward, Music, Rewind, Volume2, VolumeX } 
 import { useBrightness } from "@/hooks/use-brightness";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useSoundCloudAudio } from "@/components/audio/use-sound-cloud-audio";
-import { solarBrightness } from "@/lib/solar";
 import { cn } from "@/lib/utils";
 
 interface BrightnessRackProps {
@@ -22,28 +21,39 @@ function formatTime(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// 4-hour clock ticks plotted at the brightness % the solar curve would produce
-// for that hour today. Computed once per session — positions don't drift within a
-// day at human-visible resolution.
-function buildHourTicks(): Array<{ hour: number; brightness: number; label: string }> {
-  const base = new Date();
-  base.setMinutes(0, 0, 0);
-  return [0, 4, 8, 12, 16, 20].map((h) => {
-    const d = new Date(base);
-    d.setHours(h);
-    return {
-      hour: h,
-      brightness: solarBrightness(d),
-      label: `${String(h).padStart(2, "0")}h`,
-    };
-  });
+// Time-of-day ruler: 4-hour clock ticks laid out left→right by the hour itself
+// (0h at the far left, ~24h at the far right) so the numbering reads in order and
+// matches the actual hour. (Plotting by solar brightness made 8h/16h collide.)
+const DAY_HOURS = 24;
+const hourPct = (hour: number) => (hour / DAY_HOURS) * 100;
+
+function buildHourTicks(): Array<{ hour: number; label: string }> {
+  return [0, 4, 8, 12, 16, 20].map((h) => ({
+    hour: h,
+    label: `${String(h).padStart(2, "0")}h`,
+  }));
 }
+
+// Day-phase anchors at their approximate clock times (see lib/solar.ts:
+// sunrise ~6:30, solar noon ~13:00, sunset ~19:30).
+const PHASE_MARKS: Array<{ label: string; hour: number }> = [
+  { label: "NIGHT", hour: 0 },
+  { label: "DAWN", hour: 6.5 },
+  { label: "NOON", hour: 13 },
+  { label: "DUSK", hour: 19.5 },
+];
 
 export function BrightnessRack({ className }: BrightnessRackProps) {
   const {
     brightness, mode, phase, paletteKey, palettes, solarTarget, collapsed,
     setBrightness, setAuto, setPalette, setCollapsed,
   } = useBrightness();
+
+  // Where "now" sits on the time-of-day ruler. Recomputed each render; the
+  // brightness hook re-renders this component on its minute interval, so it
+  // stays approximately current without its own timer.
+  const now = new Date();
+  const nowPct = ((now.getHours() + now.getMinutes() / 60) / DAY_HOURS) * 100;
 
   // Audio state lives in a provider above the router (persists across nav).
   const { muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek } =
@@ -115,21 +125,21 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             {/* Track */}
             <div className="absolute top-[7px] left-0 right-0 h-1 bg-panel-deep border border-hairline" />
 
-            {/* Hour ticks — every 4h plotted at its solar-brightness position */}
+            {/* Hour ticks — every 4h, laid out by time of day */}
             {hourTicks.map((t) => (
               <div
                 key={t.hour}
                 className="absolute top-[3px] w-px h-2 bg-hairline pointer-events-none"
-                style={{ left: `calc(${t.brightness}% - 0.5px)` }}
+                style={{ left: `calc(${hourPct(t.hour)}% - 0.5px)` }}
                 aria-hidden="true"
               />
             ))}
 
-            {/* Solar tick — shows where AUTO would place the dial */}
+            {/* "Now" tick — current time on the day ruler */}
             <div
               className="absolute top-0 w-[2px] h-[18px] bg-led pointer-events-none transition-all duration-1000 ease-out"
               style={{
-                left: `calc(${solarTarget}% - 1px)`,
+                left: `calc(${nowPct}% - 1px)`,
                 boxShadow: '0 0 4px hsl(var(--led))',
               }}
               aria-hidden="true"
@@ -167,18 +177,24 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
               <span
                 key={t.hour}
                 className="absolute label-hw-dim text-[8px] -translate-x-1/2 tabular-nums"
-                style={{ left: `${t.brightness}%` }}
+                style={{ left: `${hourPct(t.hour)}%` }}
               >
                 {t.label}
               </span>
             ))}
           </div>
 
-          <div className="flex justify-between mt-0.5 label-hw-dim text-[8px]">
-            <span>NIGHT</span>
-            <span>DAWN</span>
-            <span>DAY</span>
-            <span>NOON</span>
+          {/* Day-phase anchors at their approximate clock times */}
+          <div className="relative h-[10px] mt-0.5">
+            {PHASE_MARKS.map((p) => (
+              <span
+                key={p.label}
+                className="absolute label-hw-dim text-[8px] -translate-x-1/2"
+                style={{ left: `${hourPct(p.hour)}%` }}
+              >
+                {p.label}
+              </span>
+            ))}
           </div>
         </div>
 
