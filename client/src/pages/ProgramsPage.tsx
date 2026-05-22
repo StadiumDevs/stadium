@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { api, type ApiProgram } from "@/lib/api";
 
@@ -26,9 +26,16 @@ const ProgramsPage = () => {
     };
   }, []);
 
-  const openPrograms = programs.filter((p) => p.status === "open");
+  const [searchParams] = useSearchParams();
+  const typeFilter = searchParams.get("type");
+  const typeLabel = typeFilter
+    ? PROGRAM_TYPE_LABEL[typeFilter as ApiProgram["programType"]] ?? typeFilter.toUpperCase()
+    : null;
+  const matchesType = (p: ApiProgram) => !typeFilter || p.programType === typeFilter;
+
+  const openPrograms = programs.filter((p) => p.status === "open" && matchesType(p));
   const pastPrograms = programs.filter(
-    (p) => p.status === "completed" || p.status === "closed",
+    (p) => (p.status === "completed" || p.status === "closed") && matchesType(p),
   );
 
   return (
@@ -37,7 +44,12 @@ const ProgramsPage = () => {
 
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">
-          <div className="label-hw-dim mb-2">·PROGRAMS / OPEN</div>
+          <div className="label-hw-dim mb-2 flex items-center gap-2">
+            <span>·PROGRAMS / {typeLabel ?? "OPEN"}</span>
+            {typeFilter && (
+              <Link to="/programs" className="text-display hover:underline">· ALL ▸</Link>
+            )}
+          </div>
           <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-2">
             Programs
           </h1>
