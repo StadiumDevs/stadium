@@ -407,6 +407,113 @@ export const ALLOWED_PROGRAM_TYPES = ['dogfooding', 'pitch_off', 'hackathon', 'm
 export const ALLOWED_PROGRAM_STATUSES = ['draft', 'open', 'closed', 'completed'];
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+// --- Program content (templatable, typed sections rendered as panels) ---
+
+export const ALLOWED_CONTENT_TYPES = [
+  'text', 'steps', 'schedule', 'lineup', 'stats', 'feedback', 'cta',
+];
+
+const isStr = (v, min, max) =>
+  typeof v === 'string' && v.length >= min && v.length <= max;
+const isOptStr = (v, max) =>
+  v === undefined || v === null || (typeof v === 'string' && v.length <= max);
+const isHttpUrl = (v, max) =>
+  typeof v === 'string' && v.length <= max && /^https?:\/\//i.test(v);
+const isArr = (v, max) => Array.isArray(v) && v.length <= max;
+
+const validateSection = (s, i) => {
+  const where = `content[${i}]`;
+  if (!s || typeof s !== 'object' || Array.isArray(s)) {
+    return `${where} must be an object`;
+  }
+  if (!ALLOWED_CONTENT_TYPES.includes(s.type)) {
+    return `${where}.type must be one of: ${ALLOWED_CONTENT_TYPES.join(', ')}`;
+  }
+  if (!isOptStr(s.title, 200)) return `${where}.title must be a string (max 200)`;
+
+  switch (s.type) {
+    case 'text':
+      if (!isStr(s.body, 1, 6000)) return `${where}.body is required (1–6000 chars)`;
+      return null;
+    case 'steps':
+      if (!isArr(s.items, 50)) return `${where}.items must be an array (max 50)`;
+      if (!s.items.every((it) => isStr(it, 1, 500))) {
+        return `${where}.items must be strings (1–500 chars)`;
+      }
+      return null;
+    case 'schedule':
+      if (!isArr(s.rows, 50)) return `${where}.rows must be an array (max 50)`;
+      for (const r of s.rows) {
+        if (!r || typeof r !== 'object') return `${where}.rows[] must be objects`;
+        if (!isStr(r.time, 1, 60)) return `${where}.rows[].time is required (1–60 chars)`;
+        if (!isStr(r.label, 1, 200)) return `${where}.rows[].label is required (1–200 chars)`;
+      }
+      return null;
+    case 'lineup':
+      if (!isArr(s.items, 50)) return `${where}.items must be an array (max 50)`;
+      for (const it of s.items) {
+        if (!it || typeof it !== 'object') return `${where}.items[] must be objects`;
+        if (!isStr(it.name, 1, 200)) return `${where}.items[].name is required (1–200 chars)`;
+        if (!isOptStr(it.blurb, 2000)) return `${where}.items[].blurb must be a string (max 2000)`;
+        if (it.tryItems !== undefined) {
+          if (!isArr(it.tryItems, 30) || !it.tryItems.every((t) => isStr(t, 1, 500))) {
+            return `${where}.items[].tryItems must be an array of strings (max 30, 1–500 chars)`;
+          }
+        }
+        if (it.links !== undefined) {
+          if (!isArr(it.links, 20)) return `${where}.items[].links must be an array (max 20)`;
+          for (const l of it.links) {
+            if (!l || typeof l !== 'object') return `${where}.items[].links[] must be objects`;
+            if (!isStr(l.label, 1, 120)) return `${where}.items[].links[].label is required (1–120 chars)`;
+            if (!isHttpUrl(l.url, 500)) return `${where}.items[].links[].url must be an http(s) URL (max 500)`;
+          }
+        }
+      }
+      return null;
+    case 'stats':
+      if (!isArr(s.items, 20)) return `${where}.items must be an array (max 20)`;
+      for (const it of s.items) {
+        if (!it || typeof it !== 'object') return `${where}.items[] must be objects`;
+        if (!isStr(it.label, 1, 120)) return `${where}.items[].label is required (1–120 chars)`;
+        if (!isStr(it.value, 1, 60)) return `${where}.items[].value is required (1–60 chars)`;
+      }
+      return null;
+    case 'feedback':
+      if (!isArr(s.items, 100)) return `${where}.items must be an array (max 100)`;
+      for (const it of s.items) {
+        if (!it || typeof it !== 'object') return `${where}.items[] must be objects`;
+        if (!isStr(it.quote, 1, 2000)) return `${where}.items[].quote is required (1–2000 chars)`;
+        if (!isOptStr(it.product, 120)) return `${where}.items[].product must be a string (max 120)`;
+        if (!isOptStr(it.rating, 20)) return `${where}.items[].rating must be a string (max 20)`;
+        if (it.recommend !== undefined && typeof it.recommend !== 'boolean') {
+          return `${where}.items[].recommend must be a boolean`;
+        }
+      }
+      return null;
+    case 'cta':
+      if (!isStr(s.label, 1, 200)) return `${where}.label is required (1–200 chars)`;
+      if (!isHttpUrl(s.url, 500)) return `${where}.url must be an http(s) URL (max 500)`;
+      return null;
+    default:
+      return `${where}.type is not supported`;
+  }
+};
+
+export const validateProgramContent = (content) => {
+  if (content === null || content === undefined) return { valid: true };
+  if (!Array.isArray(content)) {
+    return { valid: false, error: 'content must be an array or null' };
+  }
+  if (content.length > 40) {
+    return { valid: false, error: 'content may have at most 40 sections' };
+  }
+  for (let i = 0; i < content.length; i += 1) {
+    const err = validateSection(content[i], i);
+    if (err) return { valid: false, error: err };
+  }
+  return { valid: true };
+};
+
 export const validateProgram = (data, { partial = false } = {}) => {
   if (!data || typeof data !== 'object') {
     return { valid: false, error: 'Program payload must be an object' };
@@ -457,6 +564,10 @@ export const validateProgram = (data, { partial = false } = {}) => {
     if (!/^https?:\/\//i.test(data.eventUrl)) {
       return { valid: false, error: 'eventUrl must start with http:// or https://' };
     }
+  }
+  if (has('content')) {
+    const c = validateProgramContent(data.content);
+    if (!c.valid) return c;
   }
 
   const isoOrNull = (val) => {
