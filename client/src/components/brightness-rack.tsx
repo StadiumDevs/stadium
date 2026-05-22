@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, ChevronUp, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { useBrightness } from "@/hooks/use-brightness";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { solarBrightness } from "@/lib/solar";
@@ -16,18 +16,35 @@ interface SCSound {
   genre?: string | null;
 }
 
+interface SCProgress {
+  currentPosition?: number;
+}
+
 interface SCWidget {
-  bind(event: string, cb: () => void): void;
+  bind(event: string, cb: (data?: SCProgress) => void): void;
   play(): void;
   pause(): void;
+  next(): void;
+  prev(): void;
+  seekTo(milliseconds: number): void;
   setVolume(volume: number): void;
   getCurrentSound(cb: (sound: SCSound | null) => void): void;
+  getDuration(cb: (milliseconds: number) => void): void;
 }
 
 interface SCNamespace {
   Widget: ((iframe: HTMLIFrameElement) => SCWidget) & {
-    Events: { READY: string; PLAY: string };
+    Events: { READY: string; PLAY: string; PLAY_PROGRESS: string };
   };
+}
+
+// SoundCloud reports times in ms. Render as m:ss.
+function formatTime(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "0:00";
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 declare global {
@@ -117,6 +134,12 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
   const [muted, setMuted] = useState(true);
   // Now-playing metadata pulled from the widget: current track title + genre.
   const [nowPlaying, setNowPlaying] = useState("");
+  // Transport state for the seek slider: current position + track length (ms).
+  const [positionMs, setPositionMs] = useState(0);
+  const [durationMs, setDurationMs] = useState(0);
+  // Timestamp of the last user seek — suppresses PLAY_PROGRESS snap-back for a
+  // brief window so the thumb doesn't fight the user mid-drag.
+  const lastSeekRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,14 +154,27 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             const parts = [sound.title, sound.genre].filter(Boolean);
             setNowPlaying(parts.join(" · "));
           });
+          widget.getDuration((ms) => {
+            if (!cancelled) setDurationMs(ms || 0);
+          });
         };
         widget.bind(window.SC.Widget.Events.READY, () => {
           widget.setVolume(0);
           widget.play();
           refreshTrack();
         });
-        // Each time a new track starts, refresh the displayed title + genre.
-        widget.bind(window.SC.Widget.Events.PLAY, refreshTrack);
+        // Each time a new track starts, refresh title + genre + duration, reset position.
+        widget.bind(window.SC.Widget.Events.PLAY, () => {
+          setPositionMs(0);
+          refreshTrack();
+        });
+        // Advance the seek thumb as the track plays (ignored briefly after a seek).
+        widget.bind(window.SC.Widget.Events.PLAY_PROGRESS, (data) => {
+          if (cancelled || Date.now() - lastSeekRef.current < 400) return;
+          if (data && typeof data.currentPosition === "number") {
+            setPositionMs(data.currentPosition);
+          }
+        });
       })
       .catch(() => {
         // Network-blocked or offline — leave audio inert; UI still works.
@@ -146,6 +182,22 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const playNext = useCallback(() => {
+    widgetRef.current?.next();
+    setPositionMs(0);
+  }, []);
+
+  const playPrev = useCallback(() => {
+    widgetRef.current?.prev();
+    setPositionMs(0);
+  }, []);
+
+  const handleSeek = useCallback((ms: number) => {
+    lastSeekRef.current = Date.now();
+    setPositionMs(ms);
+    widgetRef.current?.seekTo(ms);
   }, []);
 
   const toggleAudio = useCallback(() => {
@@ -363,61 +415,137 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
           />
         </div>
 
-        {/* Audio — artist credit + external links + mute toggle */}
-        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-hairline-subtle">
-          <span className="label-hw min-w-[78px]">AUDIO</span>
-          <span className="font-mono text-[11px] text-display tabular-nums shrink-0">
-            pommeshdrms
-          </span>
-          {nowPlaying && (
-            <span
-              className="label-hw-dim truncate min-w-0"
-              title={nowPlaying}
-            >
-              · {nowPlaying}
+        {/* Audio — curated music: artist credit, transport + seek, external links */}
+        <div className="mt-2 pt-2 border-t border-hairline-subtle space-y-2">
+          {/* Row 1 — artist credit + now playing + links + mute */}
+          <div className="flex items-center gap-3">
+            <span className="label-hw min-w-[78px]">AUDIO</span>
+            <span className="font-mono text-[11px] text-display tabular-nums shrink-0">
+              pommeshdrms
             </span>
-          )}
-          <span className="flex-1" />
-          <a
-            href="https://soundcloud.com/pommeshdrms"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="pommeshdrms on SoundCloud (opens in new tab)"
-            title="pommeshdrms on SoundCloud"
-            className="lcd px-2 py-1 label-hw-dim hover:text-display transition-colors duration-200"
-          >
-            SC
-          </a>
-          <a
-            href="https://www.instagram.com/pommes_hdrms"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="pommes_hdrms on Instagram (opens in new tab)"
-            title="pommes_hdrms on Instagram"
-            className="lcd px-2 py-1 label-hw-dim hover:text-display transition-colors duration-200"
-          >
-            IG
-          </a>
-          <button
-            type="button"
-            onClick={toggleAudio}
-            aria-label={muted ? "Unmute audio" : "Mute audio"}
-            aria-pressed={!muted}
-            title={muted ? "Unmute audio" : "Mute audio"}
-            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group"
-          >
-            {muted ? (
-              <VolumeX
+            {nowPlaying && (
+              <span className="label-hw-dim truncate min-w-0" title={nowPlaying}>
+                · {nowPlaying}
+              </span>
+            )}
+            <span className="flex-1" />
+            <a
+              href="https://soundcloud.com/pommeshdrms"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="pommeshdrms on SoundCloud (opens in new tab)"
+              title="pommeshdrms on SoundCloud"
+              className="lcd px-2 py-1 label-hw-dim hover:text-display transition-colors duration-200"
+            >
+              SC
+            </a>
+            <a
+              href="https://www.instagram.com/pommes_hdrms"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="pommes_hdrms on Instagram (opens in new tab)"
+              title="pommes_hdrms on Instagram"
+              className="lcd px-2 py-1 label-hw-dim hover:text-display transition-colors duration-200"
+            >
+              IG
+            </a>
+            <button
+              type="button"
+              onClick={toggleAudio}
+              aria-label={muted ? "Unmute audio" : "Mute audio"}
+              aria-pressed={!muted}
+              title={muted ? "Unmute audio" : "Mute audio"}
+              className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group"
+            >
+              {muted ? (
+                <VolumeX
+                  className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Volume2
+                  className="h-3.5 w-3.5 text-display transition-colors duration-150"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+          </div>
+
+          {/* Row 2 — transport: previous · seek · next + elapsed/total */}
+          <div className="flex items-center gap-2">
+            <span className="min-w-[78px]" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={playPrev}
+              aria-label="Previous track"
+              title="Previous track"
+              className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0"
+            >
+              <SkipBack
                 className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
                 aria-hidden="true"
               />
-            ) : (
-              <Volume2
-                className="h-3.5 w-3.5 text-display transition-colors duration-150"
+            </button>
+
+            <div className="flex-1 relative h-[18px]">
+              {/* Track */}
+              <div className="absolute top-[8px] left-0 right-0 h-[2px] bg-panel-deep border border-hairline" />
+              {/* Elapsed fill */}
+              <div
+                className="absolute top-[8px] left-0 h-[2px] bg-display pointer-events-none"
+                style={{ width: `${durationMs > 0 ? (positionMs / durationMs) * 100 : 0}%` }}
                 aria-hidden="true"
               />
-            )}
-          </button>
+              <input
+                type="range"
+                min={0}
+                max={durationMs > 0 ? durationMs : 1}
+                step={1000}
+                value={positionMs}
+                disabled={durationMs <= 0}
+                aria-label="Seek track position"
+                onChange={(e) => handleSeek(parseInt(e.target.value, 10))}
+                className={cn(
+                  "absolute inset-0 w-full h-[18px] bg-transparent appearance-none cursor-ew-resize z-10",
+                  "disabled:cursor-not-allowed",
+                  "[&::-webkit-slider-thumb]:appearance-none",
+                  "[&::-webkit-slider-thumb]:w-[10px] [&::-webkit-slider-thumb]:h-[14px]",
+                  "[&::-webkit-slider-thumb]:bg-gradient-to-b [&::-webkit-slider-thumb]:from-[#DDDDDD] [&::-webkit-slider-thumb]:to-[#888888]",
+                  "[&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-black",
+                  "[&::-webkit-slider-thumb]:cursor-ew-resize",
+                  "[&::-moz-range-thumb]:w-[10px] [&::-moz-range-thumb]:h-[14px]",
+                  "[&::-moz-range-thumb]:bg-[linear-gradient(180deg,#DDDDDD_0%,#888888_100%)]",
+                  "[&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-black",
+                  "[&::-moz-range-thumb]:rounded-none [&::-moz-range-thumb]:cursor-ew-resize",
+                )}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={playNext}
+              aria-label="Next track"
+              title="Next track"
+              className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0"
+            >
+              <SkipForward
+                className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+                aria-hidden="true"
+              />
+            </button>
+
+            <span className="label-hw-dim text-[9px] tabular-nums shrink-0 min-w-[66px] text-right">
+              {formatTime(positionMs)} / {formatTime(durationMs)}
+            </span>
+          </div>
+
+          {/* Row 3 — curation framing */}
+          <div className="flex items-center gap-3">
+            <span className="min-w-[78px]" aria-hidden="true" />
+            <span className="label-hw-dim text-[8px] tracking-[0.18em]">
+              FEATURING ARTISTS WE LOVE
+            </span>
+          </div>
         </div>
       </div>
     </>
