@@ -7,8 +7,8 @@ import { parseLumaCsv } from '../utils/luma-csv.parser.js';
 const PII_RE = /email|telegram|phone|contact|discord|whatsapp|wallet|address/i;
 const TITLE_RE = /project\s*(name|title)|name of (the )?project/i;
 const BUILD_RE = /what did you build|describe|description|elevator|pitch/i;
-const REPO_RE = /github|gitlab|repo/i;
-const DOCS_RE = /readme|\bdoc(s|ument)?\b|deck|slide|notion|figma|loom|demo/i;
+const REPO_RE = /github|gitlab|\brepo\b|demo/i;
+const DOCS_RE = /readme|\bdoc(s|ument)?\b|deck|slide|notion|figma|loom/i;
 const TAGS_RE = /tool|stack|built with|\btags?\b|tech/i;
 
 function pickValue(raw, re) {
@@ -26,7 +26,7 @@ const isUrl = (s) => typeof s === 'string' && /^https?:\/\/\S+/i.test(s.trim());
 function toTags(value) {
   if (!value) return [];
   return value
-    .split(/[,;/|]+/)
+    .split(/[,;|]+/)
     .map((t) => t.trim())
     .filter(Boolean)
     .slice(0, 8);

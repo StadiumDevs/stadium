@@ -121,4 +121,23 @@ describe('parseLumaCsv', () => {
     expect(r.rows[0].email).toBe('cleo@example.com');
     expect(r.rows[0].telegram).toBe('@cleo');
   });
+
+  it('parses the real PitchOff! header shape (Team member name(s), Main Telegram contact)', async () => {
+    const csv = [
+      '#,Team member name(s),Main Telegram contact,What did you build?,Github link or demo URL,README or project doc link,What tools did you use?',
+      'abc123,Aditya Parmar,avp1598,Onchain AI provenance,https://github.com/avp1598/polkadot_hack,https://github.com/avp1598/polkadot_hack/blob/main/README.md,"Claude, Cursor and Codex"',
+    ].join('\n');
+    const r = await parseLumaCsv(csv);
+    expect(r.skipped).toBe(0);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0]).toMatchObject({
+      name: 'Aditya Parmar',
+      email: 'avp1598@telegram.imported',
+      telegram: 'avp1598',
+    });
+    expect(r.rows[0].rawRow['What did you build?']).toBe('Onchain AI provenance');
+    expect(r.rows[0].rawRow['Github link or demo URL']).toBe(
+      'https://github.com/avp1598/polkadot_hack',
+    );
+  });
 });

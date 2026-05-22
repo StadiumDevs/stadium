@@ -179,33 +179,30 @@ export const mockProgramSponsors: Record<string, ApiProgramSponsor[]> = {
 };
 
 // PitchOff! Denver builder submissions (preview/mock only — prod reads
-// Supabase). BEST-EFFORT transcription from the responses screenshot: names +
-// tools are as legible as the export allowed; descriptions and repo/doc URLs
-// were not readable and are left blank pending the real CSV import (#143).
-// Telegram/contact fields are intentionally omitted (PII).
+// Supabase). Real data from the event's responses CSV, projected to the
+// public-safe fields only. Telegram/contact + dates are intentionally omitted.
 const BUILD_COL = "What did you build?";
-const REPO_COL = "GitHub or other repo URL";
+const REPO_COL = "Github link or demo URL";
 const DOCS_COL = "README or project doc link";
-const TOOLS_COL = "Built with (tools)";
+const TOOLS_COL = "What tools did you use?";
 
 const builderSignup = (
   n: number,
   name: string,
-  tools: string,
-  extra: { description?: string; repo?: string; docs?: string } = {},
+  fields: { build?: string; repo?: string; docs?: string; tools?: string },
 ): ApiProgramSignup => ({
   id: `pitchoff-signup-${n}`,
   programId: "pitchoff-2026-denver",
-  email: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}@telegram.imported`,
+  email: `pitchoff-${n}@telegram.imported`,
   name,
   wallet: null,
-  registeredAt: "2026-02-21T18:00:00Z",
+  registeredAt: "2026-02-20T21:00:00Z",
   source: "luma",
   rawRow: {
-    [BUILD_COL]: extra.description ?? "",
-    [REPO_COL]: extra.repo ?? "",
-    [DOCS_COL]: extra.docs ?? "",
-    [TOOLS_COL]: tools,
+    [BUILD_COL]: fields.build ?? "",
+    [REPO_COL]: fields.repo ?? "",
+    [DOCS_COL]: fields.docs ?? "",
+    [TOOLS_COL]: fields.tools ?? "",
   },
   importedInBatchAt: "2026-02-22T00:00:00Z",
   createdAt: "2026-02-22T00:00:00Z",
@@ -214,12 +211,73 @@ const builderSignup = (
 /** Per-program signup fixtures (mock mode). */
 export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
   "pitchoff-2026-denver": [
-    builderSignup(1, "Abha Pankesh & Pratyush Sawant", "Claude"),
-    builderSignup(2, "Aditya Parmar", "Claude, Cursor, Codex"),
-    builderSignup(3, "Stephen Phillips", "Next.js, Hardhat"),
-    builderSignup(4, "Sergey Buryin", "Cursor, React"),
-    builderSignup(5, "Michael Fitzpatrick", "Claude"),
-    builderSignup(6, "Laura Walker", "Replit, ChatGPT"),
+    builderSignup(1, "Niha Parkash, Pratyush Sawant", {
+      build:
+        "ThoughtLock — a local-first idea vault. Write an idea and lock it; the app hashes your content locally (SHA-256, plaintext never leaves your machine) and submits the hash to a smart contract on Polkadot Hub, giving a tamper-proof, timestamped proof of existence you can verify later.",
+      docs: "https://docs.google.com/document/d/1kgp5yzakouJDrXYb0MqGfFpIp7KTyboHuQQKgOM2hP8/edit?usp=sharing",
+      tools: "Claude",
+    }),
+    builderSignup(2, "Aditya Parmar", {
+      build:
+        "Onchain verifiable AI provenance — prove what a public figure actually said versus a deepfake, by anchoring authenticity on-chain.",
+      repo: "https://github.com/avp1598/polkadot_hack",
+      docs: "https://github.com/avp1598/polkadot_hack/blob/main/README.md",
+      tools: "Claude, Cursor and Codex",
+    }),
+    builderSignup(3, "Stephen Phillips", {
+      build:
+        "Steal My Idea — prove you published an idea first by hashing your text locally and anchoring only the keccak256 hash on-chain, with author/timestamp/title and an optional bounty escrow released to a builder who ships it.",
+      repo: "https://github.com/TheHomelessCoder/hackathon",
+      docs: "https://github.com/TheHomelessCoder/hackathon/blob/main/README.md",
+      tools: "Next.js (App Router), Scaffold-DOT, Hardhat (PolkaVM), viem/wagmi, Reown AppKit",
+    }),
+    builderSignup(4, "Sergey, Kyrylo", {
+      build: "The tool to track things you learn.",
+      repo: "https://github.com/Norman882/PromptOff",
+      docs: "https://github.com/Norman882/PromptOff/blob/main/README.md",
+      tools: "Cursor, PAPI, React",
+    }),
+    builderSignup(5, "Rémi Destigny", {
+      build:
+        "Drop — a privacy-first contact exchange for conferences. Show a QR tied to your Polkadot address; the other person scans it, your on-chain identity resolves via the Polkadot People chain, and you both save each other locally. No server, no account, no data harvested.",
+      repo: "https://github.com/Furzel/drop",
+      docs: "https://github.com/Furzel/drop/blob/main/README.md",
+      tools: "Claude",
+    }),
+    builderSignup(6, "Shadman Samir, Jagrati Kumari", {
+      build:
+        "Proof of Thought — a private writing app. Everything you write stays on your device while the app creates a verifiable proof on Polkadot that the work is yours, without ever sharing the content.",
+      repo: "https://github.com/jkumari08/proof_of_thought",
+      docs: "https://github.com/jkumari08/proof_of_thought/blob/main/README.md",
+      tools: "Cursor, Claude Opus 4.6, Gemini 3.0 pro",
+    }),
+    builderSignup(7, "Michael Fitzpatrick", {
+      build:
+        "Chain of Thought — decentralized knowledge authorship. Publish ideas, cite each other's work, and fork existing ideas, all anchored on Polkadot (Westend Asset Hub) with content-hash provenance. Git for ideas, with blockchain-backed integrity.",
+      repo: "https://chain-of-thought-three.vercel.app/",
+      docs: "https://github.com/mfitz3/chain-of-thought/blob/main/README.md",
+      tools: "Claude",
+    }),
+    builderSignup(8, "Laura Walker", {
+      build:
+        "Compare Contacts — a privacy-first phone app to find mutual connections. Reads contacts locally, creates encrypted fingerprints, exchanges them phone-to-phone, and computes the intersection locally — only mutual contacts are revealed, no raw contacts transmitted.",
+      repo: "https://github.com/Laura314159/Compare-Contacts/",
+      tools: "Replit, ChatGPT",
+    }),
+    builderSignup(9, "Amar Kushwaha", {
+      build:
+        "ZeroGate — a local-first content unlocker. Pay once, own forever, no account. Replaces the Web2 “create account / subscribe” wall with peer-to-peer payments verified on Polkadot.",
+      repo: "https://github.com/kushwahaamar-dev/v0id",
+      docs: "https://github.com/kushwahaamar-dev/v0id/blob/main/README.md",
+      tools: "Antigravity, smoldot, papi, Next.js, Tailwind CSS",
+    }),
+    builderSignup(10, "Tomoko Kotaka", {
+      build:
+        "Proof Pad — write a note or idea, hit Stamp, and in seconds get a cryptographic certificate on Polkadot proving it was yours first. Nobody can claim it first — not Google, not anyone.",
+      repo: "https://simple-study-translator-quantumalphahou.replit.app",
+      docs: "https://github.com/QuantumAlphaCat/proof-pad/blob/main/README.md",
+      tools: "Claude, Replit",
+    }),
   ],
 };
 
@@ -229,8 +287,8 @@ export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
 const MOCK_PII_RE = /email|telegram|phone|contact|discord|whatsapp|wallet|address/i;
 const MOCK_TITLE_RE = /project\s*(name|title)|name of (the )?project/i;
 const MOCK_BUILD_RE = /what did you build|describe|description|elevator|pitch/i;
-const MOCK_REPO_RE = /github|gitlab|repo/i;
-const MOCK_DOCS_RE = /readme|\bdoc(s|ument)?\b|deck|slide|notion|figma|loom|demo/i;
+const MOCK_REPO_RE = /github|gitlab|\brepo\b|demo/i;
+const MOCK_DOCS_RE = /readme|\bdoc(s|ument)?\b|deck|slide|notion|figma|loom/i;
 const MOCK_TAGS_RE = /tool|stack|built with|\btags?\b|tech/i;
 
 function mockPick(raw: Record<string, unknown>, re: RegExp): string | null {
@@ -264,7 +322,7 @@ export function projectCardsFromMockSignups(slug: string): Array<{
       description: mockPick(raw, MOCK_BUILD_RE),
       repoUrl: mockIsUrl(repoRaw) ? repoRaw : null,
       docsUrl: mockIsUrl(docsRaw) ? docsRaw : null,
-      tags: tagsRaw ? tagsRaw.split(/[,;/|]+/).map((t) => t.trim()).filter(Boolean).slice(0, 8) : [],
+      tags: tagsRaw ? tagsRaw.split(/[,;|]+/).map((t) => t.trim()).filter(Boolean).slice(0, 8) : [],
     };
     if (!card.description && !card.repoUrl && !card.docsUrl && card.tags.length === 0) continue;
     cards.push(card);

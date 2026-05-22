@@ -25,17 +25,26 @@
 import { Readable } from 'node:stream';
 import csv from 'csv-parser';
 
-const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\s_()-]+/g, '');
 
 // Synonym groups — left side is canonical, right side is normalized header.
 const EMAIL_HEADERS = ['email', 'emailaddress', 'mail'];
-const NAME_HEADERS = ['name', 'fullname', 'attendeename', 'pleaseenteryourname', 'yourname'];
+const NAME_HEADERS = [
+  'name',
+  'fullname',
+  'attendeename',
+  'pleaseenteryourname',
+  'yourname',
+  'teammembername',
+  'teammembernames',
+];
 const WALLET_HEADERS = ['wallet', 'walletaddress', 'address', 'cryptowallet', 'web3wallet'];
 const TELEGRAM_HEADERS = [
   'telegram',
   'telegramhandle',
   'telegramusername',
   'telegramcontact',
+  'maintelegramcontact',
   'pleaseprovideyourtelegramcontact',
 ];
 const REGISTERED_AT_HEADERS = [
@@ -46,6 +55,8 @@ const REGISTERED_AT_HEADERS = [
   'rsvpedat',
   'approvedat',
   'submittedat',
+  'submitdateutc',
+  'startdateutc',
   'timestamp',
 ];
 
