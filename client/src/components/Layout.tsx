@@ -1,14 +1,7 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Outlet } from "react-router-dom";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const Layout = () => {
-  const location = useLocation();
-
-  const isActive = (path: string) => {
-    if (path === "/" && location.pathname === "/") return true;
-    if (path !== "/" && location.pathname.startsWith(path)) return true;
-    return false;
-  };
-
   return (
     <div className="min-h-screen bg-background">
       {/* Skip to main content link for keyboard navigation */}
@@ -24,76 +17,7 @@ const Layout = () => {
         <Outlet />
       </main>
 
-      {/* Footer */}
-      <footer className="border-t bg-muted/50 py-8 mt-16">
-        <div className="container">
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            
-            
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted-foreground">
-                Created with ❤️ by the cracked devs at {' '}
-                <a
-                  href="https://www.joinwebzero.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline transition-colors"
-                >
-                  WebZero
-                </a>
-              </span>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
-                <a
-                  href="https://luma.com/blockspace-symmetry"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline transition-colors"
-                >
-                  Blockspace Symmetry 2024
-                </a>
-                <span className="hidden sm:inline text-muted-foreground">•</span>
-                  <a
-                    href="https://luma.com/blockspacesynergy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline transition-colors"
-                  >
-                    Blockspace Synergy 2025
-                  </a>
-                  <span className="hidden sm:inline text-muted-foreground">•</span>
-                  <a
-                    href="https://luma.com/sub0hack"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline transition-colors"
-                  >
-                    sub0 Hack 2025
-                  </a>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                to="https://github.com/JoinWebZero/"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                GitHub
-              </Link>
-              <Link
-                to="https://x.com/JoinWebZero"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                X
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 };

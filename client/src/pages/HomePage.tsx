@@ -264,9 +264,16 @@ const HomePage = () => {
         {/* Hero */}
         <section className="pt-8 pb-10">
           <div className="label-hw-dim mb-3">·DIRECTORY / NOW SHOWING</div>
-          <h1 className="font-display text-6xl md:text-7xl lg:text-8xl uppercase tracking-tight text-display leading-[0.9] mb-4">
-            Stadium
-          </h1>
+          <div className="flex items-center gap-3 md:gap-4 mb-4">
+            <img
+              src="/favicon.svg"
+              alt="Stadium"
+              className="h-12 w-12 md:h-14 md:w-14 lg:h-16 lg:w-16 flex-shrink-0"
+            />
+            <h1 className="font-display text-6xl md:text-7xl lg:text-8xl uppercase tracking-tight text-display leading-[0.9]">
+              Stadium
+            </h1>
+          </div>
           <p className="text-body text-base md:text-lg max-w-xl leading-relaxed">
             Stuff people have built here.
           </p>
