@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
+import { UnitCard } from "@/components/unit-card";
 import { RotateCw } from "lucide-react";
 import { ChainPicker } from "@/components/auth/ChainPicker";
 import { getProvider } from "@/lib/auth/registry";
@@ -47,7 +48,9 @@ const ProgramDetailPage = () => {
   const [myApplications, setMyApplications] = useState<ApiProgramApplication[]>([]);
   const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
   const [projects, setProjects] = useState<ApiProgramProject[]>([]);
+  const [entries, setEntries] = useState<ApiProject[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
   // accepts admins). Without this branch, the page would dead-end at "You need to be a team member"
@@ -128,6 +131,20 @@ const ProgramDetailPage = () => {
       .listProgramProjects(slug)
       .then((r) => { if (active) setProjects(r.data); })
       .catch(() => { if (active) setProjects([]); });
+    return () => { active = false; };
+  }, [slug, program]);
+
+  // Stadium project entries belonging to this program (hackathons etc.).
+  // Server filters on hackathon_id, backfilled to match program slugs.
+  useEffect(() => {
+    if (!slug || !program) { setEntries([]); return; }
+    let active = true;
+    api
+      .getProjects({ hackathonId: slug, limit: 500 })
+      .then((r: { data?: ApiProject[] }) => {
+        if (active) setEntries(Array.isArray(r?.data) ? r.data : []);
+      })
+      .catch(() => { if (active) setEntries([]); });
     return () => { active = false; };
   }, [slug, program]);
 
@@ -421,7 +438,40 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
-            {projects.length > 0 && (
+            {entries.length > 0 && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·PROJECTS</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {entries.map((p, i) => {
+                    const isWinner = Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0;
+                    const dateStr = p.completionDate || p.submittedDate || p.hackathon?.endDate;
+                    const date = dateStr
+                      ? new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "2-digit" }).toUpperCase()
+                      : undefined;
+                    return (
+                      <UnitCard
+                        key={p.id}
+                        unitNumber={String(i + 1).padStart(3, "0")}
+                        title={p.projectName}
+                        author={p.teamMembers?.[0]?.name || "Unknown"}
+                        description={p.description}
+                        track={p.bountyPrize?.[0]?.name || p.categories?.[0] || "Other"}
+                        isWinner={isWinner}
+                        isM2={p.m2Status === "completed"}
+                        date={date}
+                        prize={p.bountyPrize?.[0]?.amount ? `$${p.bountyPrize[0].amount.toLocaleString()}` : undefined}
+                        demoUrl={p.demoUrl}
+                        githubUrl={p.projectRepo}
+                        projectUrl={`/m2-program/${p.id}`}
+                        onClick={() => navigate(`/m2-program/${p.id}`)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {entries.length === 0 && projects.length > 0 && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·PROJECTS</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

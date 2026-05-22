@@ -10,7 +10,8 @@ import { InputBus } from "@/components/input-bus";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { ProjectCardSkeleton } from "@/components/ProjectCardSkeleton";
 import { NoProjectsFound } from "@/components/EmptyState";
-import { api, type ApiProject, API_BASE_URL } from "@/lib/api";
+import { ProgramSpaces } from "@/components/program-spaces";
+import { api, type ApiProject, type ApiProgram, API_BASE_URL } from "@/lib/api";
 import { isMainTrackWinner } from "@/lib/projectUtils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -58,6 +59,7 @@ const HomePage = () => {
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [hackathons, setHackathons] = useState<{ id: string; name: string }[]>([]);
   const [allProjects, setAllProjects] = useState<ApiProject[]>([]);
+  const [allPrograms, setAllPrograms] = useState<ApiProgram[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -78,6 +80,7 @@ const HomePage = () => {
         const apiProjects: ApiProject[] = Array.isArray(projectsResp?.data) ? projectsResp.data : [];
         setAllProjects(apiProjects);
         setStatsLoading(false);
+        setAllPrograms(programsResp?.data ?? []);
         const eventPrograms = (programsResp?.data ?? []).filter(
           (p) => p.programType === "hackathon",
         );
@@ -291,6 +294,9 @@ const HomePage = () => {
             </div>
           </div>
         </section>
+
+        {/* Programs — entry point to all WebZero program types */}
+        <ProgramSpaces programs={allPrograms} />
 
         {/* Now Showing — single featured unit */}
         {featuredUnit && (
