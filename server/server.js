@@ -8,6 +8,7 @@ import programRoutes from './api/routes/program.routes.js';
 import walletContactRoutes from './api/routes/wallet-contact.routes.js';
 import adminSessionRoutes from './api/routes/admin-session.routes.js';
 import adminTiersRoutes from './api/routes/admin-tiers.routes.js';
+import authRoutes from './api/routes/auth.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
 import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
@@ -67,7 +68,7 @@ const allowOrigin = (origin, cb) => {
 app.use(cors({
     origin: allowOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-siws-auth', 'x-supabase-token'],
     credentials: true,
     optionsSuccessStatus: 200
 }));
@@ -82,6 +83,7 @@ app.use('/api/programs', programRoutes);
 app.use('/api/wallet-contacts', walletContactRoutes);
 app.use('/api/admin/session', sessionLimiter, adminSessionRoutes);
 app.use('/api/admin', adminTiersRoutes);
+app.use('/api/auth', authRoutes);
 
 // Backward compatibility: Keep old /api/projects route as alias
 // TODO: Remove after frontend migration is stable
