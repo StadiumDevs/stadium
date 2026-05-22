@@ -36,6 +36,8 @@ router.post(
   requireTeamMemberOrAdminByBodyProject,
   programController.createApplication,
 );
+// Public: someone without a Stadium project applies; emails the team (no auth).
+router.post('/:slug/applications/non-member', programController.submitNonMemberApplication);
 router.patch(
   '/:slug/applications/:applicationId',
   requireProgramAdmin('slug'),

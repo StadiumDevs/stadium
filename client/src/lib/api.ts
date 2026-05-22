@@ -1522,6 +1522,24 @@ export const api = {
   },
 
   /**
+   * Public: someone without a Stadium project applies to a program. Emails the
+   * team (info@ + cc sacha@); no auth. `company` is a honeypot — leave empty.
+   */
+  submitNonMemberApplication: async (
+    slug: string,
+    payload: { name: string; email: string; walletAddress?: string; pitch: string; company?: string },
+  ): Promise<{ status: string }> => {
+    if (USE_MOCK_DATA) {
+      return { status: "success" };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/applications/non-member`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * Per-event admins (Phase 3 #95). Read is gated on requireProgramAdmin
    * (global admins and per-program admins can list). Add/remove are gated
    * on requireAdmin (global admins only).
