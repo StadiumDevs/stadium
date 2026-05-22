@@ -125,7 +125,7 @@ export function M2AgreementSection({
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-2">
             <CheckCircle className="w-3.5 h-3.5 text-led" />
-            <span className="label-hw text-display">·CORE FEATURES — MUST COMPLETE</span>
+            <span className="label-hw text-display">·CORE FEATURES: MUST COMPLETE</span>
           </div>
           <div className="lcd p-4">
             <ul className="space-y-2">
@@ -184,7 +184,7 @@ export function M2AgreementSection({
           ) : (
             <div className="flex items-start gap-2 lcd p-3 border-destructive">
               <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-destructive flex-shrink-0" />
-              <p className="label-hw text-destructive">·ROADMAP LOCKED AFTER WEEK 4 — CONTACT YOUR MENTORS IF YOU NEED CHANGES.</p>
+              <p className="label-hw text-destructive">·ROADMAP LOCKED AFTER WEEK 4. CONTACT YOUR MENTORS IF YOU NEED CHANGES.</p>
             </div>
           )}
         </div>

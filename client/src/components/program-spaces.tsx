@@ -16,7 +16,7 @@ const SPACES: Space[] = [
   {
     type: "hackathon",
     label: "HACKATHONS",
-    blurb: "Weekend build sprints on Polkadot — ship something new, win bounties.",
+    blurb: "Weekend build sprints on Polkadot: ship something new, win bounties.",
     href: "/programs?type=hackathon",
     Icon: Zap,
   },
@@ -37,7 +37,7 @@ const SPACES: Space[] = [
   {
     type: "pitch_off",
     label: "PITCHOFF",
-    blurb: "Builders pitch live to the room — the crowd picks what's next.",
+    blurb: "Builders pitch live to the room, and the crowd picks what's next.",
     href: "/programs?type=pitch_off",
     Icon: Mic,
   },
@@ -61,7 +61,7 @@ export function ProgramSpaces({ programs }: { programs: ApiProgram[] }) {
       </div>
       <p className="text-body text-sm md:text-base max-w-2xl leading-relaxed mb-3">
         WebZero is where the best people come together in the same room to explore their creative
-        potential — and build something cool. Each program is tied to a specific event, with prizes
+        potential and build something cool. Each program is tied to a specific event, with prizes
         ranging from cash to event tickets to exclusive merch.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

@@ -110,7 +110,7 @@ export function SubmitM2DeliverablesModal({
         <div className="lcd p-3 flex items-start gap-2.5">
           <AlertTriangle className="h-3.5 w-3.5 text-display flex-shrink-0 mt-0.5" />
           <p className="text-sm text-body">
-            <span className="label-hw text-display">·BEFORE SUBMITTING — </span>
+            <span className="label-hw text-display">·BEFORE SUBMITTING: </span>
             make sure your code is complete, tested, and documented according to your M2 Agreement
             roadmap.
           </p>
@@ -229,7 +229,7 @@ export function SubmitM2DeliverablesModal({
           <div className="lcd p-3 flex items-start gap-2.5">
             <Lightbulb className="h-3.5 w-3.5 text-led flex-shrink-0 mt-0.5" />
             <p className="text-sm text-body">
-              <span className="label-hw text-led">·AFTER SUBMISSION — </span>
+              <span className="label-hw text-led">·AFTER SUBMISSION: </span>
               WebZero will review within 2-3 days. You'll be notified via email and can track status on this page.
             </p>
           </div>

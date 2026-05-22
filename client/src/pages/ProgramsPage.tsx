@@ -54,7 +54,7 @@ const ProgramsPage = () => {
             Programs
           </h1>
           <p className="text-body text-base max-w-2xl leading-relaxed">
-            Open opportunities to build with WebZero — continuation tracks for past winners and upcoming events.
+            Open opportunities to build with WebZero: continuation tracks for past winners and upcoming events.
           </p>
         </div>
 

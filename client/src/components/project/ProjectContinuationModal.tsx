@@ -101,7 +101,7 @@ export function ProjectContinuationModal({
         authHeader,
       );
       onSubmitted(res.data);
-      toast({ title: "Submitted — thanks for the update" });
+      toast({ title: "Submitted. Thanks for the update" });
       reset();
       onOpenChange(false);
     } catch (e) {
@@ -120,7 +120,7 @@ export function ProjectContinuationModal({
         <DialogHeader>
           <DialogTitle className="font-display tracking-tight">·WHAT'S NEXT, MILESTONE 3?</DialogTitle>
           <DialogDescription className="text-body">
-            Now that M2 is done — where is the project today, and what's the next step we should
+            Now that M2 is done, where is the project today, and what's the next step we should
             know about? Submissions go to the WebZero ops team.
           </DialogDescription>
         </DialogHeader>

@@ -109,7 +109,7 @@ export function AdminTierSection({
     } catch {
       toast({
         title: "Couldn't copy",
-        description: "Clipboard access denied — copy the wallet manually.",
+        description: "Clipboard access denied. Copy the wallet manually.",
         variant: "destructive",
       });
     }

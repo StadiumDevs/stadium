@@ -436,7 +436,7 @@ const AdminPage = () => {
 
           {projectsUnderReview.length === 0 ? (
             <p className="label-hw-dim py-6 text-center">
-              All M2 submissions are reviewed — nothing pending.
+              All M2 submissions are reviewed. Nothing pending.
             </p>
           ) : (
             <div className="space-y-3">
