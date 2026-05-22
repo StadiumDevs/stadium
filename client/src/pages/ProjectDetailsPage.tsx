@@ -858,7 +858,7 @@ const ProjectDetailsPage = () => {
           <div className="max-w-4xl mx-auto space-y-6">
             {/* Header Section — rack chrome */}
             <div className="space-y-4">
-              <div className="label-hw-dim">·UNIT / {project.id?.toUpperCase()}</div>
+              <div className="label-hw-dim">·ENTRY / {project.id?.toUpperCase()}</div>
 
               <div className="flex flex-wrap items-center gap-2">
                 {project.m2Status === 'completed' && (
