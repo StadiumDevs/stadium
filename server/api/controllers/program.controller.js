@@ -6,6 +6,7 @@ import programInboxService, { inboxToCsv } from '../services/program-inbox.servi
 import auditLog from '../services/program-audit-log.service.js';
 import projectService from '../services/project.service.js';
 import notificationService from '../services/notification.service.js';
+import nonMemberApplicationService, { validateNonMemberApplication } from '../services/non-member-application.service.js';
 import programAdminRepository from '../repositories/program-admin.repository.js';
 import programSignupRepository from '../repositories/program-signup.repository.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
@@ -531,6 +532,41 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error listing program projects:', error);
       res.status(500).json({ status: 'error', message: 'Failed to list program projects' });
+    }
+  }
+
+  // --- Non-member applications (public; emails the team) ---
+
+  async submitNonMemberApplication(req, res) {
+    try {
+      const { slug } = req.params;
+      // Honeypot: bots fill hidden fields. Silently accept without sending.
+      if (typeof req.body?.company === 'string' && req.body.company.trim() !== '') {
+        return res.status(200).json({ status: 'success' });
+      }
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const v = validateNonMemberApplication(req.body);
+      if (!v.ok) {
+        return res.status(400).json({ status: 'error', message: v.error });
+      }
+      const result = await nonMemberApplicationService.submit({
+        programName: program.name,
+        programSlug: program.slug,
+        ...v.value,
+      });
+      if (!result.ok) {
+        return res.status(503).json({
+          status: 'error',
+          message: 'Could not send your application right now. Please email info@joinwebzero.com directly.',
+        });
+      }
+      return res.status(200).json({ status: 'success' });
+    } catch (error) {
+      console.error('❌ Error submitting non-member application:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to submit application' });
     }
   }
 

@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
 import { isAdmin } from "@/lib/constants";
 import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
+import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
   if (!from && !to) return null;
@@ -50,6 +51,7 @@ const ProgramDetailPage = () => {
   const [projects, setProjects] = useState<ApiProgramProject[]>([]);
   const [entries, setEntries] = useState<ApiProject[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [nonMemberOpen, setNonMemberOpen] = useState(false);
   const navigate = useNavigate();
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
@@ -537,6 +539,17 @@ const ProgramDetailPage = () => {
                   </p>
                 )}
               </div>
+              {program.status === "open" && (
+                <div className="mt-3 pt-3 border-t border-hairline-subtle">
+                  <button
+                    type="button"
+                    onClick={() => setNonMemberOpen(true)}
+                    className="font-mono text-[11px] tracking-[0.08em] text-display hover:underline"
+                  >
+                    Don't have a Stadium project yet? Apply here ▸
+                  </button>
+                </div>
+              )}
             </div>
 
             {connectedAddress && projectsForApply.length > 0 && (
@@ -549,6 +562,12 @@ const ProgramDetailPage = () => {
                 onApplied={handleApplied}
               />
             )}
+
+            <NonMemberApplyModal
+              open={nonMemberOpen}
+              onOpenChange={setNonMemberOpen}
+              program={program}
+            />
           </article>
         ) : null}
       </main>
