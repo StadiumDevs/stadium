@@ -11,6 +11,7 @@ import ProjectDetailsPage from "./pages/ProjectDetailsPage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 import { useBrightness } from "@/hooks/use-brightness";
+import { SoundCloudAudioProvider } from "@/components/audio/sound-cloud-audio";
 import WinnersPage from "./pages/WinnersPage";
 import ProgramsPage from "./pages/ProgramsPage";
 import ProgramDetailPage from "./pages/ProgramDetailPage";
@@ -35,6 +36,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <SoundCloudAudioProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Layout />}>
@@ -57,6 +59,7 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          </SoundCloudAudioProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>
