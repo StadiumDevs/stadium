@@ -82,9 +82,17 @@ export function Navigation() {
               </kbd>
             </button>
 
-            {/* Status dot — label hidden on small screens. */}
-            <span className="led" aria-hidden="true" />
-            <span className="label-hw hidden sm:inline">ONLINE</span>
+            {/* Version badge — live dot + link to the release notes. */}
+            <a
+              href="https://github.com/StadiumDevs/stadium/releases/tag/v1.0.0"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Stadium v1.0 — release notes"
+              className="inline-flex items-center gap-1.5 label-hw normal-case hover:text-display transition-colors"
+            >
+              <span className="led" aria-hidden="true" />
+              <span>v1.0</span>
+            </a>
           </div>
         </div>
 
