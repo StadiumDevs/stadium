@@ -153,8 +153,16 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
       const next = !prev;
       const widget = widgetRef.current;
       if (widget) {
-        widget.setVolume(next ? 0 : 100);
-        widget.play();
+        // Mute by pausing, not by setVolume(0): on mobile (notably iOS) volume is
+        // hardware-controlled and setVolume is a no-op, so volume-based muting
+        // silently failed there. play()/pause() honor the user's tap on every
+        // platform — and the tap is the gesture mobile needs to start audio.
+        if (next) {
+          widget.pause();
+        } else {
+          widget.setVolume(100);
+          widget.play();
+        }
       }
       return next;
     });
