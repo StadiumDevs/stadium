@@ -16,7 +16,7 @@ const SPACES: Space[] = [
   {
     type: "hackathon",
     label: "HACKATHONS",
-    blurb: "Weekend build sprints on Polkadot: ship something new, win bounties.",
+    blurb: "Weekend build sprints: ship something new, win bounties.",
     href: "/programs?type=hackathon",
     Icon: Zap,
   },
