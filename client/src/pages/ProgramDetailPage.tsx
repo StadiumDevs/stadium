@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
-import { UnitCard } from "@/components/unit-card";
+import { ProjectExplorer } from "@/components/ProjectExplorer";
 import { RotateCw } from "lucide-react";
 import { ChainPicker } from "@/components/auth/ChainPicker";
 import { getProvider } from "@/lib/auth/registry";
@@ -53,7 +53,6 @@ const ProgramDetailPage = () => {
   const [entries, setEntries] = useState<ApiProject[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
-  const navigate = useNavigate();
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
   // accepts admins). Without this branch, the page would dead-end at "You need to be a team member"
@@ -445,34 +444,7 @@ const ProgramDetailPage = () => {
 
             {entries.length > 0 && (
               <div className="panel p-4 mb-4">
-                <div className="label-hw mb-3">·PROJECTS</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {entries.map((p, i) => {
-                    const isWinner = Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0;
-                    const dateStr = p.completionDate || p.submittedDate || p.hackathon?.endDate;
-                    const date = dateStr
-                      ? new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "2-digit" }).toUpperCase()
-                      : undefined;
-                    return (
-                      <UnitCard
-                        key={p.id}
-                        unitNumber={String(i + 1).padStart(3, "0")}
-                        title={p.projectName}
-                        author={p.teamMembers?.[0]?.name || "Unknown"}
-                        description={p.description}
-                        track={p.bountyPrize?.[0]?.name || p.categories?.[0] || "Other"}
-                        isWinner={isWinner}
-                        isM2={p.m2Status === "completed"}
-                        date={date}
-                        prize={p.bountyPrize?.[0]?.amount ? `$${p.bountyPrize[0].amount.toLocaleString()}` : undefined}
-                        demoUrl={p.demoUrl}
-                        githubUrl={p.projectRepo}
-                        projectUrl={`/m2-program/${p.id}`}
-                        onClick={() => navigate(`/m2-program/${p.id}`)}
-                      />
-                    );
-                  })}
-                </div>
+                <ProjectExplorer projects={entries} />
               </div>
             )}
 

@@ -56,7 +56,7 @@ export function ProgramSpaces({ programs }: { programs: ApiProgram[] }) {
     <section className="mb-10">
       <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
         <div className="label-hw text-display flex items-center gap-2">
-          <span className="led led-sm led-pulse" aria-hidden="true" /> ·PROGRAMS / WHAT WE DO
+          <span className="led led-sm led-pulse" aria-hidden="true" /> ·EXPLORE PAST PROGRAMS
         </div>
       </div>
       <p className="text-body text-sm md:text-base max-w-2xl leading-relaxed mb-3">
