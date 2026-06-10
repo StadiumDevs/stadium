@@ -154,5 +154,11 @@ router.post(
   requireProgramAdmin('slug'),
   submissionController.promote,
 );
+// Mark a submission paid / not paid (payout tracking). Admin-only.
+router.patch(
+  '/:slug/submissions/:submissionId/paid',
+  requireProgramAdmin('slug'),
+  submissionController.setPaid,
+);
 
 export default router;

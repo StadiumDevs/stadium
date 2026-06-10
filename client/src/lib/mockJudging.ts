@@ -66,6 +66,7 @@ const OTHER_JUDGE_SCORES: Record<string, { requirements: number; techStack: numb
 const SCORES_KEY = "stadium_mock_scores_v1";
 const BALLOT_KEY = "stadium_mock_ballot_v1";
 const PROMOTED_KEY = "stadium_mock_promoted_v1";
+const PAID_KEY = "stadium_mock_paid_v1";
 
 type StoredScores = Record<string, { requirements: number; techStack: number; innovation: number; notes: string }>;
 
@@ -82,6 +83,14 @@ const ballotSubmitted = () => localStorage.getItem(BALLOT_KEY) === "submitted";
 const readPromoted = (): Record<string, string> => {
   try {
     return JSON.parse(localStorage.getItem(PROMOTED_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const readPaid = (): Record<string, boolean> => {
+  try {
+    return JSON.parse(localStorage.getItem(PAID_KEY) || "{}");
   } catch {
     return {};
   }
@@ -104,13 +113,23 @@ export const mockJudging = {
   judgeView(): ApiJudgeView {
     const submitted = ballotSubmitted();
     const promoted = readPromoted();
+    const paid = readPaid();
     const submissions: ApiSubmissionRow[] = MOCK_SUBMISSIONS.map((s) => ({
       ...s,
       eligible: ELIGIBLE_EMAILS.has(s.lumaEmail),
       promotedProjectId: promoted[s.id] ?? null,
+      paid: paid[s.id] ?? false,
       myScore: toScore(s.id),
     }));
     return { locked: submitted, ballotStatus: submitted ? "submitted" : "in_progress", submissions };
+  },
+
+  setPaid(submissionId: string, paid: boolean): ApiSubmission {
+    const all = readPaid();
+    all[submissionId] = paid;
+    localStorage.setItem(PAID_KEY, JSON.stringify(all));
+    const base = MOCK_SUBMISSIONS.find((s) => s.id === submissionId) ?? MOCK_SUBMISSIONS[0];
+    return { ...base, paid, paidAt: paid ? "2026-06-10T00:00:00.000Z" : null, paidBy: paid ? "mock-admin" : null };
   },
 
   promote(submissionId: string): { projectId: string; alreadyPromoted?: boolean } {
@@ -179,6 +198,7 @@ export const mockJudging = {
     localStorage.removeItem(SCORES_KEY);
     localStorage.removeItem(BALLOT_KEY);
     localStorage.removeItem(PROMOTED_KEY);
+    localStorage.removeItem(PAID_KEY);
   },
 };
 

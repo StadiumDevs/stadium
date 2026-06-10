@@ -50,6 +50,7 @@ export function ProgramJudgingSection({
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const loadSubmissions = useCallback(async () => {
@@ -155,6 +156,28 @@ export function ProgramJudgingSection({
       });
     } finally {
       setPromotingId(null);
+    }
+  };
+
+  const setPaid = async (id: string, paid: boolean) => {
+    setPayingId(id);
+    try {
+      const auth = await getAuth();
+      await api.setSubmissionPaid(programSlug, id, paid, auth);
+      setView((prev) =>
+        prev
+          ? { ...prev, submissions: prev.submissions.map((s) => (s.id === id ? { ...s, paid } : s)) }
+          : prev,
+      );
+      toast({ title: paid ? "Marked as paid" : "Marked as not paid" });
+    } catch (e) {
+      toast({
+        title: "Couldn't update payout status",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setPayingId(null);
     }
   };
 
@@ -286,8 +309,21 @@ export function ProgramJudgingSection({
                       className="mt-2 w-full font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display disabled:opacity-50"
                     />
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="label-hw-dim">{s.myScore ? "SAVED" : "NOT SCORED"}</span>
                       <div className="flex items-center gap-2">
+                        <span className="label-hw-dim">{s.myScore ? "SAVED" : "NOT SCORED"}</span>
+                        {s.paid && <span className="label-hw text-display">·PAID</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {canPromote && (
+                          <button
+                            type="button"
+                            onClick={() => setPaid(s.id, !s.paid)}
+                            disabled={payingId === s.id}
+                            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1"
+                          >
+                            {payingId === s.id ? "…" : s.paid ? "MARK UNPAID" : "MARK PAID"}
+                          </button>
+                        )}
                         {canPromote &&
                           (s.promotedProjectId ? (
                             <Link

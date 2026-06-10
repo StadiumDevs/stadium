@@ -172,6 +172,36 @@ class SubmissionController {
     }
   }
 
+  // Admin: mark a submission paid / not paid (payout tracking). Admin-gated.
+  async setPaid(req, res) {
+    try {
+      const { slug, submissionId } = req.params;
+      const paid = req.body?.paid === true || req.body?.paid === 'true';
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const submission = await programSubmissionRepository.findById(submissionId);
+      if (!submission || submission.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Submission not found' });
+      }
+      const actor = req.user?.address || req.user?.email || null;
+      const updated = await programSubmissionRepository.setPaid(submissionId, paid, actor);
+      res.status(200).json({ status: 'success', data: updated });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+        action: paid ? 'submission.mark_paid' : 'submission.mark_unpaid',
+        targetType: 'submission',
+        targetId: submissionId,
+        metadata: null,
+      });
+    } catch (error) {
+      console.error('❌ Error updating paid status:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to update paid status' });
+    }
+  }
+
   // Judge/admin: gated leaderboard (locked until all registered judges submit).
   async leaderboard(req, res) {
     try {

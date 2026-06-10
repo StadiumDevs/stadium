@@ -17,8 +17,8 @@ Supabase fake.
 9. Leaderboard locked at 2/3 submitted; pending: j3@judge.test.
 10. Leaderboard now flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
 11. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
-12. Winner promoted to Stadium project "aurora-pay-745e9a": name/repo/demo/program carried, submitter as team member, payout state = NOT PAID.
-13. Recorded a BOUNTY payout against the project — admins can now track it as paid via the existing payment flow.
+12. Winner promoted to Stadium project "aurora-pay-fab2b3": name/repo/demo/program carried, submitter as team member.
+13. Admin marked the winning submission as PAID (paid_by + paid_at recorded); can be toggled back to unpaid.
 14. After submitting, a judge can no longer edit scores (409, locked).
 
 ## What works
@@ -30,21 +30,21 @@ Supabase fake.
 - Leaderboard gated until all judges submit, then tallies the mean /12 and ranks correctly.
 - Leaderboard flags ineligible entries (fixed: they no longer rank invisibly).
 - Ballot locks after submission.
-- Admin can promote a submission into a Stadium project (idempotent), carrying title/repo/demo/program + submitter, so it flows into the existing payout + team tracking.
+- Admin can promote a submission into a Stadium project (idempotent), carrying title/repo/demo/program + submitter.
+- Admin marks a submission paid / unpaid (paid_by + paid_at recorded) — the payout tracking, reversible.
 
 ## What to improve (ranked, highest-value first)
 
-1. **Promoted projects start with no payout wallet.** By design the submission form collects no wallet, and the promote-to-project bridge leaves donation_address empty; an admin sets it via the existing updatePayoutAddress flow at payout time. Fine, but means a winner project is not payable until someone chases the wallet — surface a clear "needs payout wallet" state in the admin project view.
-2. **Promoted project team is the single submitter.** We only capture the submitter (name + Luma email); real teams have several members. The promoted project gets one team member and the email is stashed in the description (team_members has no email column). Consider an optional team-roster field at submission, or let admins flesh out the team after promotion.
-3. **Submissions are invisible to the public until promoted.** The public program page shows the existing projects grid, not submissions. A submitted-but-not-promoted project is only visible to judges/admins. If submitters expect a public gallery during judging, that needs a separate (PII-free) public view.
-4. **Submitter cannot edit or withdraw a submission.** There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.
-5. **No submission confirmation email.** Submitters get only an in-modal success state; nothing in their inbox. A confirmation (with what they submitted) reassures them and gives a paper trail. Planned for iteration 2.
-6. **Ineligible submissions are only flagged, never reconciled.** A Luma email typo permanently marks a real participant ineligible. Consider fuzzy match / an admin "mark eligible" override, since the flag is the only eligibility signal judges see.
-7. **Judge progress is invisible to the organizer.** The leaderboard shows which judges are pending, but not how far each judge has gotten (e.g. 4/7 scored). A per-judge progress view would tell the organizer who to nudge before the deadline.
-8. **No partial/abstain scoring.** A judge must score every submission to submit. With conflicts of interest (judge affiliated with a team) there is no abstain path; they are forced to enter a number. Consider an explicit "recuse" that excludes that pair from the tally.
-9. **Ballot lock has no escape hatch in the UI.** Lock-after-submit is correct, but the only recovery is an admin reopen that does not exist yet (iteration 2). If a judge submits early by mistake before the deadline, they are stuck.
-10. **Tie-break rule is implicit.** Ranking breaks ties by innovation then tech stack. That is reasonable but undocumented for judges/organizers; surface it on the leaderboard so a close 1st/2nd is explainable.
-11. **Single-judge programs unlock instantly.** With one registered judge, the leaderboard unlocks as soon as they submit — fine, but worth confirming that is the intended behaviour for very small panels.
-12. **No audit of score changes.** Scores are upserted in place; there is no history of what a judge changed before finalizing. Low priority, but useful if a result is ever disputed.
-13. **Leaderboard exposes submitter PII to all judges.** Rows can carry submitterName; judges scoring "blind" might bias on the team. Consider an anonymized judging mode (hide names until the leaderboard unlocks).
+1. **Promoted project team is the single submitter.** We only capture the submitter (name + Luma email); real teams have several members. The promoted project gets one team member and the email is stashed in the description (team_members has no email column). Consider an optional team-roster field at submission, or let admins flesh out the team after promotion.
+2. **Submissions are invisible to the public until promoted.** The public program page shows the existing projects grid, not submissions. A submitted-but-not-promoted project is only visible to judges/admins. If submitters expect a public gallery during judging, that needs a separate (PII-free) public view.
+3. **Submitter cannot edit or withdraw a submission.** There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.
+4. **No submission confirmation email.** Submitters get only an in-modal success state; nothing in their inbox. A confirmation (with what they submitted) reassures them and gives a paper trail. Planned for iteration 2.
+5. **Ineligible submissions are only flagged, never reconciled.** A Luma email typo permanently marks a real participant ineligible. Consider fuzzy match / an admin "mark eligible" override, since the flag is the only eligibility signal judges see.
+6. **Judge progress is invisible to the organizer.** The leaderboard shows which judges are pending, but not how far each judge has gotten (e.g. 4/7 scored). A per-judge progress view would tell the organizer who to nudge before the deadline.
+7. **No partial/abstain scoring.** A judge must score every submission to submit. With conflicts of interest (judge affiliated with a team) there is no abstain path; they are forced to enter a number. Consider an explicit "recuse" that excludes that pair from the tally.
+8. **Ballot lock has no escape hatch in the UI.** Lock-after-submit is correct, but the only recovery is an admin reopen that does not exist yet (iteration 2). If a judge submits early by mistake before the deadline, they are stuck.
+9. **Tie-break rule is implicit.** Ranking breaks ties by innovation then tech stack. That is reasonable but undocumented for judges/organizers; surface it on the leaderboard so a close 1st/2nd is explainable.
+10. **Single-judge programs unlock instantly.** With one registered judge, the leaderboard unlocks as soon as they submit — fine, but worth confirming that is the intended behaviour for very small panels.
+11. **No audit of score changes.** Scores are upserted in place; there is no history of what a judge changed before finalizing. Low priority, but useful if a result is ever disputed.
+12. **Leaderboard exposes submitter PII to all judges.** Rows can carry submitterName; judges scoring "blind" might bias on the team. Consider an anonymized judging mode (hide names until the leaderboard unlocks).
 

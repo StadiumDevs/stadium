@@ -99,6 +99,12 @@ const organizer = {
     await submissionController.promote(req, res);
     return { status: res.statusCode ?? 200, body: res.body };
   },
+  async markPaid(submissionId, paid = true) {
+    const req = { params: { slug: SLUG, submissionId }, user: { address: '5Organizer' }, body: { paid }, headers: {} };
+    const res = makeRes();
+    await submissionController.setPaid(req, res);
+    return { status: res.statusCode ?? 200, body: res.body };
+  },
 };
 
 const submitter = (payload) => ({
@@ -286,9 +292,6 @@ describe('Bitrefill judging — basic user journeys', () => {
     expect(project.program_id).toBe(PROGRAM_ID);
     expect(project.hackathon_id).toBe(SLUG); // NOT NULL legacy cols backfilled
 
-    // Payout state: not paid yet.
-    expect(project.bounties_processed ?? false).toBeFalsy();
-
     // Team info captured (submitter as a member; email lives in the description
     // since team_members has no email column, and on the linked submission).
     const members = store.team_members.filter((m) => m.project_id === projectId);
@@ -299,18 +302,29 @@ describe('Bitrefill judging — basic user journeys', () => {
     const sub = store.program_submissions.find((s) => s.id === winner.id);
     expect(sub.promoted_project_id).toBe(projectId);
 
-    note(`Winner promoted to Stadium project "${projectId}": name/repo/demo/program carried, submitter as team member, payout state = NOT PAID.`);
+    note(`Winner promoted to Stadium project "${projectId}": name/repo/demo/program carried, submitter as team member.`);
 
     // Idempotent — second promote returns the same project (200, no duplicate).
     const again = await organizer.promote(winner.id);
     expect(again.status).toBe(200);
     expect(store.projects.filter((p) => p.id === projectId)).toHaveLength(1);
+  });
 
-    // Record a payout against it → now trackable as paid.
-    store.payments = store.payments || [];
-    store.payments.push({ id: 'pay-1', project_id: projectId, milestone: 'BOUNTY', amount: 1000, currency: 'USDC', paid_date: new Date().toISOString() });
-    expect(store.payments.filter((p) => p.project_id === projectId)).toHaveLength(1);
-    note('Recorded a BOUNTY payout against the project — admins can now track it as paid via the existing payment flow.');
+  it('an admin marks the winning submission as paid (payout tracking)', async () => {
+    const winner = store.program_submissions.find((s) => s.project_title === 'Aurora Pay');
+    expect(winner.paid ?? false).toBe(false); // not paid yet
+
+    const r = await organizer.markPaid(winner.id, true);
+    expect(r.status).toBe(200);
+    const after = store.program_submissions.find((s) => s.id === winner.id);
+    expect(after.paid).toBe(true);
+    expect(after.paid_by).toBe('5Organizer');
+    expect(after.paid_at).toBeTruthy();
+    note('Admin marked the winning submission as PAID (paid_by + paid_at recorded); can be toggled back to unpaid.');
+
+    // Reversible.
+    await organizer.markPaid(winner.id, false);
+    expect(store.program_submissions.find((s) => s.id === winner.id).paid).toBe(false);
   });
 
   it('locks a judge ballot after submission (no edits, 409)', async () => {
@@ -324,7 +338,6 @@ describe('Bitrefill judging — basic user journeys', () => {
 
 afterAll(() => {
   const findings = [
-    ['Promoted projects start with no payout wallet', 'By design the submission form collects no wallet, and the promote-to-project bridge leaves donation_address empty; an admin sets it via the existing updatePayoutAddress flow at payout time. Fine, but means a winner project is not payable until someone chases the wallet — surface a clear "needs payout wallet" state in the admin project view.'],
     ['Promoted project team is the single submitter', 'We only capture the submitter (name + Luma email); real teams have several members. The promoted project gets one team member and the email is stashed in the description (team_members has no email column). Consider an optional team-roster field at submission, or let admins flesh out the team after promotion.'],
     ['Submissions are invisible to the public until promoted', 'The public program page shows the existing projects grid, not submissions. A submitted-but-not-promoted project is only visible to judges/admins. If submitters expect a public gallery during judging, that needs a separate (PII-free) public view.'],
     ['Submitter cannot edit or withdraw a submission', 'There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.'],
@@ -359,7 +372,8 @@ afterAll(() => {
   lines.push('- Leaderboard gated until all judges submit, then tallies the mean /12 and ranks correctly.');
   lines.push('- Leaderboard flags ineligible entries (fixed: they no longer rank invisibly).');
   lines.push('- Ballot locks after submission.');
-  lines.push('- Admin can promote a submission into a Stadium project (idempotent), carrying title/repo/demo/program + submitter, so it flows into the existing payout + team tracking.');
+  lines.push('- Admin can promote a submission into a Stadium project (idempotent), carrying title/repo/demo/program + submitter.');
+  lines.push('- Admin marks a submission paid / unpaid (paid_by + paid_at recorded) — the payout tracking, reversible.');
   lines.push('');
   lines.push('## What to improve (ranked, highest-value first)');
   lines.push('');

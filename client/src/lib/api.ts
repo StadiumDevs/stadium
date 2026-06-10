@@ -224,6 +224,10 @@ export type ApiSubmission = {
   githubUrl: string;
   /** Set once an admin promotes this submission into a Stadium project. */
   promotedProjectId?: string | null;
+  /** Payout tracking: an admin marks the (winning) submission as paid. */
+  paid?: boolean;
+  paidAt?: string | null;
+  paidBy?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -1840,6 +1844,27 @@ export const api = {
     return request(
       `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/promote`,
       { method: "POST", headers: adminAuthHeaders(authHeader) },
+    );
+  },
+
+  /** Admin: mark a submission paid / not paid (payout tracking). */
+  setSubmissionPaid: async (
+    slug: string,
+    submissionId: string,
+    paid: boolean,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.setPaid(submissionId, paid) };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/paid`,
+      {
+        method: "PATCH",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify({ paid }),
+      },
     );
   },
 

@@ -17,6 +17,9 @@ const transform = (row) => {
     videoUrl: row.video_url,
     githubUrl: row.github_url,
     promotedProjectId: row.promoted_project_id ?? null,
+    paid: row.paid ?? false,
+    paidAt: row.paid_at ?? null,
+    paidBy: row.paid_by ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -85,6 +88,23 @@ class ProgramSubmissionRepository {
     const { data, error } = await supabase
       .from('program_submissions')
       .update({ promoted_project_id: projectId, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
+  }
+
+  async setPaid(id, paid, actor) {
+    const isPaid = !!paid;
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update({
+        paid: isPaid,
+        paid_at: isPaid ? new Date().toISOString() : null,
+        paid_by: isPaid ? actor ?? null : null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id)
       .select('*')
       .single();

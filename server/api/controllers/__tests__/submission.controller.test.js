@@ -5,7 +5,7 @@ vi.mock('../../services/scoring.service.js', () => ({
   default: { listForJudge: vi.fn(), submitBallot: vi.fn(), leaderboard: vi.fn(), promoteToProject: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn() },
 }));
 vi.mock('../../repositories/submission-score.repository.js', () => ({
   default: { upsert: vi.fn() },
@@ -159,5 +159,28 @@ describe('SubmissionController.promote (admin)', () => {
     const res = mockRes();
     await submissionController.promote(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+});
+
+describe('SubmissionController.setPaid (admin)', () => {
+  it('marks a submission paid, recording the actor', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill' });
+    submissionRepo.setPaid.mockResolvedValue({ id: 's1', paid: true });
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' }, body: { paid: true } };
+    const res = mockRes();
+    await submissionController.setPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.setPaid).toHaveBeenCalledWith('s1', true, '5Admin');
+  });
+
+  it('404s a submission from another program', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'other-program' });
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' }, body: { paid: true } };
+    const res = mockRes();
+    await submissionController.setPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(submissionRepo.setPaid).not.toHaveBeenCalled();
   });
 });
