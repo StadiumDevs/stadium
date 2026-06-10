@@ -1,6 +1,6 @@
 ---
 name: stadium-tester
-description: Verify a Stadium feature or fix by driving a real headless Chromium against the Vercel preview or local dev server. Use during /ship-issue's verify step, or any time you need to walk a UI through the test scenarios listed on a GitHub issue. Reads scenarios in the form "On <route>, <action> → <expected state>" and produces a pass/fail markdown report.
+description: Verify a Stadium feature or fix by driving a real headless Chromium against the Vercel preview or local dev server. Use during /ship-issue's verify step, or any time you need to walk a UI through the test scenarios listed on a GitHub issue. Reads scenarios in the form "On <route>, <action> → <expected state>", always also runs the standing Baseline UX flows, and produces a report that lists the flows, gives an overview, then shows pass/fail results.
 argument-hint: <target-url> <scenarios-markdown>
 allowed-tools: Read Grep Glob Bash(node *) Bash(npx playwright *) Bash(cat *) Bash(mktemp *) Bash(rm *)
 ---
@@ -14,7 +14,24 @@ Two arguments:
 1. **Target URL** — `$0`. Vercel preview (`https://stadium-git-<branch>-<scope>.vercel.app`), Vercel commit-pinned URL, or local dev (`http://localhost:8080`, Vite's port for this repo).
 2. **Scenarios markdown** — `$1`. The full `## Test scenarios` block from the issue, verbatim. Each `- [ ] On <route>, <action> → <expected state>` bullet is one scenario.
 
-If either is missing, stop and ask. Do not invent scenarios.
+If either is missing, stop and ask. Do not invent issue scenarios — but the Baseline UX flows below run on every invocation regardless of what `$1` contains.
+
+## Baseline UX flows (always run)
+
+These standing flows run on **every** invocation, prepended to whatever issue scenarios are passed in `$1`. They are UI-only and mock-safe (no wallet, no mutation), so they're always `runnable`. Keep this list current as core UX changes — it is the canonical "all UX flows" set the command guarantees coverage of.
+
+**Audio panel (brightness/audio rack — present in the nav on every route):**
+
+- On `/`, the brightness/audio rack renders collapsed → a `SHOW` expand control and a `MUTED`/`SOUND` mute toggle are visible without opening the panel.
+- On `/`, click `SHOW` → the rack expands and a `HIDE` collapse control is visible.
+- On `/`, expand the rack → the AUDIO section lists the three featured tracks (Other Side Podcast #08, Yin · HOUSE, Folk Rock · FOLK ROCK).
+- On `/`, click the mute toggle → its label flips between `MUTED` and `SOUND`.
+- On `/`, expand the rack and select the HOUSE track → that row becomes the active (`aria-pressed`) selection.
+- On `/`, select Folk Rock → a fixed video mini-player appears and the panel shows "playing in the corner".
+- On `/`, with Folk Rock playing, minimize then close the mini-player → it tucks to its title bar (iframe stays mounted) then is removed.
+- On `/`, with Folk Rock playing, navigate via an in-app link to `/programs` → the video mini-player persists (client-side `<Link>` nav; the audio provider lives above the router).
+
+> Persistence flows must navigate by clicking an in-app `<a href="/…">` (react-router `Link`), **never** `page.goto()` — a full reload remounts the app and resets provider state, which is not what "persists across pages" means.
 
 ## Hard rules (never violated)
 
@@ -52,12 +69,12 @@ If `setup.sh` ran, note the install in your final report so the user knows their
 
 ### 2. Parse scenarios
 
-For each `- [ ] …` bullet in `$1`, extract:
+Assemble the full run list = **Baseline UX flows** (above, always) **+** the issue scenarios from `$1`. For each issue bullet `- [ ] …`, extract:
 - **Route** — the path after `On `
 - **Action** — the verb phrase between `,` and `→`
 - **Expectation** — text after `→`
 
-If a bullet doesn't fit that shape, treat the whole bullet as a free-form scenario and infer.
+If a bullet doesn't fit that shape, treat the whole bullet as a free-form scenario and infer. The baseline flows are already in this shape.
 
 Decide per scenario:
 - **runnable** — UI-only, no wallet, no mutation
@@ -101,18 +118,29 @@ Capture stdout (JSON summary) and read the JSON reporter file at `<spec>.json` f
 
 ### 5. Output
 
-Single markdown block — exactly this shape:
+A single markdown block, in **exactly this order** — first list the flows, then an overview, then the results:
 
 ```
 ## Stadium UI verification — <target URL>
 
-**Scenarios**: <N total, M pass, K fail, L skipped>
+### Flows under test
+Numbered list of every flow this run covers, baseline first, then issue-specific. One plain-language line each, tagged `[baseline]` or `[issue]`:
 
-| # | Scenario | Result | Notes |
-|---|----------|--------|-------|
-| 1 | <scenario text>            | PASS                          | observed: <short> |
-| 2 | <scenario text>            | FAIL                          | expected <x>, saw <y>; screenshot: <path> |
-| 3 | <scenario text>            | SKIPPED (needs-auth-harness)  | requires real wallet signature |
+1. [baseline] Rack defaults collapsed with a visible SHOW + mute toggle
+2. [baseline] SHOW expands the rack and reveals HIDE
+   … (the rest of the baseline flows) …
+N. [issue] <issue scenario text>
+
+### Overview
+One short paragraph: the target URL, mock-mode state, totals (`<N total, R runnable, S skipped>`), and the UX areas covered (e.g. "audio panel discoverability + persistence, plus the issue's <feature> flows"). Note up front if any are SKIPPED and why.
+
+### Results
+
+| # | Flow | Result | Notes |
+|---|------|--------|-------|
+| 1 | <flow text>                | PASS                          | observed: <short> |
+| 2 | <flow text>                | FAIL                          | expected <x>, saw <y>; screenshot: <path> |
+| 3 | <flow text>                | SKIPPED (needs-auth-harness)  | requires real wallet signature |
 
 **Preview mode**: window.__STADIUM_MOCK__ = <true | false | undefined>
 **Console errors during run**: <count> (first 3: <list>)
