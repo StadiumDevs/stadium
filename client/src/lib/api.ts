@@ -543,7 +543,7 @@ export const api = {
     });
   },
 
-  updateProjectCategories: async (projectId: string, categories: string[], authHeader: string) => {
+  updateProjectCategories: async (projectId: string, categories: string[], authHeader?: AdminAuthArg) => {
     if (USE_MOCK_DATA) {
       await new Promise((r) => setTimeout(r, 300));
       const { mockWinningProjects } = await import("./mockWinners");

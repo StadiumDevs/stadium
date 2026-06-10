@@ -50,7 +50,7 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
     setNotificationsEnabled(checked);
     setSubmitting(true);
     try {
-      const authHeader = await auth.signAction("update-notifications");
+      const authHeader = await auth.getAdminBearerHeaders();
 
       const res = await api.updateWalletContact(connectedAddress, { notificationsEnabled: checked }, authHeader);
       setNotificationsEnabled(res.notifications_enabled);
@@ -77,7 +77,7 @@ export function NotificationsCard({ connectedAddress }: { connectedAddress: stri
 
     setSubmitting(true);
     try {
-      const authHeader = await auth.signAction("update-notifications");
+      const authHeader = await auth.getAdminBearerHeaders();
 
       const res = await api.updateWalletContact(
         connectedAddress,

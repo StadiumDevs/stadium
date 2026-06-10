@@ -443,10 +443,9 @@ const ProjectDetailsPage = () => {
 
     try {
       // Sign in with the connected wallet
-      const authHeader = await auth.signAction('update-team', {
-        projectTitle: project.projectName,
-        projectId: project.id,
-      });
+      // Routine own-content edit: ride the cached admin session (sign once),
+      // no per-save wallet popup.
+      const authHeader = await auth.getAdminBearerHeaders();
 
       // Update team - convert to new API format
       await api.updateTeam(project.id, {
@@ -528,10 +527,9 @@ const ProjectDetailsPage = () => {
 
     try {
       // Sign in with the connected wallet
-      const authHeader = await auth.signAction('update-project', {
-        projectTitle: project.projectName,
-        projectId: project.id,
-      });
+      // Routine own-content edit: ride the cached admin session (sign once),
+      // no per-save wallet popup.
+      const authHeader = await auth.getAdminBearerHeaders();
 
       // Update project details
       await api.updateProjectDetails(project.id, data, authHeader);
@@ -604,10 +602,9 @@ const ProjectDetailsPage = () => {
 
     try {
       // Sign in with the connected wallet
-      const authHeader = await auth.signAction('update-team', {
-        projectTitle: project.projectName,
-        projectId: project.id,
-      });
+      // Routine own-content edit: ride the cached admin session (sign once),
+      // no per-save wallet popup.
+      const authHeader = await auth.getAdminBearerHeaders();
 
       // Update team and payout address via API
       await api.updateTeam(project.id, {
@@ -667,10 +664,9 @@ const ProjectDetailsPage = () => {
 
     try {
       // Sign in with the connected wallet
-      const authHeader = await auth.signAction('submit-deliverable', {
-        projectTitle: project.projectName,
-        projectId: project.id,
-      });
+      // Routine own-content edit: ride the cached admin session (sign once),
+      // no per-save wallet popup.
+      const authHeader = await auth.getAdminBearerHeaders();
 
       await api.submitForReview(project.id, {
         repoUrl: ensureSubmissionUrl(data.repoUrl),
@@ -717,10 +713,9 @@ const ProjectDetailsPage = () => {
     }
 
     try {
-      const authHeader = await auth.signAction('submit-deliverable', {
-        projectTitle: project.projectName,
-        projectId: project.id,
-      });
+      // Routine own-content edit: ride the cached admin session (sign once),
+      // no per-save wallet popup.
+      const authHeader = await auth.getAdminBearerHeaders();
 
       await api.submitForReview(
         project.id,
@@ -766,10 +761,8 @@ const ProjectDetailsPage = () => {
         setFormLoading(false);
         return;
       }
-      await auth.signAction('submit-deliverable', {
-        projectTitle: project.projectName,
-        projectId: project.id,
-      });
+      // Routine own-content edit: ride the cached admin session (sign once).
+      await auth.getAdminBearerHeaders();
       // Mock API call to save milestone
       const newMilestone = `${milestoneName}: ${milestoneDesc}\n${deliverables.map((d, i) => `- ${d}`).join("\n")}`;
       setProject((prev: ApiProject | null) => (
