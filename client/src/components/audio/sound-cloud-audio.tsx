@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Maximize2, X } from "lucide-react";
 import { AUDIO_TRACKS, SoundCloudAudioContext } from "./use-sound-cloud-audio";
 
 // --- SoundCloud Widget API integration ---
@@ -110,6 +111,10 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
   // Current mute state for use inside widget callbacks without re-binding.
   const mutedRef = useRef(true);
   mutedRef.current = muted;
+  // Wraps the persistent YouTube mini-player so its FULLSCREEN button can
+  // request it. The player lives here (above the router) so the video keeps
+  // playing across page navigation.
+  const ytWrapRef = useRef<HTMLDivElement | null>(null);
 
   const activeTrack = useMemo(
     () => AUDIO_TRACKS.find((t) => t.id === selectedTrackId) ?? AUDIO_TRACKS[0],
@@ -251,6 +256,46 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
         allow="autoplay; encrypted-media"
         className="absolute pointer-events-none opacity-0 w-px h-px overflow-hidden"
       />
+      {/* Persistent YouTube mini-player. Mounted here (above the router) so the
+          video keeps playing across navigation. Small + responsive so it fits a
+          phone screen; closes back to the music. */}
+      {activeTrack.kind === "youtube" && (
+        <div className="fixed bottom-3 left-3 z-50 w-[min(60vw,200px)] border border-hairline bg-panel-deep shadow-lg">
+          <div className="flex items-center gap-1 px-2 py-1 border-b border-hairline-subtle">
+            <span className="font-mono text-[10px] text-display truncate">{activeTrack.label}</span>
+            <span className="ml-auto flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => ytWrapRef.current?.requestFullscreen?.()}
+                aria-label="Fullscreen video"
+                title="Fullscreen"
+                className="lcd p-1 hover:bg-panel transition-colors duration-150 group"
+              >
+                <Maximize2 className="h-3 w-3 text-label-mid group-hover:text-display" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => selectTrack(AUDIO_TRACKS[0].id)}
+                aria-label="Close video and play music"
+                title="Close"
+                className="lcd p-1 hover:bg-panel transition-colors duration-150 group"
+              >
+                <X className="h-3 w-3 text-label-mid group-hover:text-display" aria-hidden="true" />
+              </button>
+            </span>
+          </div>
+          <div ref={ytWrapRef} className="relative w-full aspect-video bg-black">
+            <iframe
+              key={activeTrack.id}
+              src={`${activeTrack.embedUrl}?autoplay=1&rel=0&playsinline=1`}
+              title={`${activeTrack.label} (${activeTrack.artist})`}
+              className="absolute inset-0 w-full h-full"
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </SoundCloudAudioContext.Provider>
   );
 }

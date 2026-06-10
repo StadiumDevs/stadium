@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { ChevronDown, ChevronUp, FastForward, Maximize2, Music, Rewind, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, ChevronUp, FastForward, Music, Rewind, Volume2, VolumeX } from "lucide-react";
 import { useBrightness } from "@/hooks/use-brightness";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useSoundCloudAudio } from "@/components/audio/use-sound-cloud-audio";
@@ -60,8 +60,6 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
     muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek,
     tracks, selectedTrackId, selectTrack, activeTrack,
   } = useSoundCloudAudio();
-  // Wraps the inline YouTube embed so its FULLSCREEN button can request it.
-  const videoWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Once the user touches anything (slider, AUTO toggle, palette), collapse
   // automatically. After that, expand/collapse is entirely user-driven via the
@@ -311,38 +309,12 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
       </div>
 
       {activeTrack.kind === "youtube" ? (
-        /* Inline video — renders in the small area, with a fullscreen control */
-        <div className="flex items-start gap-3 mt-2">
+        /* The video plays in the persistent corner mini-player (survives nav). */
+        <div className="flex items-center gap-3 mt-2">
           <span className="min-w-[78px]" aria-hidden="true" />
-          <div className="flex-1 min-w-0">
-            <div ref={videoWrapRef} className="relative w-full aspect-video border border-hairline bg-black">
-              <iframe
-                key={activeTrack.id}
-                src={`${activeTrack.embedUrl}?autoplay=1&rel=0`}
-                title={`${activeTrack.label} (${activeTrack.artist})`}
-                className="absolute inset-0 w-full h-full"
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-            <div className="flex items-center justify-between gap-2 mt-1">
-              <span className="label-hw-dim truncate">
-                {[activeTrack.label, activeTrack.artist, activeTrack.genre].filter(Boolean).join(" · ")}
-              </span>
-              <button
-                type="button"
-                onClick={() => videoWrapRef.current?.requestFullscreen?.()}
-                aria-label="Fullscreen video"
-                title="Fullscreen"
-                className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0"
-              >
-                <Maximize2
-                  className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
-                  aria-hidden="true"
-                />
-              </button>
-            </div>
-          </div>
+          <span className="label-hw-dim truncate">
+            ▸ {[activeTrack.label, activeTrack.artist, activeTrack.genre].filter(Boolean).join(" · ")} (playing in the corner)
+          </span>
         </div>
       ) : (
         <>
