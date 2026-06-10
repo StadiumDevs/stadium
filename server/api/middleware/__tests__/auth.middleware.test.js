@@ -97,7 +97,7 @@ import projectService from '../../services/project.service.js';
 import { consumeNonce } from '../../auth/nonceStore.js';
 
 // Import middleware under test
-const { requireAdmin, requireTeamMemberOrAdmin, requireProgramAdmin } = await import('../auth.middleware.js');
+const { requireAdmin, requireTeamMemberOrAdmin, requireProgramAdmin, requireFreshSignature } = await import('../auth.middleware.js');
 const programRepository = (await import('../../repositories/program.repository.js')).default;
 const programAdminRepository = (await import('../../repositories/program-admin.repository.js')).default;
 
@@ -616,5 +616,44 @@ describe('requireProgramAdmin', () => {
 
     expect(res.statusCode).toBe(404);
     expect(next).not.toHaveBeenCalled();
+  });
+});
+
+// ─── requireFreshSignature ───────────────────────────────────
+// High-value actions must use a fresh wallet signature, never the silent
+// session bearer. This pre-gate rejects a bearer and otherwise defers to the
+// downstream admin/team gate (which does the single SIWS verification).
+describe('requireFreshSignature', () => {
+  it('rejects a request carrying a session bearer token', () => {
+    const req = makeReq({ headers: { authorization: 'Bearer some.session.token' } });
+    const res = makeRes();
+    const next = vi.fn();
+
+    requireFreshSignature(req, res, next);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body.code).toBe('fresh-signature-required');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('passes a fresh SIWS request (no bearer) through to the next gate', () => {
+    const req = makeReq({ headers: { 'x-siws-auth': encodePayload(VALID_PAYLOAD) } });
+    const res = makeRes();
+    const next = vi.fn();
+
+    requireFreshSignature(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('passes when no auth header is present (downstream gate will reject)', () => {
+    const req = makeReq();
+    const res = makeRes();
+    const next = vi.fn();
+
+    requireFreshSignature(req, res, next);
+
+    expect(next).toHaveBeenCalled();
   });
 });

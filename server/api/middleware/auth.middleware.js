@@ -298,6 +298,31 @@ export const requireAdmin = async (req, res, next) => {
 };
 
 /**
+ * Pre-gate for high-value actions — anything that moves money, changes the
+ * event's configuration, changes who has access, or finalizes an outcome.
+ *
+ * These require a FRESH wallet signature, never the silent session bearer:
+ * "moving around" and routine own-content edits ride the cached session, but an
+ * important change makes the wallet sign. Place this BEFORE the admin/team gate
+ * on the route. It only rejects requests carrying a session bearer — it does NOT
+ * verify the signature or consume the SIWS nonce, so the downstream gate
+ * (requireAdmin / requireProgramAdmin / requireTeamMemberOrAdmin) still does the
+ * single verification. Email-session callers never reach these wallet-keyed
+ * gates, so this is wallet-only by construction.
+ */
+export const requireFreshSignature = (req, res, next) => {
+  if (extractBearerToken(req)) {
+    return res.status(401).json({
+      status: 'error',
+      code: 'fresh-signature-required',
+      message:
+        'This action changes money, access, or event data, so it needs a fresh wallet signature.',
+    });
+  }
+  return next();
+};
+
+/**
  * App admin only — tier 0. Used by the `/api/app-admins` routes that
  * manage the admin lists themselves.
  */
