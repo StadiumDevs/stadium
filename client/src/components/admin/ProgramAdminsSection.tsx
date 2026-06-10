@@ -32,6 +32,7 @@ export function ProgramAdminsSection({
   const [wallet, setWallet] = useState("");
   const [chain, setChain] = useState<ChainOption>("substrate");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "judge">("admin");
   const [inviting, setInviting] = useState(false);
 
   const load = useCallback(async () => {
@@ -65,13 +66,13 @@ export function ProgramAdminsSection({
     setInviting(true);
     try {
       const authHeader = await signAuthHeader();
-      const res = await api.inviteProgramAdminEmail(programSlug, email, authHeader);
+      const res = await api.inviteProgramAdminEmail(programSlug, email, authHeader, inviteRole);
       setEmailAdmins((prev) =>
-        prev.some((a) => a.email === res.data.email) ? prev : [...prev, res.data],
+        prev.some((a) => a.email === res.data.email) ? prev.map((a) => (a.email === res.data.email ? res.data : a)) : [...prev, res.data],
       );
       setInviteEmail("");
       toast({
-        title: "Admin invited",
+        title: inviteRole === "judge" ? "Judge invited" : "Admin invited",
         description: res.emailSent
           ? `Onboarding email sent to ${res.data.email}.`
           : `Added, but no email went out (${res.emailReason ?? "email not configured"}). Share the sign-in link manually.`,
@@ -222,9 +223,9 @@ export function ProgramAdminsSection({
       {/* Email admins — onboard non-wallet partners via an email magic link. */}
       <div className="mt-4 border-t border-hairline pt-4">
         <div className="mb-2 flex items-baseline justify-between gap-3">
-          <div className="label-hw text-display">·EMAIL ADMINS</div>
+          <div className="label-hw text-display">·EMAIL ADMINS &amp; JUDGES</div>
           <p className="label-hw-dim hidden md:block">
-            View-only. They sign in with their email, no wallet needed.
+            Sign in by email, no wallet needed. Admins are view-only; judges can score submissions.
           </p>
         </div>
 
@@ -237,6 +238,9 @@ export function ProgramAdminsSection({
                 <div className="min-w-0 flex items-center gap-2">
                   <Mail className="h-3.5 w-3.5 text-label-mid shrink-0" aria-hidden="true" />
                   <span className="truncate font-mono text-[12px] text-display">{a.email}</span>
+                  <span className="label-hw-dim border border-hairline px-1.5 py-0.5 shrink-0">
+                    {a.role === "judge" ? "JUDGE" : "ADMIN"}
+                  </span>
                 </div>
                 {isGlobalAdmin && (
                   <button
@@ -263,6 +267,14 @@ export function ProgramAdminsSection({
               onChange={(e) => setInviteEmail(e.target.value)}
               className="md:flex-1 font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
             />
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as "admin" | "judge")}
+              className="md:w-[120px] font-mono text-[11px] tracking-[0.14em] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+            >
+              <option value="admin">ADMIN</option>
+              <option value="judge">JUDGE</option>
+            </select>
             <button
               type="button"
               onClick={handleInvite}

@@ -1,10 +1,12 @@
 import { Router, text, json } from 'express';
 import rateLimit from 'express-rate-limit';
 import programController from '../controllers/program.controller.js';
+import submissionController from '../controllers/submission.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
   requireProgramViewer,
+  requireProgramJudge,
 } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -29,6 +31,20 @@ const nonMemberApplyLimiter = rateLimit({
   message: {
     status: 'error',
     message: 'Too many applications from this network. Please try again later.',
+  },
+});
+
+// Public project submission is also an unauthenticated write. Cap per IP —
+// generous enough for one person submitting (incl. retries / fixing a typo),
+// tight enough to stop a flood of junk rows at the 200-submission scale.
+const submissionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: 'Too many submissions from this network. Please try again later.',
   },
 });
 
@@ -117,5 +133,19 @@ router.get('/:slug/inbox.csv', requireProgramViewer('slug'), programController.e
 
 // --- Audit log (per-program activity feed) ---
 router.get('/:slug/audit-log', requireProgramViewer('slug'), programController.listAuditLog);
+
+// --- Project submissions + judge scoring (Bitrefill) ---
+// Public submit (rate-limited, honeypot). All other scoring routes are gated by
+// requireProgramJudge: a judge/admin email session (scoped write) OR a wallet
+// admin. requireProgramJudge NEVER unlocks the payment/approval routes above.
+router.post('/:slug/submissions', submissionLimiter, submissionController.submit);
+router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
+router.put(
+  '/:slug/submissions/:submissionId/score',
+  requireProgramJudge('slug'),
+  submissionController.upsertScore,
+);
+router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
+router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
 
 export default router;

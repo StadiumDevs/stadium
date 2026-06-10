@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { ApplicationCard } from "@/components/admin/ApplicationCard";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
+import { ProgramJudgingSection } from "@/components/admin/ProgramJudgingSection";
 import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
@@ -67,6 +68,14 @@ const AdminProgramPage = () => {
   const [socialEmailInput, setSocialEmailInput] = useState("");
   const [sendingLink, setSendingLink] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
+
+  // Auth for the judging section when signed in by email: send the Supabase
+  // token so requireProgramJudge resolves the judge/admin grant.
+  const socialToken = social.token;
+  const getJudgeAuth = useCallback(
+    async () => ({ "x-supabase-token": socialToken ?? "" }),
+    [socialToken],
+  );
 
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [applications, setApplications] = useState<ApiProgramApplication[]>([]);
@@ -285,6 +294,8 @@ const AdminProgramPage = () => {
                   isGlobalAdmin={isGlobalAdmin}
                 />
 
+                <ProgramJudgingSection programSlug={program.slug} getAuth={getAdminAuth} />
+
                 <ProgramSponsorsSection
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
@@ -366,6 +377,8 @@ const AdminProgramPage = () => {
                     SIGN OUT
                   </button>
                 </div>
+
+                <ProgramJudgingSection programSlug={program.slug} getAuth={getJudgeAuth} />
 
                 {filtered.length === 0 ? (
                   <div className="panel px-4 py-10 text-center">

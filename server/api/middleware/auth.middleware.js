@@ -563,6 +563,71 @@ export const requireProgramViewer = (slugParam = 'slug') => async (req, res, nex
 };
 
 /**
+ * Scoped write access for hackathon judges, with a wallet fallback.
+ *
+ * Mirrors `requireProgramViewer`, but instead of view-only it grants the one
+ * extra capability a judge needs: writing their own scores. A valid Supabase
+ * Auth token (`x-supabase-token`) whose verified email holds ANY grant on this
+ * program (role 'judge' OR 'admin') passes, with `req.user.canJudge = true` and
+ * the verified email as the judge identity.
+ *
+ * This is deliberately narrow. Apply it ONLY to the scoring routes
+ * (list submissions / write score / submit ballot / leaderboard). It never
+ * touches the payment/approval/program-mutation routes, which keep their
+ * stricter wallet-keyed `requireAdmin` / `requireProgramAdmin` gates. The
+ * controller MUST use `req.user.email` (not a body field) as the judge identity
+ * so a judge can only write their own ballot.
+ *
+ * If there's no valid email grant, behaviour is identical to
+ * `requireProgramAdmin` — wallet admins are unaffected and can also score.
+ */
+export const requireProgramJudge = (slugParam = 'slug') => async (req, res, next) => {
+  const slug = req.params?.[slugParam];
+  if (!slug || typeof slug !== 'string') {
+    return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
+  }
+
+  const token = extractSupabaseToken(req);
+  if (token) {
+    const user = await getSupabaseUser(token);
+    if (user?.email) {
+      try {
+        const program = await programRepository.findBySlug(slug);
+        if (!program) {
+          return res.status(404).json({ status: 'error', message: 'Program not found' });
+        }
+        const grant = await programAdminEmailRepository.findGrant(program.id, user.email);
+        if (grant) {
+          logSuccess(`Judge ${user.email} (${grant.role}) scoring program "${slug}".`);
+          req.user = {
+            email: user.email,
+            supabaseUserId: user.id,
+            programSlug: slug,
+            programId: program.id,
+            role: grant.role,
+            canJudge: true,
+            viewOnly: false,
+          };
+          return next();
+        }
+      } catch (err) {
+        logError(`Judge email check failed, falling back to wallet: ${err.message}`);
+      }
+    }
+  }
+
+  // No valid judge/admin email token — defer entirely to the wallet gate.
+  // Wallet admins can score too; set canJudge so the controller treats them
+  // uniformly (their address is the identity in that case).
+  return requireProgramAdmin(slugParam)(req, res, (err) => {
+    if (!err && req.user) {
+      req.user.canJudge = true;
+    }
+    return next(err);
+  });
+};
+
+/**
  * Variant of requireTeamMemberOrAdmin that reads the project id from the
  * request body instead of the URL param. Used by routes whose URL is keyed
  * to a different resource (e.g. POST /api/programs/:slug/applications, where

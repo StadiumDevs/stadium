@@ -19,6 +19,7 @@ import { useWalletAuth } from "@/lib/auth/useWalletAuth";
 import { isAdmin } from "@/lib/constants";
 import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
+import { SubmitProjectModal } from "@/components/program/SubmitProjectModal";
 import { ProgramContent } from "@/components/program/ProgramContent";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
@@ -53,6 +54,7 @@ const ProgramDetailPage = () => {
   const [entries, setEntries] = useState<ApiProject[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
+  const [submitOpen, setSubmitOpen] = useState(false);
   const navigate = useNavigate();
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
@@ -532,6 +534,25 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
+            {program.programType === "hackathon" && (
+              <div className="panel p-4">
+                <div className="label-hw mb-3">·SUBMIT YOUR PROJECT</div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <RackButton
+                    onClick={() => setSubmitOpen(true)}
+                    disabled={program.status !== "open"}
+                  >
+                    SUBMIT A PROJECT ▸
+                  </RackButton>
+                  <p className="label-hw-dim sm:ml-2">
+                    {program.status === "open"
+                      ? "Anyone can submit. Use the email you signed up with on Luma."
+                      : "Submissions are closed for this program."}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="panel p-4">
               <div className="label-hw mb-3">·APPLY</div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -569,6 +590,12 @@ const ProgramDetailPage = () => {
             <NonMemberApplyModal
               open={nonMemberOpen}
               onOpenChange={setNonMemberOpen}
+              program={program}
+            />
+
+            <SubmitProjectModal
+              open={submitOpen}
+              onOpenChange={setSubmitOpen}
               program={program}
             />
           </article>

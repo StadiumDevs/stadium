@@ -439,11 +439,17 @@ class ProgramController {
       if (!email || !EMAIL_RE.test(email)) {
         return res.status(422).json({ status: 'error', message: 'A valid email is required' });
       }
+      const role = req.body?.role === 'judge' ? 'judge' : 'admin';
       const program = await programService.findBySlug(slug);
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
-      const added = await programAdminEmailRepository.add(program.id, email, req.user?.address ?? null);
+      const added = await programAdminEmailRepository.add(
+        program.id,
+        email,
+        req.user?.address ?? null,
+        role,
+      );
 
       // The grant has landed; emailing the invite is best-effort so a missing
       // Resend config (or a transient send error) never loses the grant.
@@ -454,6 +460,7 @@ class ProgramController {
           email: added.email,
           programName: program.name,
           slug: program.slug,
+          role: added.role,
         });
         emailSent = result.ok;
         emailReason = result.ok ? null : result.reason;
