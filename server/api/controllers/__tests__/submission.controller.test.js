@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../services/program.service.js', () => ({ default: { findBySlug: vi.fn() } }));
 vi.mock('../../services/scoring.service.js', () => ({
-  default: { listForJudge: vi.fn(), submitBallot: vi.fn(), leaderboard: vi.fn() },
+  default: { listForJudge: vi.fn(), submitBallot: vi.fn(), leaderboard: vi.fn(), promoteToProject: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
   default: { create: vi.fn(), findById: vi.fn() },
@@ -16,6 +16,7 @@ vi.mock('../../repositories/program-judge-ballot.repository.js', () => ({
 vi.mock('../../services/program-audit-log.service.js', () => ({ default: { logSafe: vi.fn() } }));
 
 const programService = (await import('../../services/program.service.js')).default;
+const scoringService = (await import('../../services/scoring.service.js')).default;
 const submissionRepo = (await import('../../repositories/program-submission.repository.js')).default;
 const ballotRepo = (await import('../../repositories/program-judge-ballot.repository.js')).default;
 const scoreRepo = (await import('../../repositories/submission-score.repository.js')).default;
@@ -127,6 +128,36 @@ describe('SubmissionController.upsertScore (judge)', () => {
     };
     const res = mockRes();
     await submissionController.upsertScore(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+});
+
+describe('SubmissionController.promote (admin)', () => {
+  it('201s with the new project id', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    scoringService.promoteToProject.mockResolvedValue({ project: { id: 'aurora-ab12' } });
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' } };
+    const res = mockRes();
+    await submissionController.promote(req, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ status: 'success', data: { projectId: 'aurora-ab12' } });
+  });
+
+  it('200s (not 201) when already promoted', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    scoringService.promoteToProject.mockResolvedValue({ alreadyPromoted: true, projectId: 'existing-1' });
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' } };
+    const res = mockRes();
+    await submissionController.promote(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('404s an unknown submission', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    scoringService.promoteToProject.mockResolvedValue({ notFound: true });
+    const req = { params: { slug: 'bitrefill', submissionId: 'nope' }, user: { address: '5Admin' } };
+    const res = mockRes();
+    await submissionController.promote(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });

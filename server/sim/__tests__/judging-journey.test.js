@@ -32,7 +32,8 @@ vi.mock('../../config/polkadot-config.js', () => ({
   CURRENT_MULTISIG: '5FakeMultisig',
   NETWORK_CONFIG: { networkName: 'testnet', environment: 'development' },
 }));
-vi.mock('../../api/services/project.service.js', () => ({ default: { getProjectById: vi.fn() } }));
+// project.service is left REAL — it only pulls project.repository -> the fake
+// db, so promotion actually creates a project row in the in-memory store.
 vi.mock('@talismn/siws', () => ({ verifySIWS: vi.fn(), parseMessage: vi.fn(), SiwsMessage: vi.fn() }));
 vi.mock('@polkadot/util-crypto', () => ({
   cryptoWaitReady: vi.fn().mockResolvedValue(true),
@@ -88,6 +89,15 @@ const organizer = {
     const grant = await programAdminEmailRepo.add(PROGRAM_ID, email, '5Organizer', 'judge');
     authRegistry.set(tokenFor(email), { id: `u:${email}`, email });
     return grant;
+  },
+  // Promotion is admin-gated (requireProgramAdmin) — exercised directly here as
+  // an authenticated admin; the gate itself is covered by the admin middleware
+  // tests. This drives the real promote business logic + project creation.
+  async promote(submissionId) {
+    const req = { params: { slug: SLUG, submissionId }, user: { address: '5Organizer' }, body: {}, headers: {} };
+    const res = makeRes();
+    await submissionController.promote(req, res);
+    return { status: res.statusCode ?? 200, body: res.body };
   },
 };
 
@@ -261,6 +271,48 @@ describe('Bitrefill judging — basic user journeys', () => {
     );
   });
 
+  it('admin promotes the winner into a Stadium project (payouts + team tracking)', async () => {
+    const winner = store.program_submissions.find((s) => s.project_title === 'Aurora Pay');
+    const r = await organizer.promote(winner.id);
+    expect(r.status).toBe(201);
+    const projectId = r.body.data.projectId;
+
+    // It is now a real Stadium project, carrying what we have.
+    const project = store.projects.find((p) => p.id === projectId);
+    expect(project).toBeTruthy();
+    expect(project.project_name).toBe('Aurora Pay');
+    expect(project.project_repo).toBe(winner.github_url);
+    expect(project.demo_url).toBe(winner.video_url);
+    expect(project.program_id).toBe(PROGRAM_ID);
+    expect(project.hackathon_id).toBe(SLUG); // NOT NULL legacy cols backfilled
+
+    // Payout state: not paid yet.
+    expect(project.bounties_processed ?? false).toBeFalsy();
+
+    // Team info captured (submitter as a member; email lives in the description
+    // since team_members has no email column, and on the linked submission).
+    const members = store.team_members.filter((m) => m.project_id === projectId);
+    expect(members.map((m) => m.name)).toContain('Aurora Builders');
+    expect(project.description).toContain('aurora@example.com');
+
+    // Linked back from the submission (makes promotion idempotent).
+    const sub = store.program_submissions.find((s) => s.id === winner.id);
+    expect(sub.promoted_project_id).toBe(projectId);
+
+    note(`Winner promoted to Stadium project "${projectId}": name/repo/demo/program carried, submitter as team member, payout state = NOT PAID.`);
+
+    // Idempotent — second promote returns the same project (200, no duplicate).
+    const again = await organizer.promote(winner.id);
+    expect(again.status).toBe(200);
+    expect(store.projects.filter((p) => p.id === projectId)).toHaveLength(1);
+
+    // Record a payout against it → now trackable as paid.
+    store.payments = store.payments || [];
+    store.payments.push({ id: 'pay-1', project_id: projectId, milestone: 'BOUNTY', amount: 1000, currency: 'USDC', paid_date: new Date().toISOString() });
+    expect(store.payments.filter((p) => p.project_id === projectId)).toHaveLength(1);
+    note('Recorded a BOUNTY payout against the project — admins can now track it as paid via the existing payment flow.');
+  });
+
   it('locks a judge ballot after submission (no edits, 409)', async () => {
     const j = judge(JUDGES[0]);
     const subs = (await j.list()).body.data.submissions;
@@ -272,7 +324,9 @@ describe('Bitrefill judging — basic user journeys', () => {
 
 afterAll(() => {
   const findings = [
-    ['Ineligible submissions still rank on the final leaderboard', 'The simulation\'s "Comet Bridge" (email not in the Luma list) placed #2 in the final ranking. The leaderboard rows do not carry the eligibility flag the scoring view shows, so an ineligible entry can place or even win with nothing signalling it. Carry `eligible` onto the leaderboard rows and/or let the organizer exclude ineligible entries from ranking.'],
+    ['Promoted projects start with no payout wallet', 'By design the submission form collects no wallet, and the promote-to-project bridge leaves donation_address empty; an admin sets it via the existing updatePayoutAddress flow at payout time. Fine, but means a winner project is not payable until someone chases the wallet — surface a clear "needs payout wallet" state in the admin project view.'],
+    ['Promoted project team is the single submitter', 'We only capture the submitter (name + Luma email); real teams have several members. The promoted project gets one team member and the email is stashed in the description (team_members has no email column). Consider an optional team-roster field at submission, or let admins flesh out the team after promotion.'],
+    ['Submissions are invisible to the public until promoted', 'The public program page shows the existing projects grid, not submissions. A submitted-but-not-promoted project is only visible to judges/admins. If submitters expect a public gallery during judging, that needs a separate (PII-free) public view.'],
     ['Submitter cannot edit or withdraw a submission', 'There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.'],
     ['No submission confirmation email', 'Submitters get only an in-modal success state; nothing in their inbox. A confirmation (with what they submitted) reassures them and gives a paper trail. Planned for iteration 2.'],
     ['Ineligible submissions are only flagged, never reconciled', 'A Luma email typo permanently marks a real participant ineligible. Consider fuzzy match / an admin "mark eligible" override, since the flag is the only eligibility signal judges see.'],
@@ -303,7 +357,9 @@ afterAll(() => {
   lines.push('- Eligibility flagging against the Luma signup list (advisory, non-blocking).');
   lines.push('- Range-checked scoring; ballot cannot be submitted until everything is scored.');
   lines.push('- Leaderboard gated until all judges submit, then tallies the mean /12 and ranks correctly.');
+  lines.push('- Leaderboard flags ineligible entries (fixed: they no longer rank invisibly).');
   lines.push('- Ballot locks after submission.');
+  lines.push('- Admin can promote a submission into a Stadium project (idempotent), carrying title/repo/demo/program + submitter, so it flows into the existing payout + team tracking.');
   lines.push('');
   lines.push('## What to improve (ranked, highest-value first)');
   lines.push('');

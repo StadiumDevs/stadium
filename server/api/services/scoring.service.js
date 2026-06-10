@@ -3,6 +3,7 @@ import submissionScoreRepository from '../repositories/submission-score.reposito
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
 import programSignupRepository from '../repositories/program-signup.repository.js';
+import projectService from './project.service.js';
 
 const normalizeEmail = (email) =>
   typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -53,6 +54,38 @@ class ScoringService {
     }
     await programJudgeBallotRepository.markSubmitted(programId, judgeEmail);
     return { ok: true, total: submissions.length };
+  }
+
+  // Promote a submission into a real Stadium `projects` row so it flows into the
+  // existing project + payout tracking (team_members, payments, the admin
+  // project tables). Idempotent: a submission promotes once. We carry over what
+  // we have — title, repo, video, submitter as a team member — and stamp the
+  // Luma email + video into the description since the project/team schema has no
+  // email field. The payout wallet is added by an admin later (no wallet is
+  // collected at submission time).
+  async promoteToProject(program, submissionId) {
+    const submission = await programSubmissionRepository.findById(submissionId);
+    if (!submission || submission.programId !== program.id) return { notFound: true };
+    if (submission.promotedProjectId) {
+      return { alreadyPromoted: true, projectId: submission.promotedProjectId };
+    }
+
+    const project = await projectService.createProject({
+      projectName: submission.projectTitle,
+      description:
+        `Hackathon submission by ${submission.submitterName} (${submission.lumaEmail}).` +
+        ` Video demo: ${submission.videoUrl}`,
+      projectRepo: submission.githubUrl,
+      demoUrl: submission.videoUrl,
+      // hackathon_* are NOT NULL on projects; backfill from the program (same
+      // convention as elsewhere — hackathon_id mirrors the program slug).
+      hackathon: { id: program.slug, name: program.name },
+      program: { id: program.id },
+      teamMembers: [{ name: submission.submitterName, github: submission.githubUrl }],
+    });
+
+    await programSubmissionRepository.setPromotedProject(submissionId, project.id);
+    return { project };
   }
 
   // The gated leaderboard. Locked until every registered judge has submitted.

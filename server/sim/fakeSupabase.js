@@ -63,6 +63,11 @@ export function createFakeSupabase(initial = {}) {
         store[table] = getTable(table).filter((r) => !matches(r));
         return { data: null, error: null };
       }
+      if (state.op === 'update') {
+        const rows = getTable(table).filter(matches);
+        rows.forEach((r) => Object.assign(r, state.payload));
+        return { data: single ? rows[0] ?? null : rows, error: null };
+      }
       // select
       let rows = getTable(table).filter(matches);
       for (const o of [...state.orders].reverse()) {
@@ -105,6 +110,11 @@ export function createFakeSupabase(initial = {}) {
       },
       delete() {
         state.op = 'delete';
+        return builder;
+      },
+      update(payload) {
+        state.op = 'update';
+        state.payload = payload;
         return builder;
       },
       eq(col, val) {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Loader2, ExternalLink, Lock, Trophy } from "lucide-react";
 import {
   api,
@@ -34,9 +35,12 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 export function ProgramJudgingSection({
   programSlug,
   getAuth,
+  canPromote = false,
 }: {
   programSlug: string;
   getAuth: () => Promise<AdminAuthArg>;
+  /** True for wallet admins — shows the "Add to Stadium projects" control. */
+  canPromote?: boolean;
 }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("score");
@@ -45,6 +49,7 @@ export function ProgramJudgingSection({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const loadSubmissions = useCallback(async () => {
@@ -125,6 +130,31 @@ export function ProgramJudgingSection({
       });
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const promote = async (id: string) => {
+    setPromotingId(id);
+    try {
+      const auth = await getAuth();
+      const res = await api.promoteSubmission(programSlug, id, auth);
+      setView((prev) =>
+        prev
+          ? { ...prev, submissions: prev.submissions.map((s) => (s.id === id ? { ...s, promotedProjectId: res.data.projectId } : s)) }
+          : prev,
+      );
+      toast({
+        title: res.data.alreadyPromoted ? "Already a Stadium project" : "Added to Stadium projects",
+        description: "Track payouts and team info from the project page.",
+      });
+    } catch (e) {
+      toast({
+        title: "Couldn't add to Stadium projects",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setPromotingId(null);
     }
   };
 
@@ -255,18 +285,38 @@ export function ProgramJudgingSection({
                       onChange={(e) => setField(s.id, "notes", e.target.value)}
                       className="mt-2 w-full font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display disabled:opacity-50"
                     />
-                    <div className="mt-2 flex items-center justify-between">
+                    <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="label-hw-dim">{s.myScore ? "SAVED" : "NOT SCORED"}</span>
-                      {!locked && (
-                        <button
-                          type="button"
-                          onClick={() => saveRow(s.id)}
-                          disabled={savingId === s.id}
-                          className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1"
-                        >
-                          {savingId === s.id ? "SAVING…" : "SAVE"}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {canPromote &&
+                          (s.promotedProjectId ? (
+                            <Link
+                              to={`/m2-program/${s.promotedProjectId}`}
+                              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1 inline-flex items-center gap-1"
+                            >
+                              ✓ IN STADIUM <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => promote(s.id)}
+                              disabled={promotingId === s.id}
+                              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1"
+                            >
+                              {promotingId === s.id ? "ADDING…" : "ADD TO STADIUM"}
+                            </button>
+                          ))}
+                        {!locked && (
+                          <button
+                            type="button"
+                            onClick={() => saveRow(s.id)}
+                            disabled={savingId === s.id}
+                            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1"
+                          >
+                            {savingId === s.id ? "SAVING…" : "SAVE"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

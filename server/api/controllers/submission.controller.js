@@ -139,6 +139,39 @@ class SubmissionController {
     }
   }
 
+  // Admin: promote a submission into a Stadium project for payout/team tracking.
+  // Admin-gated (requireProgramAdmin) — judges cannot create projects.
+  async promote(req, res) {
+    try {
+      const { slug, submissionId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const result = await scoringService.promoteToProject(program, submissionId);
+      if (result.notFound) {
+        return res.status(404).json({ status: 'error', message: 'Submission not found' });
+      }
+      if (result.alreadyPromoted) {
+        return res
+          .status(200)
+          .json({ status: 'success', data: { projectId: result.projectId, alreadyPromoted: true } });
+      }
+      res.status(201).json({ status: 'success', data: { projectId: result.project.id } });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+        action: 'submission.promote',
+        targetType: 'submission',
+        targetId: submissionId,
+        metadata: { projectId: result.project.id },
+      });
+    } catch (error) {
+      console.error('❌ Error promoting submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to promote submission' });
+    }
+  }
+
   // Judge/admin: gated leaderboard (locked until all registered judges submit).
   async leaderboard(req, res) {
     try {

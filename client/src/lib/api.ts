@@ -222,6 +222,8 @@ export type ApiSubmission = {
   projectTitle: string;
   videoUrl: string;
   githubUrl: string;
+  /** Set once an admin promotes this submission into a Stadium project. */
+  promotedProjectId?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -1823,6 +1825,22 @@ export const api = {
       method: "POST",
       headers: adminAuthHeaders(authHeader),
     });
+  },
+
+  /** Admin: promote a submission into a Stadium project (payout + team tracking). */
+  promoteSubmission: async (
+    slug: string,
+    submissionId: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { projectId: string; alreadyPromoted?: boolean } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.promote(submissionId) };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/promote`,
+      { method: "POST", headers: adminAuthHeaders(authHeader) },
+    );
   },
 
   /** Judge/admin: gated leaderboard (locked until all registered judges submit). */

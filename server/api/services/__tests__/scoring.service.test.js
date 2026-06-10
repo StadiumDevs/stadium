@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { listByProgramId: vi.fn() },
+  default: { listByProgramId: vi.fn(), findById: vi.fn(), setPromotedProject: vi.fn() },
 }));
+vi.mock('../project.service.js', () => ({ default: { createProject: vi.fn() } }));
 vi.mock('../../repositories/submission-score.repository.js', () => ({
   default: { listByProgramId: vi.fn(), listByJudge: vi.fn() },
 }));
@@ -22,6 +23,7 @@ const scoreRepo = (await import('../../repositories/submission-score.repository.
 const ballotRepo = (await import('../../repositories/program-judge-ballot.repository.js')).default;
 const emailRepo = (await import('../../repositories/program-admin-email.repository.js')).default;
 const signupRepo = (await import('../../repositories/program-signup.repository.js')).default;
+const projectService = (await import('../project.service.js')).default;
 
 const score = (submissionId, judgeEmail, requirements, techStack, innovation) => ({
   submissionId, judgeEmail, requirements, techStack, innovation,
@@ -127,6 +129,47 @@ describe('scoringService.submitBallot', () => {
     const r = await scoringService.submitBallot('prog-1', 'a@x.com');
     expect(r.ok).toBe(true);
     expect(ballotRepo.markSubmitted).toHaveBeenCalledWith('prog-1', 'a@x.com');
+  });
+});
+
+describe('scoringService.promoteToProject', () => {
+  const program = { id: 'prog-1', slug: 'bitrefill-2026', name: 'Bitrefill 2026' };
+
+  it('creates a Stadium project from the submission and links it back', async () => {
+    submissionRepo.findById.mockResolvedValue({
+      id: 'sub-1', programId: 'prog-1', projectTitle: 'Aurora Pay',
+      submitterName: 'Ada', lumaEmail: 'ada@x.com', videoUrl: 'https://v', githubUrl: 'https://gh',
+    });
+    projectService.createProject.mockResolvedValue({ id: 'aurora-pay-ab12' });
+
+    const r = await scoringService.promoteToProject(program, 'sub-1');
+
+    expect(r.project.id).toBe('aurora-pay-ab12');
+    expect(projectService.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectName: 'Aurora Pay',
+        projectRepo: 'https://gh',
+        demoUrl: 'https://v',
+        hackathon: { id: 'bitrefill-2026', name: 'Bitrefill 2026' },
+        program: { id: 'prog-1' },
+        teamMembers: [expect.objectContaining({ name: 'Ada' })],
+      }),
+    );
+    expect(submissionRepo.setPromotedProject).toHaveBeenCalledWith('sub-1', 'aurora-pay-ab12');
+  });
+
+  it('is idempotent — returns the existing project without creating a second', async () => {
+    submissionRepo.findById.mockResolvedValue({ id: 'sub-1', programId: 'prog-1', promotedProjectId: 'existing-1' });
+    const r = await scoringService.promoteToProject(program, 'sub-1');
+    expect(r.alreadyPromoted).toBe(true);
+    expect(r.projectId).toBe('existing-1');
+    expect(projectService.createProject).not.toHaveBeenCalled();
+  });
+
+  it('404s a submission from another program', async () => {
+    submissionRepo.findById.mockResolvedValue({ id: 'sub-1', programId: 'other' });
+    const r = await scoringService.promoteToProject(program, 'sub-1');
+    expect(r.notFound).toBe(true);
   });
 });
 

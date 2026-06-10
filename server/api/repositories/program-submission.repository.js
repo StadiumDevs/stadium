@@ -16,6 +16,7 @@ const transform = (row) => {
     projectTitle: row.project_title,
     videoUrl: row.video_url,
     githubUrl: row.github_url,
+    promotedProjectId: row.promoted_project_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -78,6 +79,17 @@ class ProgramSubmissionRepository {
       .single();
     if (error) throw error;
     return { submission: transform(data), duplicate: false };
+  }
+
+  async setPromotedProject(id, projectId) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update({ promoted_project_id: projectId, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
   }
 
   async countByProgramId(programId) {

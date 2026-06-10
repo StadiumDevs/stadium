@@ -65,6 +65,7 @@ const OTHER_JUDGE_SCORES: Record<string, { requirements: number; techStack: numb
 
 const SCORES_KEY = "stadium_mock_scores_v1";
 const BALLOT_KEY = "stadium_mock_ballot_v1";
+const PROMOTED_KEY = "stadium_mock_promoted_v1";
 
 type StoredScores = Record<string, { requirements: number; techStack: number; innovation: number; notes: string }>;
 
@@ -77,6 +78,14 @@ const readScores = (): StoredScores => {
 };
 const writeScores = (s: StoredScores) => localStorage.setItem(SCORES_KEY, JSON.stringify(s));
 const ballotSubmitted = () => localStorage.getItem(BALLOT_KEY) === "submitted";
+
+const readPromoted = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(PROMOTED_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
 
 const toScore = (submissionId: string): ApiScore | null => {
   const raw = readScores()[submissionId];
@@ -94,12 +103,23 @@ const toScore = (submissionId: string): ApiScore | null => {
 export const mockJudging = {
   judgeView(): ApiJudgeView {
     const submitted = ballotSubmitted();
+    const promoted = readPromoted();
     const submissions: ApiSubmissionRow[] = MOCK_SUBMISSIONS.map((s) => ({
       ...s,
       eligible: ELIGIBLE_EMAILS.has(s.lumaEmail),
+      promotedProjectId: promoted[s.id] ?? null,
       myScore: toScore(s.id),
     }));
     return { locked: submitted, ballotStatus: submitted ? "submitted" : "in_progress", submissions };
+  },
+
+  promote(submissionId: string): { projectId: string; alreadyPromoted?: boolean } {
+    const promoted = readPromoted();
+    if (promoted[submissionId]) return { projectId: promoted[submissionId], alreadyPromoted: true };
+    const projectId = `proj-${submissionId}`;
+    promoted[submissionId] = projectId;
+    localStorage.setItem(PROMOTED_KEY, JSON.stringify(promoted));
+    return { projectId };
   },
 
   saveScore(submissionId: string, payload: { requirements: number; techStack: number; innovation: number; notes?: string }): ApiScore {
@@ -158,6 +178,7 @@ export const mockJudging = {
   resetForTests() {
     localStorage.removeItem(SCORES_KEY);
     localStorage.removeItem(BALLOT_KEY);
+    localStorage.removeItem(PROMOTED_KEY);
   },
 };
 

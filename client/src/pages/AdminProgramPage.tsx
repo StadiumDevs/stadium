@@ -294,7 +294,7 @@ const AdminProgramPage = () => {
                   isGlobalAdmin={isGlobalAdmin}
                 />
 
-                <ProgramJudgingSection programSlug={program.slug} getAuth={getAdminAuth} />
+                <ProgramJudgingSection programSlug={program.slug} getAuth={getAdminAuth} canPromote />
 
                 <ProgramSponsorsSection
                   programSlug={program.slug}

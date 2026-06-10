@@ -147,5 +147,12 @@ router.put(
 );
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
+// Promote a submission into a Stadium project (payout + team tracking).
+// Admin-only — judges (requireProgramJudge) cannot create projects.
+router.post(
+  '/:slug/submissions/:submissionId/promote',
+  requireProgramAdmin('slug'),
+  submissionController.promote,
+);
 
 export default router;
