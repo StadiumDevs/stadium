@@ -142,6 +142,7 @@ export const mockJudging = {
         submitterName: s.submitterName,
         githubUrl: s.githubUrl,
         videoUrl: s.videoUrl,
+        eligible: ELIGIBLE_EMAILS.has(s.lumaEmail),
         avgTotal: avgRequirements + avgTechStack + avgInnovation,
         avgRequirements,
         avgTechStack,

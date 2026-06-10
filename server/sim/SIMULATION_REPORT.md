@@ -15,8 +15,9 @@ Supabase fake.
 7. Out-of-range score (requirements=5 > max 2) rejected (400).
 8. Ballot submit blocked until all submissions scored (409 with missing count).
 9. Leaderboard locked at 2/3 submitted; pending: j3@judge.test.
-10. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
-11. After submitting, a judge can no longer edit scores (409, locked).
+10. Leaderboard now flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
+11. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
+12. After submitting, a judge can no longer edit scores (409, locked).
 
 ## What works
 

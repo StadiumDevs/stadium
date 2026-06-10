@@ -60,12 +60,14 @@ class ScoringService {
   // total (/12), with per-criterion means and tie-breaks on innovation then
   // tech stack.
   async leaderboard(programId) {
-    const [registeredJudges, submittedBallots, submissions, allScores] = await Promise.all([
+    const [registeredJudges, submittedBallots, submissions, allScores, signupEmails] = await Promise.all([
       programAdminEmailRepository.listJudges(programId),
       programJudgeBallotRepository.listSubmitted(programId),
       programSubmissionRepository.listByProgramId(programId),
       submissionScoreRepository.listByProgramId(programId),
+      programSignupRepository.listEmailsByProgramId(programId),
     ]);
+    const eligibleSet = new Set([...signupEmails].map((e) => normalizeEmail(e)));
 
     const registeredEmails = registeredJudges.map((j) => normalizeEmail(j.email));
     const submittedEmails = new Set(submittedBallots.map((b) => normalizeEmail(b.judgeEmail)));
@@ -100,6 +102,7 @@ class ScoringService {
           submitterName: s.submitterName,
           githubUrl: s.githubUrl,
           videoUrl: s.videoUrl,
+          eligible: eligibleSet.has(normalizeEmail(s.lumaEmail)),
           avgTotal: avgRequirements + avgTechStack + avgInnovation,
           avgRequirements,
           avgTechStack,

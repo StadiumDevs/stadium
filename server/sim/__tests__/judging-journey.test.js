@@ -247,6 +247,13 @@ describe('Bitrefill judging — basic user journeys', () => {
     const aurora = rows.find((r) => r.projectTitle === 'Aurora Pay');
     expect(aurora.avgTotal).toBeCloseTo(34 / 3, 5);
     expect(aurora.judgeCount).toBe(3);
+
+    // Eligibility is now carried onto leaderboard rows (the fixed bug): the
+    // ineligible entry is flagged even though it still ranks.
+    expect(aurora.eligible).toBe(true);
+    const comet = rows.find((r) => r.projectTitle === 'Comet Bridge');
+    expect(comet.eligible).toBe(false);
+    note(`Leaderboard now flags eligibility: "Comet Bridge" ranks #${comet.rank} but is marked NOT IN LUMA.`);
     note(
       `Leaderboard unlocked at 3/3. Ranking: ${rows
         .map((r) => `${r.rank}. ${r.projectTitle} (${r.avgTotal.toFixed(2)}/12)`)

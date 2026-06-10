@@ -333,7 +333,14 @@ export function ProgramJudgingSection({
                 {board.rows.map((r) => (
                   <tr key={r.submissionId} className="border-b border-hairline/50">
                     <td className="py-2 pr-2 font-mono text-[13px] text-display">{r.rank}</td>
-                    <td className="py-2 pr-2 font-mono text-[13px] text-display">{r.projectTitle}</td>
+                    <td className="py-2 pr-2 font-mono text-[13px] text-display">
+                      {r.projectTitle}
+                      {r.eligible === false && (
+                        <span className="label-hw text-destructive ml-2" title="Submitter email not in the Luma signup list">
+                          ·NOT IN LUMA
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2 pr-2 font-mono text-[13px] text-display">{fmt(r.avgTotal)}</td>
                     <td className="py-2 pr-2 font-mono text-[12px] text-body">{fmt(r.avgRequirements)}</td>
                     <td className="py-2 pr-2 font-mono text-[12px] text-body">{fmt(r.avgTechStack)}</td>

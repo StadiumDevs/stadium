@@ -27,7 +27,12 @@ const score = (submissionId, judgeEmail, requirements, techStack, innovation) =>
   submissionId, judgeEmail, requirements, techStack, innovation,
 });
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Default: no signups loaded (eligibility flags compute as false). Individual
+  // tests override when they care about eligibility.
+  signupRepo.listEmailsByProgramId.mockResolvedValue(new Set());
+});
 
 describe('scoringService.leaderboard — gating', () => {
   it('locks until every registered judge has submitted', async () => {

@@ -255,6 +255,8 @@ export type ApiLeaderboardRow = {
   submitterName?: string;
   githubUrl?: string;
   videoUrl?: string;
+  /** False when the submitter's Luma email isn't in the signup list. */
+  eligible?: boolean;
   avgTotal: number;
   avgRequirements: number;
   avgTechStack: number;
