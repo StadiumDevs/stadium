@@ -111,6 +111,12 @@ app.get("/api/health", (req, res) => {
         authConfig: {
             authorizedSigners: getAuthorizedAddresses().length,
             network: NETWORK_CONFIG.networkName,
+        },
+        // Booleans only (never the values): lets you confirm a deployed env has
+        // outbound email (Resend) wired without sending anything.
+        email: {
+            resendConfigured: !!process.env.RESEND_API_KEY,
+            fromConfigured: !!process.env.RESEND_FROM_EMAIL,
         }
     });
 });

@@ -19,7 +19,7 @@ Supabase fake.
 11. Leaderboard locked at 2/3 submitted; pending: j3@judge.test.
 12. Leaderboard now flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
 13. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
-14. Winner promoted to Stadium project "aurora-pay-ab683f": name/repo/demo/program carried, submitter as team member.
+14. Winner promoted to Stadium project "aurora-pay-45336f": name/repo/demo/program carried, submitter as team member.
 15. Admin marked the winning submission as PAID (paid_by + paid_at recorded); can be toggled back to unpaid.
 16. After submitting, a judge can no longer edit scores (409, locked).
 
