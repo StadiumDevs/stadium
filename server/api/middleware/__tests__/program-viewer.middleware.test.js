@@ -44,7 +44,7 @@ vi.mock('../../auth/supabaseUser.js', () => ({
   extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
 }));
 vi.mock('../../repositories/program-admin-email.repository.js', () => ({
-  default: { isAdminByEmail: vi.fn() },
+  default: { findGrant: vi.fn() },
 }));
 
 const { requireProgramViewer } = await import('../auth.middleware.js');
@@ -75,9 +75,9 @@ beforeEach(() => {
 });
 
 describe('requireProgramViewer — social (email) path', () => {
-  it('passes a valid Supabase token whose email is a program admin (view-only)', async () => {
+  it('passes a valid Supabase token whose email is an ADMIN-role grant (view-only)', async () => {
     getSupabaseUser.mockResolvedValue({ id: 'sb-user-1', email: 'Partner@Example.com' });
-    programAdminEmailRepository.isAdminByEmail.mockResolvedValue(true);
+    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'partner@example.com', role: 'admin' });
 
     const req = makeReq({ headers: { 'x-supabase-token': 'valid-token' } });
     const res = makeRes();
@@ -92,7 +92,25 @@ describe('requireProgramViewer — social (email) path', () => {
       programId: 'prog-1',
       viewOnly: true,
       isGlobalAdmin: false,
+      role: 'admin',
     });
+  });
+
+  it('does NOT grant a judge-role email the viewer surface (least privilege)', async () => {
+    // A judge can score (requireProgramJudge) but must not see applicant PII /
+    // signups / inbox / audit / admin roster. Falls back to the wallet gate,
+    // which denies a wallet-less email session.
+    getSupabaseUser.mockResolvedValue({ id: 'sb-user-2', email: 'judge@example.com' });
+    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'judge@example.com', role: 'judge' });
+
+    const req = makeReq({ headers: { 'x-supabase-token': 'valid-token' } });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await requireProgramViewer('slug')(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
   });
 
   it('404s when the program does not exist (token valid)', async () => {
@@ -109,9 +127,9 @@ describe('requireProgramViewer — social (email) path', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('falls back to wallet auth (and is rejected) when the email is not an admin', async () => {
+  it('falls back to wallet auth (and is rejected) when the email has no grant', async () => {
     getSupabaseUser.mockResolvedValue({ id: 'sb-user-1', email: 'stranger@example.com' });
-    programAdminEmailRepository.isAdminByEmail.mockResolvedValue(false);
+    programAdminEmailRepository.findGrant.mockResolvedValue(null);
 
     // No x-siws-auth header -> wallet path denies.
     const req = makeReq({ headers: { 'x-supabase-token': 'valid-token' } });
@@ -135,7 +153,7 @@ describe('requireProgramViewer — social (email) path', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
-    expect(programAdminEmailRepository.isAdminByEmail).not.toHaveBeenCalled();
+    expect(programAdminEmailRepository.findGrant).not.toHaveBeenCalled();
   });
 
   it('falls back to wallet auth when no Supabase token is present', async () => {

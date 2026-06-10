@@ -11,20 +11,24 @@ Supabase fake.
 3. Malformed GitHub URL rejected (400) before persisting.
 4. Non-invited email blocked from scoring (status 401) — requireProgramJudge fell back to the wallet gate.
 5. Organizer invited 3 judges: j1@judge.test, j2@judge.test, j3@judge.test.
-6. Judge sees all 3 submissions; "Comet Bridge" flagged NOT IN LUMA (advisory, still scoreable).
-7. Out-of-range score (requirements=5 > max 2) rejected (400).
-8. Ballot submit blocked until all submissions scored (409 with missing count).
-9. Leaderboard locked at 2/3 submitted; pending: j3@judge.test.
-10. Leaderboard now flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
-11. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
-12. Winner promoted to Stadium project "aurora-pay-fab2b3": name/repo/demo/program carried, submitter as team member.
-13. Admin marked the winning submission as PAID (paid_by + paid_at recorded); can be toggled back to unpaid.
-14. After submitting, a judge can no longer edit scores (409, locked).
+6. Least privilege: a judge is denied the admin viewer surface (applications / signups / inbox / audit / admin roster).
+7. Cross-event isolation: a judge only reaches the event they were invited to; other events 401/403.
+8. Judge sees all 3 submissions; "Comet Bridge" flagged NOT IN LUMA (advisory, still scoreable).
+9. Out-of-range score (requirements=5 > max 2) rejected (400).
+10. Ballot submit blocked until all submissions scored (409 with missing count).
+11. Leaderboard locked at 2/3 submitted; pending: j3@judge.test.
+12. Leaderboard now flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
+13. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
+14. Winner promoted to Stadium project "aurora-pay-ab683f": name/repo/demo/program carried, submitter as team member.
+15. Admin marked the winning submission as PAID (paid_by + paid_at recorded); can be toggled back to unpaid.
+16. After submitting, a judge can no longer edit scores (409, locked).
 
 ## What works
 
 - Public submission with dedup (409) and validation (400).
 - Non-invited emails are blocked from the scoring surface (auth gate holds).
+- Cross-event isolation: an email user only reaches the event they were invited to; other events 401/403.
+- Least privilege: judges get the scoring surface only — NOT applicant PII, signups, inbox, audit log, or the admin roster.
 - Eligibility flagging against the Luma signup list (advisory, non-blocking).
 - Range-checked scoring; ballot cannot be submitted until everything is scored.
 - Leaderboard gated until all judges submit, then tallies the mean /12 and ranks correctly.

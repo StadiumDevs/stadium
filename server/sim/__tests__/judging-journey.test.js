@@ -43,12 +43,15 @@ vi.mock('@polkadot/util-crypto', () => ({
 vi.mock('@polkadot/util', () => ({ u8aToHex: vi.fn() }));
 
 const submissionController = (await import('../../api/controllers/submission.controller.js')).default;
-const { requireProgramJudge } = await import('../../api/middleware/auth.middleware.js');
+const { requireProgramJudge, requireProgramViewer } = await import('../../api/middleware/auth.middleware.js');
 const programAdminEmailRepo = (await import('../../api/repositories/program-admin-email.repository.js')).default;
 const { store, authRegistry } = await import('../simState.js');
 
 const SLUG = 'bitrefill-2026';
 const PROGRAM_ID = 'bitrefill';
+// A second, unrelated event — used to prove cross-event isolation.
+const OTHER_SLUG = 'other-2026';
+const OTHER_PROGRAM_ID = 'other';
 
 // --- request plumbing -------------------------------------------------------
 const makeRes = () => {
@@ -79,6 +82,29 @@ async function judgeCall(token, fn, { params = {}, body = {} } = {}) {
   if (!passed) return { status: res.statusCode ?? 500, body: res.body, denied: true };
   await fn(req, res);
   return { status: res.statusCode ?? 200, body: res.body };
+}
+
+// Run the requireProgramViewer gate (the admin read surface) for a token+slug.
+// Returns denied:true if the gate rejected before calling next().
+async function viewerGate(token, slug = SLUG) {
+  const req = { params: { slug }, headers: token ? { 'x-supabase-token': token } : {} };
+  const res = makeRes();
+  let passed = false;
+  await requireProgramViewer('slug')(req, res, () => {
+    passed = true;
+  });
+  return { passed, status: res.statusCode };
+}
+
+// Run the requireProgramJudge gate for a token against an explicit slug.
+async function judgeGate(token, slug) {
+  const req = { params: { slug }, headers: token ? { 'x-supabase-token': token } : {} };
+  const res = makeRes();
+  let passed = false;
+  await requireProgramJudge('slug')(req, res, () => {
+    passed = true;
+  });
+  return { passed, status: res.statusCode };
 }
 
 // --- agents -----------------------------------------------------------------
@@ -156,10 +182,16 @@ const note = (m) => log.push(m);
 beforeAll(() => {
   // Organizer has already created an open hackathon and imported the Luma list
   // (comet@ is intentionally absent -> ineligible).
-  store.programs = [{
-    id: PROGRAM_ID, slug: SLUG, name: 'Bitrefill 2026', program_type: 'hackathon',
-    status: 'open', owner: 'webzero', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  }];
+  store.programs = [
+    {
+      id: PROGRAM_ID, slug: SLUG, name: 'Bitrefill 2026', program_type: 'hackathon',
+      status: 'open', owner: 'webzero', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    },
+    {
+      id: OTHER_PROGRAM_ID, slug: OTHER_SLUG, name: 'Other Event 2026', program_type: 'hackathon',
+      status: 'open', owner: 'webzero', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    },
+  ];
   store.program_signups = [
     { id: 's1', program_id: PROGRAM_ID, email: 'aurora@example.com', name: 'Aurora', source: 'luma', created_at: new Date().toISOString() },
     { id: 's2', program_id: PROGRAM_ID, email: 'nimbus@example.com', name: 'Nimbus', source: 'luma', created_at: new Date().toISOString() },
@@ -203,6 +235,30 @@ describe('Bitrefill judging — basic user journeys', () => {
     const judges = await programAdminEmailRepo.listJudges(PROGRAM_ID);
     expect(judges).toHaveLength(3);
     note(`Organizer invited ${JUDGES.length} judges: ${JUDGES.join(', ')}.`);
+  });
+
+  it('a judge is NOT given the admin viewer surface (applicant PII, signups, inbox)', async () => {
+    // requireProgramViewer guards applications, signups, inbox, audit log, and
+    // the admin roster. A judge must be rejected there — judging only.
+    const r = await viewerGate(tokenFor(JUDGES[0]), SLUG);
+    expect(r.passed).toBe(false);
+    expect(r.status).toBeGreaterThanOrEqual(400);
+    note('Least privilege: a judge is denied the admin viewer surface (applications / signups / inbox / audit / admin roster).');
+  });
+
+  it('cross-event isolation: a judge invited to another event cannot touch this one', async () => {
+    await programAdminEmailRepo.add(OTHER_PROGRAM_ID, 'judge-b@judge.test', '5Organizer', 'judge');
+    authRegistry.set(tokenFor('judge-b@judge.test'), { id: 'u:b', email: 'judge-b@judge.test' });
+
+    // The other event's judge is allowed on their own event...
+    expect((await judgeGate(tokenFor('judge-b@judge.test'), OTHER_SLUG)).passed).toBe(true);
+    // ...but denied on THIS event (no grant here).
+    const blocked = await judgeGate(tokenFor('judge-b@judge.test'), SLUG);
+    expect(blocked.passed).toBe(false);
+    expect(blocked.status).toBeGreaterThanOrEqual(401);
+    // And this event's judge is denied on the other event.
+    expect((await judgeGate(tokenFor(JUDGES[0]), OTHER_SLUG)).passed).toBe(false);
+    note('Cross-event isolation: a judge only reaches the event they were invited to; other events 401/403.');
   });
 
   it('an invited judge sees every submission, with the ineligible one flagged', async () => {
@@ -367,6 +423,8 @@ afterAll(() => {
   lines.push('');
   lines.push('- Public submission with dedup (409) and validation (400).');
   lines.push('- Non-invited emails are blocked from the scoring surface (auth gate holds).');
+  lines.push('- Cross-event isolation: an email user only reaches the event they were invited to; other events 401/403.');
+  lines.push('- Least privilege: judges get the scoring surface only — NOT applicant PII, signups, inbox, audit log, or the admin roster.');
   lines.push('- Eligibility flagging against the Luma signup list (advisory, non-blocking).');
   lines.push('- Range-checked scoring; ballot cannot be submitted until everything is scored.');
   lines.push('- Leaderboard gated until all judges submit, then tallies the mean /12 and ranks correctly.');

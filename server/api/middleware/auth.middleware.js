@@ -517,11 +517,16 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
  * Read-only program access for social (email) admins, with a wallet fallback.
  *
  * First tries the social path: a valid Supabase Auth token (`x-supabase-token`)
- * whose verified email is listed in `program_admin_emails` for this program.
- * That grants VIEW access only (`req.user.viewOnly = true`) — it never unlocks
- * the mutation routes, which keep the stricter wallet-keyed `requireProgramAdmin`
- * / `requireAdmin` gates. If there's no valid email-admin token, behavior is
- * identical to `requireProgramAdmin` (wallet admins are unaffected).
+ * whose verified email is an ADMIN-role grant in `program_admin_emails` for this
+ * program. That grants VIEW access only (`req.user.viewOnly = true`) — it never
+ * unlocks the mutation routes, which keep the stricter wallet-keyed
+ * `requireProgramAdmin` / `requireAdmin` gates.
+ *
+ * JUDGE-role emails are deliberately NOT viewers: a judge must only reach the
+ * scoring surface (`requireProgramJudge`), never the program's applicant PII,
+ * signups, inbox, audit log, or admin roster. If there's no valid admin-email
+ * token, behavior is identical to `requireProgramAdmin` (wallet admins are
+ * unaffected).
  *
  * Apply this only to GET/read routes a viewing admin needs.
  */
@@ -540,7 +545,8 @@ export const requireProgramViewer = (slugParam = 'slug') => async (req, res, nex
         if (!program) {
           return res.status(404).json({ status: 'error', message: 'Program not found' });
         }
-        if (await programAdminEmailRepository.isAdminByEmail(program.id, user.email)) {
+        const grant = await programAdminEmailRepository.findGrant(program.id, user.email);
+        if (grant && grant.role === 'admin') {
           logSuccess(`Email admin ${user.email} viewing program "${slug}".`);
           req.user = {
             email: user.email,
@@ -549,16 +555,19 @@ export const requireProgramViewer = (slugParam = 'slug') => async (req, res, nex
             programId: program.id,
             isGlobalAdmin: false,
             viewOnly: true,
+            role: 'admin',
           };
           return next();
         }
+        // A judge-role (or no) grant is not a viewer — fall through to the
+        // wallet gate, which denies a wallet-less email session.
       } catch (err) {
         logError(`Email-admin viewer check failed, falling back to wallet: ${err.message}`);
       }
     }
   }
 
-  // No valid email-admin token — defer entirely to the wallet program-admin gate.
+  // No valid admin-email token — defer entirely to the wallet program-admin gate.
   return requireProgramAdmin(slugParam)(req, res, next);
 };
 
