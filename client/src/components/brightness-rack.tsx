@@ -283,18 +283,18 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="font-mono text-[11px] text-display truncate" title={title || "pommeshdrms"}>
-              {title || "pommeshdrms"}
+            <div className="font-mono text-[11px] text-display truncate" title={title || "otherside-podcast"}>
+              {title || "otherside-podcast"}
             </div>
             <div className="label-hw-dim truncate">
-              {["pommeshdrms", genre].filter(Boolean).join(" · ")}
+              {["otherside-podcast", genre].filter(Boolean).join(" · ")}
             </div>
             <div className="flex items-center gap-3 mt-1">
               <a
-                href="https://soundcloud.com/pommeshdrms"
+                href="https://soundcloud.com/otherside-podcast"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="pommeshdrms on SoundCloud (opens in new tab)"
+                aria-label="otherside-podcast on SoundCloud (opens in new tab)"
                 className="label-hw-dim hover:text-display transition-colors duration-200"
               >
                 SOUNDCLOUD ↗
