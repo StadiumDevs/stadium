@@ -69,7 +69,7 @@ export const mockPrograms: ApiProgram[] = [
     slug: "bitrefill-2026",
     programType: "hackathon",
     description: "WebZero hackathon hosted with Bitrefill in Berlin.",
-    status: "draft",
+    status: "open",
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
