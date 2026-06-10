@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { AUDIO_TRACKS, SoundCloudAudioContext } from "./use-sound-cloud-audio";
 
 // --- SoundCloud Widget API integration ---
@@ -102,6 +103,9 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [selectedTrackId, setSelectedTrackId] = useState(AUDIO_TRACKS[0].id);
+  // Tuck the video down to just its title bar (keeps playing) so it's not in the
+  // way; the iframe stays mounted so audio continues.
+  const [videoMinimized, setVideoMinimized] = useState(false);
   // Timestamp of the last user seek — suppresses PLAY_PROGRESS snap-back for a
   // brief window so the thumb doesn't fight the user mid-drag.
   const lastSeekRef = useRef(0);
@@ -211,6 +215,7 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
     setSelectedTrackId(id);
     const widget = widgetRef.current;
     if (track.kind === "youtube") {
+      setVideoMinimized(false);
       widget?.pause();
       return;
     }
@@ -266,13 +271,29 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
             <span className="ml-auto flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                onClick={() => ytWrapRef.current?.requestFullscreen?.()}
-                aria-label="Fullscreen video"
-                title="Fullscreen"
+                onClick={() => setVideoMinimized((v) => !v)}
+                aria-label={videoMinimized ? "Show video" : "Minimize video (keep playing)"}
+                aria-pressed={videoMinimized}
+                title={videoMinimized ? "Show video" : "Minimize"}
                 className="lcd p-1 hover:bg-panel transition-colors duration-150 group"
               >
-                <Maximize2 className="h-3 w-3 text-label-mid group-hover:text-display" aria-hidden="true" />
+                {videoMinimized ? (
+                  <ChevronUp className="h-3 w-3 text-label-mid group-hover:text-display" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-label-mid group-hover:text-display" aria-hidden="true" />
+                )}
               </button>
+              {!videoMinimized && (
+                <button
+                  type="button"
+                  onClick={() => ytWrapRef.current?.requestFullscreen?.()}
+                  aria-label="Fullscreen video"
+                  title="Fullscreen"
+                  className="lcd p-1 hover:bg-panel transition-colors duration-150 group"
+                >
+                  <Maximize2 className="h-3 w-3 text-label-mid group-hover:text-display" aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => selectTrack(AUDIO_TRACKS[0].id)}
@@ -284,7 +305,14 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
               </button>
             </span>
           </div>
-          <div ref={ytWrapRef} className="relative w-full aspect-video bg-black">
+          {/* Kept mounted when minimized (h-0) so audio keeps playing. */}
+          <div
+            ref={ytWrapRef}
+            className={cn(
+              "relative w-full bg-black overflow-hidden",
+              videoMinimized ? "h-0" : "aspect-video",
+            )}
+          >
             <iframe
               key={activeTrack.id}
               src={`${activeTrack.embedUrl}?autoplay=1&rel=0&playsinline=1`}

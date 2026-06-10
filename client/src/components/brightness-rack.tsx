@@ -43,6 +43,29 @@ const PHASE_MARKS: Array<{ label: string; hour: number }> = [
   { label: "DUSK", hour: 19.5 },
 ];
 
+// Mute toggle for the music. Surfaced in the always-visible top-right control
+// cluster (both collapsed strip and expanded header) so it's easy to find.
+function MuteButton({ className }: { className?: string }) {
+  const { muted, toggle } = useSoundCloudAudio();
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={muted ? "Unmute music" : "Mute music"}
+      aria-pressed={!muted}
+      title={muted ? "Unmute music" : "Mute music"}
+      className={cn("lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0 flex items-center gap-1", className)}
+    >
+      {muted ? (
+        <VolumeX className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150" aria-hidden="true" />
+      ) : (
+        <Volume2 className="h-3.5 w-3.5 text-display transition-colors duration-150" aria-hidden="true" />
+      )}
+      <span className="label-hw-dim group-hover:text-display">{muted ? "MUTED" : "SOUND"}</span>
+    </button>
+  );
+}
+
 export function BrightnessRack({ className }: BrightnessRackProps) {
   const {
     brightness, mode, phase, paletteKey, palettes, solarTarget, collapsed,
@@ -57,7 +80,7 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
 
   // Audio state lives in a provider above the router (persists across nav).
   const {
-    muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek,
+    title, genre, artworkUrl, positionMs, durationMs, seek,
     tracks, selectedTrackId, selectTrack, activeTrack,
   } = useSoundCloudAudio();
 
@@ -83,37 +106,51 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
   const hourTicks = useMemo(() => buildHourTicks(), []);
   const activePalette = palettes.find((p) => p.key === paletteKey);
 
-  // Collapsed: a single compact strip showing current state with an expand chevron.
+  // Collapsed: a compact strip showing current state. Mute + expand live in the
+  // right-hand cluster so they're easy to find without opening the panel.
   if (collapsed) {
     return (
-      <button
-        type="button"
-        onClick={() => setCollapsed(false)}
-        aria-label="Expand brightness controls"
-        aria-expanded={false}
+      <div
         className={cn(
-          "panel px-3 py-1.5 w-full flex items-center gap-3 text-left",
-          "hover:bg-panel-deep transition-colors duration-150 group",
+          "panel px-3 py-1.5 w-full flex items-center gap-3",
           className,
         )}
       >
-        <span className="label-hw text-display">BRIGHTNESS</span>
-        <span className="font-mono text-[12px] text-display tabular-nums">
-          {brightness}%
-        </span>
-        <span className="label-hw-dim">·</span>
-        <span className="label-hw-dim">{mode === "auto" ? `${phase} · AUTO` : "MANUAL"}</span>
-        {activePalette && (
-          <>
-            <span className="label-hw-dim">·</span>
-            <span className="label-hw-dim uppercase">{activePalette.label}</span>
-          </>
-        )}
-        <ChevronDown
-          className="h-3.5 w-3.5 text-label-mid ml-auto group-hover:text-display transition-colors duration-150"
-          aria-hidden="true"
-        />
-      </button>
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          aria-label="Expand brightness and audio controls"
+          aria-expanded={false}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left group"
+        >
+          <span className="label-hw text-display">BRIGHTNESS</span>
+          <span className="font-mono text-[12px] text-display tabular-nums">
+            {brightness}%
+          </span>
+          <span className="label-hw-dim">·</span>
+          <span className="label-hw-dim truncate">{mode === "auto" ? `${phase} · AUTO` : "MANUAL"}</span>
+          {activePalette && (
+            <>
+              <span className="label-hw-dim">·</span>
+              <span className="label-hw-dim uppercase truncate">{activePalette.label}</span>
+            </>
+          )}
+        </button>
+        <MuteButton />
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          aria-label="Expand brightness and audio controls"
+          aria-expanded={false}
+          className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0 flex items-center gap-1"
+        >
+          <span className="label-hw-dim group-hover:text-display">SHOW</span>
+          <ChevronDown
+            className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+            aria-hidden="true"
+          />
+        </button>
+      </div>
     );
   }
 
@@ -204,13 +241,16 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
           {brightness}%
         </div>
 
+        <MuteButton />
+
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          aria-label="Collapse brightness controls"
+          aria-label="Collapse brightness and audio controls"
           aria-expanded={true}
-          className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group"
+          className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0 flex items-center gap-1"
         >
+          <span className="label-hw-dim group-hover:text-display">HIDE</span>
           <ChevronUp
             className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
             aria-hidden="true"
@@ -352,26 +392,6 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
               </a>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={muted ? "Unmute audio" : "Mute audio"}
-            aria-pressed={!muted}
-            title={muted ? "Unmute audio" : "Mute audio"}
-            className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group flex-shrink-0 self-center"
-          >
-            {muted ? (
-              <VolumeX
-                className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
-                aria-hidden="true"
-              />
-            ) : (
-              <Volume2
-                className="h-3.5 w-3.5 text-display transition-colors duration-150"
-                aria-hidden="true"
-              />
-            )}
-          </button>
         </div>
       </div>
 
