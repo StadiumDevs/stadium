@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { ChevronDown, ChevronUp, FastForward, Music, Rewind, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, ChevronUp, FastForward, Maximize2, Music, Rewind, Volume2, VolumeX } from "lucide-react";
 import { useBrightness } from "@/hooks/use-brightness";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useSoundCloudAudio } from "@/components/audio/use-sound-cloud-audio";
@@ -56,8 +56,12 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
   const nowPct = ((now.getHours() + now.getMinutes() / 60) / DAY_HOURS) * 100;
 
   // Audio state lives in a provider above the router (persists across nav).
-  const { muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek } =
-    useSoundCloudAudio();
+  const {
+    muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek,
+    tracks, selectedTrackId, selectTrack, activeTrack,
+  } = useSoundCloudAudio();
+  // Wraps the inline YouTube embed so its FULLSCREEN button can request it.
+  const videoWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Once the user touches anything (slider, AUTO toggle, palette), collapse
   // automatically. After that, expand/collapse is entirely user-driven via the
@@ -267,9 +271,84 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
         />
       </div>
 
-      {/* Audio — now-playing card: artwork + track + discreet links + mute */}
+      {/* Audio — track picker: pick what to listen to (or watch) */}
       <div className="flex items-start gap-3 mt-2 pt-2 border-t border-hairline-subtle">
         <span className="label-hw min-w-[78px] mt-1">AUDIO</span>
+        <div className="flex-1 min-w-0 space-y-1">
+          {tracks.map((t) => {
+            const active = t.id === selectedTrackId;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => selectTrack(t.id)}
+                aria-pressed={active}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1 border text-left transition-colors duration-150",
+                  active
+                    ? "border-display bg-panel-deep"
+                    : "border-hairline-subtle hover:bg-panel-deep",
+                )}
+              >
+                <span
+                  className={cn(
+                    "font-mono text-[11px] truncate",
+                    active ? "text-display" : "text-body",
+                  )}
+                >
+                  <span aria-hidden="true">▸ </span>
+                  {t.label}
+                </span>
+                <span className="label-hw-dim truncate">· {t.artist}</span>
+                <span className="ml-auto flex items-center gap-2 shrink-0">
+                  {t.genre && <span className="label-hw text-display">{t.genre}</span>}
+                  {t.kind === "youtube" && <span className="label-hw-dim">WATCH ▸</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeTrack.kind === "youtube" ? (
+        /* Inline video — renders in the small area, with a fullscreen control */
+        <div className="flex items-start gap-3 mt-2">
+          <span className="min-w-[78px]" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <div ref={videoWrapRef} className="relative w-full aspect-video border border-hairline bg-black">
+              <iframe
+                key={activeTrack.id}
+                src={`${activeTrack.embedUrl}?autoplay=1&rel=0`}
+                title={`${activeTrack.label} (${activeTrack.artist})`}
+                className="absolute inset-0 w-full h-full"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <span className="label-hw-dim truncate">
+                {[activeTrack.label, activeTrack.artist, activeTrack.genre].filter(Boolean).join(" · ")}
+              </span>
+              <button
+                type="button"
+                onClick={() => videoWrapRef.current?.requestFullscreen?.()}
+                aria-label="Fullscreen video"
+                title="Fullscreen"
+                className="lcd p-1 hover:bg-panel-deep transition-colors duration-150 group shrink-0"
+              >
+                <Maximize2
+                  className="h-3.5 w-3.5 text-label-mid group-hover:text-display transition-colors duration-150"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+      {/* Now-playing card: artwork + track + discreet link + mute */}
+      <div className="flex items-start gap-3 mt-2">
+        <span className="min-w-[78px]" aria-hidden="true" />
         <div className="flex items-start gap-3 flex-1 min-w-0">
           {artworkUrl ? (
             <img
@@ -283,30 +362,21 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="font-mono text-[11px] text-display truncate" title={title || "otherside-podcast"}>
-              {title || "otherside-podcast"}
+            <div className="font-mono text-[11px] text-display truncate" title={title || activeTrack.label}>
+              {title || activeTrack.label}
             </div>
             <div className="label-hw-dim truncate">
-              {["otherside-podcast", genre].filter(Boolean).join(" · ")}
+              {[activeTrack.artist, genre].filter(Boolean).join(" · ")}
             </div>
             <div className="flex items-center gap-3 mt-1">
               <a
-                href="https://soundcloud.com/otherside-podcast"
+                href={activeTrack.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="otherside-podcast on SoundCloud (opens in new tab)"
+                aria-label={`${activeTrack.artist} on SoundCloud (opens in new tab)`}
                 className="label-hw-dim hover:text-display transition-colors duration-200"
               >
                 SOUNDCLOUD ↗
-              </a>
-              <a
-                href="https://www.instagram.com/pommes_hdrms"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="pommes_hdrms on Instagram (opens in new tab)"
-                className="label-hw-dim hover:text-display transition-colors duration-200"
-              >
-                INSTAGRAM ↗
               </a>
             </div>
           </div>
@@ -404,6 +474,8 @@ export function BrightnessRack({ className }: BrightnessRackProps) {
           </span>
         </div>
       </div>
+        </>
+      )}
 
       {/* Curation framing */}
       <div className="flex items-center gap-3 mt-1">

@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { SoundCloudAudioContext } from "./use-sound-cloud-audio";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AUDIO_TRACKS, SoundCloudAudioContext } from "./use-sound-cloud-audio";
 
 // --- SoundCloud Widget API integration ---
 // The audio lives in a provider mounted ABOVE the router so the hidden iframe
 // (and its playback) survives page navigation — the brightness-rack only
 // renders the controls + now-playing card and reads state from this context.
+//
+// We feature a small lineup (see AUDIO_TRACKS). The SoundCloud tracks all play
+// through this one hidden widget via widget.load(); the YouTube track is a
+// video the panel renders inline, so selecting it just pauses the widget.
 
 interface SCSound {
   title?: string | null;
@@ -19,6 +23,7 @@ interface SCProgress {
 
 interface SCWidget {
   bind(event: string, cb: (data?: SCProgress) => void): void;
+  load(url: string, options?: { auto_play?: boolean; callback?: () => void }): void;
   play(): void;
   pause(): void;
   seekTo(milliseconds: number): void;
@@ -40,10 +45,12 @@ declare global {
 }
 
 const SC_WIDGET_SCRIPT = "https://w.soundcloud.com/player/api.js";
-const SC_TRACK_URL =
-  "https://soundcloud.com/otherside-podcast/pomlouyen-other-side-podcast-08";
+// The widget boots on the first SoundCloud track; selecting another swaps it in
+// via widget.load().
+const FIRST_SC_URL =
+  AUDIO_TRACKS.find((t) => t.kind === "soundcloud")?.url ?? AUDIO_TRACKS[0].url;
 const SC_IFRAME_SRC =
-  `https://w.soundcloud.com/player/?url=${encodeURIComponent(SC_TRACK_URL)}` +
+  `https://w.soundcloud.com/player/?url=${encodeURIComponent(FIRST_SC_URL)}` +
   "&auto_play=false&hide_related=true&show_comments=false&show_user=false" +
   "&show_reposts=false&show_teaser=false&visual=false&buying=false" +
   "&sharing=false&download=false&show_artwork=false";
@@ -80,7 +87,8 @@ function loadSoundCloudWidget(): Promise<void> {
 /**
  * Mount once, above the router. Owns the hidden SoundCloud iframe + widget so
  * playback persists across page navigation. Muted-by-default autoplay; exposes
- * the current track's title / genre / artwork via useSoundCloudAudio().
+ * the featured track lineup, the current selection, and the current SoundCloud
+ * track's title / genre / artwork / transport via useSoundCloudAudio().
  */
 export function SoundCloudAudioProvider({ children }: { children: React.ReactNode }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -92,9 +100,21 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
   // Transport: current position + track length (ms) for the seek slider.
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
+  const [selectedTrackId, setSelectedTrackId] = useState(AUDIO_TRACKS[0].id);
   // Timestamp of the last user seek — suppresses PLAY_PROGRESS snap-back for a
   // brief window so the thumb doesn't fight the user mid-drag.
   const lastSeekRef = useRef(0);
+  // Which SoundCloud URL the widget currently holds — lets us resume (rather
+  // than reload from 0) when returning to the same track after the YouTube one.
+  const loadedScUrlRef = useRef(FIRST_SC_URL);
+  // Current mute state for use inside widget callbacks without re-binding.
+  const mutedRef = useRef(true);
+  mutedRef.current = muted;
+
+  const activeTrack = useMemo(
+    () => AUDIO_TRACKS.find((t) => t.id === selectedTrackId) ?? AUDIO_TRACKS[0],
+    [selectedTrackId],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +140,8 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
           widget.play();
           refreshTrack();
         });
-        // New track: refresh metadata + duration and reset the position thumb.
+        // New track (incl. after widget.load): refresh metadata + duration and
+        // reset the position thumb.
         widget.bind(window.SC.Widget.Events.PLAY, () => {
           setPositionMs(0);
           refreshTrack();
@@ -175,16 +196,56 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
     widgetRef.current?.seekTo(ms);
   }, []);
 
+  // Pick a track. Picking is an explicit "I want to listen" gesture, so the
+  // chosen source starts audibly. SoundCloud tracks swap into the hidden widget;
+  // the YouTube track is rendered inline by the panel, so here we just pause the
+  // widget and let the embed take over.
+  const selectTrack = useCallback((id: string) => {
+    const track = AUDIO_TRACKS.find((t) => t.id === id);
+    if (!track) return;
+    setSelectedTrackId(id);
+    const widget = widgetRef.current;
+    if (track.kind === "youtube") {
+      widget?.pause();
+      return;
+    }
+    setMuted(false);
+    if (!widget) return;
+    if (loadedScUrlRef.current === track.url) {
+      widget.setVolume(100);
+      widget.play();
+      return;
+    }
+    loadedScUrlRef.current = track.url;
+    widget.load(track.url, {
+      auto_play: true,
+      callback: () => widget.setVolume(100),
+    });
+  }, []);
+
   return (
     <SoundCloudAudioContext.Provider
-      value={{ muted, toggle, title, genre, artworkUrl, positionMs, durationMs, seek }}
+      value={{
+        muted,
+        toggle,
+        title,
+        genre,
+        artworkUrl,
+        positionMs,
+        durationMs,
+        seek,
+        tracks: AUDIO_TRACKS,
+        selectedTrackId,
+        selectTrack,
+        activeTrack,
+      }}
     >
       {children}
       {/* Hidden, persistent across navigation: 1×1, transparent, no pointer events. */}
       <iframe
         ref={iframeRef}
         src={SC_IFRAME_SRC}
-        title="SoundCloud audio player (otherside-podcast)"
+        title="SoundCloud audio player"
         aria-hidden="true"
         tabIndex={-1}
         allow="autoplay; encrypted-media"
