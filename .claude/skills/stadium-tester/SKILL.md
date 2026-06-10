@@ -36,6 +36,24 @@ The runner (`scripts/run-playwright.mjs`) forwards `VITE_USE_TEST_WALLET` from t
 
 A runnable SIWS-gated scenario can assert `window.__TEST_WALLET_ENABLED__ === true` in a preflight check and fall back to `SKIPPED (needs-auth-harness)` if the flag isn't live on the target.
 
+### One-command harness launch (the wallet agent)
+
+The fastest way to drive **every** wallet-gated flow locally is the `dev:harness` script — it boots the client in mock mode with the test wallet on and **Alice whitelisted as a global admin**, so the agent connects as a real-signing wallet that can reach all admin + judging surfaces (a global admin is treated as a program admin for every program):
+
+```bash
+cd client && npm run dev:harness     # VITE_USE_MOCK_DATA + VITE_USE_TEST_WALLET + VITE_ADMIN_ADDRESSES=Alice
+# then, from repo root:
+VITE_USE_TEST_WALLET=true node .claude/skills/stadium-tester/scripts/run-playwright.mjs \
+  --target http://localhost:8080 \
+  --spec .claude/skills/stadium-tester/flows/client-journey.spec.mjs
+```
+
+`flows/client-journey.spec.mjs` is the **canonical, validated** wallet-gated suite (sign in → public submit → score every submission → submit ballot → leaderboard reveals the winner → promote → mark paid). It is committed and run verbatim — not a per-run scratch spec. Keep it current as the client journey changes.
+
+**Limitation (set expectations):** the test wallet auto-signs silently, so this suite proves flows *functionally complete*; it can NOT verify the signing UX (routine = no popup vs important = fresh popup). That distinction needs a one-time manual pass with a real wallet.
+
+Connect detail: on `/admin`, click **CONNECT ADMIN WALLET** (Polkadot is the default chain) — with the harness, Alice is injected and authorized immediately; no separate sign-in step is needed. Some non-judging admin sections (audit log, applications) have no mock branch and log `ERR_CONNECTION_REFUSED` in mock mode — filter those from the console-error gate (the canonical spec already does).
+
 **Still skipped even with the harness**: admin approval / payment flows (`webzeroApprove`, `requestChanges`, `confirmPayment`) have no mock-mode branch in `client/src/lib/api.ts` — they always hit the real API. Those remain `SKIPPED (needs-mock-coverage)` until mocks are added.
 
 ## Procedure
