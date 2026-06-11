@@ -256,9 +256,12 @@ class SubmissionController {
   }
 
   // Admin: promote a submission into a Stadium project for payout/team tracking.
-  // Admin-gated (requireProgramAdmin) — judges cannot create projects.
+  // Payout-adjacent — global (wallet) admins only, like winner selection.
   async promote(req, res) {
     try {
+      if (!isPlatformAdmin(req)) {
+        return res.status(403).json({ status: 'error', message: 'Only platform admins can promote submissions' });
+      }
       const { slug, submissionId } = req.params;
       const program = await programService.findBySlug(slug);
       if (!program) {
@@ -288,9 +291,13 @@ class SubmissionController {
     }
   }
 
-  // Admin: mark a submission paid / not paid (payout tracking). Admin-gated.
+  // Admin: mark a submission paid / not paid (payout tracking). Global (wallet)
+  // admins only — payouts stay wallet-gated.
   async setPaid(req, res) {
     try {
+      if (!isPlatformAdmin(req)) {
+        return res.status(403).json({ status: 'error', message: 'Only platform admins can update payout status' });
+      }
       const { slug, submissionId } = req.params;
       const paid = req.body?.paid === true || req.body?.paid === 'true';
       const program = await programService.findBySlug(slug);
