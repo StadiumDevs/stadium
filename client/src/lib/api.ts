@@ -207,9 +207,106 @@ export type ApiProgramAdmin = {
 export type ApiProgramAdminEmail = {
   programId: string;
   email: string;
+  /** 'admin' = view access; 'judge' = scoped write access to scoring only. */
+  role: "admin" | "judge";
   invitedBy: string | null;
   createdAt: string;
 };
+
+/** A public project submission (Bitrefill intake). */
+export type ApiSubmission = {
+  id: string;
+  programId: string;
+  submitterName: string;
+  lumaEmail: string;
+  projectTitle: string;
+  /** 2-3 sentence brief: what the project is and what it does. */
+  projectBrief: string;
+  videoUrl: string;
+  githubUrl: string;
+  /** Set once an admin promotes this submission into a Stadium project. */
+  promotedProjectId?: string | null;
+  /** Payout tracking: an admin marks the (winning) submission as paid. */
+  paid?: boolean;
+  paidAt?: string | null;
+  paidBy?: string | null;
+  /** Winner prize (null = not a winner). Assigned by a platform admin post-judging. */
+  prizeAmount?: number | null;
+  prizeCurrency?: string | null;
+  prizeLabel?: string | null;
+  awardedAt?: string | null;
+  awardedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A prize tier configurable per program; awarded amount snapshots one of these. */
+export type ApiPrizeTier = { amount: number; currency: string; label: string };
+
+/** One judge's score for one submission (rubric: req 0-2, tech 0-5, innov 0-5). */
+export type ApiScore = {
+  submissionId: string;
+  judgeEmail: string;
+  requirements: number;
+  techStack: number;
+  innovation: number;
+  notes: string | null;
+};
+
+/** A submission row as seen by a judge: eligibility flag + their own score. */
+export type ApiSubmissionRow = ApiSubmission & {
+  eligible: boolean;
+  myScore: ApiScore | null;
+  /** Which batch (of batchSize) this submission falls in. */
+  batchNumber?: number;
+};
+
+/** Coverage of one batch: how many judges claimed it + whether this judge has. */
+export type ApiBatchInfo = {
+  batchNumber: number;
+  size: number;
+  claimCount: number;
+  claimedByMe: boolean;
+};
+
+export type ApiJudgeView = {
+  locked: boolean;
+  ballotStatus: "in_progress" | "submitted";
+  /** How many registered judges have submitted, so a judge can see who's left. */
+  ballotProgress?: { submitted: number; total: number };
+  /** Batch claiming: the fixed batch size, this judge's claims, and coverage. */
+  batchSize?: number;
+  claimedBatches?: number[];
+  batches?: ApiBatchInfo[];
+  submissions: ApiSubmissionRow[];
+};
+
+export type ApiLeaderboardRow = {
+  rank: number;
+  submissionId: string;
+  projectTitle: string;
+  submitterName?: string;
+  githubUrl?: string;
+  videoUrl?: string;
+  /** False when the submitter's Luma email isn't in the signup list. */
+  eligible?: boolean;
+  avgTotal: number;
+  avgRequirements: number;
+  avgTechStack: number;
+  avgInnovation: number;
+  judgeCount: number;
+  /** Individual per-judge scores (submitted judges only) for the breakdown view. */
+  judgeScores?: { judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }[];
+  /** Current prize on this submission (null = not a winner). */
+  prizeAmount?: number | null;
+  prizeCurrency?: string | null;
+  prizeLabel?: string | null;
+};
+
+export type ApiLeaderboard =
+  // Locked = not yet full coverage (some submission has no score from a submitted judge).
+  | { locked: true; submissionsScored: number; submissionsTotal: number; pendingJudges: string[] }
+  | { locked: false; submitted: number; total: number; rows: ApiLeaderboardRow[] };
 
 /** One row in the unified program inbox (signups + applications merged). */
 export type ApiInboxEntry = {
@@ -310,9 +407,33 @@ export type ApiProgram = {
   location?: string | null;
   maxApplicants?: number | null;
   eventUrl?: string | null;
+  /** Cover image for the public page (e.g. the Luma event banner). */
+  coverImageUrl?: string | null;
   content?: ProgramContentSection[] | null;
+  /** Prize tiers for judging (null ⇒ app default). Configurable per program. */
+  prizeTiers?: ApiPrizeTier[] | null;
+  /** Set when a platform admin publishes results to the public program page. */
+  resultsPublishedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+/** At-a-glance counts for the program admin/judge header (no PII). */
+export type ApiProgramStats = { confirmedParticipants: number; submissionsCount: number };
+
+/** Public, PII-free results payload for the program page (gated on publish). */
+export type ApiPublicResultEntry = {
+  projectTitle: string;
+  projectBrief?: string | null;
+  submitterName: string;
+  videoUrl: string;
+  githubUrl: string;
+  prize: ApiPrizeTier | null;
+};
+export type ApiPublicResults = {
+  published: boolean;
+  prizeTiers?: ApiPrizeTier[] | null;
+  submissions: ApiPublicResultEntry[];
 };
 
 /** Per-program sponsor / partner with goals + follow-up tracking. */
@@ -1644,7 +1765,8 @@ export const api = {
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgramAdminEmail[] }> => {
     if (USE_MOCK_DATA) {
-      return { status: "success", data: [] };
+      const { mockProgramAdminEmails } = await import("./mockPrograms");
+      return { status: "success", data: mockProgramAdminEmails[slug] || [] };
     }
     return request(`/programs/${encodeURIComponent(slug)}/admins/emails`, {
       headers: adminAuthHeaders(authHeader),
@@ -1655,19 +1777,27 @@ export const api = {
     slug: string,
     email: string,
     authHeader: AdminAuthArg,
+    role: "admin" | "judge" = "admin",
   ): Promise<{ status: string; data: ApiProgramAdminEmail; emailSent: boolean; emailReason: string | null }> => {
     if (USE_MOCK_DATA) {
-      return {
-        status: "success",
-        data: { programId: slug, email: email.trim().toLowerCase(), invitedBy: null, createdAt: new Date().toISOString() },
-        emailSent: false,
-        emailReason: "mock_mode",
+      const { mockProgramAdminEmails } = await import("./mockPrograms");
+      const record: ApiProgramAdminEmail = {
+        programId: slug,
+        email: email.trim().toLowerCase(),
+        role,
+        invitedBy: null,
+        createdAt: new Date().toISOString(),
       };
+      const list = mockProgramAdminEmails[slug] || [];
+      mockProgramAdminEmails[slug] = list.some((a) => a.email === record.email)
+        ? list.map((a) => (a.email === record.email ? record : a))
+        : [...list, record];
+      return { status: "success", data: record, emailSent: false, emailReason: "mock_mode" };
     }
     return request(`/programs/${encodeURIComponent(slug)}/admins/invite`, {
       method: "POST",
       headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, role }),
     });
   },
 
@@ -1676,7 +1806,12 @@ export const api = {
     email: string,
     authHeader: AdminAuthArg,
   ): Promise<void> => {
-    if (USE_MOCK_DATA) return;
+    if (USE_MOCK_DATA) {
+      const { mockProgramAdminEmails } = await import("./mockPrograms");
+      const target = email.trim().toLowerCase();
+      mockProgramAdminEmails[slug] = (mockProgramAdminEmails[slug] || []).filter((a) => a.email !== target);
+      return;
+    }
     await request(
       `/programs/${encodeURIComponent(slug)}/admins/emails/${encodeURIComponent(email)}`,
       {
@@ -1684,6 +1819,250 @@ export const api = {
         headers: adminAuthHeaders(authHeader),
       },
     );
+  },
+
+  // --- Project submissions + judge scoring (Bitrefill) ---
+
+  /** Public: submit a project to a program. No auth. */
+  submitProjectSubmission: async (
+    slug: string,
+    payload: {
+      submitterName: string;
+      lumaEmail: string;
+      projectTitle: string;
+      projectBrief: string;
+      videoUrl: string;
+      githubUrl: string;
+      company?: string;
+    },
+  ): Promise<{ status: string; data?: { id: string } }> => {
+    if (USE_MOCK_DATA) {
+      // Only checked-in attendees (on the imported Luma list) may submit.
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const guests = mockProgramSignups[slug] || [];
+      const ok = guests.some((g) => g.email.trim().toLowerCase() === payload.lumaEmail.trim().toLowerCase());
+      if (!ok) {
+        throw new ApiError(
+          "Only checked-in attendees can submit. Use the email you checked in with on Luma.",
+          403,
+        );
+      }
+      const { mockJudging } = await import("./mockJudging");
+      const sub = mockJudging.addSubmission(payload);
+      return { status: "success", data: { id: sub.id } };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /** Judge/admin: list submissions with eligibility flag + this judge's scores. */
+  listSubmissions: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiJudgeView }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.judgeView() };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Judge/admin: save (upsert) this judge's score for one submission. */
+  upsertScore: async (
+    slug: string,
+    submissionId: string,
+    payload: { requirements: number; techStack: number; innovation: number; notes?: string },
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiScore }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.saveScore(submissionId, payload) };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/score`,
+      {
+        method: "PUT",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  /** Judge/admin: claim a batch of 10 to score. No batchNumber → "claim next 10"
+   *  (server picks the least-covered batch). Returns the refreshed judge view. */
+  claimBatch: async (
+    slug: string,
+    batchNumber: number | undefined,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiJudgeView; meta?: { claimed: number | null; nothingToClaim: boolean } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", ...mockJudging.claimBatch(batchNumber) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/scoring/claim-batch`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(batchNumber ? { batchNumber } : {}),
+    });
+  },
+
+  /** Judge/admin: bulk-save a batch of scores at once. */
+  saveScores: async (
+    slug: string,
+    scores: Array<{ submissionId: string; requirements: number; techStack: number; innovation: number; notes?: string }>,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiScore[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.saveScores(scores) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/scoring/scores`, {
+      method: "PUT",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ scores }),
+    });
+  },
+
+  /** Judge/admin: finalize the ballot (requires every submission scored). */
+  submitBallot: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { status: "submitted" } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      const r = mockJudging.submitBallot();
+      if (!r.ok) {
+        throw new ApiError(
+          `Score every submission before submitting (${r.missing} of ${r.total} still unscored).`,
+          409,
+        );
+      }
+      return { status: "success", data: { status: "submitted" } };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/scoring/submit`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Admin: promote a submission into a Stadium project (payout + team tracking). */
+  promoteSubmission: async (
+    slug: string,
+    submissionId: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { projectId: string; alreadyPromoted?: boolean } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.promote(submissionId) };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/promote`,
+      { method: "POST", headers: adminAuthHeaders(authHeader) },
+    );
+  },
+
+  /** Admin: mark a submission paid / not paid (payout tracking). */
+  setSubmissionPaid: async (
+    slug: string,
+    submissionId: string,
+    paid: boolean,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.setPaid(submissionId, paid) };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/paid`,
+      {
+        method: "PATCH",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify({ paid }),
+      },
+    );
+  },
+
+  /** Judge/admin: at-a-glance counts for the program header (no PII). */
+  getProgramStats: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramStats }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.stats(slug) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/stats`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Judge/admin: gated leaderboard (locked until all registered judges submit). */
+  getLeaderboard: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiLeaderboard }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.leaderboard() };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/scoring/leaderboard`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /**
+   * Platform admin: elect a winner by assigning a prize tier, or clear it
+   * (pass null). Only allowed once judging is complete; global admins only.
+   */
+  awardPrize: async (
+    slug: string,
+    submissionId: string,
+    prize: ApiPrizeTier | null,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.awardPrize(submissionId, prize) };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/prize`,
+      {
+        method: "PATCH",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify(prize ? { amount: prize.amount } : { prize: null }),
+      },
+    );
+  },
+
+  /** Platform admin: publish / unpublish the public results. Global admins only. */
+  publishResults: async (
+    slug: string,
+    publish: boolean,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { resultsPublishedAt: string | null } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: { resultsPublishedAt: mockJudging.setResultsPublished(publish) } };
+    }
+    const action = publish ? "publish" : "unpublish";
+    return request(`/programs/${encodeURIComponent(slug)}/results/${action}`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Public: PII-free submissions + winners, only once results are published. */
+  getProgramResults: async (slug: string): Promise<{ status: string; data: ApiPublicResults }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.publicResults() };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/results`);
   },
 
   // --- Admin tiers (app_admins / global_admins) ---

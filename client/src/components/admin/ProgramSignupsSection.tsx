@@ -24,9 +24,11 @@ const truncateAddress = (addr?: string | null) => {
 interface Props {
   programSlug: string;
   signAuthHeader: () => Promise<import("@/lib/api").AdminAuthArg>;
+  /** Section heading; defaults to "·SIGNUPS" (hackathons pass "·LUMA-APPROVED GUESTS"). */
+  title?: string;
 }
 
-export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
+export function ProgramSignupsSection({ programSlug, signAuthHeader, title = "·SIGNUPS" }: Props) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -177,7 +179,7 @@ export function ProgramSignupsSection({ programSlug, signAuthHeader }: Props) {
     <div className="panel p-4 mb-3">
       <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline-subtle">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="label-hw text-display">·SIGNUPS</span>
+          <span className="label-hw text-display">{title}</span>
           <span className="lcd px-2 py-[1px] font-mono text-[10px] text-display tabular-nums">
             {signupCount}
           </span>

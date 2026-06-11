@@ -1,10 +1,12 @@
 import { Router, text, json } from 'express';
 import rateLimit from 'express-rate-limit';
 import programController from '../controllers/program.controller.js';
+import submissionController from '../controllers/submission.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
   requireProgramViewer,
+  requireProgramJudge,
 } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -32,15 +34,31 @@ const nonMemberApplyLimiter = rateLimit({
   },
 });
 
+// Public project submission is also an unauthenticated write. Cap per IP —
+// generous enough for one person submitting (incl. retries / fixing a typo),
+// tight enough to stop a flood of junk rows at the 200-submission scale.
+const submissionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: 'Too many submissions from this network. Please try again later.',
+  },
+});
+
 // --- Public, Read-Only Routes ---
 router.get('/', programController.list);
 router.get('/:slug', programController.getBySlug);
 // Public, PII-free: distinct projects + interest counts derived from signups.
 router.get('/:slug/projects', programController.listProjects);
+// Public, PII-free: all submissions + winners, only once results are published.
+router.get('/:slug/results', submissionController.publicResults);
 
 // --- Phase 1 revamp: admin create/edit (#46) ---
 router.post('/', requireAdmin, programController.createProgram);
-router.patch('/:slug', requireAdmin, programController.updateProgram);
+router.patch('/:slug', requireProgramAdmin('slug'), programController.updateProgram);
 
 // --- Phase 1 revamp: applications (#43, #47) ---
 router.get(
@@ -117,5 +135,47 @@ router.get('/:slug/inbox.csv', requireProgramViewer('slug'), programController.e
 
 // --- Audit log (per-program activity feed) ---
 router.get('/:slug/audit-log', requireProgramViewer('slug'), programController.listAuditLog);
+
+// --- Project submissions + judge scoring (Bitrefill) ---
+// Public submit (rate-limited, honeypot). All other scoring routes are gated by
+// requireProgramJudge: a judge/admin email session (scoped write) OR a wallet
+// admin. requireProgramJudge NEVER unlocks the payment/approval routes above.
+router.post('/:slug/submissions', submissionLimiter, submissionController.submit);
+router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
+router.put(
+  '/:slug/submissions/:submissionId/score',
+  requireProgramJudge('slug'),
+  submissionController.upsertScore,
+);
+router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
+router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
+// At-a-glance counts for the program header (judge + admin; no PII).
+router.get('/:slug/stats', requireProgramJudge('slug'), submissionController.programStats);
+// Batch claiming + bulk score save (judge workflow for large fields).
+router.post('/:slug/scoring/claim-batch', requireProgramJudge('slug'), submissionController.claimBatch);
+router.put('/:slug/scoring/scores', requireProgramJudge('slug'), submissionController.saveScores);
+// Promote a submission into a Stadium project (payout + team tracking).
+// Admin-only — judges (requireProgramJudge) cannot create projects.
+router.post(
+  '/:slug/submissions/:submissionId/promote',
+  requireProgramAdmin('slug'),
+  submissionController.promote,
+);
+// Mark a submission paid / not paid (payout tracking). Admin-only.
+router.patch(
+  '/:slug/submissions/:submissionId/paid',
+  requireProgramAdmin('slug'),
+  submissionController.setPaid,
+);
+// --- Winner selection + results publishing (platform/global admin only) ---
+// requireProgramAdmin lets wallet admins through; the controller then rejects
+// anyone who isn't a global admin (per-program admins cannot select winners).
+router.patch(
+  '/:slug/submissions/:submissionId/prize',
+  requireProgramAdmin('slug'),
+  submissionController.awardPrize,
+);
+router.post('/:slug/results/publish', requireProgramAdmin('slug'), submissionController.publishResults);
+router.post('/:slug/results/unpublish', requireProgramAdmin('slug'), submissionController.unpublishResults);
 
 export default router;

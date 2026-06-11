@@ -1,12 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the SIWS / chain stack so importing the middleware doesn't pull real
-// crypto, and so the wallet fallback path can run without a signature.
-vi.mock('@talismn/siws', () => ({
-  verifySIWS: vi.fn(),
-  parseMessage: vi.fn(),
-  SiwsMessage: vi.fn(),
-}));
+// crypto, and the wallet fallback path can run without a signature.
+vi.mock('@talismn/siws', () => ({ verifySIWS: vi.fn(), parseMessage: vi.fn(), SiwsMessage: vi.fn() }));
 vi.mock('@polkadot/util-crypto', () => ({
   cryptoWaitReady: vi.fn().mockResolvedValue(true),
   signatureVerify: vi.fn(),
@@ -37,17 +33,15 @@ vi.mock('../../repositories/app-admin.repository.js', () => ({
 vi.mock('../../repositories/global-admin.repository.js', () => ({
   default: { isGlobalAdmin: vi.fn().mockResolvedValue(false) },
 }));
-
-// The two pieces this middleware adds on top of requireProgramAdmin.
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(),
   extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
 }));
 vi.mock('../../repositories/program-admin-email.repository.js', () => ({
-  default: { findGrant: vi.fn() },
+  default: { findGrant: vi.fn(), isAdminByEmail: vi.fn() },
 }));
 
-const { requireProgramViewer } = await import('../auth.middleware.js');
+const { requireProgramJudge } = await import('../auth.middleware.js');
 const programRepository = (await import('../../repositories/program.repository.js')).default;
 const programAdminEmailRepository = (
   await import('../../repositories/program-admin-email.repository.js')
@@ -55,116 +49,98 @@ const programAdminEmailRepository = (
 const { getSupabaseUser } = await import('../../auth/supabaseUser.js');
 
 function makeReq(overrides = {}) {
-  return { method: 'GET', originalUrl: '/api/test', headers: {}, params: { slug: 'dogfooding' }, ...overrides };
+  return { method: 'GET', originalUrl: '/api/test', headers: {}, params: { slug: 'bitrefill' }, ...overrides };
 }
 function makeRes() {
   const res = {
     statusCode: null,
     body: null,
-    ended: false,
     status(code) { res.statusCode = code; return res; },
     json(data) { res.body = data; return res; },
-    end() { res.ended = true; return res; },
+    end() { return res; },
   };
   return res;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  programRepository.findBySlug.mockResolvedValue({ id: 'prog-1', slug: 'dogfooding', name: 'Dogfooding' });
+  programRepository.findBySlug.mockResolvedValue({ id: 'prog-1', slug: 'bitrefill', name: 'Bitrefill' });
 });
 
-describe('requireProgramViewer — social (email) path', () => {
-  it('passes a valid Supabase token whose email is an ADMIN-role grant (view-only)', async () => {
-    getSupabaseUser.mockResolvedValue({ id: 'sb-user-1', email: 'Partner@Example.com' });
-    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'partner@example.com', role: 'admin' });
+describe('requireProgramJudge — social (email) path', () => {
+  it('passes a judge-role email with canJudge + verified email identity', async () => {
+    getSupabaseUser.mockResolvedValue({ id: 'sb-1', email: 'Judge@Example.com' });
+    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'judge@example.com', role: 'judge' });
 
-    const req = makeReq({ headers: { 'x-supabase-token': 'valid-token' } });
+    const req = makeReq({ headers: { 'x-supabase-token': 'valid' } });
     const res = makeRes();
     const next = vi.fn();
 
-    await requireProgramViewer('slug')(req, res, next);
+    await requireProgramJudge('slug')(req, res, next);
 
     expect(next).toHaveBeenCalledOnce();
-    expect(res.statusCode).toBeNull();
     expect(req.user).toMatchObject({
-      email: 'Partner@Example.com',
+      email: 'Judge@Example.com',
       programId: 'prog-1',
-      viewOnly: true,
-      isGlobalAdmin: false,
-      role: 'admin',
+      role: 'judge',
+      canJudge: true,
+      viewOnly: false,
     });
   });
 
-  it('does NOT grant a judge-role email the viewer surface (least privilege)', async () => {
-    // A judge can score (requireProgramJudge) but must not see applicant PII /
-    // signups / inbox / audit / admin roster. Falls back to the wallet gate,
-    // which denies a wallet-less email session.
-    getSupabaseUser.mockResolvedValue({ id: 'sb-user-2', email: 'judge@example.com' });
-    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'judge@example.com', role: 'judge' });
+  it('also passes an admin-role email (admins can score too)', async () => {
+    getSupabaseUser.mockResolvedValue({ id: 'sb-2', email: 'admin@example.com' });
+    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'admin@example.com', role: 'admin' });
 
-    const req = makeReq({ headers: { 'x-supabase-token': 'valid-token' } });
+    const req = makeReq({ headers: { 'x-supabase-token': 'valid' } });
     const res = makeRes();
     const next = vi.fn();
 
-    await requireProgramViewer('slug')(req, res, next);
+    await requireProgramJudge('slug')(req, res, next);
 
-    expect(next).not.toHaveBeenCalled();
-    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(next).toHaveBeenCalledOnce();
+    expect(req.user.role).toBe('admin');
+    expect(req.user.canJudge).toBe(true);
   });
 
   it('404s when the program does not exist (token valid)', async () => {
-    getSupabaseUser.mockResolvedValue({ id: 'sb-user-1', email: 'partner@example.com' });
+    getSupabaseUser.mockResolvedValue({ id: 'sb-1', email: 'judge@example.com' });
     programRepository.findBySlug.mockResolvedValue(null);
 
-    const req = makeReq({ headers: { 'x-supabase-token': 'valid-token' } });
+    const req = makeReq({ headers: { 'x-supabase-token': 'valid' } });
     const res = makeRes();
     const next = vi.fn();
 
-    await requireProgramViewer('slug')(req, res, next);
+    await requireProgramJudge('slug')(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(404);
   });
 
-  it('falls back to wallet auth (and is rejected) when the email has no grant', async () => {
-    getSupabaseUser.mockResolvedValue({ id: 'sb-user-1', email: 'stranger@example.com' });
+  it('falls back to wallet auth (and is rejected) when email has no grant', async () => {
+    getSupabaseUser.mockResolvedValue({ id: 'sb-1', email: 'stranger@example.com' });
     programAdminEmailRepository.findGrant.mockResolvedValue(null);
 
-    // No x-siws-auth header -> wallet path denies.
-    const req = makeReq({ headers: { 'x-supabase-token': 'valid-token' } });
+    const req = makeReq({ headers: { 'x-supabase-token': 'valid' } });
     const res = makeRes();
     const next = vi.fn();
 
-    await requireProgramViewer('slug')(req, res, next);
+    await requireProgramJudge('slug')(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
   });
 
-  it('falls back to wallet auth when the Supabase token is invalid', async () => {
-    getSupabaseUser.mockResolvedValue(null);
-
-    const req = makeReq({ headers: { 'x-supabase-token': 'garbage' } });
-    const res = makeRes();
-    const next = vi.fn();
-
-    await requireProgramViewer('slug')(req, res, next);
-
-    expect(next).not.toHaveBeenCalled();
-    expect(res.statusCode).toBeGreaterThanOrEqual(400);
-    expect(programAdminEmailRepository.findGrant).not.toHaveBeenCalled();
-  });
-
-  it('falls back to wallet auth when no Supabase token is present', async () => {
+  it('does not consult the grant table when no Supabase token is present', async () => {
     const req = makeReq({ headers: {} });
     const res = makeRes();
     const next = vi.fn();
 
-    await requireProgramViewer('slug')(req, res, next);
+    await requireProgramJudge('slug')(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(getSupabaseUser).not.toHaveBeenCalled();
+    expect(programAdminEmailRepository.findGrant).not.toHaveBeenCalled();
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
   });
 
@@ -173,7 +149,7 @@ describe('requireProgramViewer — social (email) path', () => {
     const res = makeRes();
     const next = vi.fn();
 
-    await requireProgramViewer('slug')(req, res, next);
+    await requireProgramJudge('slug')(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(400);

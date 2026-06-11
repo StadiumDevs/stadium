@@ -14,6 +14,9 @@ import {
 } from "@/lib/api";
 import { ApplicationCard } from "@/components/admin/ApplicationCard";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
+import { ProgramJudgingSection } from "@/components/admin/ProgramJudgingSection";
+import { ProgramStatsHeader } from "@/components/admin/ProgramStatsHeader";
+import { ProgramFormModal } from "@/components/admin/ProgramFormModal";
 import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
@@ -61,18 +64,32 @@ const AdminProgramPage = () => {
   // email admin signs in here and reads their program; the server gates access
   // on program_admin_emails. Wallet auth always takes precedence when present.
   const social = useSocialAuth();
-  const [isSocialViewer, setIsSocialViewer] = useState(false);
+  // An email session resolves to a role-scoped surface: judges can only score
+  // (canJudge); admins additionally get the read surface (canViewAdmin). Neither
+  // can reach another event — the server gates every call by program + grant.
+  const [socialCanJudge, setSocialCanJudge] = useState(false);
+  const [socialCanViewAdmin, setSocialCanViewAdmin] = useState(false);
   const [socialProbing, setSocialProbing] = useState(false);
   const [socialError, setSocialError] = useState<string | null>(null);
   const [socialEmailInput, setSocialEmailInput] = useState("");
   const [sendingLink, setSendingLink] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
 
+  // Auth for the judging section when signed in by email: send the Supabase
+  // token so requireProgramJudge resolves the judge/admin grant.
+  const socialToken = social.token;
+  const getJudgeAuth = useCallback(
+    async () => ({ "x-supabase-token": socialToken ?? "" }),
+    [socialToken],
+  );
+
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [applications, setApplications] = useState<ApiProgramApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [filter, setFilter] = useState<Filter>("submitted");
+  const [editOpen, setEditOpen] = useState(false);
+  const [adminsReload, setAdminsReload] = useState(0);
   const [errorData, setErrorData] = useState<{
     walletAddresses: string[];
     expectedAddresses: string[];
@@ -130,33 +147,32 @@ const AdminProgramPage = () => {
   };
 
   // After a social session appears (e.g. returning from the magic link), probe
-  // the program: a 200 means the email is authorized, a 403 means it isn't.
+  // what this email is allowed to do on THIS program: scoring (judge or admin)
+  // and/or the admin read surface (admin only). Each probe is independently
+  // gated server-side, so the UI only shows what the server already permits.
   useEffect(() => {
-    if (!slug || !program || isAdminWallet) {
-      setIsSocialViewer(false);
-      return;
-    }
-    if (!social.isAuthed || !social.token) {
-      setIsSocialViewer(false);
+    if (!slug || !program || isAdminWallet || !social.isAuthed || !social.token) {
+      setSocialCanJudge(false);
+      setSocialCanViewAdmin(false);
       return;
     }
     let active = true;
     setSocialProbing(true);
     setSocialError(null);
-    api
-      .listProgramApplications(slug, { "x-supabase-token": social.token })
-      .then((res) => {
+    const headers = { "x-supabase-token": social.token };
+    Promise.allSettled([
+      api.listSubmissions(slug, headers),
+      api.listProgramApplications(slug, headers),
+    ])
+      .then(([judgeRes, adminRes]) => {
         if (!active) return;
-        setApplications(res.data);
-        setIsSocialViewer(true);
-      })
-      .catch((e: unknown) => {
-        if (!active) return;
-        setIsSocialViewer(false);
-        if (e instanceof ApiError && e.status === 403) {
-          setSocialError(`${social.email ?? "This email"} is not an admin for this program.`);
-        } else {
-          setSocialError((e as Error)?.message ?? "Couldn't load this program.");
+        const canJudge = judgeRes.status === "fulfilled";
+        const canViewAdmin = adminRes.status === "fulfilled";
+        setSocialCanJudge(canJudge);
+        setSocialCanViewAdmin(canViewAdmin);
+        if (adminRes.status === "fulfilled") setApplications(adminRes.value.data);
+        if (!canJudge && !canViewAdmin) {
+          setSocialError(`${social.email ?? "This email"} is not invited to this program.`);
         }
       })
       .finally(() => { if (active) setSocialProbing(false); });
@@ -164,7 +180,7 @@ const AdminProgramPage = () => {
   }, [slug, program, isAdminWallet, social.isAuthed, social.token, social.email]);
 
   const refreshSocial = async () => {
-    if (!slug || !social.token) return;
+    if (!slug || !social.token || !socialCanViewAdmin) return;
     try {
       const res = await api.listProgramApplications(slug, { "x-supabase-token": social.token });
       setApplications(res.data);
@@ -264,7 +280,18 @@ const AdminProgramPage = () => {
         ) : program ? (
           <>
             <header className="mb-6">
-              <div className="label-hw-dim mb-2">·ADMIN / PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="label-hw-dim mb-2">·ADMIN / PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
+                {isAdminWallet && (
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen(true)}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                  >
+                    EDIT ▸
+                  </button>
+                )}
+              </div>
               <h1 className="font-display text-4xl md:text-5xl uppercase tracking-tight text-display leading-[0.95] mb-3">
                 {program.name}
               </h1>
@@ -277,87 +304,132 @@ const AdminProgramPage = () => {
               </div>
             </header>
 
+            {editOpen && connectedAddress && (
+              <ProgramFormModal
+                open={editOpen}
+                onOpenChange={(v) => {
+                  setEditOpen(v);
+                  if (!v) setAdminsReload((n) => n + 1); // refresh the read-only list
+                }}
+                program={program}
+                connectedAddress={connectedAddress}
+                onSaved={(p) => setProgram(p)}
+                signAuthHeader={getAdminAuth}
+                isGlobalAdmin={isGlobalAdmin}
+              />
+            )}
+
             {isAdminWallet ? (
               <>
+                <ProgramStatsHeader
+                  programSlug={program.slug}
+                  getAuth={getAdminAuth}
+                  eventEndsAt={program.eventEndsAt}
+                />
+
                 <ProgramAdminsSection
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
-                  isGlobalAdmin={isGlobalAdmin}
+                  reloadToken={adminsReload}
                 />
 
-                <ProgramSponsorsSection
+                <ProgramJudgingSection
                   programSlug={program.slug}
-                  signAuthHeader={getAdminAuth}
+                  getAuth={getAdminAuth}
+                  canSelectWinners={isGlobalAdmin}
+                  prizeTiers={program.prizeTiers}
+                  resultsPublishedAt={program.resultsPublishedAt}
+                  onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
                 />
+
+                {program.programType !== "hackathon" && (
+                  <ProgramSponsorsSection
+                    programSlug={program.slug}
+                    signAuthHeader={getAdminAuth}
+                  />
+                )}
 
                 <ProgramSignupsSection
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
+                  title={program.programType === "hackathon" ? "·LUMA-APPROVED GUESTS" : undefined}
                 />
 
-                <ProgramAuditLogSection
-                  programSlug={program.slug}
-                  signAuthHeader={getAdminAuth}
-                />
-                <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
-                  <HardwareToggle
-                    options={FILTER_OPTIONS}
-                    value={filter}
-                    onChange={setFilter}
+                {program.programType !== "hackathon" && (
+                  <ProgramAuditLogSection
+                    programSlug={program.slug}
+                    signAuthHeader={getAdminAuth}
                   />
-                  <div className="flex-1" />
-                  <button
-                    type="button"
-                    onClick={loadApplications}
-                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
-                  >
-                    LOAD / REFRESH
-                  </button>
-                </div>
-
-                {applications.length === 0 ? (
-                  <div className="panel px-4 py-10 text-center">
-                    <div className="label-hw text-display mb-2">·NO APPLICATIONS LOADED</div>
-                    <p className="label-hw-dim">
-                      Click LOAD / REFRESH to fetch applications (signs an admin-action message).
-                    </p>
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="panel px-4 py-10 text-center">
-                    <div className="label-hw text-display mb-2">·NO MATCHES</div>
-                    <p className="label-hw-dim">No applications match the current filter.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filtered.map((a) => (
-                      <ApplicationCard
-                        key={a.id}
-                        application={a}
-                        programSlug={program.slug}
-                        signAuthHeader={getAdminAuth}
-                        onUpdated={handleUpdated}
+                )}
+                {/* Legacy program-applications surface — not used by hackathons
+                    (their intake is the public submit flow + judging panel). */}
+                {program.programType !== "hackathon" && (
+                  <>
+                    <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
+                      <HardwareToggle
+                        options={FILTER_OPTIONS}
+                        value={filter}
+                        onChange={setFilter}
                       />
-                    ))}
-                  </div>
+                      <div className="flex-1" />
+                      <button
+                        type="button"
+                        onClick={loadApplications}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                      >
+                        LOAD / REFRESH
+                      </button>
+                    </div>
+
+                    {applications.length === 0 ? (
+                      <div className="panel px-4 py-10 text-center">
+                        <div className="label-hw text-display mb-2">·NO APPLICATIONS LOADED</div>
+                        <p className="label-hw-dim">
+                          Click LOAD / REFRESH to fetch applications (signs an admin-action message).
+                        </p>
+                      </div>
+                    ) : filtered.length === 0 ? (
+                      <div className="panel px-4 py-10 text-center">
+                        <div className="label-hw text-display mb-2">·NO MATCHES</div>
+                        <p className="label-hw-dim">No applications match the current filter.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {filtered.map((a) => (
+                          <ApplicationCard
+                            key={a.id}
+                            application={a}
+                            programSlug={program.slug}
+                            signAuthHeader={getAdminAuth}
+                            onUpdated={handleUpdated}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
-            ) : isSocialViewer ? (
+            ) : socialCanJudge || socialCanViewAdmin ? (
               <>
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
                   <span className="lcd inline-flex items-center gap-2 px-3 py-1.5">
                     <span className="led led-sm" aria-hidden="true" />
-                    <span className="label-hw text-display">VIEW-ONLY</span>
+                    <span className="label-hw text-display">{socialCanViewAdmin ? "VIEW-ONLY" : "JUDGE"}</span>
                   </span>
                   <span className="label-hw-dim truncate min-w-0">{social.email}</span>
                   <div className="flex-1" />
-                  <HardwareToggle options={FILTER_OPTIONS} value={filter} onChange={setFilter} />
-                  <button
-                    type="button"
-                    onClick={refreshSocial}
-                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
-                  >
-                    REFRESH
-                  </button>
+                  {socialCanViewAdmin && (
+                    <>
+                      <HardwareToggle options={FILTER_OPTIONS} value={filter} onChange={setFilter} />
+                      <button
+                        type="button"
+                        onClick={refreshSocial}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                      >
+                        REFRESH
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={() => social.signOut()}
@@ -367,23 +439,37 @@ const AdminProgramPage = () => {
                   </button>
                 </div>
 
-                {filtered.length === 0 ? (
-                  <div className="panel px-4 py-10 text-center">
-                    <div className="label-hw text-display mb-2">·NO APPLICATIONS</div>
-                    <p className="label-hw-dim">No applications match the current filter.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filtered.map((a) => (
-                      <ApplicationCard
-                        key={a.id}
-                        application={a}
-                        programSlug={program.slug}
-                        readOnly
-                      />
-                    ))}
-                  </div>
+                <ProgramStatsHeader
+                  programSlug={program.slug}
+                  getAuth={getJudgeAuth}
+                  eventEndsAt={program.eventEndsAt}
+                />
+
+                {/* Judges + admins both score; judges see ONLY this. Email
+                    sessions are never platform admins, so no winner selection. */}
+                {socialCanJudge && (
+                  <ProgramJudgingSection
+                    programSlug={program.slug}
+                    getAuth={getJudgeAuth}
+                    prizeTiers={program.prizeTiers}
+                    resultsPublishedAt={program.resultsPublishedAt}
+                  />
                 )}
+
+                {/* Applicant data is admin-only — never shown to judges. */}
+                {socialCanViewAdmin &&
+                  (filtered.length === 0 ? (
+                    <div className="panel px-4 py-10 text-center">
+                      <div className="label-hw text-display mb-2">·NO APPLICATIONS</div>
+                      <p className="label-hw-dim">No applications match the current filter.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filtered.map((a) => (
+                        <ApplicationCard key={a.id} application={a} programSlug={program.slug} readOnly />
+                      ))}
+                    </div>
+                  ))}
               </>
             ) : (
               <div className="panel p-6 space-y-5">

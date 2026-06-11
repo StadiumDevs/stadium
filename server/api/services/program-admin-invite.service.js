@@ -9,7 +9,7 @@ class ProgramAdminInviteService {
    * returns { ok:false, reason:'provider_not_configured' } when Resend is unset
    * so the caller can surface that the grant landed but no email went out.
    */
-  async send({ email, programName, slug }) {
+  async send({ email, programName, slug, role = 'admin' }) {
     const transport = await getEmailTransport();
     if (!transport) return { ok: false, reason: 'provider_not_configured' };
 
@@ -18,6 +18,7 @@ class ProgramAdminInviteService {
       email,
       programName,
       link,
+      role,
     });
 
     await transport.send({

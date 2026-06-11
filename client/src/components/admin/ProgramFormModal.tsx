@@ -17,12 +17,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { web3Enable, web3Accounts, web3FromSource } from "@polkadot/extension-dapp";
 import { SiwsMessage } from "@talismn/siws";
 import { generateSiwsStatement } from "@/lib/siwsUtils";
 import { api, type ApiProgram } from "@/lib/api";
+import { DEFAULT_PRIZE_TIERS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
+import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
+
+type PrizeTierRow = { amount: string; currency: string; label: string };
+const tierRowsFromProgram = (program: ApiProgram | null): PrizeTierRow[] => {
+  const tiers = program?.prizeTiers?.length ? program.prizeTiers : DEFAULT_PRIZE_TIERS;
+  return tiers.map((t) => ({ amount: String(t.amount), currency: t.currency, label: t.label }));
+};
 
 const PROGRAM_TYPES: Array<{ value: ApiProgram["programType"]; label: string }> = [
   { value: "dogfooding", label: "Dogfooding" },
@@ -67,6 +75,8 @@ export function ProgramFormModal({
   program,
   connectedAddress,
   onSaved,
+  signAuthHeader,
+  isGlobalAdmin = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -74,6 +84,9 @@ export function ProgramFormModal({
   program: ApiProgram | null;
   connectedAddress: string;
   onSaved: (program: ApiProgram) => void;
+  /** When provided + isGlobalAdmin, the modal hosts the admins/judges management UI. */
+  signAuthHeader?: () => Promise<import("@/lib/api").AdminAuthArg>;
+  isGlobalAdmin?: boolean;
 }) {
   const editing = Boolean(program);
 
@@ -86,10 +99,12 @@ export function ProgramFormModal({
   const [location, setLocation] = useState("");
   const [maxApplicants, setMaxApplicants] = useState("");
   const [eventUrl, setEventUrl] = useState("");
+  const [coverImageUrl, setCoverImageUrl] = useState("");
   const [applicationsOpenAt, setApplicationsOpenAt] = useState("");
   const [applicationsCloseAt, setApplicationsCloseAt] = useState("");
   const [eventStartsAt, setEventStartsAt] = useState("");
   const [eventEndsAt, setEventEndsAt] = useState("");
+  const [prizeTierRows, setPrizeTierRows] = useState<PrizeTierRow[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
@@ -106,10 +121,12 @@ export function ProgramFormModal({
       setLocation(program.location || "");
       setMaxApplicants(program.maxApplicants ? String(program.maxApplicants) : "");
       setEventUrl(program.eventUrl || "");
+      setCoverImageUrl(program.coverImageUrl || "");
       setApplicationsOpenAt(isoToLocal(program.applicationsOpenAt));
       setApplicationsCloseAt(isoToLocal(program.applicationsCloseAt));
       setEventStartsAt(isoToLocal(program.eventStartsAt));
       setEventEndsAt(isoToLocal(program.eventEndsAt));
+      setPrizeTierRows(tierRowsFromProgram(program));
     } else {
       setName("");
       setSlug("");
@@ -120,10 +137,12 @@ export function ProgramFormModal({
       setLocation("");
       setMaxApplicants("");
       setEventUrl("");
+      setCoverImageUrl("");
       setApplicationsOpenAt("");
       setApplicationsCloseAt("");
       setEventStartsAt("");
       setEventEndsAt("");
+      setPrizeTierRows(tierRowsFromProgram(null));
     }
     setErrors({});
   }, [open, program]);
@@ -145,6 +164,9 @@ export function ProgramFormModal({
     }
     if (eventUrl.trim() && !/^https?:\/\//i.test(eventUrl.trim())) {
       e.eventUrl = "Must start with http:// or https://";
+    }
+    if (coverImageUrl.trim() && !/^https?:\/\//i.test(coverImageUrl.trim())) {
+      e.coverImageUrl = "Must start with http:// or https://";
     }
     if (applicationsOpenAt && applicationsCloseAt) {
       if (new Date(applicationsOpenAt).getTime() >= new Date(applicationsCloseAt).getTime()) {
@@ -202,10 +224,15 @@ export function ProgramFormModal({
         location: location.trim() || null,
         maxApplicants: maxApplicants ? Number(maxApplicants) : null,
         eventUrl: eventUrl.trim() || null,
+        coverImageUrl: coverImageUrl.trim() || null,
         applicationsOpenAt: localToIso(applicationsOpenAt),
         applicationsCloseAt: localToIso(applicationsCloseAt),
         eventStartsAt: localToIso(eventStartsAt),
         eventEndsAt: localToIso(eventEndsAt),
+        // Keep only well-formed tiers (positive integer amount + a currency).
+        prizeTiers: prizeTierRows
+          .map((r) => ({ amount: Number(r.amount), currency: r.currency.trim(), label: r.label.trim() }))
+          .filter((t) => Number.isInteger(t.amount) && t.amount > 0 && t.currency),
       };
 
       const res = editing
@@ -410,7 +437,87 @@ export function ProgramFormModal({
               <p className="label-hw text-destructive">·{errors.eventUrl.toUpperCase()}</p>
             )}
           </div>
+
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label htmlFor="pf-cover" className="label-hw-dim">·COVER IMAGE URL (PUBLIC PAGE BANNER)</Label>
+            <Input
+              id="pf-cover"
+              type="url"
+              placeholder="https://…/cover.png"
+              value={coverImageUrl}
+              onChange={(e) => setCoverImageUrl(e.target.value)}
+              aria-invalid={errors.coverImageUrl ? true : undefined}
+              className="font-mono text-sm"
+            />
+            {errors.coverImageUrl && (
+              <p className="label-hw text-destructive">·{errors.coverImageUrl.toUpperCase()}</p>
+            )}
+          </div>
+
+          {programType === "hackathon" && (
+            <div className="sm:col-span-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="label-hw-dim">·PRIZE TIERS (WINNER SELECTION)</Label>
+                <button
+                  type="button"
+                  onClick={() => setPrizeTierRows((rows) => [...rows, { amount: "", currency: "EUR", label: "" }])}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-2 py-1 inline-flex items-center gap-1"
+                >
+                  <Plus className="h-3 w-3" aria-hidden="true" /> ADD TIER
+                </button>
+              </div>
+              <p className="label-hw-dim">Prizes a platform admin can award to winners after judging. Default: Bitrefill EUR giftcards.</p>
+              {prizeTierRows.map((row, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="500"
+                    aria-label={`Prize ${i + 1} amount`}
+                    value={row.amount}
+                    onChange={(e) =>
+                      setPrizeTierRows((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
+                    }
+                    className="font-mono text-sm w-24"
+                  />
+                  <Input
+                    placeholder="EUR"
+                    aria-label={`Prize ${i + 1} currency`}
+                    value={row.currency}
+                    onChange={(e) =>
+                      setPrizeTierRows((rows) => rows.map((r, j) => (j === i ? { ...r, currency: e.target.value } : r)))
+                    }
+                    className="font-mono text-sm w-20"
+                  />
+                  <Input
+                    placeholder="Bitrefill giftcard"
+                    aria-label={`Prize ${i + 1} label`}
+                    value={row.label}
+                    onChange={(e) =>
+                      setPrizeTierRows((rows) => rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))
+                    }
+                    className="font-mono text-sm flex-1"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove prize ${i + 1}`}
+                    onClick={() => setPrizeTierRows((rows) => rows.filter((_, j) => j !== i))}
+                    className="border border-hairline text-display hover:bg-panel-deep p-1.5"
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Admins + judges management (global admins only, edit mode). The grant
+            endpoints are separate from the program metadata save above. */}
+        {editing && isGlobalAdmin && signAuthHeader && program && (
+          <ProgramAdminsSection programSlug={program.slug} signAuthHeader={signAuthHeader} editable />
+        )}
+
         <DialogFooter>
           <button
             type="button"
