@@ -18,6 +18,7 @@ const transformProgram = (row) => {
     location: row.location,
     maxApplicants: row.max_applicants,
     eventUrl: row.event_url ?? null,
+    coverImageUrl: row.cover_image_url ?? null,
     content: row.content ?? null,
     prizeTiers: row.prize_tiers ?? null,
     resultsPublishedAt: row.results_published_at ?? null,
@@ -42,6 +43,7 @@ const toSnakeCase = (data) => {
   if ('location' in data) row.location = data.location ?? null;
   if ('maxApplicants' in data) row.max_applicants = data.maxApplicants ?? null;
   if ('eventUrl' in data) row.event_url = data.eventUrl ?? null;
+  if ('coverImageUrl' in data) row.cover_image_url = data.coverImageUrl ?? null;
   if ('content' in data) row.content = data.content ?? null;
   if ('prizeTiers' in data) row.prize_tiers = data.prizeTiers ?? null;
   return row;

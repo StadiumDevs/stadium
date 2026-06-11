@@ -7,18 +7,18 @@ Supabase fake.
 ## Journey walkthrough (all assertions passed)
 
 1. Submissions: 3 accepted (Aurora Pay, Nimbus Wallet, Comet Bridge).
-2. Duplicate email submission correctly rejected (409); no extra row.
-3. Malformed GitHub URL rejected (400) before persisting.
-4. Non-invited email blocked from scoring (status 401) — requireProgramJudge fell back to the wallet gate.
-5. Organizer invited 3 judges: j1@judge.test, j2@judge.test, j3@judge.test.
-6. Least privilege: a judge is denied the admin viewer surface (applications / signups / inbox / audit / admin roster).
-7. Cross-event isolation: a judge only reaches the event they were invited to; other events 401/403.
-8. Judge sees all 3 submissions; "Comet Bridge" flagged NOT IN LUMA (advisory, still scoreable).
-9. Out-of-range score (requirements=5 > max 2) rejected (400).
-10. Ballot submit blocked until every submission in the claimed batch is scored (409).
-11. Leaderboard locked: 0 of 3 submissions covered by a submitted judge.
-12. Coverage gate: one judge covering every project unlocks the leaderboard (not all judges required).
-13. Leaderboard flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
+2. Only checked-in attendees can submit: a non-listed email is rejected (403).
+3. Duplicate email submission correctly rejected (409); no extra row.
+4. Malformed GitHub URL rejected (400) before persisting.
+5. Non-invited email blocked from scoring (status 401) — requireProgramJudge fell back to the wallet gate.
+6. Organizer invited 3 judges: j1@judge.test, j2@judge.test, j3@judge.test.
+7. Least privilege: a judge is denied the admin viewer surface (applications / signups / inbox / audit / admin roster).
+8. Cross-event isolation: a judge only reaches the event they were invited to; other events 401/403.
+9. Judge sees all 3 submissions; all from checked-in attendees (eligible).
+10. Out-of-range score (requirements=5 > max 2) rejected (400).
+11. Ballot submit blocked until every submission in the claimed batch is scored (409).
+12. Leaderboard locked: 0 of 3 submissions covered by a submitted judge.
+13. Coverage gate: one judge covering every project unlocks the leaderboard (not all judges required).
 14. Leaderboard ranking (each row carries per-judge scores): 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
 15. Winner selection is platform-admin only: a per-program admin is rejected (403).
 16. Platform admin assigned prizes: Aurora Pay 500 EUR, Nimbus Wallet 200 EUR, Comet Bridge 100 EUR (Bitrefill giftcards).
@@ -27,13 +27,13 @@ Supabase fake.
 
 ## What works
 
-- Public submission with dedup (409) and validation (400).
+- Public submission gated to checked-in attendees (403 off-list), with dedup (409) and validation (400).
 - Non-invited emails are blocked from the scoring surface (auth gate holds).
 - Cross-event isolation: an email user only reaches the event they were invited to; other events 401/403.
 - Least privilege: judges get the scoring surface only — NOT applicant PII, signups, inbox, audit log, or the admin roster.
-- Eligibility flagging against the Luma signup list (advisory, non-blocking).
+- Submission restricted to the imported Luma checked-in list (the approved guests).
 - Range-checked scoring; ballot cannot be submitted until everything is scored.
-- Leaderboard gated until all judges submit, then tallies the mean /12 and ranks correctly.
+- Leaderboard gated on coverage (every project scored by a submitted judge), then tallies the mean /12 and ranks correctly.
 - Leaderboard flags ineligible entries (fixed: they no longer rank invisibly).
 - Ballot locks after submission.
 - Admin can promote a submission into a Stadium project (idempotent), carrying title/repo/demo/program + submitter.
@@ -45,7 +45,7 @@ Supabase fake.
 2. **Submissions stay private until results are published.** During judging, submissions are visible only to judges/admins. A platform admin selects winners and explicitly publishes; only then does the public program page show the PII-free submissions + winners. There is intentionally no public gallery mid-judging.
 3. **Submitter cannot edit or withdraw a submission.** There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.
 4. **No submission confirmation email.** Submitters get only an in-modal success state; nothing in their inbox. A confirmation (with what they submitted) reassures them and gives a paper trail. Planned for iteration 2.
-5. **Ineligible submissions are only flagged, never reconciled.** A Luma email typo permanently marks a real participant ineligible. Consider fuzzy match / an admin "mark eligible" override, since the flag is the only eligibility signal judges see.
+5. **A Luma email typo blocks submission entirely.** Submission is now gated to the imported checked-in list, so a mistyped email gets a hard 403 with no recourse at the door. Consider fuzzy match / an admin "add guest" quick action so a real attendee is not locked out.
 6. **Judge progress is invisible to the organizer.** The leaderboard shows which judges are pending, but not how far each judge has gotten (e.g. 4/7 scored). A per-judge progress view would tell the organizer who to nudge before the deadline.
 7. **No partial/abstain scoring.** A judge must score every submission to submit. With conflicts of interest (judge affiliated with a team) there is no abstain path; they are forced to enter a number. Consider an explicit "recuse" that excludes that pair from the tally.
 8. **Ballot lock has no escape hatch in the UI.** Lock-after-submit is correct, but the only recovery is an admin reopen that does not exist yet (iteration 2). If a judge submits early by mistake before the deadline, they are stuck.

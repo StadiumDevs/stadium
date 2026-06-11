@@ -92,6 +92,8 @@ export function SubmitProjectModal({
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setError("A project has already been submitted with this email.");
+      } else if (e instanceof ApiError && e.status === 403) {
+        setError("That email isn't on the checked-in guest list. Use the email you checked in with at the door.");
       } else {
         toast({
           title: "Couldn't submit project",
@@ -112,7 +114,7 @@ export function SubmitProjectModal({
             SUBMIT A PROJECT TO {program.name.toUpperCase()}
           </DialogTitle>
           <DialogDescription className="text-body">
-            Fill in your details and links. Use the same email you signed up with on Luma.
+            Use the email you checked in with at the door. Only checked-in attendees can submit.
           </DialogDescription>
         </DialogHeader>
 

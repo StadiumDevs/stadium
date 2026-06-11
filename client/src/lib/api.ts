@@ -407,6 +407,8 @@ export type ApiProgram = {
   location?: string | null;
   maxApplicants?: number | null;
   eventUrl?: string | null;
+  /** Cover image for the public page (e.g. the Luma event banner). */
+  coverImageUrl?: string | null;
   content?: ProgramContentSection[] | null;
   /** Prize tiers for judging (null ⇒ app default). Configurable per program. */
   prizeTiers?: ApiPrizeTier[] | null;
@@ -1822,6 +1824,16 @@ export const api = {
     },
   ): Promise<{ status: string; data?: { id: string } }> => {
     if (USE_MOCK_DATA) {
+      // Only checked-in attendees (on the imported Luma list) may submit.
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const guests = mockProgramSignups[slug] || [];
+      const ok = guests.some((g) => g.email.trim().toLowerCase() === payload.lumaEmail.trim().toLowerCase());
+      if (!ok) {
+        throw new ApiError(
+          "Only checked-in attendees can submit. Use the email you checked in with on Luma.",
+          403,
+        );
+      }
       const { mockJudging } = await import("./mockJudging");
       const sub = mockJudging.addSubmission(payload);
       return { status: "success", data: { id: sub.id } };
@@ -1969,7 +1981,7 @@ export const api = {
   ): Promise<{ status: string; data: ApiProgramStats }> => {
     if (USE_MOCK_DATA) {
       const { mockJudging } = await import("./mockJudging");
-      return { status: "success", data: mockJudging.stats() };
+      return { status: "success", data: mockJudging.stats(slug) };
     }
     return request(`/programs/${encodeURIComponent(slug)}/stats`, {
       headers: adminAuthHeaders(authHeader),

@@ -77,6 +77,19 @@ export const mockPrograms: ApiProgram[] = [
     eventEndsAt: "2026-06-17T20:00:00Z",
     location: "Berlin",
     maxApplicants: null,
+    eventUrl: "https://luma.com/internetmoneyhack",
+    coverImageUrl:
+      "https://placehold.co/1200x480/0a0a0a/e0e0e0/png?text=PROMPT+x+PURCHASE%0A-+A+Bitrefill+Hackathon",
+    content: [
+      {
+        type: "schedule",
+        title: "Schedule",
+        rows: [
+          { time: "11:30", label: "Brunch & kick-off" },
+          { time: "18:00", label: "Submission deadline" },
+        ],
+      },
+    ],
     prizeTiers: [
       { amount: 500, currency: "EUR", label: "Bitrefill giftcard" },
       { amount: 200, currency: "EUR", label: "Bitrefill giftcard" },
@@ -384,7 +397,36 @@ const builderSignup = (
 });
 
 /** Per-program signup fixtures (mock mode). */
+// Bitrefill checked-in guests (the "approved guests" list). Only these emails
+// may submit a project. Includes the seed submitter emails so the judging mock
+// stays consistent, plus the demo emails used elsewhere.
+const bitrefillGuest = (
+  id: number,
+  name: string,
+  email: string,
+): ApiProgramSignup => ({
+  id: `bitrefill-guest-${id}`,
+  programId: "bitrefill-2026",
+  email,
+  name,
+  source: "luma",
+  registeredAt: "2026-06-16T18:00:00Z",
+  importedInBatchAt: "2026-06-17T11:25:00Z",
+});
+
 export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
+  "bitrefill-2026": [
+    bitrefillGuest(1, "Aurora Builders", "aurora@example.com"),
+    bitrefillGuest(2, "Nimbus Labs", "nimbus@example.com"),
+    bitrefillGuest(3, "Comet Crew", "comet@example.com"),
+    bitrefillGuest(4, "Dana Builder", "dana@builder.test"),
+    bitrefillGuest(5, "Mara Chen", "mara@chen.test"),
+    bitrefillGuest(6, "Theo Vance", "theo@vance.test"),
+    bitrefillGuest(7, "Lena Ortiz", "lena@ortiz.test"),
+    bitrefillGuest(8, "Ravi Anand", "ravi@anand.test"),
+    bitrefillGuest(9, "Sora Kim", "sora@kim.test"),
+    bitrefillGuest(10, "Bea Fischer", "bea@fischer.test"),
+  ],
   "pitchoff-2026-denver": [
     builderSignup(1, "Niha Parkash, Pratyush Sawant", {
       build:

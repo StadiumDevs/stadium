@@ -13,6 +13,7 @@ import {
   type ApiProject,
   type ApiProgramApplication,
   type ApiPublicResults,
+  type ProgramContentSection,
   ApiError,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +55,7 @@ const ProgramDetailPage = () => {
   const [projects, setProjects] = useState<ApiProgramProject[]>([]);
   const [entries, setEntries] = useState<ApiProject[]>([]);
   const [results, setResults] = useState<ApiPublicResults | null>(null);
+  const [coverError, setCoverError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -230,6 +232,14 @@ const ProgramDetailPage = () => {
   const applicationsRange = formatDateRange(program?.applicationsOpenAt, program?.applicationsCloseAt);
   const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt);
 
+  // Hackathons get a single consolidated key-info panel (cover image + date +
+  // Luma sign-up + schedule) instead of the sponsors / how-to-apply / key-dates
+  // boilerplate. Schedule rows come from the program's `schedule` content sections.
+  const isHackathon = program?.programType === "hackathon";
+  const scheduleRows = (program?.content ?? [])
+    .filter((s): s is Extract<ProgramContentSection, { type: "schedule" }> => s.type === "schedule")
+    .flatMap((s) => s.rows);
+
   const RackButton = ({
     onClick, disabled, children,
   }: { onClick?: () => void; disabled?: boolean; children: React.ReactNode }) => (
@@ -381,9 +391,53 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
-            <ProgramContent sections={program.content} />
+            {!isHackathon && <ProgramContent sections={program.content} />}
 
-            {(applicationsRange || eventRange || program.eventUrl) && (
+            {isHackathon && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·KEY INFO</div>
+                {program.coverImageUrl && !coverError && (
+                  <img
+                    src={program.coverImageUrl}
+                    alt={`${program.name} event`}
+                    onError={() => setCoverError(true)}
+                    className="w-full rounded-sm border border-hairline mb-3 object-cover"
+                  />
+                )}
+                <div className="space-y-2">
+                  {eventRange && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="label-hw-dim">DATE</span>
+                      <span className="font-mono text-[12px] text-display">{eventRange}</span>
+                    </div>
+                  )}
+                  {program.location && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="label-hw-dim">LOCATION</span>
+                      <span className="font-mono text-[12px] text-display">{program.location}</span>
+                    </div>
+                  )}
+                  {scheduleRows.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3">
+                      <span className="label-hw-dim">{r.time}</span>
+                      <span className="font-mono text-[12px] text-display text-right">{r.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {program.eventUrl && (
+                  <a
+                    href={program.eventUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
+                  >
+                    SIGN UP ON LUMA ▸
+                  </a>
+                )}
+              </div>
+            )}
+
+            {!isHackathon && (applicationsRange || eventRange || program.eventUrl) && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·KEY DATES</div>
                 <div className="space-y-2">
@@ -416,7 +470,7 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
-            {sponsors.length > 0 && (
+            {!isHackathon && sponsors.length > 0 && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·SPONSORS &amp; HOW TO APPLY</div>
                 <div className="space-y-3">
@@ -582,37 +636,41 @@ const ProgramDetailPage = () => {
                   </RackButton>
                   <p className="label-hw-dim sm:ml-2">
                     {program.status === "open"
-                      ? "Anyone can submit. Use the email you signed up with on Luma."
+                      ? "Only people who checked in at the door can submit, using the email they used on Luma."
                       : "Submissions are closed for this program."}
                   </p>
                 </div>
               </div>
             )}
 
-            <div className="panel p-4">
-              <div className="label-hw mb-3">·APPLY</div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                {renderApplyCta()}
-                {!existingApplication && program.status === "open" && (
-                  <p className="label-hw-dim sm:ml-2">
-                    Applications open to past WebZero winners on a Stadium project team.
-                  </p>
+            {/* The legacy apply flow (past-winner / Stadium-team) is kept for
+                non-hackathon programs (e.g. M2); hackathons use the submit flow above. */}
+            {!isHackathon && (
+              <div className="panel p-4">
+                <div className="label-hw mb-3">·APPLY</div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  {renderApplyCta()}
+                  {!existingApplication && program.status === "open" && (
+                    <p className="label-hw-dim sm:ml-2">
+                      Applications open to past WebZero winners on a Stadium project team.
+                    </p>
+                  )}
+                </div>
+                {program.status === "open" && (
+                  <div className="mt-3 pt-3 border-t border-hairline-subtle">
+                    <button
+                      type="button"
+                      onClick={() => setNonMemberOpen(true)}
+                      className="font-mono text-[11px] tracking-[0.08em] text-display hover:underline"
+                    >
+                      Don't have a Stadium project yet? Apply here ▸
+                    </button>
+                  </div>
                 )}
               </div>
-              {program.status === "open" && (
-                <div className="mt-3 pt-3 border-t border-hairline-subtle">
-                  <button
-                    type="button"
-                    onClick={() => setNonMemberOpen(true)}
-                    className="font-mono text-[11px] tracking-[0.08em] text-display hover:underline"
-                  >
-                    Don't have a Stadium project yet? Apply here ▸
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
 
-            {connectedAddress && projectsForApply.length > 0 && (
+            {!isHackathon && connectedAddress && projectsForApply.length > 0 && (
               <ApplyToProgramModal
                 open={modalOpen}
                 onOpenChange={setModalOpen}
@@ -623,11 +681,13 @@ const ProgramDetailPage = () => {
               />
             )}
 
-            <NonMemberApplyModal
-              open={nonMemberOpen}
-              onOpenChange={setNonMemberOpen}
-              program={program}
-            />
+            {!isHackathon && (
+              <NonMemberApplyModal
+                open={nonMemberOpen}
+                onOpenChange={setNonMemberOpen}
+                program={program}
+              />
+            )}
 
             <SubmitProjectModal
               open={submitOpen}

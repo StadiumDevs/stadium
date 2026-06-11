@@ -15,7 +15,7 @@ import type {
   ApiSubmission,
   ApiSubmissionRow,
 } from "./api";
-import { mockPrograms } from "./mockPrograms";
+import { mockPrograms, mockProgramSignups } from "./mockPrograms";
 import { BATCH_SIZE } from "./constants";
 
 const MOCK_JUDGE_EMAIL = "you@judge.test";
@@ -438,10 +438,11 @@ export const mockJudging = {
     return { locked: false, submitted: youSubmitted ? 2 : 1, total: 2, rows };
   },
 
-  // At-a-glance counts for the program header. Submissions reflect the real mock
-  // store; participants is a representative demo value (mock has no signups).
-  stats(): { confirmedParticipants: number; submissionsCount: number } {
-    return { confirmedParticipants: 48, submissionsCount: allSubmissions().length };
+  // At-a-glance counts for the program header. Participants = the imported
+  // checked-in guests; submissions reflect the real mock store.
+  stats(slug?: string): { confirmedParticipants: number; submissionsCount: number } {
+    const guests = slug ? mockProgramSignups[slug]?.length ?? 0 : 0;
+    return { confirmedParticipants: guests, submissionsCount: allSubmissions().length };
   },
 
   resetForTests() {

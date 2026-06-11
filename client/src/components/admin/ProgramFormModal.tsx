@@ -93,6 +93,7 @@ export function ProgramFormModal({
   const [location, setLocation] = useState("");
   const [maxApplicants, setMaxApplicants] = useState("");
   const [eventUrl, setEventUrl] = useState("");
+  const [coverImageUrl, setCoverImageUrl] = useState("");
   const [applicationsOpenAt, setApplicationsOpenAt] = useState("");
   const [applicationsCloseAt, setApplicationsCloseAt] = useState("");
   const [eventStartsAt, setEventStartsAt] = useState("");
@@ -114,6 +115,7 @@ export function ProgramFormModal({
       setLocation(program.location || "");
       setMaxApplicants(program.maxApplicants ? String(program.maxApplicants) : "");
       setEventUrl(program.eventUrl || "");
+      setCoverImageUrl(program.coverImageUrl || "");
       setApplicationsOpenAt(isoToLocal(program.applicationsOpenAt));
       setApplicationsCloseAt(isoToLocal(program.applicationsCloseAt));
       setEventStartsAt(isoToLocal(program.eventStartsAt));
@@ -129,6 +131,7 @@ export function ProgramFormModal({
       setLocation("");
       setMaxApplicants("");
       setEventUrl("");
+      setCoverImageUrl("");
       setApplicationsOpenAt("");
       setApplicationsCloseAt("");
       setEventStartsAt("");
@@ -155,6 +158,9 @@ export function ProgramFormModal({
     }
     if (eventUrl.trim() && !/^https?:\/\//i.test(eventUrl.trim())) {
       e.eventUrl = "Must start with http:// or https://";
+    }
+    if (coverImageUrl.trim() && !/^https?:\/\//i.test(coverImageUrl.trim())) {
+      e.coverImageUrl = "Must start with http:// or https://";
     }
     if (applicationsOpenAt && applicationsCloseAt) {
       if (new Date(applicationsOpenAt).getTime() >= new Date(applicationsCloseAt).getTime()) {
@@ -212,6 +218,7 @@ export function ProgramFormModal({
         location: location.trim() || null,
         maxApplicants: maxApplicants ? Number(maxApplicants) : null,
         eventUrl: eventUrl.trim() || null,
+        coverImageUrl: coverImageUrl.trim() || null,
         applicationsOpenAt: localToIso(applicationsOpenAt),
         applicationsCloseAt: localToIso(applicationsCloseAt),
         eventStartsAt: localToIso(eventStartsAt),
@@ -422,6 +429,22 @@ export function ProgramFormModal({
             />
             {errors.eventUrl && (
               <p className="label-hw text-destructive">·{errors.eventUrl.toUpperCase()}</p>
+            )}
+          </div>
+
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label htmlFor="pf-cover" className="label-hw-dim">·COVER IMAGE URL (PUBLIC PAGE BANNER)</Label>
+            <Input
+              id="pf-cover"
+              type="url"
+              placeholder="https://…/cover.png"
+              value={coverImageUrl}
+              onChange={(e) => setCoverImageUrl(e.target.value)}
+              aria-invalid={errors.coverImageUrl ? true : undefined}
+              className="font-mono text-sm"
+            />
+            {errors.coverImageUrl && (
+              <p className="label-hw text-destructive">·{errors.coverImageUrl.toUpperCase()}</p>
             )}
           </div>
 

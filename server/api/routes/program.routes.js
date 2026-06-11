@@ -58,7 +58,7 @@ router.get('/:slug/results', submissionController.publicResults);
 
 // --- Phase 1 revamp: admin create/edit (#46) ---
 router.post('/', requireAdmin, programController.createProgram);
-router.patch('/:slug', requireAdmin, programController.updateProgram);
+router.patch('/:slug', requireProgramAdmin('slug'), programController.updateProgram);
 
 // --- Phase 1 revamp: applications (#43, #47) ---
 router.get(

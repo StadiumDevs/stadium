@@ -203,8 +203,8 @@ const log = [];
 const note = (m) => log.push(m);
 
 beforeAll(() => {
-  // Organizer has already created an open hackathon and imported the Luma list
-  // (comet@ is intentionally absent -> ineligible).
+  // Organizer has created an open hackathon and imported the Luma checked-in
+  // (approved guest) list. Only emails on this list may submit a project.
   store.programs = [
     {
       id: PROGRAM_ID, slug: SLUG, name: 'Bitrefill 2026', program_type: 'hackathon',
@@ -218,6 +218,7 @@ beforeAll(() => {
   store.program_signups = [
     { id: 's1', program_id: PROGRAM_ID, email: 'aurora@example.com', name: 'Aurora', source: 'luma', created_at: new Date().toISOString() },
     { id: 's2', program_id: PROGRAM_ID, email: 'nimbus@example.com', name: 'Nimbus', source: 'luma', created_at: new Date().toISOString() },
+    { id: 's3', program_id: PROGRAM_ID, email: 'comet@example.com', name: 'Comet', source: 'luma', created_at: new Date().toISOString() },
   ];
 });
 
@@ -230,6 +231,13 @@ describe('Bitrefill judging — basic user journeys', () => {
     const count = store.program_submissions?.length ?? 0;
     expect(count).toBe(3);
     note(`Submissions: 3 accepted (${SUBMISSIONS.map((s) => s.projectTitle).join(', ')}).`);
+  });
+
+  it('rejects a submission from an email not on the checked-in list (403)', async () => {
+    const r = await submitter({ ...SUBMISSIONS[0], lumaEmail: 'walkup@example.com' }).submit();
+    expect(r.status).toBe(403);
+    expect(store.program_submissions.length).toBe(3); // no new row
+    note('Only checked-in attendees can submit: a non-listed email is rejected (403).');
   });
 
   it('rejects a duplicate submission (same Luma email) with 409', async () => {
@@ -284,15 +292,14 @@ describe('Bitrefill judging — basic user journeys', () => {
     note('Cross-event isolation: a judge only reaches the event they were invited to; other events 401/403.');
   });
 
-  it('an invited judge sees every submission, with the ineligible one flagged', async () => {
+  it('an invited judge sees every submission (all from checked-in attendees)', async () => {
     const r = await judge(JUDGES[0]).list();
     expect(r.status).toBe(200);
     const subs = r.body.data.submissions;
     expect(subs).toHaveLength(3);
-    const comet = subs.find((s) => s.projectTitle === 'Comet Bridge');
-    expect(comet.eligible).toBe(false); // not in the Luma list
-    expect(subs.find((s) => s.projectTitle === 'Aurora Pay').eligible).toBe(true);
-    note('Judge sees all 3 submissions; "Comet Bridge" flagged NOT IN LUMA (advisory, still scoreable).');
+    // Every submitter is on the checked-in list, so all rows are eligible.
+    expect(subs.every((s) => s.eligible)).toBe(true);
+    note('Judge sees all 3 submissions; all from checked-in attendees (eligible).');
   });
 
   it('rejects an out-of-range score (400)', async () => {
@@ -358,11 +365,8 @@ describe('Bitrefill judging — basic user journeys', () => {
     expect(aurora.judgeScores).toHaveLength(3); // individual scores per judge
     expect(aurora.judgeScores.find((s) => s.judgeEmail === JUDGES[0]).total).toBe(12);
 
-    // Eligibility carried onto rows: the ineligible entry is flagged though it ranks.
-    expect(aurora.eligible).toBe(true);
-    const comet = rows.find((r) => r.projectTitle === 'Comet Bridge');
-    expect(comet.eligible).toBe(false);
-    note(`Leaderboard flags eligibility: "Comet Bridge" ranks #${comet.rank} but is marked NOT IN LUMA.`);
+    // Every submission is from a checked-in attendee, so all rows are eligible.
+    expect(rows.every((r) => r.eligible)).toBe(true);
     note(
       `Leaderboard ranking (each row carries per-judge scores): ${rows
         .map((r) => `${r.rank}. ${r.projectTitle} (${r.avgTotal.toFixed(2)}/12)`)
@@ -448,7 +452,7 @@ afterAll(() => {
     ['Submissions stay private until results are published', 'During judging, submissions are visible only to judges/admins. A platform admin selects winners and explicitly publishes; only then does the public program page show the PII-free submissions + winners. There is intentionally no public gallery mid-judging.'],
     ['Submitter cannot edit or withdraw a submission', 'There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.'],
     ['No submission confirmation email', 'Submitters get only an in-modal success state; nothing in their inbox. A confirmation (with what they submitted) reassures them and gives a paper trail. Planned for iteration 2.'],
-    ['Ineligible submissions are only flagged, never reconciled', 'A Luma email typo permanently marks a real participant ineligible. Consider fuzzy match / an admin "mark eligible" override, since the flag is the only eligibility signal judges see.'],
+    ['A Luma email typo blocks submission entirely', 'Submission is now gated to the imported checked-in list, so a mistyped email gets a hard 403 with no recourse at the door. Consider fuzzy match / an admin "add guest" quick action so a real attendee is not locked out.'],
     ['Judge progress is invisible to the organizer', 'The leaderboard shows which judges are pending, but not how far each judge has gotten (e.g. 4/7 scored). A per-judge progress view would tell the organizer who to nudge before the deadline.'],
     ['No partial/abstain scoring', 'A judge must score every submission to submit. With conflicts of interest (judge affiliated with a team) there is no abstain path; they are forced to enter a number. Consider an explicit "recuse" that excludes that pair from the tally.'],
     ['Ballot lock has no escape hatch in the UI', 'Lock-after-submit is correct, but the only recovery is an admin reopen that does not exist yet (iteration 2). If a judge submits early by mistake before the deadline, they are stuck.'],
@@ -471,13 +475,13 @@ afterAll(() => {
   lines.push('');
   lines.push('## What works');
   lines.push('');
-  lines.push('- Public submission with dedup (409) and validation (400).');
+  lines.push('- Public submission gated to checked-in attendees (403 off-list), with dedup (409) and validation (400).');
   lines.push('- Non-invited emails are blocked from the scoring surface (auth gate holds).');
   lines.push('- Cross-event isolation: an email user only reaches the event they were invited to; other events 401/403.');
   lines.push('- Least privilege: judges get the scoring surface only — NOT applicant PII, signups, inbox, audit log, or the admin roster.');
-  lines.push('- Eligibility flagging against the Luma signup list (advisory, non-blocking).');
+  lines.push('- Submission restricted to the imported Luma checked-in list (the approved guests).');
   lines.push('- Range-checked scoring; ballot cannot be submitted until everything is scored.');
-  lines.push('- Leaderboard gated until all judges submit, then tallies the mean /12 and ranks correctly.');
+  lines.push('- Leaderboard gated on coverage (every project scored by a submitted judge), then tallies the mean /12 and ranks correctly.');
   lines.push('- Leaderboard flags ineligible entries (fixed: they no longer rank invisibly).');
   lines.push('- Ballot locks after submission.');
   lines.push('- Admin can promote a submission into a Stadium project (idempotent), carrying title/repo/demo/program + submitter.');

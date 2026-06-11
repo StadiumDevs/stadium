@@ -73,6 +73,14 @@ class SubmissionController {
       if (!v.ok) {
         return res.status(400).json({ status: 'error', message: v.error });
       }
+      // Only checked-in attendees may submit: the email must be on the program's
+      // imported Luma (checked-in / approved guest) list.
+      if (!(await programSignupRepository.existsByEmail(program.id, v.value.lumaEmail))) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
+        });
+      }
       const { submission, duplicate } = await programSubmissionRepository.create({
         programId: program.id,
         ...v.value,

@@ -16,6 +16,7 @@ import { ApplicationCard } from "@/components/admin/ApplicationCard";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
 import { ProgramJudgingSection } from "@/components/admin/ProgramJudgingSection";
 import { ProgramStatsHeader } from "@/components/admin/ProgramStatsHeader";
+import { ProgramFormModal } from "@/components/admin/ProgramFormModal";
 import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
@@ -87,6 +88,7 @@ const AdminProgramPage = () => {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [filter, setFilter] = useState<Filter>("submitted");
+  const [editOpen, setEditOpen] = useState(false);
   const [errorData, setErrorData] = useState<{
     walletAddresses: string[];
     expectedAddresses: string[];
@@ -277,7 +279,18 @@ const AdminProgramPage = () => {
         ) : program ? (
           <>
             <header className="mb-6">
-              <div className="label-hw-dim mb-2">·ADMIN / PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="label-hw-dim mb-2">·ADMIN / PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
+                {isAdminWallet && (
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen(true)}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                  >
+                    EDIT ▸
+                  </button>
+                )}
+              </div>
               <h1 className="font-display text-4xl md:text-5xl uppercase tracking-tight text-display leading-[0.95] mb-3">
                 {program.name}
               </h1>
@@ -289,6 +302,16 @@ const AdminProgramPage = () => {
                 {program.location && <span className="label-hw-dim">{program.location.toUpperCase()}</span>}
               </div>
             </header>
+
+            {editOpen && connectedAddress && (
+              <ProgramFormModal
+                open={editOpen}
+                onOpenChange={setEditOpen}
+                program={program}
+                connectedAddress={connectedAddress}
+                onSaved={(p) => setProgram(p)}
+              />
+            )}
 
             {isAdminWallet ? (
               <>
@@ -313,60 +336,71 @@ const AdminProgramPage = () => {
                   onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
                 />
 
-                <ProgramSponsorsSection
-                  programSlug={program.slug}
-                  signAuthHeader={getAdminAuth}
-                />
+                {program.programType !== "hackathon" && (
+                  <ProgramSponsorsSection
+                    programSlug={program.slug}
+                    signAuthHeader={getAdminAuth}
+                  />
+                )}
 
                 <ProgramSignupsSection
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
+                  title={program.programType === "hackathon" ? "·LUMA-APPROVED GUESTS" : undefined}
                 />
 
-                <ProgramAuditLogSection
-                  programSlug={program.slug}
-                  signAuthHeader={getAdminAuth}
-                />
-                <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
-                  <HardwareToggle
-                    options={FILTER_OPTIONS}
-                    value={filter}
-                    onChange={setFilter}
+                {program.programType !== "hackathon" && (
+                  <ProgramAuditLogSection
+                    programSlug={program.slug}
+                    signAuthHeader={getAdminAuth}
                   />
-                  <div className="flex-1" />
-                  <button
-                    type="button"
-                    onClick={loadApplications}
-                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
-                  >
-                    LOAD / REFRESH
-                  </button>
-                </div>
-
-                {applications.length === 0 ? (
-                  <div className="panel px-4 py-10 text-center">
-                    <div className="label-hw text-display mb-2">·NO APPLICATIONS LOADED</div>
-                    <p className="label-hw-dim">
-                      Click LOAD / REFRESH to fetch applications (signs an admin-action message).
-                    </p>
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="panel px-4 py-10 text-center">
-                    <div className="label-hw text-display mb-2">·NO MATCHES</div>
-                    <p className="label-hw-dim">No applications match the current filter.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filtered.map((a) => (
-                      <ApplicationCard
-                        key={a.id}
-                        application={a}
-                        programSlug={program.slug}
-                        signAuthHeader={getAdminAuth}
-                        onUpdated={handleUpdated}
+                )}
+                {/* Legacy program-applications surface — not used by hackathons
+                    (their intake is the public submit flow + judging panel). */}
+                {program.programType !== "hackathon" && (
+                  <>
+                    <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
+                      <HardwareToggle
+                        options={FILTER_OPTIONS}
+                        value={filter}
+                        onChange={setFilter}
                       />
-                    ))}
-                  </div>
+                      <div className="flex-1" />
+                      <button
+                        type="button"
+                        onClick={loadApplications}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                      >
+                        LOAD / REFRESH
+                      </button>
+                    </div>
+
+                    {applications.length === 0 ? (
+                      <div className="panel px-4 py-10 text-center">
+                        <div className="label-hw text-display mb-2">·NO APPLICATIONS LOADED</div>
+                        <p className="label-hw-dim">
+                          Click LOAD / REFRESH to fetch applications (signs an admin-action message).
+                        </p>
+                      </div>
+                    ) : filtered.length === 0 ? (
+                      <div className="panel px-4 py-10 text-center">
+                        <div className="label-hw text-display mb-2">·NO MATCHES</div>
+                        <p className="label-hw-dim">No applications match the current filter.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {filtered.map((a) => (
+                          <ApplicationCard
+                            key={a.id}
+                            application={a}
+                            programSlug={program.slug}
+                            signAuthHeader={getAdminAuth}
+                            onUpdated={handleUpdated}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             ) : socialCanJudge || socialCanViewAdmin ? (

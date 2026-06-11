@@ -22,7 +22,7 @@ vi.mock('../../repositories/submission-score.repository.js', () => ({
   default: { upsert: vi.fn(), upsertMany: vi.fn() },
 }));
 vi.mock('../../repositories/program-signup.repository.js', () => ({
-  default: { countByProgramId: vi.fn() },
+  default: { countByProgramId: vi.fn(), existsByEmail: vi.fn() },
 }));
 vi.mock('../../repositories/program-judge-ballot.repository.js', () => ({
   default: { isSubmitted: vi.fn() },
@@ -84,8 +84,19 @@ describe('SubmissionController.submit (public)', () => {
     expect(submissionRepo.create).not.toHaveBeenCalled();
   });
 
+  it('403s an email that is not on the checked-in guest list', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(false);
+    const req = { params: { slug: 'bitrefill' }, body: GOOD_BODY };
+    const res = mockRes();
+    await submissionController.submit(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(submissionRepo.create).not.toHaveBeenCalled();
+  });
+
   it('409s on a duplicate Luma email', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(true);
     submissionRepo.create.mockResolvedValue({ submission: { id: 'x' }, duplicate: true });
     const req = { params: { slug: 'bitrefill' }, body: GOOD_BODY };
     const res = mockRes();
@@ -95,6 +106,7 @@ describe('SubmissionController.submit (public)', () => {
 
   it('201s with the new id on success', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(true);
     submissionRepo.create.mockResolvedValue({ submission: { id: 'engine-ab12' }, duplicate: false });
     const req = { params: { slug: 'bitrefill' }, body: GOOD_BODY };
     const res = mockRes();
