@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Trash2, Loader2, Mail } from "lucide-react";
+import { Trash2, Loader2, Mail, Wallet } from "lucide-react";
 import { api, type ApiProgramAdmin, type ApiProgramAdminEmail, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -8,21 +8,24 @@ type ChainOption = ApiProgramAdmin["walletChain"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Per-event admin management (Phase 3 #95). Lists `program_admins` and lets
- * a global admin assign / remove per-program admins. Non-global admins see
- * the list only — add/remove controls are hidden.
+ * The program's admins + judges. On the program page this renders a single
+ * READ-ONLY list (email grants + per-program wallet admins). With `editable`
+ * (used inside the program EDIT modal, global-admins only) it also shows the
+ * add-wallet / invite-email forms and per-row REMOVE controls.
  *
- * Each call is gated on a fresh SIWS signature; the parent passes
- * `signAuthHeader` (typically wired to `useWalletAuth().signAction`).
+ * Each mutating call is gated on a fresh auth header from `signAuthHeader`.
+ * `reloadToken` lets the page refetch after edits made elsewhere (the modal).
  */
 export function ProgramAdminsSection({
   programSlug,
   signAuthHeader,
-  isGlobalAdmin,
+  editable = false,
+  reloadToken,
 }: {
   programSlug: string;
   signAuthHeader: () => Promise<import("@/lib/api").AdminAuthArg>;
-  isGlobalAdmin: boolean;
+  editable?: boolean;
+  reloadToken?: number;
 }) {
   const { toast } = useToast();
   const [admins, setAdmins] = useState<ApiProgramAdmin[]>([]);
@@ -56,6 +59,10 @@ export function ProgramAdminsSection({
       setLoading(false);
     }
   }, [programSlug, signAuthHeader, toast]);
+
+  useEffect(() => {
+    if (programSlug) load();
+  }, [programSlug, load, reloadToken]);
 
   const handleInvite = async () => {
     const email = inviteEmail.trim();
@@ -96,10 +103,6 @@ export function ProgramAdminsSection({
       toast({ title: "Couldn't remove admin", description: err?.message || "Unknown error", variant: "destructive" });
     }
   };
-
-  useEffect(() => {
-    if (programSlug) load();
-  }, [programSlug, load]);
 
   const handleAdd = async () => {
     if (!wallet.trim()) return;
@@ -149,12 +152,16 @@ export function ProgramAdminsSection({
     }
   };
 
+  const isEmpty = admins.length === 0 && emailAdmins.length === 0;
+
   return (
     <section className="panel p-4 mb-3">
       <header className="mb-3 flex items-baseline justify-between gap-3">
-        <div className="label-hw text-display">·PROGRAM ADMINS</div>
+        <div className="label-hw text-display">·PROGRAM ADMINS &amp; JUDGES</div>
         <p className="label-hw-dim hidden md:block">
-          Global admins are always authorized; only wallets listed here can administer this program scope.
+          {editable
+            ? "Admins manage the event; judges score submissions. Global admins are always authorized."
+            : "Who can administer or judge this program."}
         </p>
       </header>
 
@@ -163,25 +170,47 @@ export function ProgramAdminsSection({
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
           Loading…
         </div>
-      ) : admins.length === 0 ? (
-        <p className="label-hw-dim py-3">No per-program admins assigned yet.</p>
+      ) : isEmpty ? (
+        <p className="label-hw-dim py-3">No admins or judges yet.</p>
       ) : (
         <ul className="divide-y divide-hairline">
-          {admins.map((a) => (
-            <li
-              key={`${a.walletChain}:${a.wallet}`}
-              className="flex items-center justify-between gap-3 py-2"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-mono text-[12px] text-display">{a.wallet}</p>
-                <p className="label-hw-dim">{a.walletChain.toUpperCase()}</p>
+          {emailAdmins.map((a) => (
+            <li key={`email:${a.email}`} className="flex items-center justify-between gap-3 py-2">
+              <div className="min-w-0 flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5 text-label-mid shrink-0" aria-hidden="true" />
+                <span className="truncate font-mono text-[12px] text-display">{a.email}</span>
+                <span className="label-hw-dim border border-hairline px-1.5 py-0.5 shrink-0">
+                  {a.role === "judge" ? "JUDGE" : "ADMIN"}
+                </span>
               </div>
-              {isGlobalAdmin && (
+              {editable && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveEmail(a)}
+                  aria-label={`Remove ${a.email}`}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-destructive hover:bg-destructive/10 px-2 py-1 inline-flex items-center gap-1 shrink-0"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  REMOVE
+                </button>
+              )}
+            </li>
+          ))}
+          {admins.map((a) => (
+            <li key={`wallet:${a.walletChain}:${a.wallet}`} className="flex items-center justify-between gap-3 py-2">
+              <div className="min-w-0 flex items-center gap-2">
+                <Wallet className="h-3.5 w-3.5 text-label-mid shrink-0" aria-hidden="true" />
+                <span className="truncate font-mono text-[12px] text-display">{a.wallet}</span>
+                <span className="label-hw-dim border border-hairline px-1.5 py-0.5 shrink-0">
+                  {a.walletChain.toUpperCase()} · ADMIN
+                </span>
+              </div>
+              {editable && (
                 <button
                   type="button"
                   onClick={() => handleRemove(a)}
                   aria-label={`Remove ${a.wallet}`}
-                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-destructive hover:bg-destructive/10 px-2 py-1 inline-flex items-center gap-1"
+                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-destructive hover:bg-destructive/10 px-2 py-1 inline-flex items-center gap-1 shrink-0"
                 >
                   <Trash2 className="h-3 w-3" />
                   REMOVE
@@ -192,74 +221,10 @@ export function ProgramAdminsSection({
         </ul>
       )}
 
-      {isGlobalAdmin && (
-        <div className="mt-4 flex flex-col gap-2 border-t border-hairline pt-4 md:flex-row">
-          <input
-            placeholder="Wallet address"
-            value={wallet}
-            onChange={(e) => setWallet(e.target.value)}
-            className="md:flex-1 font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
-          />
-          <select
-            value={chain}
-            onChange={(e) => setChain(e.target.value as ChainOption)}
-            className="md:w-[140px] font-mono text-[11px] tracking-[0.14em] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
-          >
-            <option value="substrate">SUBSTRATE</option>
-            <option value="ethereum">ETHEREUM</option>
-            <option value="solana">SOLANA</option>
-          </select>
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={adding || !wallet.trim()}
-            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5"
-          >
-            {adding ? "ADDING…" : "ADD ADMIN"}
-          </button>
-        </div>
-      )}
-
-      {/* Email admins — onboard non-wallet partners via an email magic link. */}
-      <div className="mt-4 border-t border-hairline pt-4">
-        <div className="mb-2 flex items-baseline justify-between gap-3">
-          <div className="label-hw text-display">·EMAIL ADMINS &amp; JUDGES</div>
-          <p className="label-hw-dim hidden md:block">
-            Sign in by email, no wallet needed. Admins are view-only; judges can score submissions.
-          </p>
-        </div>
-
-        {emailAdmins.length === 0 ? (
-          <p className="label-hw-dim py-1">No email admins yet.</p>
-        ) : (
-          <ul className="divide-y divide-hairline">
-            {emailAdmins.map((a) => (
-              <li key={a.email} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0 flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-label-mid shrink-0" aria-hidden="true" />
-                  <span className="truncate font-mono text-[12px] text-display">{a.email}</span>
-                  <span className="label-hw-dim border border-hairline px-1.5 py-0.5 shrink-0">
-                    {a.role === "judge" ? "JUDGE" : "ADMIN"}
-                  </span>
-                </div>
-                {isGlobalAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveEmail(a)}
-                    aria-label={`Remove ${a.email}`}
-                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-destructive hover:bg-destructive/10 px-2 py-1 inline-flex items-center gap-1"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    REMOVE
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {isGlobalAdmin && (
-          <div className="mt-3 flex flex-col gap-2 md:flex-row">
+      {editable && (
+        <>
+          {/* Invite an admin or judge by email (magic-link onboarding). */}
+          <div className="mt-4 flex flex-col gap-2 border-t border-hairline pt-4 md:flex-row">
             <input
               type="email"
               placeholder="invitee@email.com"
@@ -284,8 +249,35 @@ export function ProgramAdminsSection({
               {inviting ? "INVITING…" : "INVITE BY EMAIL"}
             </button>
           </div>
-        )}
-      </div>
+
+          {/* Add a per-program admin by wallet address. */}
+          <div className="mt-2 flex flex-col gap-2 md:flex-row">
+            <input
+              placeholder="Wallet address"
+              value={wallet}
+              onChange={(e) => setWallet(e.target.value)}
+              className="md:flex-1 font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+            />
+            <select
+              value={chain}
+              onChange={(e) => setChain(e.target.value as ChainOption)}
+              className="md:w-[140px] font-mono text-[11px] tracking-[0.14em] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+            >
+              <option value="substrate">SUBSTRATE</option>
+              <option value="ethereum">ETHEREUM</option>
+              <option value="solana">SOLANA</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={adding || !wallet.trim()}
+              className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5"
+            >
+              {adding ? "ADDING…" : "ADD ADMIN"}
+            </button>
+          </div>
+        </>
+      )}
     </section>
   );
 }

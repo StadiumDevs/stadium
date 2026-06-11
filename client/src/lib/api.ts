@@ -1765,7 +1765,8 @@ export const api = {
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgramAdminEmail[] }> => {
     if (USE_MOCK_DATA) {
-      return { status: "success", data: [] };
+      const { mockProgramAdminEmails } = await import("./mockPrograms");
+      return { status: "success", data: mockProgramAdminEmails[slug] || [] };
     }
     return request(`/programs/${encodeURIComponent(slug)}/admins/emails`, {
       headers: adminAuthHeaders(authHeader),
@@ -1779,12 +1780,19 @@ export const api = {
     role: "admin" | "judge" = "admin",
   ): Promise<{ status: string; data: ApiProgramAdminEmail; emailSent: boolean; emailReason: string | null }> => {
     if (USE_MOCK_DATA) {
-      return {
-        status: "success",
-        data: { programId: slug, email: email.trim().toLowerCase(), role, invitedBy: null, createdAt: new Date().toISOString() },
-        emailSent: false,
-        emailReason: "mock_mode",
+      const { mockProgramAdminEmails } = await import("./mockPrograms");
+      const record: ApiProgramAdminEmail = {
+        programId: slug,
+        email: email.trim().toLowerCase(),
+        role,
+        invitedBy: null,
+        createdAt: new Date().toISOString(),
       };
+      const list = mockProgramAdminEmails[slug] || [];
+      mockProgramAdminEmails[slug] = list.some((a) => a.email === record.email)
+        ? list.map((a) => (a.email === record.email ? record : a))
+        : [...list, record];
+      return { status: "success", data: record, emailSent: false, emailReason: "mock_mode" };
     }
     return request(`/programs/${encodeURIComponent(slug)}/admins/invite`, {
       method: "POST",
@@ -1798,7 +1806,12 @@ export const api = {
     email: string,
     authHeader: AdminAuthArg,
   ): Promise<void> => {
-    if (USE_MOCK_DATA) return;
+    if (USE_MOCK_DATA) {
+      const { mockProgramAdminEmails } = await import("./mockPrograms");
+      const target = email.trim().toLowerCase();
+      mockProgramAdminEmails[slug] = (mockProgramAdminEmails[slug] || []).filter((a) => a.email !== target);
+      return;
+    }
     await request(
       `/programs/${encodeURIComponent(slug)}/admins/emails/${encodeURIComponent(email)}`,
       {

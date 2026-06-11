@@ -89,6 +89,7 @@ const AdminProgramPage = () => {
   const [notFound, setNotFound] = useState(false);
   const [filter, setFilter] = useState<Filter>("submitted");
   const [editOpen, setEditOpen] = useState(false);
+  const [adminsReload, setAdminsReload] = useState(0);
   const [errorData, setErrorData] = useState<{
     walletAddresses: string[];
     expectedAddresses: string[];
@@ -306,10 +307,15 @@ const AdminProgramPage = () => {
             {editOpen && connectedAddress && (
               <ProgramFormModal
                 open={editOpen}
-                onOpenChange={setEditOpen}
+                onOpenChange={(v) => {
+                  setEditOpen(v);
+                  if (!v) setAdminsReload((n) => n + 1); // refresh the read-only list
+                }}
                 program={program}
                 connectedAddress={connectedAddress}
                 onSaved={(p) => setProgram(p)}
+                signAuthHeader={getAdminAuth}
+                isGlobalAdmin={isGlobalAdmin}
               />
             )}
 
@@ -324,7 +330,7 @@ const AdminProgramPage = () => {
                 <ProgramAdminsSection
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
-                  isGlobalAdmin={isGlobalAdmin}
+                  reloadToken={adminsReload}
                 />
 
                 <ProgramJudgingSection

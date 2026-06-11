@@ -9,7 +9,7 @@
  *     so previews mirror the canonical-events backfill migration.
  */
 
-import type { ApiProgram, ApiProgramSignup, ApiProgramSponsor } from "./api";
+import type { ApiProgram, ApiProgramAdminEmail, ApiProgramSignup, ApiProgramSponsor } from "./api";
 
 export const mockPrograms: ApiProgram[] = [
   {
@@ -413,6 +413,15 @@ const bitrefillGuest = (
   registeredAt: "2026-06-16T18:00:00Z",
   importedInBatchAt: "2026-06-17T11:25:00Z",
 });
+
+// Email-keyed program admins + judges (mutable in the harness so invite/remove
+// in the EDIT modal persists). Seeded so the read-only list isn't empty.
+export const mockProgramAdminEmails: Record<string, ApiProgramAdminEmail[]> = {
+  "bitrefill-2026": [
+    { programId: "bitrefill-2026", email: "judge@bitrefill.com", role: "judge", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
+    { programId: "bitrefill-2026", email: "ops@bitrefill.com", role: "admin", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
+  ],
+};
 
 export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
   "bitrefill-2026": [

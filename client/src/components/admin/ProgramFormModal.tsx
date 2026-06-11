@@ -24,6 +24,7 @@ import { generateSiwsStatement } from "@/lib/siwsUtils";
 import { api, type ApiProgram } from "@/lib/api";
 import { DEFAULT_PRIZE_TIERS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
+import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
 
 type PrizeTierRow = { amount: string; currency: string; label: string };
 const tierRowsFromProgram = (program: ApiProgram | null): PrizeTierRow[] => {
@@ -74,6 +75,8 @@ export function ProgramFormModal({
   program,
   connectedAddress,
   onSaved,
+  signAuthHeader,
+  isGlobalAdmin = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -81,6 +84,9 @@ export function ProgramFormModal({
   program: ApiProgram | null;
   connectedAddress: string;
   onSaved: (program: ApiProgram) => void;
+  /** When provided + isGlobalAdmin, the modal hosts the admins/judges management UI. */
+  signAuthHeader?: () => Promise<import("@/lib/api").AdminAuthArg>;
+  isGlobalAdmin?: boolean;
 }) {
   const editing = Boolean(program);
 
@@ -505,6 +511,13 @@ export function ProgramFormModal({
             </div>
           )}
         </div>
+
+        {/* Admins + judges management (global admins only, edit mode). The grant
+            endpoints are separate from the program metadata save above. */}
+        {editing && isGlobalAdmin && signAuthHeader && program && (
+          <ProgramAdminsSection programSlug={program.slug} signAuthHeader={signAuthHeader} editable />
+        )}
+
         <DialogFooter>
           <button
             type="button"
