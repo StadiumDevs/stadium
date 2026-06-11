@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -96,6 +96,12 @@ export function TeamPaymentSection({
   
   // Editable state
   const [editedMembers, setEditedMembers] = useState<TeamMember[]>([]);
+  // Stable React keys for the editable member rows, kept length-synced with
+  // editedMembers so deleting a middle row doesn't shift input focus/cursor
+  // onto the wrong row (the failure mode of keying controlled inputs by index).
+  const [editedMemberKeys, setEditedMemberKeys] = useState<number[]>([]);
+  const memberKeySeq = useRef(0);
+  const nextMemberKey = () => (memberKeySeq.current += 1);
   const [editedPayoutAddress, setEditedPayoutAddress] = useState("");
   const [editedPayoutChain, setEditedPayoutChain] = useState<WalletChain>('substrate');
 
@@ -105,7 +111,9 @@ export function TeamPaymentSection({
   // Initialize edited values when entering edit mode or when props change
   useEffect(() => {
     if (canEdit) {
-      setEditedMembers(teamMembers.length > 0 ? [...teamMembers] : [{ name: "", walletAddress: "" }]);
+      const init = teamMembers.length > 0 ? [...teamMembers] : [{ name: "", walletAddress: "" }];
+      setEditedMembers(init);
+      setEditedMemberKeys(init.map(() => nextMemberKey()));
       setEditedPayoutAddress(donationAddress || "");
       setEditedPayoutChain(donationChain);
     }
@@ -185,11 +193,13 @@ export function TeamPaymentSection({
 
   const addMember = () => {
     setEditedMembers(prev => [...prev, { name: "", walletAddress: "" }]);
+    setEditedMemberKeys(prev => [...prev, nextMemberKey()]);
   };
 
   const removeMember = (index: number) => {
     if (editedMembers.length > 1) {
       setEditedMembers(prev => prev.filter((_, i) => i !== index));
+      setEditedMemberKeys(prev => prev.filter((_, i) => i !== index));
     }
   };
 
@@ -236,7 +246,9 @@ export function TeamPaymentSection({
 
   const handleCancel = () => {
     // Reset to original values
-    setEditedMembers(teamMembers.length > 0 ? [...teamMembers] : [{ name: "", walletAddress: "" }]);
+    const reset = teamMembers.length > 0 ? [...teamMembers] : [{ name: "", walletAddress: "" }];
+    setEditedMembers(reset);
+    setEditedMemberKeys(reset.map(() => nextMemberKey()));
     setEditedPayoutAddress(donationAddress || "");
     setEditedPayoutChain(donationChain);
     setIsEditing(false);
@@ -244,7 +256,10 @@ export function TeamPaymentSection({
 
   // Render read-only team member card
   const renderReadOnlyMember = (member: TeamMember, index: number) => (
-    <div key={member.walletAddress || index} className="lcd p-4">
+    // Fold in the index: a wallet address is not guaranteed unique across a
+    // team's members (mock data redacts several to the same string), so keying
+    // by address alone collides and triggers React's duplicate-key warning.
+    <div key={`${member.walletAddress || "member"}-${index}`} className="lcd p-4">
       <div className="flex items-start justify-between">
         <div className="space-y-1 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
@@ -317,7 +332,7 @@ export function TeamPaymentSection({
 
   // Render editable team member card
   const renderEditableMember = (member: TeamMember, index: number) => (
-    <div key={index} className="lcd p-4 space-y-3">
+    <div key={editedMemberKeys[index] ?? index} className="lcd p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 grid gap-3">
             {/* Row 1: Name and Role */}

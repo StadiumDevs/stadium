@@ -80,7 +80,7 @@ class ProjectController {
             // Debug logging for incoming payload (safe fields only)
             try {
                 const preview = JSON.stringify(updateData)?.slice(0, 500);
-                console.log(`[ProjectController] updateProject payload for ${projectId}:`, preview);
+                logger.info(`[ProjectController] updateProject payload for ${projectId}:`, preview);
             } catch {}
 
             if (!updateData || typeof updateData !== 'object' || Object.keys(updateData).length === 0) {
@@ -193,7 +193,7 @@ class ProjectController {
                 return res.status(404).json({ status: "error", message: "Project not found" });
             }
 
-            console.log(`✅ M2 Agreement updated for project ${projectId}`);
+            logger.success(`✅ M2 Agreement updated for project ${projectId}`);
             res.status(200).json({ status: "success", data: updated });
         } catch (error) {
             console.error("❌ Error updating M2 agreement:", error);
