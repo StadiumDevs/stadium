@@ -230,9 +230,18 @@ export type ApiSubmission = {
   paid?: boolean;
   paidAt?: string | null;
   paidBy?: string | null;
+  /** Winner prize (null = not a winner). Assigned by a platform admin post-judging. */
+  prizeAmount?: number | null;
+  prizeCurrency?: string | null;
+  prizeLabel?: string | null;
+  awardedAt?: string | null;
+  awardedBy?: string | null;
   createdAt: string;
   updatedAt: string;
 };
+
+/** A prize tier configurable per program; awarded amount snapshots one of these. */
+export type ApiPrizeTier = { amount: number; currency: string; label: string };
 
 /** One judge's score for one submission (rubric: req 0-2, tech 0-5, innov 0-5). */
 export type ApiScore = {
@@ -253,6 +262,8 @@ export type ApiSubmissionRow = ApiSubmission & {
 export type ApiJudgeView = {
   locked: boolean;
   ballotStatus: "in_progress" | "submitted";
+  /** How many registered judges have submitted, so a judge can see who's left. */
+  ballotProgress?: { submitted: number; total: number };
   submissions: ApiSubmissionRow[];
 };
 
@@ -270,6 +281,10 @@ export type ApiLeaderboardRow = {
   avgTechStack: number;
   avgInnovation: number;
   judgeCount: number;
+  /** Current prize on this submission (null = not a winner). */
+  prizeAmount?: number | null;
+  prizeCurrency?: string | null;
+  prizeLabel?: string | null;
 };
 
 export type ApiLeaderboard =
@@ -376,8 +391,27 @@ export type ApiProgram = {
   maxApplicants?: number | null;
   eventUrl?: string | null;
   content?: ProgramContentSection[] | null;
+  /** Prize tiers for judging (null ⇒ app default). Configurable per program. */
+  prizeTiers?: ApiPrizeTier[] | null;
+  /** Set when a platform admin publishes results to the public program page. */
+  resultsPublishedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+/** Public, PII-free results payload for the program page (gated on publish). */
+export type ApiPublicResultEntry = {
+  projectTitle: string;
+  projectBrief?: string | null;
+  submitterName: string;
+  videoUrl: string;
+  githubUrl: string;
+  prize: ApiPrizeTier | null;
+};
+export type ApiPublicResults = {
+  published: boolean;
+  prizeTiers?: ApiPrizeTier[] | null;
+  submissions: ApiPublicResultEntry[];
 };
 
 /** Per-program sponsor / partner with goals + follow-up tracking. */
@@ -1885,6 +1919,56 @@ export const api = {
     return request(`/programs/${encodeURIComponent(slug)}/scoring/leaderboard`, {
       headers: adminAuthHeaders(authHeader),
     });
+  },
+
+  /**
+   * Platform admin: elect a winner by assigning a prize tier, or clear it
+   * (pass null). Only allowed once judging is complete; global admins only.
+   */
+  awardPrize: async (
+    slug: string,
+    submissionId: string,
+    prize: ApiPrizeTier | null,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.awardPrize(submissionId, prize) };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/prize`,
+      {
+        method: "PATCH",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify(prize ? { amount: prize.amount } : { prize: null }),
+      },
+    );
+  },
+
+  /** Platform admin: publish / unpublish the public results. Global admins only. */
+  publishResults: async (
+    slug: string,
+    publish: boolean,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { resultsPublishedAt: string | null } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: { resultsPublishedAt: mockJudging.setResultsPublished(publish) } };
+    }
+    const action = publish ? "publish" : "unpublish";
+    return request(`/programs/${encodeURIComponent(slug)}/results/${action}`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Public: PII-free submissions + winners, only once results are published. */
+  getProgramResults: async (slug: string): Promise<{ status: string; data: ApiPublicResults }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.publicResults() };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/results`);
   },
 
   // --- Admin tiers (app_admins / global_admins) ---

@@ -15,29 +15,55 @@ class ScoringService {
   // `eligible` is advisory: a submission whose email isn't in program_signups is
   // flagged but still scoreable.
   async listForJudge(programId, judgeEmail) {
-    const [submissions, myScores, signupEmails] = await Promise.all([
-      programSubmissionRepository.listByProgramId(programId),
-      submissionScoreRepository.listByJudge(programId, judgeEmail),
-      programSignupRepository.listEmailsByProgramId(programId),
-    ]);
+    const [submissions, myScores, signupEmails, registeredJudges, submittedBallots, ballot] =
+      await Promise.all([
+        programSubmissionRepository.listByProgramId(programId),
+        submissionScoreRepository.listByJudge(programId, judgeEmail),
+        programSignupRepository.listEmailsByProgramId(programId),
+        programAdminEmailRepository.listJudges(programId),
+        programJudgeBallotRepository.listSubmitted(programId),
+        programJudgeBallotRepository.find(programId, judgeEmail),
+      ]);
 
     // listEmailsByProgramId returns a Set of raw signup emails; lowercase for a
     // case-insensitive match against the submission's Luma email.
     const eligibleSet = new Set([...signupEmails].map((e) => normalizeEmail(e)));
     const scoreBySubmission = new Map(myScores.map((s) => [s.submissionId, s]));
 
-    const ballot = await programJudgeBallotRepository.find(programId, judgeEmail);
     const locked = ballot?.status === 'submitted';
+
+    // Ballot progress so a judge who has submitted can see how many peers remain.
+    // Counts are over registered judges only (no pending emails exposed here).
+    const registeredEmails = registeredJudges.map((j) => normalizeEmail(j.email));
+    const submittedEmails = new Set(submittedBallots.map((b) => normalizeEmail(b.judgeEmail)));
+    const ballotProgress = {
+      submitted: registeredEmails.filter((e) => submittedEmails.has(e)).length,
+      total: registeredEmails.length,
+    };
 
     return {
       locked,
       ballotStatus: ballot?.status || 'in_progress',
+      ballotProgress,
       submissions: submissions.map((s) => ({
         ...s,
         eligible: eligibleSet.has(normalizeEmail(s.lumaEmail)),
         myScore: scoreBySubmission.get(s.id) || null,
       })),
     };
+  }
+
+  // True once every registered judge has submitted (and there's at least one).
+  // Gates winner selection — no prizes until judging is complete.
+  async isJudgingComplete(programId) {
+    const [registeredJudges, submittedBallots] = await Promise.all([
+      programAdminEmailRepository.listJudges(programId),
+      programJudgeBallotRepository.listSubmitted(programId),
+    ]);
+    const registeredEmails = registeredJudges.map((j) => normalizeEmail(j.email));
+    if (registeredEmails.length === 0) return false;
+    const submittedEmails = new Set(submittedBallots.map((b) => normalizeEmail(b.judgeEmail)));
+    return registeredEmails.every((e) => submittedEmails.has(e));
   }
 
   // A judge may only finalize once they've scored every submission. Returns
@@ -141,6 +167,11 @@ class ScoringService {
           avgTechStack,
           avgInnovation,
           judgeCount: scores.length,
+          // Current prize (winner) on this submission, so the results tab can
+          // render selections against the rank order. Null = not a winner.
+          prizeAmount: s.prizeAmount ?? null,
+          prizeCurrency: s.prizeCurrency ?? null,
+          prizeLabel: s.prizeLabel ?? null,
         };
       })
       .sort(
@@ -152,6 +183,34 @@ class ScoringService {
       .map((row, i) => ({ rank: i + 1, ...row }));
 
     return { locked: false, submitted: submittedCount, total, rows };
+  }
+
+  // Public, PII-free results for the program page. Only exposes submissions once
+  // a platform admin has published (program.resultsPublishedAt set). Winners are
+  // ordered first (prize amount desc), then the rest by submission order. Never
+  // includes the Luma email or any scores — only the winner badge + prize.
+  async publicResults(program) {
+    if (!program?.resultsPublishedAt) {
+      return { published: false, prizeTiers: program?.prizeTiers ?? null, submissions: [] };
+    }
+    const submissions = await programSubmissionRepository.listByProgramId(program.id);
+    const cards = submissions.map((s) => ({
+      projectTitle: s.projectTitle,
+      projectBrief: s.projectBrief ?? null,
+      submitterName: s.submitterName,
+      videoUrl: s.videoUrl,
+      githubUrl: s.githubUrl,
+      prize:
+        s.prizeAmount != null
+          ? { amount: s.prizeAmount, currency: s.prizeCurrency, label: s.prizeLabel }
+          : null,
+    }));
+    cards.sort((a, b) => {
+      const pa = a.prize?.amount ?? -1;
+      const pb = b.prize?.amount ?? -1;
+      return pb - pa; // winners (higher prize) first; stable for the rest
+    });
+    return { published: true, prizeTiers: program.prizeTiers ?? null, submissions: cards };
   }
 }
 

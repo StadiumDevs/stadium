@@ -53,6 +53,8 @@ router.get('/', programController.list);
 router.get('/:slug', programController.getBySlug);
 // Public, PII-free: distinct projects + interest counts derived from signups.
 router.get('/:slug/projects', programController.listProjects);
+// Public, PII-free: all submissions + winners, only once results are published.
+router.get('/:slug/results', submissionController.publicResults);
 
 // --- Phase 1 revamp: admin create/edit (#46) ---
 router.post('/', requireAdmin, programController.createProgram);
@@ -160,5 +162,15 @@ router.patch(
   requireProgramAdmin('slug'),
   submissionController.setPaid,
 );
+// --- Winner selection + results publishing (platform/global admin only) ---
+// requireProgramAdmin lets wallet admins through; the controller then rejects
+// anyone who isn't a global admin (per-program admins cannot select winners).
+router.patch(
+  '/:slug/submissions/:submissionId/prize',
+  requireProgramAdmin('slug'),
+  submissionController.awardPrize,
+);
+router.post('/:slug/results/publish', requireProgramAdmin('slug'), submissionController.publishResults);
+router.post('/:slug/results/unpublish', requireProgramAdmin('slug'), submissionController.unpublishResults);
 
 export default router;

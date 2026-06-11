@@ -116,22 +116,42 @@ const organizer = {
     authRegistry.set(tokenFor(email), { id: `u:${email}`, email });
     return grant;
   },
-  // Promotion is admin-gated (requireProgramAdmin) — exercised directly here as
-  // an authenticated admin; the gate itself is covered by the admin middleware
-  // tests. This drives the real promote business logic + project creation.
-  async promote(submissionId) {
-    const req = { params: { slug: SLUG, submissionId }, user: { address: '5Organizer' }, body: {}, headers: {} };
+  // Winner selection + publishing are platform-admin only (requireProgramAdmin
+  // lets the wallet through; the controller then requires isGlobalAdmin). The
+  // gate itself is covered by the controller/middleware tests — here we drive
+  // the real award/publish business logic as a global admin.
+  async awardPrize(submissionId, amount) {
+    const body = amount === null ? { prize: null } : { amount };
+    const req = {
+      params: { slug: SLUG, submissionId },
+      user: { address: '5Organizer', isGlobalAdmin: true },
+      body,
+      headers: {},
+    };
     const res = makeRes();
-    await submissionController.promote(req, res);
+    await submissionController.awardPrize(req, res);
     return { status: res.statusCode ?? 200, body: res.body };
   },
-  async markPaid(submissionId, paid = true) {
-    const req = { params: { slug: SLUG, submissionId }, user: { address: '5Organizer' }, body: { paid }, headers: {} };
+  async publishResults(publish = true) {
+    const req = {
+      params: { slug: SLUG },
+      user: { address: '5Organizer', isGlobalAdmin: true },
+      body: {},
+      headers: {},
+    };
     const res = makeRes();
-    await submissionController.setPaid(req, res);
+    await (publish ? submissionController.publishResults : submissionController.unpublishResults)(req, res);
     return { status: res.statusCode ?? 200, body: res.body };
   },
 };
+
+// Public, unauthenticated read of the published results.
+async function publicResults() {
+  const req = { params: { slug: SLUG }, headers: {} };
+  const res = makeRes();
+  await submissionController.publicResults(req, res);
+  return { status: res.statusCode ?? 200, body: res.body };
+}
 
 const submitter = (payload) => ({
   submit: () => publicCall(submissionController.submit, { body: payload }),
@@ -333,54 +353,67 @@ describe('Bitrefill judging — basic user journeys', () => {
     );
   });
 
-  it('admin promotes the winner into a Stadium project (payouts + team tracking)', async () => {
-    const winner = store.program_submissions.find((s) => s.project_title === 'Aurora Pay');
-    const r = await organizer.promote(winner.id);
-    expect(r.status).toBe(201);
-    const projectId = r.body.data.projectId;
-
-    // It is now a real Stadium project, carrying what we have.
-    const project = store.projects.find((p) => p.id === projectId);
-    expect(project).toBeTruthy();
-    expect(project.project_name).toBe('Aurora Pay');
-    expect(project.project_repo).toBe(winner.github_url);
-    expect(project.demo_url).toBe(winner.video_url);
-    expect(project.program_id).toBe(PROGRAM_ID);
-    expect(project.hackathon_id).toBe(SLUG); // NOT NULL legacy cols backfilled
-
-    // Team info captured (submitter as a member; email lives in the description
-    // since team_members has no email column, and on the linked submission).
-    const members = store.team_members.filter((m) => m.project_id === projectId);
-    expect(members.map((m) => m.name)).toContain('Aurora Builders');
-    expect(project.description).toContain('aurora@example.com');
-
-    // Linked back from the submission (makes promotion idempotent).
-    const sub = store.program_submissions.find((s) => s.id === winner.id);
-    expect(sub.promoted_project_id).toBe(projectId);
-
-    note(`Winner promoted to Stadium project "${projectId}": name/repo/demo/program carried, submitter as team member.`);
-
-    // Idempotent — second promote returns the same project (200, no duplicate).
-    const again = await organizer.promote(winner.id);
-    expect(again.status).toBe(200);
-    expect(store.projects.filter((p) => p.id === projectId)).toHaveLength(1);
+  it('a per-program admin (not global) cannot select winners (403)', async () => {
+    const aurora = store.program_submissions.find((s) => s.project_title === 'Aurora Pay');
+    const req = {
+      params: { slug: SLUG, submissionId: aurora.id },
+      user: { address: '5ProgramAdmin', isGlobalAdmin: false },
+      body: { amount: 500 },
+      headers: {},
+    };
+    const res = makeRes();
+    await submissionController.awardPrize(req, res);
+    expect(res.statusCode).toBe(403);
+    note('Winner selection is platform-admin only: a per-program admin is rejected (403).');
   });
 
-  it('an admin marks the winning submission as paid (payout tracking)', async () => {
-    const winner = store.program_submissions.find((s) => s.project_title === 'Aurora Pay');
-    expect(winner.paid ?? false).toBe(false); // not paid yet
+  it('a platform admin elects winners by assigning prize tiers (flexible)', async () => {
+    const find = (title) => store.program_submissions.find((s) => s.project_title === title);
+    // Default Bitrefill tiers (500/200/100 EUR) since the program set none.
+    expect((await organizer.awardPrize(find('Aurora Pay').id, 500)).status).toBe(200);
+    expect((await organizer.awardPrize(find('Nimbus Wallet').id, 200)).status).toBe(200);
+    expect((await organizer.awardPrize(find('Comet Bridge').id, 100)).status).toBe(200);
 
-    const r = await organizer.markPaid(winner.id, true);
-    expect(r.status).toBe(200);
-    const after = store.program_submissions.find((s) => s.id === winner.id);
-    expect(after.paid).toBe(true);
-    expect(after.paid_by).toBe('5Organizer');
-    expect(after.paid_at).toBeTruthy();
-    note('Admin marked the winning submission as PAID (paid_by + paid_at recorded); can be toggled back to unpaid.');
+    const aurora = find('Aurora Pay');
+    expect(aurora.prize_amount).toBe(500);
+    expect(aurora.prize_currency).toBe('EUR');
+    expect(aurora.awarded_by).toBe('5Organizer');
+    expect(aurora.awarded_at).toBeTruthy();
 
-    // Reversible.
-    await organizer.markPaid(winner.id, false);
-    expect(store.program_submissions.find((s) => s.id === winner.id).paid).toBe(false);
+    // An unconfigured amount is rejected (400) — only configured tiers allowed.
+    const bad = await organizer.awardPrize(find('Nimbus Wallet').id, 250);
+    expect(bad.status).toBe(400);
+
+    note('Platform admin assigned prizes: Aurora Pay 500 EUR, Nimbus Wallet 200 EUR, Comet Bridge 100 EUR (Bitrefill giftcards).');
+  });
+
+  it('results are private until published, then public + PII-free', async () => {
+    // Before publish: nothing is exposed publicly.
+    const before = await publicResults();
+    expect(before.status).toBe(200);
+    expect(before.body.data.published).toBe(false);
+    expect(before.body.data.submissions).toHaveLength(0);
+
+    // Platform admin publishes.
+    expect((await organizer.publishResults(true)).status).toBe(200);
+
+    const after = await publicResults();
+    expect(after.body.data.published).toBe(true);
+    const subs = after.body.data.submissions;
+    expect(subs).toHaveLength(3);
+    // Winners first (prize amount desc).
+    expect(subs[0].projectTitle).toBe('Aurora Pay');
+    expect(subs[0].prize).toEqual({ amount: 500, currency: 'EUR', label: 'Bitrefill giftcard' });
+    // No PII leaks: never expose the Luma email.
+    for (const s of subs) {
+      expect(s).not.toHaveProperty('lumaEmail');
+      expect(JSON.stringify(s)).not.toContain('@example.com');
+    }
+    note('Results published: public page shows all 3 submissions, winners first, with no Luma email exposed.');
+
+    // Reversible — unpublish hides them again.
+    expect((await organizer.publishResults(false)).status).toBe(200);
+    expect((await publicResults()).body.data.published).toBe(false);
   });
 
   it('locks a judge ballot after submission (no edits, 409)', async () => {
@@ -395,7 +428,7 @@ describe('Bitrefill judging — basic user journeys', () => {
 afterAll(() => {
   const findings = [
     ['Promoted project team is the single submitter', 'We only capture the submitter (name + Luma email); real teams have several members. The promoted project gets one team member and the email is stashed in the description (team_members has no email column). Consider an optional team-roster field at submission, or let admins flesh out the team after promotion.'],
-    ['Submissions are invisible to the public until promoted', 'The public program page shows the existing projects grid, not submissions. A submitted-but-not-promoted project is only visible to judges/admins. If submitters expect a public gallery during judging, that needs a separate (PII-free) public view.'],
+    ['Submissions stay private until results are published', 'During judging, submissions are visible only to judges/admins. A platform admin selects winners and explicitly publishes; only then does the public program page show the PII-free submissions + winners. There is intentionally no public gallery mid-judging.'],
     ['Submitter cannot edit or withdraw a submission', 'There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.'],
     ['No submission confirmation email', 'Submitters get only an in-modal success state; nothing in their inbox. A confirmation (with what they submitted) reassures them and gives a paper trail. Planned for iteration 2.'],
     ['Ineligible submissions are only flagged, never reconciled', 'A Luma email typo permanently marks a real participant ineligible. Consider fuzzy match / an admin "mark eligible" override, since the flag is the only eligibility signal judges see.'],

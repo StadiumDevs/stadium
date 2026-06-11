@@ -2,10 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../services/program.service.js', () => ({ default: { findBySlug: vi.fn() } }));
 vi.mock('../../services/scoring.service.js', () => ({
-  default: { listForJudge: vi.fn(), submitBallot: vi.fn(), leaderboard: vi.fn(), promoteToProject: vi.fn() },
+  default: {
+    listForJudge: vi.fn(),
+    submitBallot: vi.fn(),
+    leaderboard: vi.fn(),
+    promoteToProject: vi.fn(),
+    isJudgingComplete: vi.fn(),
+    publicResults: vi.fn(),
+  },
+}));
+vi.mock('../../repositories/program.repository.js', () => ({
+  default: { setResultsPublished: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn() },
 }));
 vi.mock('../../repositories/submission-score.repository.js', () => ({
   default: { upsert: vi.fn() },
@@ -17,6 +27,7 @@ vi.mock('../../services/program-audit-log.service.js', () => ({ default: { logSa
 
 const programService = (await import('../../services/program.service.js')).default;
 const scoringService = (await import('../../services/scoring.service.js')).default;
+const programRepo = (await import('../../repositories/program.repository.js')).default;
 const submissionRepo = (await import('../../repositories/program-submission.repository.js')).default;
 const ballotRepo = (await import('../../repositories/program-judge-ballot.repository.js')).default;
 const scoreRepo = (await import('../../repositories/submission-score.repository.js')).default;
@@ -183,5 +194,133 @@ describe('SubmissionController.setPaid (admin)', () => {
     await submissionController.setPaid(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
     expect(submissionRepo.setPaid).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubmissionController.awardPrize (platform admin)', () => {
+  const globalAdmin = { address: '5Admin', isGlobalAdmin: true };
+
+  it('403s a per-program admin (not a global admin)', async () => {
+    const req = {
+      params: { slug: 'bitrefill', submissionId: 's1' },
+      user: { address: '5ProgAdmin', isGlobalAdmin: false },
+      body: { amount: 500 },
+    };
+    const res = mockRes();
+    await submissionController.awardPrize(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(submissionRepo.setPrize).not.toHaveBeenCalled();
+  });
+
+  it('403s a judge (email session, no isGlobalAdmin)', async () => {
+    const req = {
+      params: { slug: 'bitrefill', submissionId: 's1' },
+      user: { email: 'judge@x.com', canJudge: true },
+      body: { amount: 500 },
+    };
+    const res = mockRes();
+    await submissionController.awardPrize(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it('409s when judging is not complete', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    scoringService.isJudgingComplete.mockResolvedValue(false);
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin, body: { amount: 500 } };
+    const res = mockRes();
+    await submissionController.awardPrize(req, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(submissionRepo.setPrize).not.toHaveBeenCalled();
+  });
+
+  it('400s an amount not in the program tiers', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    scoringService.isJudgingComplete.mockResolvedValue(true);
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill' });
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin, body: { amount: 999 } };
+    const res = mockRes();
+    await submissionController.awardPrize(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(submissionRepo.setPrize).not.toHaveBeenCalled();
+  });
+
+  it('assigns a default-tier prize, snapshotting currency + label', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM); // no prizeTiers -> DEFAULT_PRIZE_TIERS
+    scoringService.isJudgingComplete.mockResolvedValue(true);
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill' });
+    submissionRepo.setPrize.mockResolvedValue({ id: 's1', prizeAmount: 500 });
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin, body: { amount: 500 } };
+    const res = mockRes();
+    await submissionController.awardPrize(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.setPrize).toHaveBeenCalledWith(
+      's1',
+      { amount: 500, currency: 'EUR', label: 'Bitrefill giftcard' },
+      '5Admin',
+    );
+  });
+
+  it('clears a prize when body.prize is null', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    scoringService.isJudgingComplete.mockResolvedValue(true);
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill' });
+    submissionRepo.setPrize.mockResolvedValue({ id: 's1', prizeAmount: null });
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin, body: { prize: null } };
+    const res = mockRes();
+    await submissionController.awardPrize(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.setPrize).toHaveBeenCalledWith('s1', null, '5Admin');
+  });
+});
+
+describe('SubmissionController results publish (platform admin)', () => {
+  it('403s a per-program admin', async () => {
+    const req = { params: { slug: 'bitrefill' }, user: { address: '5ProgAdmin', isGlobalAdmin: false } };
+    const res = mockRes();
+    await submissionController.publishResults(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(programRepo.setResultsPublished).not.toHaveBeenCalled();
+  });
+
+  it('publish sets a timestamp', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    programRepo.setResultsPublished.mockResolvedValue({ resultsPublishedAt: '2026-06-11T00:00:00.000Z' });
+    const req = { params: { slug: 'bitrefill' }, user: { address: '5Admin', isGlobalAdmin: true } };
+    const res = mockRes();
+    await submissionController.publishResults(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const [slug, publishedAt] = programRepo.setResultsPublished.mock.calls[0];
+    expect(slug).toBe('bitrefill');
+    expect(publishedAt).toBeTruthy(); // non-null timestamp
+  });
+
+  it('unpublish clears the timestamp', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    programRepo.setResultsPublished.mockResolvedValue({ resultsPublishedAt: null });
+    const req = { params: { slug: 'bitrefill' }, user: { address: '5Admin', isGlobalAdmin: true } };
+    const res = mockRes();
+    await submissionController.unpublishResults(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(programRepo.setResultsPublished).toHaveBeenCalledWith('bitrefill', null);
+  });
+});
+
+describe('SubmissionController.publicResults (public)', () => {
+  it('404s an unknown program', async () => {
+    programService.findBySlug.mockResolvedValue(null);
+    const req = { params: { slug: 'nope' } };
+    const res = mockRes();
+    await submissionController.publicResults(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns the service payload', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    scoringService.publicResults.mockResolvedValue({ published: false, submissions: [] });
+    const req = { params: { slug: 'bitrefill' } };
+    const res = mockRes();
+    await submissionController.publicResults(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ status: 'success', data: { published: false, submissions: [] } });
   });
 });

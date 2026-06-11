@@ -297,7 +297,14 @@ const AdminProgramPage = () => {
                   isGlobalAdmin={isGlobalAdmin}
                 />
 
-                <ProgramJudgingSection programSlug={program.slug} getAuth={getAdminAuth} canPromote />
+                <ProgramJudgingSection
+                  programSlug={program.slug}
+                  getAuth={getAdminAuth}
+                  canSelectWinners={isGlobalAdmin}
+                  prizeTiers={program.prizeTiers}
+                  resultsPublishedAt={program.resultsPublishedAt}
+                  onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
+                />
 
                 <ProgramSponsorsSection
                   programSlug={program.slug}
@@ -385,9 +392,15 @@ const AdminProgramPage = () => {
                   </button>
                 </div>
 
-                {/* Judges + admins both score; judges see ONLY this. */}
+                {/* Judges + admins both score; judges see ONLY this. Email
+                    sessions are never platform admins, so no winner selection. */}
                 {socialCanJudge && (
-                  <ProgramJudgingSection programSlug={program.slug} getAuth={getJudgeAuth} />
+                  <ProgramJudgingSection
+                    programSlug={program.slug}
+                    getAuth={getJudgeAuth}
+                    prizeTiers={program.prizeTiers}
+                    resultsPublishedAt={program.resultsPublishedAt}
+                  />
                 )}
 
                 {/* Applicant data is admin-only — never shown to judges. */}

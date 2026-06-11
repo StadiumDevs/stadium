@@ -15,6 +15,11 @@ const transform = (row) => {
     lumaEmail: row.luma_email,
     projectTitle: row.project_title,
     projectBrief: row.project_brief ?? null,
+    prizeAmount: row.prize_amount ?? null,
+    prizeCurrency: row.prize_currency ?? null,
+    prizeLabel: row.prize_label ?? null,
+    awardedAt: row.awarded_at ?? null,
+    awardedBy: row.awarded_by ?? null,
     videoUrl: row.video_url,
     githubUrl: row.github_url,
     promotedProjectId: row.promoted_project_id ?? null,
@@ -105,6 +110,26 @@ class ProgramSubmissionRepository {
         paid: isPaid,
         paid_at: isPaid ? new Date().toISOString() : null,
         paid_by: isPaid ? actor ?? null : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
+  }
+
+  // Assign a prize (winner) or clear it. `prize` is { amount, currency, label }
+  // or null to remove the award. awarded_at/by record when and who, mirroring setPaid.
+  async setPrize(id, prize, actor) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update({
+        prize_amount: prize ? prize.amount : null,
+        prize_currency: prize ? prize.currency : null,
+        prize_label: prize ? prize.label : null,
+        awarded_at: prize ? new Date().toISOString() : null,
+        awarded_by: prize ? actor ?? null : null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

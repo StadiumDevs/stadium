@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   validateSubmission,
   validateScore,
+  validatePrize,
+  prizeTiersFor,
+  DEFAULT_PRIZE_TIERS,
   MAX_TOTAL_SCORE,
 } from '../submission.validator.js';
 
@@ -43,6 +46,42 @@ describe('validateSubmission', () => {
     expect(validateSubmission({ ...goodSubmission, videoUrl: 'javascript:alert(1)' }).ok).toBe(false);
     expect(validateSubmission({ ...goodSubmission, githubUrl: 'ftp://x/y' }).ok).toBe(false);
     expect(validateSubmission({ ...goodSubmission, githubUrl: 'github.com/no-scheme' }).ok).toBe(false);
+  });
+});
+
+describe('validatePrize', () => {
+  const tiers = [
+    { amount: 500, currency: 'EUR', label: 'Bitrefill giftcard' },
+    { amount: 100, currency: 'EUR', label: 'Bitrefill giftcard' },
+  ];
+
+  it('accepts an amount that matches a tier and snapshots its currency + label', () => {
+    const r = validatePrize({ amount: 500 }, tiers);
+    expect(r.ok).toBe(true);
+    expect(r.value).toEqual({ amount: 500, currency: 'EUR', label: 'Bitrefill giftcard' });
+  });
+
+  it('clears the award when prize is explicitly null', () => {
+    const r = validatePrize({ prize: null }, tiers);
+    expect(r.ok).toBe(true);
+    expect(r.value).toBe(null);
+  });
+
+  it('rejects an amount not present in the tiers', () => {
+    expect(validatePrize({ amount: 250 }, tiers).ok).toBe(false);
+  });
+
+  it('rejects a non-positive or non-integer amount', () => {
+    expect(validatePrize({ amount: 0 }, tiers).ok).toBe(false);
+    expect(validatePrize({ amount: -100 }, tiers).ok).toBe(false);
+    expect(validatePrize({ amount: 50.5 }, tiers).ok).toBe(false);
+    expect(validatePrize({ amount: '500' }, tiers).ok).toBe(false);
+  });
+
+  it('prizeTiersFor falls back to the default tiers when unset', () => {
+    expect(prizeTiersFor({ prizeTiers: null })).toBe(DEFAULT_PRIZE_TIERS);
+    expect(prizeTiersFor({ prizeTiers: [] })).toBe(DEFAULT_PRIZE_TIERS);
+    expect(prizeTiersFor({ prizeTiers: tiers })).toBe(tiers);
   });
 });
 

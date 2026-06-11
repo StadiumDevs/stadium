@@ -19,6 +19,8 @@ const transformProgram = (row) => {
     maxApplicants: row.max_applicants,
     eventUrl: row.event_url ?? null,
     content: row.content ?? null,
+    prizeTiers: row.prize_tiers ?? null,
+    resultsPublishedAt: row.results_published_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -41,6 +43,7 @@ const toSnakeCase = (data) => {
   if ('maxApplicants' in data) row.max_applicants = data.maxApplicants ?? null;
   if ('eventUrl' in data) row.event_url = data.eventUrl ?? null;
   if ('content' in data) row.content = data.content ?? null;
+  if ('prizeTiers' in data) row.prize_tiers = data.prizeTiers ?? null;
   return row;
 };
 
@@ -78,6 +81,18 @@ class ProgramRepository {
     const { data, error } = await supabase
       .from('programs')
       .update(row)
+      .eq('slug', slug)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transformProgram(data);
+  }
+
+  // Publish/unpublish the public results: set or clear results_published_at.
+  async setResultsPublished(slug, publishedAt) {
+    const { data, error } = await supabase
+      .from('programs')
+      .update({ results_published_at: publishedAt, updated_at: new Date().toISOString() })
       .eq('slug', slug)
       .select('*')
       .single();

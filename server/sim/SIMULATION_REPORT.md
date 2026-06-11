@@ -19,9 +19,10 @@ Supabase fake.
 11. Leaderboard locked at 2/3 submitted; pending: j3@judge.test.
 12. Leaderboard now flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
 13. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
-14. Winner promoted to Stadium project "aurora-pay-45336f": name/repo/demo/program carried, submitter as team member.
-15. Admin marked the winning submission as PAID (paid_by + paid_at recorded); can be toggled back to unpaid.
-16. After submitting, a judge can no longer edit scores (409, locked).
+14. Winner selection is platform-admin only: a per-program admin is rejected (403).
+15. Platform admin assigned prizes: Aurora Pay 500 EUR, Nimbus Wallet 200 EUR, Comet Bridge 100 EUR (Bitrefill giftcards).
+16. Results published: public page shows all 3 submissions, winners first, with no Luma email exposed.
+17. After submitting, a judge can no longer edit scores (409, locked).
 
 ## What works
 
@@ -40,7 +41,7 @@ Supabase fake.
 ## What to improve (ranked, highest-value first)
 
 1. **Promoted project team is the single submitter.** We only capture the submitter (name + Luma email); real teams have several members. The promoted project gets one team member and the email is stashed in the description (team_members has no email column). Consider an optional team-roster field at submission, or let admins flesh out the team after promotion.
-2. **Submissions are invisible to the public until promoted.** The public program page shows the existing projects grid, not submissions. A submitted-but-not-promoted project is only visible to judges/admins. If submitters expect a public gallery during judging, that needs a separate (PII-free) public view.
+2. **Submissions stay private until results are published.** During judging, submissions are visible only to judges/admins. A platform admin selects winners and explicitly publishes; only then does the public program page show the PII-free submissions + winners. There is intentionally no public gallery mid-judging.
 3. **Submitter cannot edit or withdraw a submission.** There is no authenticated link/token for a submitter to fix a typo or replace a video link after submitting. A one-time edit link (or admin edit) would cut support load over 200 submissions.
 4. **No submission confirmation email.** Submitters get only an in-modal success state; nothing in their inbox. A confirmation (with what they submitted) reassures them and gives a paper trail. Planned for iteration 2.
 5. **Ineligible submissions are only flagged, never reconciled.** A Luma email typo permanently marks a real participant ineligible. Consider fuzzy match / an admin "mark eligible" override, since the flag is the only eligibility signal judges see.

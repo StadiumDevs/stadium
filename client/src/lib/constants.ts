@@ -46,3 +46,25 @@ export const isAdmin = (walletAddress?: string, chain: AddrChain = 'substrate'):
     entry => entry.chain === chain && addressesEqual(entry.address, walletAddress, chain)
   )
 }
+
+/**
+ * Prize-tier types and fallback set for program judging.
+ * A program may configure its own `prizeTiers`; when it hasn't, the UI falls
+ * back to these (Bitrefill EUR giftcards). Mirrors DEFAULT_PRIZE_TIERS in
+ * server/api/utils/submission.validator.js.
+ */
+export interface PrizeTier {
+  amount: number
+  currency: string
+  label: string
+}
+
+export const DEFAULT_PRIZE_TIERS: PrizeTier[] = [
+  { amount: 500, currency: 'EUR', label: 'Bitrefill giftcard' },
+  { amount: 200, currency: 'EUR', label: 'Bitrefill giftcard' },
+  { amount: 100, currency: 'EUR', label: 'Bitrefill giftcard' },
+]
+
+/** A program's effective tiers: its own if configured, else the default set. */
+export const prizeTiersFor = (tiers?: PrizeTier[] | null): PrizeTier[] =>
+  tiers && tiers.length ? tiers : DEFAULT_PRIZE_TIERS

@@ -77,6 +77,12 @@ export const mockPrograms: ApiProgram[] = [
     eventEndsAt: null,
     location: "Berlin",
     maxApplicants: null,
+    prizeTiers: [
+      { amount: 500, currency: "EUR", label: "Bitrefill giftcard" },
+      { amount: 200, currency: "EUR", label: "Bitrefill giftcard" },
+      { amount: 100, currency: "EUR", label: "Bitrefill giftcard" },
+    ],
+    resultsPublishedAt: null,
     createdAt: "2026-05-20T00:00:00Z",
     updatedAt: "2026-05-20T00:00:00Z",
   },

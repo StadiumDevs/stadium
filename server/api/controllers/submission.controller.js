@@ -1,10 +1,46 @@
 import programService from '../services/program.service.js';
 import scoringService from '../services/scoring.service.js';
+import programRepository from '../repositories/program.repository.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
-import { validateSubmission, validateScore } from '../utils/submission.validator.js';
+import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
 import auditLog from '../services/program-audit-log.service.js';
+
+// Winner selection + publishing are platform-admin only. After requireProgramAdmin,
+// a global admin carries isGlobalAdmin === true; per-program admins do not.
+const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
+
+// Shared by publish/unpublish. Standalone (not a method) so Express can bind the
+// route handlers without `this`.
+async function setResultsPublished(req, res, publish) {
+  try {
+    if (!isPlatformAdmin(req)) {
+      return res.status(403).json({ status: 'error', message: 'Only platform admins can publish results' });
+    }
+    const { slug } = req.params;
+    const program = await programService.findBySlug(slug);
+    if (!program) {
+      return res.status(404).json({ status: 'error', message: 'Program not found' });
+    }
+    const updated = await programRepository.setResultsPublished(
+      slug,
+      publish ? new Date().toISOString() : null,
+    );
+    res.status(200).json({ status: 'success', data: { resultsPublishedAt: updated.resultsPublishedAt } });
+    auditLog.logSafe({
+      programId: program.id,
+      actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+      action: publish ? 'results.publish' : 'results.unpublish',
+      targetType: 'program',
+      targetId: program.id,
+      metadata: null,
+    });
+  } catch (error) {
+    console.error('❌ Error updating results publish state:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to update results' });
+  }
+}
 
 // The judge identity is whatever the auth gate verified: an email for social
 // judges, a wallet address for the admin fallback. Never read from the body.
@@ -199,6 +235,76 @@ class SubmissionController {
     } catch (error) {
       console.error('❌ Error updating paid status:', error);
       res.status(500).json({ status: 'error', message: 'Failed to update paid status' });
+    }
+  }
+
+  // Platform admin: elect a winner by assigning a prize tier, or clear it.
+  // Gated to global admins (not per-program admins), and only once judging is
+  // complete. Body: { amount } to assign a configured tier, or { prize: null }.
+  async awardPrize(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) {
+        return res.status(403).json({ status: 'error', message: 'Only platform admins can select winners' });
+      }
+      const { slug, submissionId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      if (!(await scoringService.isJudgingComplete(program.id))) {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Winners can be selected only after every judge has submitted.',
+        });
+      }
+      const submission = await programSubmissionRepository.findById(submissionId);
+      if (!submission || submission.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Submission not found' });
+      }
+      const v = validatePrize(req.body, prizeTiersFor(program));
+      if (!v.ok) {
+        return res.status(400).json({ status: 'error', message: v.error });
+      }
+      const actor = req.user?.address || req.user?.email || null;
+      const updated = await programSubmissionRepository.setPrize(submissionId, v.value, actor);
+      res.status(200).json({ status: 'success', data: updated });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+        action: v.value ? 'submission.award_prize' : 'submission.clear_prize',
+        targetType: 'submission',
+        targetId: submissionId,
+        metadata: v.value,
+      });
+    } catch (error) {
+      console.error('❌ Error awarding prize:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to award prize' });
+    }
+  }
+
+  // Platform admin: publish / unpublish the public results. Publishing reveals
+  // all submissions + winners on the public program page. Global admins only.
+  publishResults(req, res) {
+    return setResultsPublished(req, res, true);
+  }
+
+  unpublishResults(req, res) {
+    return setResultsPublished(req, res, false);
+  }
+
+  // Public: PII-free submissions + winners, only once results are published.
+  async publicResults(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const data = await scoringService.publicResults(program);
+      res.status(200).json({ status: 'success', data });
+    } catch (error) {
+      console.error('❌ Error building public results:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load results' });
     }
   }
 

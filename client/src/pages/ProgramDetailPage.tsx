@@ -12,6 +12,7 @@ import {
   type ApiProgramProject,
   type ApiProject,
   type ApiProgramApplication,
+  type ApiPublicResults,
   ApiError,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +53,7 @@ const ProgramDetailPage = () => {
   const [sponsors, setSponsors] = useState<ApiProgramSponsor[]>([]);
   const [projects, setProjects] = useState<ApiProgramProject[]>([]);
   const [entries, setEntries] = useState<ApiProject[]>([]);
+  const [results, setResults] = useState<ApiPublicResults | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -136,6 +138,18 @@ const ProgramDetailPage = () => {
       .listProgramProjects(slug)
       .then((r) => { if (active) setProjects(r.data); })
       .catch(() => { if (active) setProjects([]); });
+    return () => { active = false; };
+  }, [slug, program]);
+
+  // Public, PII-free submissions + winners. Returns published:false (and an
+  // empty list) until a platform admin publishes the results.
+  useEffect(() => {
+    if (!slug || !program) { setResults(null); return; }
+    let active = true;
+    api
+      .getProgramResults(slug)
+      .then((r) => { if (active) setResults(r.data); })
+      .catch(() => { if (active) setResults(null); });
     return () => { active = false; };
   }, [slug, program]);
 
@@ -440,6 +454,28 @@ const ProgramDetailPage = () => {
                         </a>
                       )}
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {results?.published && results.submissions.length > 0 && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·RESULTS</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {results.submissions.map((s, i) => (
+                    <UnitCard
+                      key={`${s.projectTitle}-${i}`}
+                      unitNumber={String(i + 1).padStart(3, "0")}
+                      title={s.projectTitle}
+                      author={s.submitterName}
+                      description={s.projectBrief || ""}
+                      track={s.prize ? s.prize.label : "Submission"}
+                      isWinner={Boolean(s.prize)}
+                      prize={s.prize ? `${s.prize.amount} ${s.prize.currency}` : undefined}
+                      demoUrl={s.videoUrl}
+                      githubUrl={s.githubUrl}
+                    />
                   ))}
                 </div>
               </div>

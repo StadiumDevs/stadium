@@ -8,10 +8,14 @@ import type {
   ApiJudgeView,
   ApiLeaderboard,
   ApiLeaderboardRow,
+  ApiPrizeTier,
+  ApiPublicResultEntry,
+  ApiPublicResults,
   ApiScore,
   ApiSubmission,
   ApiSubmissionRow,
 } from "./api";
+import { mockPrograms } from "./mockPrograms";
 
 const MOCK_JUDGE_EMAIL = "you@judge.test";
 // Two registered judges total; "other" has already submitted a full ballot.
@@ -73,6 +77,19 @@ const SCORES_KEY = "stadium_mock_scores_v1";
 const BALLOT_KEY = "stadium_mock_ballot_v1";
 const PROMOTED_KEY = "stadium_mock_promoted_v1";
 const PAID_KEY = "stadium_mock_paid_v1";
+// Awarded prizes (submissionId -> { amount, currency, label }) and the results
+// publish timestamp, set by a platform admin after judging completes.
+const PRIZE_KEY = "stadium_mock_prizes_v1";
+const PUBLISHED_KEY = "stadium_mock_results_published_v1";
+
+type MockPrize = { amount: number; currency: string; label: string };
+const readPrizes = (): Record<string, MockPrize> => {
+  try {
+    return JSON.parse(localStorage.getItem(PRIZE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
 // Submissions added through the public submit form during a preview session.
 // Persisted so they survive navigation/reload and show up in the judging list.
 const ADDED_KEY = "stadium_mock_submissions_v1";
@@ -136,17 +153,32 @@ export const mockJudging = {
     const submitted = ballotSubmitted();
     const promoted = readPromoted();
     const paid = readPaid();
+    const prizes = readPrizes();
     const addedEmails = new Set(readAdded().map((s) => s.lumaEmail));
-    const submissions: ApiSubmissionRow[] = allSubmissions().map((s) => ({
-      ...s,
-      // Seed rows use the fixed signup list; submissions added through the
-      // public form are assumed eligible (the form asks for the Luma email).
-      eligible: ELIGIBLE_EMAILS.has(s.lumaEmail) || addedEmails.has(s.lumaEmail),
-      promotedProjectId: promoted[s.id] ?? null,
-      paid: paid[s.id] ?? false,
-      myScore: toScore(s.id),
-    }));
-    return { locked: submitted, ballotStatus: submitted ? "submitted" : "in_progress", submissions };
+    const submissions: ApiSubmissionRow[] = allSubmissions().map((s) => {
+      const prize = prizes[s.id] ?? null;
+      return {
+        ...s,
+        // Seed rows use the fixed signup list; submissions added through the
+        // public form are assumed eligible (the form asks for the Luma email).
+        eligible: ELIGIBLE_EMAILS.has(s.lumaEmail) || addedEmails.has(s.lumaEmail),
+        promotedProjectId: promoted[s.id] ?? null,
+        paid: paid[s.id] ?? false,
+        prizeAmount: prize ? prize.amount : null,
+        prizeCurrency: prize ? prize.currency : null,
+        prizeLabel: prize ? prize.label : null,
+        myScore: toScore(s.id),
+      };
+    });
+    // Two registered judges in the mock; the other is pre-submitted, so progress
+    // is 1/2 before this judge submits and 2/2 after.
+    const ballotProgress = { submitted: submitted ? 2 : 1, total: 2 };
+    return {
+      locked: submitted,
+      ballotStatus: submitted ? "submitted" : "in_progress",
+      ballotProgress,
+      submissions,
+    };
   },
 
   // Append a submission from the public submit form so it shows up in judging.
@@ -194,6 +226,54 @@ export const mockJudging = {
     return { projectId };
   },
 
+  // Platform admin: assign a prize tier (winner) or clear it (prize = null).
+  awardPrize(submissionId: string, prize: MockPrize | null): ApiSubmission {
+    const prizes = readPrizes();
+    if (prize) prizes[submissionId] = prize;
+    else delete prizes[submissionId];
+    localStorage.setItem(PRIZE_KEY, JSON.stringify(prizes));
+    const all = allSubmissions();
+    const base = all.find((s) => s.id === submissionId) ?? all[0];
+    return {
+      ...base,
+      prizeAmount: prize ? prize.amount : null,
+      prizeCurrency: prize ? prize.currency : null,
+      prizeLabel: prize ? prize.label : null,
+      awardedAt: prize ? "2026-06-11T00:00:00.000Z" : null,
+      awardedBy: prize ? "mock-admin" : null,
+    };
+  },
+
+  // Platform admin: publish / unpublish the public results. Returns the timestamp.
+  setResultsPublished(publish: boolean): string | null {
+    const at = publish ? "2026-06-11T00:00:00.000Z" : null;
+    if (publish) localStorage.setItem(PUBLISHED_KEY, at as string);
+    else localStorage.removeItem(PUBLISHED_KEY);
+    return at;
+  },
+
+  // Public, PII-free results — only once published. Winners first (prize desc).
+  publicResults(): ApiPublicResults {
+    const tiers = (mockPrograms.find((p) => p.slug === "bitrefill-2026")?.prizeTiers as ApiPrizeTier[]) ?? null;
+    const publishedAt = localStorage.getItem(PUBLISHED_KEY);
+    if (!publishedAt) return { published: false, prizeTiers: tiers, submissions: [] };
+    const prizes = readPrizes();
+    const submissions: ApiPublicResultEntry[] = allSubmissions()
+      .map((s) => {
+        const prize = prizes[s.id] ?? null;
+        return {
+          projectTitle: s.projectTitle,
+          projectBrief: s.projectBrief ?? null,
+          submitterName: s.submitterName,
+          videoUrl: s.videoUrl,
+          githubUrl: s.githubUrl,
+          prize: prize ? { amount: prize.amount, currency: prize.currency, label: prize.label } : null,
+        };
+      })
+      .sort((a, b) => (b.prize?.amount ?? -1) - (a.prize?.amount ?? -1));
+    return { published: true, prizeTiers: tiers, submissions };
+  },
+
   saveScore(submissionId: string, payload: { requirements: number; techStack: number; innovation: number; notes?: string }): ApiScore {
     const scores = readScores();
     scores[submissionId] = {
@@ -221,10 +301,12 @@ export const mockJudging = {
       return { locked: true, submitted: 1, total, pending: [MOCK_JUDGE_EMAIL] };
     }
     const mine = readScores();
+    const prizes = readPrizes();
     const addedEmails = new Set(readAdded().map((s) => s.lumaEmail));
     const rows: ApiLeaderboardRow[] = allSubmissions().map((s) => {
       const a = OTHER_JUDGE_SCORES[s.id];
       const b = mine[s.id];
+      const prize = prizes[s.id] ?? null;
       // Seed rows have the other judge's finalized score; submissions added
       // this session do not, so they average over this judge alone.
       const judges = a ? [a, b] : [b];
@@ -246,6 +328,9 @@ export const mockJudging = {
         avgTechStack,
         avgInnovation,
         judgeCount: judges.length,
+        prizeAmount: prize ? prize.amount : null,
+        prizeCurrency: prize ? prize.currency : null,
+        prizeLabel: prize ? prize.label : null,
       };
     })
       .sort((x, y) => y.avgTotal - x.avgTotal || y.avgInnovation - x.avgInnovation)
@@ -259,6 +344,8 @@ export const mockJudging = {
     localStorage.removeItem(PROMOTED_KEY);
     localStorage.removeItem(PAID_KEY);
     localStorage.removeItem(ADDED_KEY);
+    localStorage.removeItem(PRIZE_KEY);
+    localStorage.removeItem(PUBLISHED_KEY);
   },
 };
 

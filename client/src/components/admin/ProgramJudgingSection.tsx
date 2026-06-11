@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { Loader2, ExternalLink, Lock, Trophy } from "lucide-react";
 import {
   api,
   type AdminAuthArg,
   type ApiJudgeView,
   type ApiLeaderboard,
+  type ApiPrizeTier,
   type ApiSubmissionRow,
 } from "@/lib/api";
+import { prizeTiersFor } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 type Draft = { requirements: number; techStack: number; innovation: number; notes: string };
-type Tab = "score" | "leaderboard";
+type Tab = "score" | "results";
 
 const BOUNDS = { requirements: 2, techStack: 5, innovation: 5 } as const;
 
@@ -24,23 +25,33 @@ const draftFromRow = (row: ApiSubmissionRow): Draft => ({
 });
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+const prizeText = (amount?: number | null, currency?: string | null) =>
+  amount != null ? `${amount} ${currency ?? ""}`.trim() : null;
 
 /**
  * Judge/admin scoring surface for a program. Two tabs: SCORE (rubric inputs per
- * submission, save drafts, submit the ballot) and LEADERBOARD (gated until every
- * registered judge submits). Works for both wallet admins and email judges — the
- * parent supplies `getAuth`, which resolves the right header (bearer or
- * x-supabase-token).
+ * submission, save drafts, submit the ballot) and RESULTS (ranked once every
+ * registered judge submits). Winner selection + publishing on the RESULTS tab
+ * is platform-admin only (`canSelectWinners`). Works for both wallet admins and
+ * email judges — the parent supplies `getAuth`, which resolves the right header.
  */
 export function ProgramJudgingSection({
   programSlug,
   getAuth,
-  canPromote = false,
+  canSelectWinners = false,
+  prizeTiers,
+  resultsPublishedAt = null,
+  onPublishedChange,
 }: {
   programSlug: string;
   getAuth: () => Promise<AdminAuthArg>;
-  /** True for wallet admins — shows the "Add to Stadium projects" control. */
-  canPromote?: boolean;
+  /** True only for platform (global) admins — shows winner selection + publish. */
+  canSelectWinners?: boolean;
+  /** Program's configured prize tiers (falls back to the default set). */
+  prizeTiers?: ApiPrizeTier[] | null;
+  /** Current publish timestamp; null until results are published. */
+  resultsPublishedAt?: string | null;
+  onPublishedChange?: (at: string | null) => void;
 }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("score");
@@ -49,9 +60,12 @@ export function ProgramJudgingSection({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [promotingId, setPromotingId] = useState<string | null>(null);
-  const [payingId, setPayingId] = useState<string | null>(null);
+  const [awardingId, setAwardingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [publishedAt, setPublishedAt] = useState<string | null>(resultsPublishedAt);
+  const [publishing, setPublishing] = useState(false);
+
+  const tiers = useMemo(() => prizeTiersFor(prizeTiers), [prizeTiers]);
 
   const loadSubmissions = useCallback(async () => {
     setLoading(true);
@@ -79,7 +93,7 @@ export function ProgramJudgingSection({
       setBoard(res.data);
     } catch (e) {
       toast({
-        title: "Couldn't load leaderboard",
+        title: "Couldn't load results",
         description: (e as Error)?.message || "Unknown error",
         variant: "destructive",
       });
@@ -134,53 +148,6 @@ export function ProgramJudgingSection({
     }
   };
 
-  const promote = async (id: string) => {
-    setPromotingId(id);
-    try {
-      const auth = await getAuth();
-      const res = await api.promoteSubmission(programSlug, id, auth);
-      setView((prev) =>
-        prev
-          ? { ...prev, submissions: prev.submissions.map((s) => (s.id === id ? { ...s, promotedProjectId: res.data.projectId } : s)) }
-          : prev,
-      );
-      toast({
-        title: res.data.alreadyPromoted ? "Already a Stadium project" : "Added to Stadium projects",
-        description: "Track payouts and team info from the project page.",
-      });
-    } catch (e) {
-      toast({
-        title: "Couldn't add to Stadium projects",
-        description: (e as Error)?.message || "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setPromotingId(null);
-    }
-  };
-
-  const setPaid = async (id: string, paid: boolean) => {
-    setPayingId(id);
-    try {
-      const auth = await getAuth();
-      await api.setSubmissionPaid(programSlug, id, paid, auth);
-      setView((prev) =>
-        prev
-          ? { ...prev, submissions: prev.submissions.map((s) => (s.id === id ? { ...s, paid } : s)) }
-          : prev,
-      );
-      toast({ title: paid ? "Marked as paid" : "Marked as not paid" });
-    } catch (e) {
-      toast({
-        title: "Couldn't update payout status",
-        description: (e as Error)?.message || "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setPayingId(null);
-    }
-  };
-
   const submitBallot = async () => {
     setSubmitting(true);
     try {
@@ -199,14 +166,83 @@ export function ProgramJudgingSection({
     }
   };
 
+  // Platform admin: assign a prize tier (winner) to a submission, or clear it.
+  const award = async (submissionId: string, amountRaw: string) => {
+    const tier = amountRaw === "" ? null : tiers.find((t) => t.amount === Number(amountRaw)) ?? null;
+    setAwardingId(submissionId);
+    try {
+      const auth = await getAuth();
+      await api.awardPrize(programSlug, submissionId, tier, auth);
+      setBoard((prev) =>
+        prev && !prev.locked
+          ? {
+              ...prev,
+              rows: prev.rows.map((r) =>
+                r.submissionId === submissionId
+                  ? {
+                      ...r,
+                      prizeAmount: tier?.amount ?? null,
+                      prizeCurrency: tier?.currency ?? null,
+                      prizeLabel: tier?.label ?? null,
+                    }
+                  : r,
+              ),
+            }
+          : prev,
+      );
+      toast({ title: tier ? `Awarded ${prizeText(tier.amount, tier.currency)}` : "Prize cleared" });
+    } catch (e) {
+      toast({
+        title: "Couldn't update winner",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setAwardingId(null);
+    }
+  };
+
+  const togglePublish = async () => {
+    setPublishing(true);
+    try {
+      const auth = await getAuth();
+      const res = await api.publishResults(programSlug, !publishedAt, auth);
+      setPublishedAt(res.data.resultsPublishedAt);
+      onPublishedChange?.(res.data.resultsPublishedAt);
+      toast({
+        title: res.data.resultsPublishedAt ? "Results published" : "Results unpublished",
+        description: res.data.resultsPublishedAt
+          ? "All submissions + winners are now public on the program page."
+          : "The public results section is hidden again.",
+      });
+    } catch (e) {
+      toast({
+        title: "Couldn't update results",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const exportCsv = () => {
     if (!board || board.locked) return;
-    const header = ["Rank", "Project", "Avg total", "Avg requirements", "Avg tech stack", "Avg innovation", "Judges"];
+    const header = ["Rank", "Project", "Avg total", "Avg requirements", "Avg tech stack", "Avg innovation", "Judges", "Prize"];
     const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const lines = [
       header.map(cell).join(","),
       ...board.rows.map((r) =>
-        [r.rank, r.projectTitle, fmt(r.avgTotal), fmt(r.avgRequirements), fmt(r.avgTechStack), fmt(r.avgInnovation), r.judgeCount]
+        [
+          r.rank,
+          r.projectTitle,
+          fmt(r.avgTotal),
+          fmt(r.avgRequirements),
+          fmt(r.avgTechStack),
+          fmt(r.avgInnovation),
+          r.judgeCount,
+          prizeText(r.prizeAmount, r.prizeCurrency) ?? "",
+        ]
           .map(cell)
           .join(","),
       ),
@@ -215,7 +251,7 @@ export function ProgramJudgingSection({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${programSlug}-leaderboard.csv`;
+    a.download = `${programSlug}-results.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -225,7 +261,7 @@ export function ProgramJudgingSection({
       <header className="mb-3 flex items-center justify-between gap-3">
         <div className="label-hw text-display">·JUDGING</div>
         <div className="inline-flex border border-hairline">
-          {(["score", "leaderboard"] as Tab[]).map((t) => (
+          {(["score", "results"] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -235,7 +271,7 @@ export function ProgramJudgingSection({
                 tab === t ? "bg-display text-shell" : "text-display hover:bg-panel-deep",
               )}
             >
-              {t === "score" ? "SCORE" : "LEADERBOARD"}
+              {t === "score" ? "SCORE" : "RESULTS"}
             </button>
           ))}
         </div>
@@ -251,9 +287,17 @@ export function ProgramJudgingSection({
         ) : (
           <>
             {locked && (
-              <div className="lcd p-2.5 mb-3 inline-flex items-center gap-2">
+              <div className="lcd p-2.5 mb-3 flex flex-wrap items-center gap-2">
                 <Lock className="h-3.5 w-3.5 text-display" aria-hidden="true" />
                 <span className="label-hw text-display">SCORES SUBMITTED · LOCKED</span>
+                {view.ballotProgress && (
+                  <span className="label-hw-dim">
+                    · {view.ballotProgress.submitted} of {view.ballotProgress.total} judges in
+                    {view.ballotProgress.total - view.ballotProgress.submitted > 0
+                      ? `, waiting on ${view.ballotProgress.total - view.ballotProgress.submitted} more`
+                      : " — all in"}
+                  </span>
+                )}
               </div>
             )}
             <div className="space-y-3">
@@ -312,50 +356,17 @@ export function ProgramJudgingSection({
                       className="mt-2 w-full font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display disabled:opacity-50"
                     />
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="label-hw-dim">{s.myScore ? "SAVED" : "NOT SCORED"}</span>
-                        {s.paid && <span className="label-hw text-display">·PAID</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {canPromote && (
-                          <button
-                            type="button"
-                            onClick={() => setPaid(s.id, !s.paid)}
-                            disabled={payingId === s.id}
-                            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1"
-                          >
-                            {payingId === s.id ? "…" : s.paid ? "MARK UNPAID" : "MARK PAID"}
-                          </button>
-                        )}
-                        {canPromote &&
-                          (s.promotedProjectId ? (
-                            <Link
-                              to={`/m2-program/${s.promotedProjectId}`}
-                              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1 inline-flex items-center gap-1"
-                            >
-                              ✓ IN STADIUM <ExternalLink className="h-3 w-3" />
-                            </Link>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => promote(s.id)}
-                              disabled={promotingId === s.id}
-                              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1"
-                            >
-                              {promotingId === s.id ? "ADDING…" : "ADD TO STADIUM"}
-                            </button>
-                          ))}
-                        {!locked && (
-                          <button
-                            type="button"
-                            onClick={() => saveRow(s.id)}
-                            disabled={savingId === s.id}
-                            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1"
-                          >
-                            {savingId === s.id ? "SAVING…" : "SAVE"}
-                          </button>
-                        )}
-                      </div>
+                      <span className="label-hw-dim">{s.myScore ? "SAVED" : "NOT SCORED"}</span>
+                      {!locked && (
+                        <button
+                          type="button"
+                          onClick={() => saveRow(s.id)}
+                          disabled={savingId === s.id}
+                          className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1"
+                        >
+                          {savingId === s.id ? "SAVING…" : "SAVE"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -379,14 +390,14 @@ export function ProgramJudgingSection({
           </>
         )
       ) : !board ? (
-        <p className="label-hw-dim py-3">No leaderboard yet.</p>
+        <p className="label-hw-dim py-3">No results yet.</p>
       ) : board.locked ? (
         <div className="lcd p-4">
           <div className="label-hw text-display mb-2 inline-flex items-center gap-2">
-            <Lock className="h-3.5 w-3.5" aria-hidden="true" /> LEADERBOARD LOCKED
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" /> RESULTS LOCKED
           </div>
           <p className="label-hw-dim">
-            {board.submitted} of {board.total} judges have submitted. The leaderboard unlocks once every judge submits.
+            {board.submitted} of {board.total} judges have submitted. Winners can be selected once every judge submits.
           </p>
           {board.pending.length > 0 && (
             <p className="label-hw-dim mt-1">Waiting on: {board.pending.join(", ")}</p>
@@ -394,18 +405,42 @@ export function ProgramJudgingSection({
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <span className="label-hw text-display inline-flex items-center gap-1.5">
               <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> {board.total} JUDGES · FINAL
             </span>
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1"
-            >
-              EXPORT CSV
-            </button>
+            <div className="flex items-center gap-2">
+              {canSelectWinners && (
+                <button
+                  type="button"
+                  onClick={togglePublish}
+                  disabled={publishing}
+                  className={cn(
+                    "font-mono text-[10px] tracking-[0.14em] px-3 py-1 disabled:opacity-50",
+                    publishedAt
+                      ? "border border-hairline text-display hover:bg-panel-deep"
+                      : "border border-display bg-display text-shell hover:bg-display-dim",
+                  )}
+                >
+                  {publishing ? "…" : publishedAt ? "UNPUBLISH" : "PUBLISH RESULTS ▸"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1"
+              >
+                EXPORT CSV
+              </button>
+            </div>
           </div>
+          {canSelectWinners && (
+            <p className="label-hw-dim mb-2">
+              {publishedAt
+                ? "·PUBLISHED — submissions + winners are live on the public program page."
+                : "·DRAFT — select winners below, then PUBLISH to reveal them publicly."}
+            </p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
@@ -416,6 +451,7 @@ export function ProgramJudgingSection({
                   <th className="py-2 pr-2">REQ</th>
                   <th className="py-2 pr-2">TECH</th>
                   <th className="py-2 pr-2">INNOV</th>
+                  <th className="py-2 pr-2">PRIZE</th>
                 </tr>
               </thead>
               <tbody>
@@ -434,6 +470,29 @@ export function ProgramJudgingSection({
                     <td className="py-2 pr-2 font-mono text-[12px] text-body">{fmt(r.avgRequirements)}</td>
                     <td className="py-2 pr-2 font-mono text-[12px] text-body">{fmt(r.avgTechStack)}</td>
                     <td className="py-2 pr-2 font-mono text-[12px] text-body">{fmt(r.avgInnovation)}</td>
+                    <td className="py-2 pr-2">
+                      {canSelectWinners ? (
+                        <select
+                          value={r.prizeAmount ?? ""}
+                          disabled={awardingId === r.submissionId}
+                          onChange={(e) => award(r.submissionId, e.target.value)}
+                          className="font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1 focus:outline-none focus:border-display disabled:opacity-50"
+                        >
+                          <option value="">No prize</option>
+                          {tiers.map((t) => (
+                            <option key={`${t.amount}-${t.currency}`} value={t.amount}>
+                              {prizeText(t.amount, t.currency)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : r.prizeAmount != null ? (
+                        <span className="label-hw text-display inline-flex items-center gap-1">
+                          <Trophy className="h-3 w-3" aria-hidden="true" /> {prizeText(r.prizeAmount, r.prizeCurrency)}
+                        </span>
+                      ) : (
+                        <span className="label-hw-dim">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

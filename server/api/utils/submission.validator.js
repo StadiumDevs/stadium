@@ -7,6 +7,20 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Max length of the project brief; mirrored by BRIEF_MAX in the client form.
 const BRIEF_MAX = 500;
 
+// Fallback prize tiers when a program hasn't configured its own. Bitrefill's
+// hackathon awards EUR giftcards. Mirrored client-side in client/src/lib/constants.ts.
+export const DEFAULT_PRIZE_TIERS = [
+  { amount: 500, currency: 'EUR', label: 'Bitrefill giftcard' },
+  { amount: 200, currency: 'EUR', label: 'Bitrefill giftcard' },
+  { amount: 100, currency: 'EUR', label: 'Bitrefill giftcard' },
+];
+
+// A program's effective tiers: its own if configured, else the default set.
+export function prizeTiersFor(program) {
+  const tiers = program?.prizeTiers;
+  return Array.isArray(tiers) && tiers.length ? tiers : DEFAULT_PRIZE_TIERS;
+}
+
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 
 const isHttpUrl = (v) => {
@@ -53,6 +67,26 @@ export function validateSubmission(body = {}) {
     ok: true,
     value: { submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl },
   };
+}
+
+// Validate a prize assignment against a program's tiers.
+// `body.prize === null` clears the award. Otherwise `body.amount` must match a
+// configured tier; the stored prize snapshots that tier's currency + label so
+// later edits to the program's tiers don't rewrite already-awarded prizes.
+// Returns { ok: true, value } where value is null (cleared) or { amount, currency, label }.
+export function validatePrize(body = {}, tiers = []) {
+  if (body.prize === null) {
+    return { ok: true, value: null };
+  }
+  const amount = body.amount;
+  if (typeof amount !== 'number' || !Number.isInteger(amount) || amount <= 0) {
+    return { ok: false, error: 'A prize amount is required' };
+  }
+  const tier = (tiers || []).find((t) => t.amount === amount);
+  if (!tier) {
+    return { ok: false, error: 'Prize amount does not match a configured tier for this program' };
+  }
+  return { ok: true, value: { amount: tier.amount, currency: tier.currency, label: tier.label } };
 }
 
 // Rubric bounds — the single source of truth, also mirrored by DB CHECKs.
