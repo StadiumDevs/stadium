@@ -15,6 +15,7 @@ const transform = (row) => {
     lumaEmail: row.luma_email,
     projectTitle: row.project_title,
     projectBrief: row.project_brief ?? null,
+    late: row.late ?? false,
     prizeAmount: row.prize_amount ?? null,
     prizeCurrency: row.prize_currency ?? null,
     prizeLabel: row.prize_label ?? null,
@@ -68,7 +69,7 @@ class ProgramSubmissionRepository {
   // Returns { submission, duplicate }. Duplicate is decided up front (one
   // submission per Luma email per program) so the controller can answer 409
   // without leaning on the DB error text.
-  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl }) {
+  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false }) {
     const normalized = normalizeEmail(lumaEmail);
     const existing = await this.findByEmail(programId, normalized);
     if (existing) return { submission: existing, duplicate: true };
@@ -84,11 +85,33 @@ class ProgramSubmissionRepository {
         project_brief: projectBrief,
         video_url: videoUrl,
         github_url: githubUrl,
+        late,
       })
       .select('*')
       .single();
     if (error) throw error;
     return { submission: transform(data), duplicate: false };
+  }
+
+  // Resubmission: overwrite the editable fields of an existing submission (one
+  // per Luma email). Leaves prize / paid / promoted as-is.
+  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late }) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update({
+        submitter_name: submitterName,
+        project_title: projectTitle,
+        project_brief: projectBrief,
+        video_url: videoUrl,
+        github_url: githubUrl,
+        late: !!late,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
   }
 
   async setPromotedProject(id, projectId) {

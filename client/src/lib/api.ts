@@ -222,6 +222,8 @@ export type ApiSubmission = {
   projectTitle: string;
   /** 2-3 sentence brief: what the project is and what it does. */
   projectBrief: string;
+  /** True when submitted/resubmitted after the program deadline (informational). */
+  late?: boolean;
   videoUrl: string;
   githubUrl: string;
   /** Set once an admin promotes this submission into a Stadium project. */
@@ -290,6 +292,8 @@ export type ApiLeaderboardRow = {
   videoUrl?: string;
   /** False when the submitter's Luma email isn't in the signup list. */
   eligible?: boolean;
+  /** True when the submission came in after the deadline. */
+  late?: boolean;
   avgTotal: number;
   avgRequirements: number;
   avgTechStack: number;
@@ -428,6 +432,7 @@ export type ApiPublicResultEntry = {
   submitterName: string;
   videoUrl: string;
   githubUrl: string;
+  late?: boolean;
   prize: ApiPrizeTier | null;
 };
 export type ApiPublicResults = {
@@ -1835,10 +1840,10 @@ export const api = {
       githubUrl: string;
       company?: string;
     },
-  ): Promise<{ status: string; data?: { id: string } }> => {
+  ): Promise<{ status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean }> => {
     if (USE_MOCK_DATA) {
       // Only checked-in attendees (on the imported Luma list) may submit.
-      const { mockProgramSignups } = await import("./mockPrograms");
+      const { mockProgramSignups, mockPrograms } = await import("./mockPrograms");
       const guests = mockProgramSignups[slug] || [];
       const ok = guests.some((g) => g.email.trim().toLowerCase() === payload.lumaEmail.trim().toLowerCase());
       if (!ok) {
@@ -1847,9 +1852,12 @@ export const api = {
           403,
         );
       }
+      // Deadline is informational: a submit after event end is flagged late, not blocked.
+      const program = mockPrograms.find((p) => p.slug === slug);
+      const late = !!(program?.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
       const { mockJudging } = await import("./mockJudging");
-      const sub = mockJudging.addSubmission(payload);
-      return { status: "success", data: { id: sub.id } };
+      const sub = mockJudging.addSubmission({ ...payload, late });
+      return { status: "success", data: { id: sub.id, late } };
     }
     return request(`/programs/${encodeURIComponent(slug)}/submissions`, {
       method: "POST",

@@ -240,11 +240,15 @@ describe('Bitrefill judging — basic user journeys', () => {
     note('Only checked-in attendees can submit: a non-listed email is rejected (403).');
   });
 
-  it('rejects a duplicate submission (same Luma email) with 409', async () => {
-    const r = await submitter(SUBMISSIONS[0]).submit();
-    expect(r.status).toBe(409);
-    expect(store.program_submissions.length).toBe(3);
-    note('Duplicate email submission correctly rejected (409); no extra row.');
+  it('resubmitting the same Luma email overwrites the entry (200, no extra row)', async () => {
+    const r = await submitter({ ...SUBMISSIONS[0], videoUrl: 'https://youtu.be/aurora-v2' }).submit();
+    expect(r.status).toBe(200);
+    expect(r.body.resubmitted).toBe(true);
+    expect(store.program_submissions.length).toBe(3); // still one row per email
+    const row = store.program_submissions.find((s) => s.luma_email === SUBMISSIONS[0].lumaEmail);
+    expect(row.video_url).toBe('https://youtu.be/aurora-v2'); // overwritten in place
+    expect(row.project_title).toBe('Aurora Pay'); // title unchanged
+    note('Resubmitting with the same Luma email overwrites the submission (200), no duplicate row.');
   });
 
   it('rejects an invalid submission (bad URL) with 400', async () => {

@@ -62,6 +62,8 @@ const MOCK_SUBMISSIONS: ApiSubmission[] = [
       "Comet Bridge moves assets across chains with a single signature. It batches routes to find the cheapest path and refunds any unused bridging fees.",
     videoUrl: "https://youtu.be/comet",
     githubUrl: "https://github.com/example/comet",
+    // Seeded as a late submission so the ·LATE badge is visible in the preview.
+    late: true,
     createdAt: "2026-06-01T12:00:00.000Z",
     updatedAt: "2026-06-01T12:00:00.000Z",
   },
@@ -254,6 +256,7 @@ export const mockJudging = {
   },
 
   // Append a submission from the public submit form so it shows up in judging.
+  // Upsert by Luma email: resubmitting overwrites the existing entry in place.
   addSubmission(payload: {
     submitterName: string;
     lumaEmail: string;
@@ -261,9 +264,28 @@ export const mockJudging = {
     projectBrief: string;
     videoUrl: string;
     githubUrl: string;
+    late?: boolean;
   }): ApiSubmission {
     const now = new Date().toISOString();
     const added = readAdded();
+    const email = payload.lumaEmail.trim().toLowerCase();
+    const idx = added.findIndex((s) => s.lumaEmail.trim().toLowerCase() === email);
+    if (idx >= 0) {
+      const updated: ApiSubmission = {
+        ...added[idx],
+        submitterName: payload.submitterName,
+        projectTitle: payload.projectTitle,
+        projectBrief: payload.projectBrief,
+        videoUrl: payload.videoUrl,
+        githubUrl: payload.githubUrl,
+        late: !!payload.late,
+        updatedAt: now,
+      };
+      const next = [...added];
+      next[idx] = updated;
+      writeAdded(next);
+      return updated;
+    }
     const sub: ApiSubmission = {
       id: `sub-added-${added.length + 1}-${now}`,
       programId: "mock-program",
@@ -273,6 +295,7 @@ export const mockJudging = {
       projectBrief: payload.projectBrief,
       videoUrl: payload.videoUrl,
       githubUrl: payload.githubUrl,
+      late: !!payload.late,
       createdAt: now,
       updatedAt: now,
     };
@@ -339,6 +362,7 @@ export const mockJudging = {
           submitterName: s.submitterName,
           videoUrl: s.videoUrl,
           githubUrl: s.githubUrl,
+          late: s.late ?? false,
           prize: prize ? { amount: prize.amount, currency: prize.currency, label: prize.label } : null,
         };
       })
@@ -416,6 +440,7 @@ export const mockJudging = {
           githubUrl: s.githubUrl,
           videoUrl: s.videoUrl,
           eligible: ELIGIBLE_EMAILS.has(s.lumaEmail) || addedEmails.has(s.lumaEmail),
+          late: s.late ?? false,
           avgTotal: avgRequirements + avgTechStack + avgInnovation,
           avgRequirements,
           avgTechStack,

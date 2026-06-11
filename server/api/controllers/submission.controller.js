@@ -6,6 +6,7 @@ import programSignupRepository from '../repositories/program-signup.repository.j
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
+import submissionConfirmationService from '../services/submission-confirmation.service.js';
 import auditLog from '../services/program-audit-log.service.js';
 
 // Winner selection + publishing are platform-admin only. After requireProgramAdmin,
@@ -81,17 +82,47 @@ class SubmissionController {
           message: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
         });
       }
-      const { submission, duplicate } = await programSubmissionRepository.create({
-        programId: program.id,
-        ...v.value,
-      });
-      if (duplicate) {
-        return res.status(409).json({
-          status: 'error',
-          message: 'A project has already been submitted with this email for this program.',
-        });
+      // Deadline is informational: a submit after event end is flagged late, not blocked.
+      const late = !!(program.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
+
+      // Resubmit = overwrite the existing entry (one submission per Luma email).
+      const existing = await programSubmissionRepository.findByEmail(program.id, v.value.lumaEmail);
+      let submission;
+      let resubmitted;
+      let statusCode;
+      if (existing) {
+        submission = await programSubmissionRepository.updateSubmission(existing.id, { ...v.value, late });
+        resubmitted = true;
+        statusCode = 200;
+      } else {
+        ({ submission } = await programSubmissionRepository.create({ programId: program.id, ...v.value, late }));
+        resubmitted = false;
+        statusCode = 201;
       }
-      return res.status(201).json({ status: 'success', data: { id: submission.id } });
+
+      // Confirmation email is best-effort — a Resend failure never fails the submission.
+      let emailSent = false;
+      let emailReason = null;
+      try {
+        const result = await submissionConfirmationService.send({
+          email: submission.lumaEmail,
+          submitterName: submission.submitterName,
+          programName: program.name,
+          slug: program.slug,
+          projectTitle: submission.projectTitle,
+          deadline: program.eventEndsAt ?? null,
+          resubmitted,
+        });
+        emailSent = result.ok;
+        emailReason = result.ok ? null : result.reason;
+      } catch (err) {
+        emailReason = 'send_failed';
+        console.error('❌ Submission confirmation email failed:', err);
+      }
+
+      return res
+        .status(statusCode)
+        .json({ status: 'success', data: { id: submission.id, late }, resubmitted, emailSent, emailReason });
     } catch (error) {
       console.error('❌ Error submitting project:', error);
       res.status(500).json({ status: 'error', message: 'Failed to submit project' });

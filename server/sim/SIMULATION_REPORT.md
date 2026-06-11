@@ -8,7 +8,7 @@ Supabase fake.
 
 1. Submissions: 3 accepted (Aurora Pay, Nimbus Wallet, Comet Bridge).
 2. Only checked-in attendees can submit: a non-listed email is rejected (403).
-3. Duplicate email submission correctly rejected (409); no extra row.
+3. Resubmitting with the same Luma email overwrites the submission (200), no duplicate row.
 4. Malformed GitHub URL rejected (400) before persisting.
 5. Non-invited email blocked from scoring (status 401) — requireProgramJudge fell back to the wallet gate.
 6. Organizer invited 3 judges: j1@judge.test, j2@judge.test, j3@judge.test.

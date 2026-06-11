@@ -256,6 +256,7 @@ class ScoringService {
           githubUrl: s.githubUrl,
           videoUrl: s.videoUrl,
           eligible: eligibleSet.has(normalizeEmail(s.lumaEmail)),
+          late: s.late ?? false,
           avgTotal: avgRequirements + avgTechStack + avgInnovation,
           avgRequirements,
           avgTechStack,
@@ -302,6 +303,7 @@ class ScoringService {
       submitterName: s.submitterName,
       videoUrl: s.videoUrl,
       githubUrl: s.githubUrl,
+      late: s.late ?? false,
       prize:
         s.prizeAmount != null
           ? { amount: s.prizeAmount, currency: s.prizeCurrency, label: s.prizeLabel }
