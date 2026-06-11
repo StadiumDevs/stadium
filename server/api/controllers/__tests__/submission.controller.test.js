@@ -9,16 +9,17 @@ vi.mock('../../services/scoring.service.js', () => ({
     promoteToProject: vi.fn(),
     isJudgingComplete: vi.fn(),
     publicResults: vi.fn(),
+    claimBatch: vi.fn(),
   },
 }));
 vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn() },
 }));
 vi.mock('../../repositories/submission-score.repository.js', () => ({
-  default: { upsert: vi.fn() },
+  default: { upsert: vi.fn(), upsertMany: vi.fn() },
 }));
 vi.mock('../../repositories/program-judge-ballot.repository.js', () => ({
   default: { isSubmitted: vi.fn() },
@@ -194,6 +195,83 @@ describe('SubmissionController.setPaid (admin)', () => {
     await submissionController.setPaid(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
     expect(submissionRepo.setPaid).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubmissionController.claimBatch (judge)', () => {
+  const judgeReq = (body = {}) => ({
+    params: { slug: 'bitrefill' },
+    user: { email: 'judge@x.com', programId: 'bitrefill', canJudge: true },
+    body,
+  });
+
+  it('409s when the ballot is already submitted', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(true);
+    const res = mockRes();
+    await submissionController.claimBatch(judgeReq(), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(scoringService.claimBatch).not.toHaveBeenCalled();
+  });
+
+  it('claims and returns the refreshed view', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(false);
+    scoringService.claimBatch.mockResolvedValue({ claimed: 2, view: { batches: [] } });
+    const res = mockRes();
+    await submissionController.claimBatch(judgeReq({ batchNumber: 2 }), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(scoringService.claimBatch).toHaveBeenCalledWith('bitrefill', 'judge@x.com', 2);
+  });
+
+  it('400s an invalid batch number', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(false);
+    scoringService.claimBatch.mockResolvedValue({ invalid: true });
+    const res = mockRes();
+    await submissionController.claimBatch(judgeReq({ batchNumber: 99 }), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+});
+
+describe('SubmissionController.saveScores (judge bulk)', () => {
+  const baseReq = (scores) => ({
+    params: { slug: 'bitrefill' },
+    user: { email: 'judge@x.com', programId: 'bitrefill', canJudge: true },
+    body: { scores },
+  });
+
+  it('409s when the ballot is locked', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(true);
+    const res = mockRes();
+    await submissionController.saveScores(baseReq([{ submissionId: 's1', requirements: 1, techStack: 1, innovation: 1 }]), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(submissionRepo.listByProgramId).not.toHaveBeenCalled();
+  });
+
+  it('400s an unknown submission in the batch', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(false);
+    submissionRepo.listByProgramId.mockResolvedValue([{ id: 's1' }]);
+    const res = mockRes();
+    await submissionController.saveScores(baseReq([{ submissionId: 'nope', requirements: 1, techStack: 1, innovation: 1 }]), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(scoreRepo.upsertMany).not.toHaveBeenCalled();
+  });
+
+  it('bulk-upserts valid scores for the verified judge email', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(false);
+    submissionRepo.listByProgramId.mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
+    scoreRepo.upsertMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    const res = mockRes();
+    await submissionController.saveScores(
+      baseReq([
+        { submissionId: 's1', requirements: 2, techStack: 5, innovation: 5, judgeEmail: 'spoof@evil.com' },
+        { submissionId: 's2', requirements: 1, techStack: 3, innovation: 2 },
+      ]),
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(scoreRepo.upsertMany).toHaveBeenCalledWith([
+      expect.objectContaining({ submissionId: 's1', programId: 'bitrefill', judgeEmail: 'judge@x.com', requirements: 2 }),
+      expect.objectContaining({ submissionId: 's2', programId: 'bitrefill', judgeEmail: 'judge@x.com' }),
+    ]);
   });
 });
 

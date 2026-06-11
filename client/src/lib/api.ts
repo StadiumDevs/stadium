@@ -257,6 +257,16 @@ export type ApiScore = {
 export type ApiSubmissionRow = ApiSubmission & {
   eligible: boolean;
   myScore: ApiScore | null;
+  /** Which batch (of batchSize) this submission falls in. */
+  batchNumber?: number;
+};
+
+/** Coverage of one batch: how many judges claimed it + whether this judge has. */
+export type ApiBatchInfo = {
+  batchNumber: number;
+  size: number;
+  claimCount: number;
+  claimedByMe: boolean;
 };
 
 export type ApiJudgeView = {
@@ -264,6 +274,10 @@ export type ApiJudgeView = {
   ballotStatus: "in_progress" | "submitted";
   /** How many registered judges have submitted, so a judge can see who's left. */
   ballotProgress?: { submitted: number; total: number };
+  /** Batch claiming: the fixed batch size, this judge's claims, and coverage. */
+  batchSize?: number;
+  claimedBatches?: number[];
+  batches?: ApiBatchInfo[];
   submissions: ApiSubmissionRow[];
 };
 
@@ -281,6 +295,8 @@ export type ApiLeaderboardRow = {
   avgTechStack: number;
   avgInnovation: number;
   judgeCount: number;
+  /** Individual per-judge scores (submitted judges only) for the breakdown view. */
+  judgeScores?: { judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }[];
   /** Current prize on this submission (null = not a winner). */
   prizeAmount?: number | null;
   prizeCurrency?: string | null;
@@ -288,7 +304,8 @@ export type ApiLeaderboardRow = {
 };
 
 export type ApiLeaderboard =
-  | { locked: true; submitted: number; total: number; pending: string[] }
+  // Locked = not yet full coverage (some submission has no score from a submitted judge).
+  | { locked: true; submissionsScored: number; submissionsTotal: number; pendingJudges: string[] }
   | { locked: false; submitted: number; total: number; rows: ApiLeaderboardRow[] };
 
 /** One row in the unified program inbox (signups + applications merged). */
@@ -1846,6 +1863,41 @@ export const api = {
         body: JSON.stringify(payload),
       },
     );
+  },
+
+  /** Judge/admin: claim a batch of 10 to score. No batchNumber → "claim next 10"
+   *  (server picks the least-covered batch). Returns the refreshed judge view. */
+  claimBatch: async (
+    slug: string,
+    batchNumber: number | undefined,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiJudgeView; meta?: { claimed: number | null; nothingToClaim: boolean } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", ...mockJudging.claimBatch(batchNumber) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/scoring/claim-batch`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(batchNumber ? { batchNumber } : {}),
+    });
+  },
+
+  /** Judge/admin: bulk-save a batch of scores at once. */
+  saveScores: async (
+    slug: string,
+    scores: Array<{ submissionId: string; requirements: number; techStack: number; innovation: number; notes?: string }>,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiScore[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.saveScores(scores) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/scoring/scores`, {
+      method: "PUT",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ scores }),
+    });
   },
 
   /** Judge/admin: finalize the ballot (requires every submission scored). */

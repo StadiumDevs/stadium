@@ -149,6 +149,9 @@ router.put(
 );
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
+// Batch claiming + bulk score save (judge workflow for large fields).
+router.post('/:slug/scoring/claim-batch', requireProgramJudge('slug'), submissionController.claimBatch);
+router.put('/:slug/scoring/scores', requireProgramJudge('slug'), submissionController.saveScores);
 // Promote a submission into a Stadium project (payout + team tracking).
 // Admin-only — judges (requireProgramJudge) cannot create projects.
 router.post(

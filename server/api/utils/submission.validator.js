@@ -7,6 +7,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Max length of the project brief; mirrored by BRIEF_MAX in the client form.
 const BRIEF_MAX = 500;
 
+// Submissions are grouped into fixed batches of this size for judge claiming.
+// Mirrored client-side in client/src/lib/constants.ts.
+export const BATCH_SIZE = 10;
+
 // Fallback prize tiers when a program hasn't configured its own. Bitrefill's
 // hackathon awards EUR giftcards. Mirrored client-side in client/src/lib/constants.ts.
 export const DEFAULT_PRIZE_TIERS = [

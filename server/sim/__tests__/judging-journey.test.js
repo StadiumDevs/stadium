@@ -162,8 +162,11 @@ const judge = (email) => {
   return {
     email,
     list: () => judgeCall(token, submissionController.list),
+    claim: (batchNumber) =>
+      judgeCall(token, submissionController.claimBatch, { body: batchNumber ? { batchNumber } : {} }),
     score: (submissionId, body) =>
       judgeCall(token, submissionController.upsertScore, { params: { submissionId }, body }),
+    saveBatch: (scores) => judgeCall(token, submissionController.saveScores, { body: { scores } }),
     submitBallot: () => judgeCall(token, submissionController.submitBallot),
     leaderboard: () => judgeCall(token, submissionController.leaderboard),
   };
@@ -299,55 +302,69 @@ describe('Bitrefill judging — basic user journeys', () => {
     note('Out-of-range score (requirements=5 > max 2) rejected (400).');
   });
 
-  it('a judge cannot submit a ballot before scoring every submission (409)', async () => {
+  it('a judge cannot submit a ballot before scoring their claimed batch (409)', async () => {
     const j = judge(JUDGES[0]);
+    await j.claim(); // claim batch 1 (all 3 submissions — one batch)
     const subs = (await j.list()).body.data.submissions;
     await j.score(subs[0].id, SCORES[JUDGES[0]][subs[0].projectTitle]); // score only one
     const r = await j.submitBallot();
     expect(r.status).toBe(409);
-    note('Ballot submit blocked until all submissions scored (409 with missing count).');
+    note('Ballot submit blocked until every submission in the claimed batch is scored (409).');
   });
 
-  it('leaderboard stays locked until every judge submits, then tallies & ranks', async () => {
-    // Each judge scores all submissions, then submits.
-    for (const email of JUDGES) {
+  it('leaderboard unlocks on coverage (a submitted judge covering all), then enriches', async () => {
+    // Batches let judges split a large field; here 3 submissions = one batch, so
+    // each judge claims batch 1 and bulk-saves their scores for it.
+    const scoreAllFor = async (email) => {
       const j = judge(email);
+      await j.claim(); // claim batch 1
       const subs = (await j.list()).body.data.submissions;
-      for (const s of subs) {
-        const r = await j.score(s.id, SCORES[email][s.projectTitle]);
-        expect(r.status).toBe(200);
-      }
-    }
+      const rows = subs.map((s) => ({ submissionId: s.id, ...SCORES[email][s.projectTitle] }));
+      const save = await j.saveBatch(rows); // bulk save the whole batch
+      expect(save.status).toBe(200);
+      return j;
+    };
 
-    // Two of three submitted -> still locked.
-    await judge(JUDGES[0]).submitBallot();
-    await judge(JUDGES[1]).submitBallot();
-    const mid = await judge(JUDGES[0]).leaderboard();
-    expect(mid.body.data.locked).toBe(true);
-    expect(mid.body.data.submitted).toBe(2);
-    expect(mid.body.data.total).toBe(3);
-    note(`Leaderboard locked at 2/3 submitted; pending: ${mid.body.data.pending.join(', ')}.`);
+    // Before anyone submits -> locked, nothing covered.
+    const j1 = await scoreAllFor(JUDGES[0]);
+    const start = await j1.leaderboard();
+    expect(start.body.data.locked).toBe(true);
+    expect(start.body.data.submissionsScored).toBe(0); // no submitted ballots yet
+    note(`Leaderboard locked: 0 of ${start.body.data.submissionsTotal} submissions covered by a submitted judge.`);
 
-    // Last judge submits -> unlocks.
-    await judge(JUDGES[2]).submitBallot();
+    // One judge submits -> every submission now has a score from a submitted
+    // judge -> coverage met -> UNLOCKS even though the other judges haven't.
+    await j1.submitBallot();
+    const afterOne = await j1.leaderboard();
+    expect(afterOne.body.data.locked).toBe(false);
+    const auroraOne = afterOne.body.data.rows.find((r) => r.projectTitle === 'Aurora Pay');
+    expect(auroraOne.judgeCount).toBe(1);
+    expect(auroraOne.judgeScores).toHaveLength(1); // per-judge breakdown
+    note('Coverage gate: one judge covering every project unlocks the leaderboard (not all judges required).');
+
+    // The other two judges also score + submit -> averages enrich to 3 judges.
+    await (await scoreAllFor(JUDGES[1])).submitBallot();
+    await (await scoreAllFor(JUDGES[2])).submitBallot();
+
     const final = await judge(JUDGES[2]).leaderboard();
     expect(final.body.data.locked).toBe(false);
     const rows = final.body.data.rows;
     expect(rows[0].projectTitle).toBe('Aurora Pay'); // highest mean total
 
-    // Hand-checked tally for Aurora: totals 12,11,11 -> mean 34/3.
+    // Hand-checked tally for Aurora: totals 12,11,11 -> mean 34/3, 3 judges.
     const aurora = rows.find((r) => r.projectTitle === 'Aurora Pay');
     expect(aurora.avgTotal).toBeCloseTo(34 / 3, 5);
     expect(aurora.judgeCount).toBe(3);
+    expect(aurora.judgeScores).toHaveLength(3); // individual scores per judge
+    expect(aurora.judgeScores.find((s) => s.judgeEmail === JUDGES[0]).total).toBe(12);
 
-    // Eligibility is now carried onto leaderboard rows (the fixed bug): the
-    // ineligible entry is flagged even though it still ranks.
+    // Eligibility carried onto rows: the ineligible entry is flagged though it ranks.
     expect(aurora.eligible).toBe(true);
     const comet = rows.find((r) => r.projectTitle === 'Comet Bridge');
     expect(comet.eligible).toBe(false);
-    note(`Leaderboard now flags eligibility: "Comet Bridge" ranks #${comet.rank} but is marked NOT IN LUMA.`);
+    note(`Leaderboard flags eligibility: "Comet Bridge" ranks #${comet.rank} but is marked NOT IN LUMA.`);
     note(
-      `Leaderboard unlocked at 3/3. Ranking: ${rows
+      `Leaderboard ranking (each row carries per-judge scores): ${rows
         .map((r) => `${r.rank}. ${r.projectTitle} (${r.avgTotal.toFixed(2)}/12)`)
         .join('  ')}.`,
     );

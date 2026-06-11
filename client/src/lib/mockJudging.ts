@@ -16,10 +16,13 @@ import type {
   ApiSubmissionRow,
 } from "./api";
 import { mockPrograms } from "./mockPrograms";
+import { BATCH_SIZE } from "./constants";
 
 const MOCK_JUDGE_EMAIL = "you@judge.test";
-// Two registered judges total; "other" has already submitted a full ballot.
+// Two registered judges total; "other" has already submitted a full ballot
+// covering the seed submissions (batch 1).
 const OTHER_JUDGE_EMAIL = "other@judge.test";
+const OTHER_CLAIMED_BATCH = 1;
 
 const MOCK_SUBMISSIONS: ApiSubmission[] = [
   {
@@ -90,6 +93,20 @@ const readPrizes = (): Record<string, MockPrize> => {
     return {};
   }
 };
+
+// Batches this judge ("you") has claimed.
+const CLAIMS_KEY = "stadium_mock_batch_claims_v1";
+const readClaims = (): number[] => {
+  try {
+    return JSON.parse(localStorage.getItem(CLAIMS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+};
+const writeClaims = (b: number[]) => localStorage.setItem(CLAIMS_KEY, JSON.stringify(b));
+
+const batchNumberForIndex = (i: number) => Math.floor(i / BATCH_SIZE) + 1;
+const batchCountOf = (n: number) => Math.ceil(n / BATCH_SIZE);
 // Submissions added through the public submit form during a preview session.
 // Persisted so they survive navigation/reload and show up in the judging list.
 const ADDED_KEY = "stadium_mock_submissions_v1";
@@ -155,7 +172,8 @@ export const mockJudging = {
     const paid = readPaid();
     const prizes = readPrizes();
     const addedEmails = new Set(readAdded().map((s) => s.lumaEmail));
-    const submissions: ApiSubmissionRow[] = allSubmissions().map((s) => {
+    const all = allSubmissions();
+    const submissions: ApiSubmissionRow[] = all.map((s, i) => {
       const prize = prizes[s.id] ?? null;
       return {
         ...s,
@@ -168,17 +186,71 @@ export const mockJudging = {
         prizeCurrency: prize ? prize.currency : null,
         prizeLabel: prize ? prize.label : null,
         myScore: toScore(s.id),
+        batchNumber: batchNumberForIndex(i),
       };
     });
     // Two registered judges in the mock; the other is pre-submitted, so progress
     // is 1/2 before this judge submits and 2/2 after.
     const ballotProgress = { submitted: submitted ? 2 : 1, total: 2 };
+
+    // Batch coverage: the other judge holds batch 1; "you" hold readClaims().
+    const myBatches = readClaims();
+    const myset = new Set(myBatches);
+    const count = batchCountOf(all.length);
+    const batches = [];
+    for (let n = 1; n <= count; n += 1) {
+      const start = (n - 1) * BATCH_SIZE;
+      batches.push({
+        batchNumber: n,
+        size: Math.min(BATCH_SIZE, all.length - start),
+        claimCount: (n === OTHER_CLAIMED_BATCH ? 1 : 0) + (myset.has(n) ? 1 : 0),
+        claimedByMe: myset.has(n),
+      });
+    }
+
     return {
       locked: submitted,
       ballotStatus: submitted ? "submitted" : "in_progress",
       ballotProgress,
+      batchSize: BATCH_SIZE,
+      claimedBatches: myBatches,
+      batches,
       submissions,
     };
+  },
+
+  // Claim a batch ("you"). No batchNumber -> lowest batch not yet claimed by you.
+  claimBatch(batchNumber?: number): { data: ApiJudgeView; meta: { claimed: number | null; nothingToClaim: boolean } } {
+    const all = allSubmissions();
+    const count = batchCountOf(all.length);
+    const mine = readClaims();
+    const myset = new Set(mine);
+    let target = batchNumber ?? null;
+    if (target == null) {
+      for (let n = 1; n <= count; n += 1) {
+        if (!myset.has(n)) { target = n; break; }
+      }
+    }
+    if (target == null || target < 1 || target > count) {
+      return { data: this.judgeView(), meta: { claimed: null, nothingToClaim: target == null } };
+    }
+    if (!myset.has(target)) writeClaims([...mine, target].sort((a, b) => a - b));
+    return { data: this.judgeView(), meta: { claimed: target, nothingToClaim: false } };
+  },
+
+  // Bulk-save a batch of this judge's scores.
+  saveScores(scores: Array<{ submissionId: string; requirements: number; techStack: number; innovation: number; notes?: string }>): ApiScore[] {
+    const stored = readScores();
+    for (const s of scores) {
+      stored[s.submissionId] = {
+        requirements: s.requirements,
+        techStack: s.techStack,
+        innovation: s.innovation,
+        notes: s.notes || "",
+      };
+    }
+    writeScores(stored);
+    return scores.map((s) => toScore(s.submissionId) as ApiScore);
   },
 
   // Append a submission from the public submit form so it shows up in judging.
@@ -286,56 +358,84 @@ export const mockJudging = {
     return toScore(submissionId) as ApiScore;
   },
 
-  submitBallot(): { ok: boolean; missing?: number; total: number } {
+  submitBallot(): { ok: boolean; missing?: number; total: number; noClaims?: boolean } {
     const scores = readScores();
     const all = allSubmissions();
-    const missing = all.filter((s) => !scores[s.id]).length;
-    if (missing > 0) return { ok: false, missing, total: all.length };
+    const claimed = new Set(readClaims());
+    if (claimed.size === 0) return { ok: false, noClaims: true, missing: 0, total: 0 };
+    const mine = all.filter((_, i) => claimed.has(batchNumberForIndex(i)));
+    const missing = mine.filter((s) => !scores[s.id]).length;
+    if (missing > 0) return { ok: false, missing, total: mine.length };
     localStorage.setItem(BALLOT_KEY, "submitted");
-    return { ok: true, total: all.length };
+    return { ok: true, total: mine.length };
   },
 
   leaderboard(): ApiLeaderboard {
-    const total = 2; // two registered judges
-    if (!ballotSubmitted()) {
-      return { locked: true, submitted: 1, total, pending: [MOCK_JUDGE_EMAIL] };
-    }
+    const youSubmitted = ballotSubmitted();
     const mine = readScores();
     const prizes = readPrizes();
     const addedEmails = new Set(readAdded().map((s) => s.lumaEmail));
-    const rows: ApiLeaderboardRow[] = allSubmissions().map((s) => {
-      const a = OTHER_JUDGE_SCORES[s.id];
+    const all = allSubmissions();
+
+    // Scores that count = from submitted judges only. The other judge is always
+    // submitted (covers the seeds); "you" count once your ballot is submitted.
+    const scoresFor = (s: ApiSubmission) => {
+      const list: Array<{ judgeEmail: string; requirements: number; techStack: number; innovation: number }> = [];
+      const o = OTHER_JUDGE_SCORES[s.id];
+      if (o) list.push({ judgeEmail: OTHER_JUDGE_EMAIL, ...o });
       const b = mine[s.id];
-      const prize = prizes[s.id] ?? null;
-      // Seed rows have the other judge's finalized score; submissions added
-      // this session do not, so they average over this judge alone.
-      const judges = a ? [a, b] : [b];
-      const avg = (sel: (j: { requirements: number; techStack: number; innovation: number }) => number) =>
-        judges.reduce((t, j) => t + sel(j), 0) / judges.length;
-      const avgRequirements = avg((j) => j.requirements);
-      const avgTechStack = avg((j) => j.techStack);
-      const avgInnovation = avg((j) => j.innovation);
+      if (youSubmitted && b) list.push({ judgeEmail: MOCK_JUDGE_EMAIL, requirements: b.requirements, techStack: b.techStack, innovation: b.innovation });
+      return list;
+    };
+
+    // Coverage gate: locked until every submission has at least one counted score.
+    const submissionsTotal = all.length;
+    const submissionsScored = all.filter((s) => scoresFor(s).length > 0).length;
+    if (submissionsTotal === 0 || submissionsScored < submissionsTotal) {
       return {
-        rank: 0,
-        submissionId: s.id,
-        projectTitle: s.projectTitle,
-        submitterName: s.submitterName,
-        githubUrl: s.githubUrl,
-        videoUrl: s.videoUrl,
-        eligible: ELIGIBLE_EMAILS.has(s.lumaEmail) || addedEmails.has(s.lumaEmail),
-        avgTotal: avgRequirements + avgTechStack + avgInnovation,
-        avgRequirements,
-        avgTechStack,
-        avgInnovation,
-        judgeCount: judges.length,
-        prizeAmount: prize ? prize.amount : null,
-        prizeCurrency: prize ? prize.currency : null,
-        prizeLabel: prize ? prize.label : null,
+        locked: true,
+        submissionsScored,
+        submissionsTotal,
+        pendingJudges: youSubmitted ? [] : [MOCK_JUDGE_EMAIL],
       };
-    })
+    }
+
+    const mean = (ns: number[]) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
+    const rows: ApiLeaderboardRow[] = all
+      .map((s) => {
+        const scores = scoresFor(s);
+        const prize = prizes[s.id] ?? null;
+        const avgRequirements = mean(scores.map((x) => x.requirements));
+        const avgTechStack = mean(scores.map((x) => x.techStack));
+        const avgInnovation = mean(scores.map((x) => x.innovation));
+        return {
+          rank: 0,
+          submissionId: s.id,
+          projectTitle: s.projectTitle,
+          submitterName: s.submitterName,
+          githubUrl: s.githubUrl,
+          videoUrl: s.videoUrl,
+          eligible: ELIGIBLE_EMAILS.has(s.lumaEmail) || addedEmails.has(s.lumaEmail),
+          avgTotal: avgRequirements + avgTechStack + avgInnovation,
+          avgRequirements,
+          avgTechStack,
+          avgInnovation,
+          judgeCount: scores.length,
+          judgeScores: scores.map((x) => ({
+            judgeEmail: x.judgeEmail,
+            requirements: x.requirements,
+            techStack: x.techStack,
+            innovation: x.innovation,
+            total: x.requirements + x.techStack + x.innovation,
+          })),
+          prizeAmount: prize ? prize.amount : null,
+          prizeCurrency: prize ? prize.currency : null,
+          prizeLabel: prize ? prize.label : null,
+        };
+      })
       .sort((x, y) => y.avgTotal - x.avgTotal || y.avgInnovation - x.avgInnovation)
       .map((r, i) => ({ ...r, rank: i + 1 }));
-    return { locked: false, submitted: total, total, rows };
+    return { locked: false, submitted: youSubmitted ? 2 : 1, total: 2, rows };
   },
 
   resetForTests() {
@@ -346,6 +446,7 @@ export const mockJudging = {
     localStorage.removeItem(ADDED_KEY);
     localStorage.removeItem(PRIZE_KEY);
     localStorage.removeItem(PUBLISHED_KEY);
+    localStorage.removeItem(CLAIMS_KEY);
   },
 };
 

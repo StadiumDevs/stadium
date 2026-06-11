@@ -15,14 +15,15 @@ Supabase fake.
 7. Cross-event isolation: a judge only reaches the event they were invited to; other events 401/403.
 8. Judge sees all 3 submissions; "Comet Bridge" flagged NOT IN LUMA (advisory, still scoreable).
 9. Out-of-range score (requirements=5 > max 2) rejected (400).
-10. Ballot submit blocked until all submissions scored (409 with missing count).
-11. Leaderboard locked at 2/3 submitted; pending: j3@judge.test.
-12. Leaderboard now flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
-13. Leaderboard unlocked at 3/3. Ranking: 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
-14. Winner selection is platform-admin only: a per-program admin is rejected (403).
-15. Platform admin assigned prizes: Aurora Pay 500 EUR, Nimbus Wallet 200 EUR, Comet Bridge 100 EUR (Bitrefill giftcards).
-16. Results published: public page shows all 3 submissions, winners first, with no Luma email exposed.
-17. After submitting, a judge can no longer edit scores (409, locked).
+10. Ballot submit blocked until every submission in the claimed batch is scored (409).
+11. Leaderboard locked: 0 of 3 submissions covered by a submitted judge.
+12. Coverage gate: one judge covering every project unlocks the leaderboard (not all judges required).
+13. Leaderboard flags eligibility: "Comet Bridge" ranks #2 but is marked NOT IN LUMA.
+14. Leaderboard ranking (each row carries per-judge scores): 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
+15. Winner selection is platform-admin only: a per-program admin is rejected (403).
+16. Platform admin assigned prizes: Aurora Pay 500 EUR, Nimbus Wallet 200 EUR, Comet Bridge 100 EUR (Bitrefill giftcards).
+17. Results published: public page shows all 3 submissions, winners first, with no Luma email exposed.
+18. After submitting, a judge can no longer edit scores (409, locked).
 
 ## What works
 

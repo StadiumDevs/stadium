@@ -68,3 +68,7 @@ export const DEFAULT_PRIZE_TIERS: PrizeTier[] = [
 /** A program's effective tiers: its own if configured, else the default set. */
 export const prizeTiersFor = (tiers?: PrizeTier[] | null): PrizeTier[] =>
   tiers && tiers.length ? tiers : DEFAULT_PRIZE_TIERS
+
+/** Submissions are grouped into fixed batches of this size for judge claiming.
+ *  Mirrors BATCH_SIZE in server/api/utils/submission.validator.js. */
+export const BATCH_SIZE = 10

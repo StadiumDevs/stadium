@@ -66,6 +66,16 @@ class SubmissionScoreRepository {
     if (error) throw error;
     return transform(data);
   }
+
+  // Upsert many of one judge's scores at once (a batch save). Sequential upserts
+  // keep the single natural-key conflict handling; returns the saved rows.
+  async upsertMany(rows) {
+    const saved = [];
+    for (const row of rows) {
+      saved.push(await this.upsert(row));
+    }
+    return saved;
+  }
 }
 
 export default new SubmissionScoreRepository();

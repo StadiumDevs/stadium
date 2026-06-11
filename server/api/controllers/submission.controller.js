@@ -175,6 +175,77 @@ class SubmissionController {
     }
   }
 
+  // Judge/admin: claim a batch of submissions to score. With no batchNumber the
+  // service picks the least-covered batch ("Claim next 10"). Returns the refreshed
+  // judge view so the panel updates in one round-trip.
+  async claimBatch(req, res) {
+    try {
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const judgeEmail = judgeIdentity(req);
+      if (await programJudgeBallotRepository.isSubmitted(programId, judgeEmail)) {
+        return res.status(409).json({ status: 'error', message: 'Your ballot is submitted and locked.' });
+      }
+      const batchNumber = req.body?.batchNumber;
+      const result = await scoringService.claimBatch(programId, judgeEmail, batchNumber);
+      if (result.invalid) {
+        return res.status(400).json({ status: 'error', message: 'Invalid batch number' });
+      }
+      res.status(200).json({
+        status: 'success',
+        data: result.view,
+        meta: { claimed: result.claimed ?? null, nothingToClaim: result.nothingToClaim ?? false },
+      });
+    } catch (error) {
+      console.error('❌ Error claiming batch:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to claim batch' });
+    }
+  }
+
+  // Judge/admin: bulk-save this judge's scores for a batch. Body: { scores: [...] }.
+  // Each row validated like a single score; rejects if the ballot is locked or a
+  // submission doesn't belong to this program.
+  async saveScores(req, res) {
+    try {
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const judgeEmail = judgeIdentity(req);
+
+      if (await programJudgeBallotRepository.isSubmitted(programId, judgeEmail)) {
+        return res.status(409).json({
+          status: 'error',
+          message: 'Your scores are submitted and locked. Ask an admin to reopen them to edit.',
+        });
+      }
+
+      const scores = req.body?.scores;
+      if (!Array.isArray(scores) || scores.length === 0) {
+        return res.status(400).json({ status: 'error', message: 'scores must be a non-empty array' });
+      }
+
+      const submissions = await programSubmissionRepository.listByProgramId(programId);
+      const validIds = new Set(submissions.map((s) => s.id));
+
+      const rows = [];
+      for (const entry of scores) {
+        if (!entry || !validIds.has(entry.submissionId)) {
+          return res.status(400).json({ status: 'error', message: 'Unknown submission in batch' });
+        }
+        const v = validateScore(entry);
+        if (!v.ok) {
+          return res.status(400).json({ status: 'error', message: v.error });
+        }
+        rows.push({ submissionId: entry.submissionId, programId, judgeEmail, ...v.value });
+      }
+
+      const saved = await submissionScoreRepository.upsertMany(rows);
+      res.status(200).json({ status: 'success', data: saved });
+    } catch (error) {
+      console.error('❌ Error saving scores:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to save scores' });
+    }
+  }
+
   // Admin: promote a submission into a Stadium project for payout/team tracking.
   // Admin-gated (requireProgramAdmin) — judges cannot create projects.
   async promote(req, res) {
