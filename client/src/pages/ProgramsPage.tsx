@@ -60,7 +60,7 @@ const ProgramsPage = () => {
 
         <div className="flex items-center justify-between mb-3 pb-3 border-b border-hairline">
           <div className="label-hw text-display flex items-center gap-2">
-            <span className="led led-sm" aria-hidden="true" /> ·GRID
+            <span className="led led-sm" aria-hidden="true" /> ·ONGOING PROGRAMS
           </div>
           <div className="label-hw-dim">
             {loading ? "…" : `${openPrograms.length} ${openPrograms.length === 1 ? "PROGRAM" : "PROGRAMS"}`}

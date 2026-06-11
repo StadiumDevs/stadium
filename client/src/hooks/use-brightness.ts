@@ -14,23 +14,13 @@ interface StoredState {
   collapsed: boolean;
 }
 
-// Below this viewport width we treat the device as "mobile-ish" and default
-// the brightness rack to its compact strip — otherwise the full panel eats
-// ~170px of vertical space on every page load, which felt invasive.
-const MOBILE_BREAKPOINT_PX = 640;
-
-function isMobileViewport(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.innerWidth < MOBILE_BREAKPOINT_PX;
-}
-
 function readStored(): StoredState {
   const defaults: StoredState = {
     mode: 'auto',
     manualValue: null,
     paletteKey: DEFAULT_PALETTE_KEY,
-    // Default to collapsed on mobile viewports; users can expand explicitly.
-    collapsed: isMobileViewport(),
+    // Default to collapsed everywhere; users can expand explicitly.
+    collapsed: true,
   };
   if (typeof window === 'undefined') return defaults;
   try {
@@ -42,11 +32,10 @@ function readStored(): StoredState {
       mode: parsed.mode,
       manualValue: typeof parsed.manualValue === 'number' ? parsed.manualValue : null,
       paletteKey: typeof parsed.paletteKey === 'string' ? parsed.paletteKey : DEFAULT_PALETTE_KEY,
-      // Honor a stored collapsed=true; if the user never set one, fall back
-      // to the mobile-viewport default so first-time mobile loads aren't
-      // dominated by the brightness panel.
+      // Honor a stored collapsed value; if the user never set one, default to
+      // collapsed so first loads aren't dominated by the brightness panel.
       collapsed:
-        typeof parsed.collapsed === 'boolean' ? parsed.collapsed : isMobileViewport(),
+        typeof parsed.collapsed === 'boolean' ? parsed.collapsed : true,
     };
   } catch {
     return defaults;

@@ -40,9 +40,10 @@ declare global {
 }
 
 const SC_WIDGET_SCRIPT = "https://w.soundcloud.com/player/api.js";
-const SC_PROFILE_URL = "https://soundcloud.com/pommeshdrms";
+const SC_TRACK_URL =
+  "https://soundcloud.com/otherside-podcast/pomlouyen-other-side-podcast-08";
 const SC_IFRAME_SRC =
-  `https://w.soundcloud.com/player/?url=${encodeURIComponent(SC_PROFILE_URL)}` +
+  `https://w.soundcloud.com/player/?url=${encodeURIComponent(SC_TRACK_URL)}` +
   "&auto_play=false&hide_related=true&show_comments=false&show_user=false" +
   "&show_reposts=false&show_teaser=false&visual=false&buying=false" +
   "&sharing=false&download=false&show_artwork=false";
@@ -131,9 +132,9 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
             setPositionMs(data.currentPosition);
           }
         });
-        // Loop forever: when the profile's tracks run out, restart from the top so
-        // the music never stops (it already survives navigation — the iframe lives
-        // above the router).
+        // Loop forever: when the track ends, restart from the top so the music
+        // never stops (it already survives navigation — the iframe lives above
+        // the router).
         widget.bind(window.SC.Widget.Events.FINISH, () => {
           if (cancelled) return;
           widget.seekTo(0);
@@ -153,8 +154,16 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
       const next = !prev;
       const widget = widgetRef.current;
       if (widget) {
-        widget.setVolume(next ? 0 : 100);
-        widget.play();
+        // Mute by pausing, not by setVolume(0): on mobile (notably iOS) volume is
+        // hardware-controlled and setVolume is a no-op, so volume-based muting
+        // silently failed there. play()/pause() honor the user's tap on every
+        // platform — and the tap is the gesture mobile needs to start audio.
+        if (next) {
+          widget.pause();
+        } else {
+          widget.setVolume(100);
+          widget.play();
+        }
       }
       return next;
     });
@@ -175,7 +184,7 @@ export function SoundCloudAudioProvider({ children }: { children: React.ReactNod
       <iframe
         ref={iframeRef}
         src={SC_IFRAME_SRC}
-        title="SoundCloud audio player (pommeshdrms)"
+        title="SoundCloud audio player (otherside-podcast)"
         aria-hidden="true"
         tabIndex={-1}
         allow="autoplay; encrypted-media"
