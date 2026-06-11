@@ -416,6 +416,9 @@ export type ApiProgram = {
   updatedAt?: string;
 };
 
+/** At-a-glance counts for the program admin/judge header (no PII). */
+export type ApiProgramStats = { confirmedParticipants: number; submissionsCount: number };
+
 /** Public, PII-free results payload for the program page (gated on publish). */
 export type ApiPublicResultEntry = {
   projectTitle: string;
@@ -1957,6 +1960,20 @@ export const api = {
         body: JSON.stringify({ paid }),
       },
     );
+  },
+
+  /** Judge/admin: at-a-glance counts for the program header (no PII). */
+  getProgramStats: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramStats }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      return { status: "success", data: mockJudging.stats() };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/stats`, {
+      headers: adminAuthHeaders(authHeader),
+    });
   },
 
   /** Judge/admin: gated leaderboard (locked until all registered judges submit). */

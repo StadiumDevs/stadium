@@ -73,8 +73,8 @@ export const mockPrograms: ApiProgram[] = [
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
-    eventStartsAt: "2026-06-17T00:00:00Z",
-    eventEndsAt: null,
+    eventStartsAt: "2026-06-17T09:00:00Z",
+    eventEndsAt: "2026-06-17T20:00:00Z",
     location: "Berlin",
     maxApplicants: null,
     prizeTiers: [

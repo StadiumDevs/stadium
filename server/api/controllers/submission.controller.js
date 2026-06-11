@@ -2,6 +2,7 @@ import programService from '../services/program.service.js';
 import scoringService from '../services/scoring.service.js';
 import programRepository from '../repositories/program.repository.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
+import programSignupRepository from '../repositories/program-signup.repository.js';
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
@@ -376,6 +377,22 @@ class SubmissionController {
     } catch (error) {
       console.error('❌ Error building public results:', error);
       res.status(500).json({ status: 'error', message: 'Failed to load results' });
+    }
+  }
+
+  // Judge/admin: at-a-glance counts for the program header (no PII).
+  async programStats(req, res) {
+    try {
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const [confirmedParticipants, submissionsCount] = await Promise.all([
+        programSignupRepository.countByProgramId(program.id),
+        programSubmissionRepository.countByProgramId(program.id),
+      ]);
+      res.status(200).json({ status: 'success', data: { confirmedParticipants, submissionsCount } });
+    } catch (error) {
+      console.error('❌ Error building program stats:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load stats' });
     }
   }
 

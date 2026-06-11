@@ -15,6 +15,7 @@ import {
 import { ApplicationCard } from "@/components/admin/ApplicationCard";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
 import { ProgramJudgingSection } from "@/components/admin/ProgramJudgingSection";
+import { ProgramStatsHeader } from "@/components/admin/ProgramStatsHeader";
 import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
@@ -291,6 +292,12 @@ const AdminProgramPage = () => {
 
             {isAdminWallet ? (
               <>
+                <ProgramStatsHeader
+                  programSlug={program.slug}
+                  getAuth={getAdminAuth}
+                  eventEndsAt={program.eventEndsAt}
+                />
+
                 <ProgramAdminsSection
                   programSlug={program.slug}
                   signAuthHeader={getAdminAuth}
@@ -391,6 +398,12 @@ const AdminProgramPage = () => {
                     SIGN OUT
                   </button>
                 </div>
+
+                <ProgramStatsHeader
+                  programSlug={program.slug}
+                  getAuth={getJudgeAuth}
+                  eventEndsAt={program.eventEndsAt}
+                />
 
                 {/* Judges + admins both score; judges see ONLY this. Email
                     sessions are never platform admins, so no winner selection. */}

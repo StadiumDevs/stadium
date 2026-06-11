@@ -149,6 +149,8 @@ router.put(
 );
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
+// At-a-glance counts for the program header (judge + admin; no PII).
+router.get('/:slug/stats', requireProgramJudge('slug'), submissionController.programStats);
 // Batch claiming + bulk score save (judge workflow for large fields).
 router.post('/:slug/scoring/claim-batch', requireProgramJudge('slug'), submissionController.claimBatch);
 router.put('/:slug/scoring/scores', requireProgramJudge('slug'), submissionController.saveScores);

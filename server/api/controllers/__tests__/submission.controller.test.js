@@ -16,10 +16,13 @@ vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn() },
 }));
 vi.mock('../../repositories/submission-score.repository.js', () => ({
   default: { upsert: vi.fn(), upsertMany: vi.fn() },
+}));
+vi.mock('../../repositories/program-signup.repository.js', () => ({
+  default: { countByProgramId: vi.fn() },
 }));
 vi.mock('../../repositories/program-judge-ballot.repository.js', () => ({
   default: { isSubmitted: vi.fn() },
@@ -32,6 +35,7 @@ const programRepo = (await import('../../repositories/program.repository.js')).d
 const submissionRepo = (await import('../../repositories/program-submission.repository.js')).default;
 const ballotRepo = (await import('../../repositories/program-judge-ballot.repository.js')).default;
 const scoreRepo = (await import('../../repositories/submission-score.repository.js')).default;
+const signupRepo = (await import('../../repositories/program-signup.repository.js')).default;
 const submissionController = (await import('../submission.controller.js')).default;
 
 const mockRes = () => {
@@ -380,6 +384,28 @@ describe('SubmissionController results publish (platform admin)', () => {
     await submissionController.unpublishResults(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(programRepo.setResultsPublished).toHaveBeenCalledWith('bitrefill', null);
+  });
+});
+
+describe('SubmissionController.programStats (judge/admin)', () => {
+  it('404s an unknown program', async () => {
+    programService.findBySlug.mockResolvedValue(null);
+    const res = mockRes();
+    await submissionController.programStats({ params: { slug: 'nope' } }, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('returns confirmed participants + submissions count', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.countByProgramId.mockResolvedValue(42);
+    submissionRepo.countByProgramId.mockResolvedValue(7);
+    const res = mockRes();
+    await submissionController.programStats({ params: { slug: 'bitrefill' } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      status: 'success',
+      data: { confirmedParticipants: 42, submissionsCount: 7 },
+    });
   });
 });
 

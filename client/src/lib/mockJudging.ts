@@ -438,6 +438,12 @@ export const mockJudging = {
     return { locked: false, submitted: youSubmitted ? 2 : 1, total: 2, rows };
   },
 
+  // At-a-glance counts for the program header. Submissions reflect the real mock
+  // store; participants is a representative demo value (mock has no signups).
+  stats(): { confirmedParticipants: number; submissionsCount: number } {
+    return { confirmedParticipants: 48, submissionsCount: allSubmissions().length };
+  },
+
   resetForTests() {
     localStorage.removeItem(SCORES_KEY);
     localStorage.removeItem(BALLOT_KEY);
