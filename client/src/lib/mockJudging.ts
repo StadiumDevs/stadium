@@ -67,6 +67,22 @@ const SCORES_KEY = "stadium_mock_scores_v1";
 const BALLOT_KEY = "stadium_mock_ballot_v1";
 const PROMOTED_KEY = "stadium_mock_promoted_v1";
 const PAID_KEY = "stadium_mock_paid_v1";
+// Submissions added through the public submit form during a preview session.
+// Persisted so they survive navigation/reload and show up in the judging list.
+const ADDED_KEY = "stadium_mock_submissions_v1";
+
+const readAdded = (): ApiSubmission[] => {
+  try {
+    return JSON.parse(localStorage.getItem(ADDED_KEY) || "[]");
+  } catch {
+    return [];
+  }
+};
+const writeAdded = (s: ApiSubmission[]) => localStorage.setItem(ADDED_KEY, JSON.stringify(s));
+
+// The full submission set the judging UI sees: the seed rows plus anything
+// submitted through the public form this session.
+const allSubmissions = (): ApiSubmission[] => [...MOCK_SUBMISSIONS, ...readAdded()];
 
 type StoredScores = Record<string, { requirements: number; techStack: number; innovation: number; notes: string }>;
 
@@ -114,9 +130,12 @@ export const mockJudging = {
     const submitted = ballotSubmitted();
     const promoted = readPromoted();
     const paid = readPaid();
-    const submissions: ApiSubmissionRow[] = MOCK_SUBMISSIONS.map((s) => ({
+    const addedEmails = new Set(readAdded().map((s) => s.lumaEmail));
+    const submissions: ApiSubmissionRow[] = allSubmissions().map((s) => ({
       ...s,
-      eligible: ELIGIBLE_EMAILS.has(s.lumaEmail),
+      // Seed rows use the fixed signup list; submissions added through the
+      // public form are assumed eligible (the form asks for the Luma email).
+      eligible: ELIGIBLE_EMAILS.has(s.lumaEmail) || addedEmails.has(s.lumaEmail),
       promotedProjectId: promoted[s.id] ?? null,
       paid: paid[s.id] ?? false,
       myScore: toScore(s.id),
@@ -124,11 +143,37 @@ export const mockJudging = {
     return { locked: submitted, ballotStatus: submitted ? "submitted" : "in_progress", submissions };
   },
 
+  // Append a submission from the public submit form so it shows up in judging.
+  addSubmission(payload: {
+    submitterName: string;
+    lumaEmail: string;
+    projectTitle: string;
+    videoUrl: string;
+    githubUrl: string;
+  }): ApiSubmission {
+    const now = new Date().toISOString();
+    const added = readAdded();
+    const sub: ApiSubmission = {
+      id: `sub-added-${added.length + 1}-${now}`,
+      programId: "mock-program",
+      submitterName: payload.submitterName,
+      lumaEmail: payload.lumaEmail,
+      projectTitle: payload.projectTitle,
+      videoUrl: payload.videoUrl,
+      githubUrl: payload.githubUrl,
+      createdAt: now,
+      updatedAt: now,
+    };
+    writeAdded([...added, sub]);
+    return sub;
+  },
+
   setPaid(submissionId: string, paid: boolean): ApiSubmission {
-    const all = readPaid();
-    all[submissionId] = paid;
-    localStorage.setItem(PAID_KEY, JSON.stringify(all));
-    const base = MOCK_SUBMISSIONS.find((s) => s.id === submissionId) ?? MOCK_SUBMISSIONS[0];
+    const paidMap = readPaid();
+    paidMap[submissionId] = paid;
+    localStorage.setItem(PAID_KEY, JSON.stringify(paidMap));
+    const all = allSubmissions();
+    const base = all.find((s) => s.id === submissionId) ?? all[0];
     return { ...base, paid, paidAt: paid ? "2026-06-10T00:00:00.000Z" : null, paidBy: paid ? "mock-admin" : null };
   },
 
@@ -155,10 +200,11 @@ export const mockJudging = {
 
   submitBallot(): { ok: boolean; missing?: number; total: number } {
     const scores = readScores();
-    const missing = MOCK_SUBMISSIONS.filter((s) => !scores[s.id]).length;
-    if (missing > 0) return { ok: false, missing, total: MOCK_SUBMISSIONS.length };
+    const all = allSubmissions();
+    const missing = all.filter((s) => !scores[s.id]).length;
+    if (missing > 0) return { ok: false, missing, total: all.length };
     localStorage.setItem(BALLOT_KEY, "submitted");
-    return { ok: true, total: MOCK_SUBMISSIONS.length };
+    return { ok: true, total: all.length };
   },
 
   leaderboard(): ApiLeaderboard {
@@ -167,13 +213,18 @@ export const mockJudging = {
       return { locked: true, submitted: 1, total, pending: [MOCK_JUDGE_EMAIL] };
     }
     const mine = readScores();
-    const rows: ApiLeaderboardRow[] = MOCK_SUBMISSIONS.map((s) => {
+    const addedEmails = new Set(readAdded().map((s) => s.lumaEmail));
+    const rows: ApiLeaderboardRow[] = allSubmissions().map((s) => {
       const a = OTHER_JUDGE_SCORES[s.id];
       const b = mine[s.id];
-      const avg = (x: number, y: number) => (x + y) / 2;
-      const avgRequirements = avg(a.requirements, b.requirements);
-      const avgTechStack = avg(a.techStack, b.techStack);
-      const avgInnovation = avg(a.innovation, b.innovation);
+      // Seed rows have the other judge's finalized score; submissions added
+      // this session do not, so they average over this judge alone.
+      const judges = a ? [a, b] : [b];
+      const avg = (sel: (j: { requirements: number; techStack: number; innovation: number }) => number) =>
+        judges.reduce((t, j) => t + sel(j), 0) / judges.length;
+      const avgRequirements = avg((j) => j.requirements);
+      const avgTechStack = avg((j) => j.techStack);
+      const avgInnovation = avg((j) => j.innovation);
       return {
         rank: 0,
         submissionId: s.id,
@@ -181,12 +232,12 @@ export const mockJudging = {
         submitterName: s.submitterName,
         githubUrl: s.githubUrl,
         videoUrl: s.videoUrl,
-        eligible: ELIGIBLE_EMAILS.has(s.lumaEmail),
+        eligible: ELIGIBLE_EMAILS.has(s.lumaEmail) || addedEmails.has(s.lumaEmail),
         avgTotal: avgRequirements + avgTechStack + avgInnovation,
         avgRequirements,
         avgTechStack,
         avgInnovation,
-        judgeCount: 2,
+        judgeCount: judges.length,
       };
     })
       .sort((x, y) => y.avgTotal - x.avgTotal || y.avgInnovation - x.avgInnovation)
@@ -199,6 +250,7 @@ export const mockJudging = {
     localStorage.removeItem(BALLOT_KEY);
     localStorage.removeItem(PROMOTED_KEY);
     localStorage.removeItem(PAID_KEY);
+    localStorage.removeItem(ADDED_KEY);
   },
 };
 

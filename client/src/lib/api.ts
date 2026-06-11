@@ -1765,7 +1765,9 @@ export const api = {
     },
   ): Promise<{ status: string; data?: { id: string } }> => {
     if (USE_MOCK_DATA) {
-      return { status: "success", data: { id: "mock-submission" } };
+      const { mockJudging } = await import("./mockJudging");
+      const sub = mockJudging.addSubmission(payload);
+      return { status: "success", data: { id: sub.id } };
     }
     return request(`/programs/${encodeURIComponent(slug)}/submissions`, {
       method: "POST",
