@@ -281,6 +281,9 @@ export function ProgramJudgingSection({
                         </a>
                       </div>
                     </div>
+                    {s.projectBrief && (
+                      <p className="text-body text-[12px] leading-relaxed mb-2 whitespace-pre-wrap">{s.projectBrief}</p>
+                    )}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
                       {(["requirements", "techStack", "innovation"] as const).map((field) => (
                         <label key={field} className="block">

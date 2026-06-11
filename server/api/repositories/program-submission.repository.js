@@ -14,6 +14,7 @@ const transform = (row) => {
     submitterName: row.submitter_name,
     lumaEmail: row.luma_email,
     projectTitle: row.project_title,
+    projectBrief: row.project_brief ?? null,
     videoUrl: row.video_url,
     githubUrl: row.github_url,
     promotedProjectId: row.promoted_project_id ?? null,
@@ -62,7 +63,7 @@ class ProgramSubmissionRepository {
   // Returns { submission, duplicate }. Duplicate is decided up front (one
   // submission per Luma email per program) so the controller can answer 409
   // without leaning on the DB error text.
-  async create({ programId, submitterName, lumaEmail, projectTitle, videoUrl, githubUrl }) {
+  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl }) {
     const normalized = normalizeEmail(lumaEmail);
     const existing = await this.findByEmail(programId, normalized);
     if (existing) return { submission: existing, duplicate: true };
@@ -75,6 +76,7 @@ class ProgramSubmissionRepository {
         submitter_name: submitterName,
         luma_email: normalized,
         project_title: projectTitle,
+        project_brief: projectBrief,
         video_url: videoUrl,
         github_url: githubUrl,
       })

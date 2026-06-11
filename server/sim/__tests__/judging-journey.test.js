@@ -151,9 +151,9 @@ const judge = (email) => {
 
 // --- scenario data ----------------------------------------------------------
 const SUBMISSIONS = [
-  { submitterName: 'Aurora Builders', lumaEmail: 'aurora@example.com', projectTitle: 'Aurora Pay', videoUrl: 'https://youtu.be/aurora', githubUrl: 'https://github.com/ex/aurora' },
-  { submitterName: 'Nimbus Labs', lumaEmail: 'nimbus@example.com', projectTitle: 'Nimbus Wallet', videoUrl: 'https://youtu.be/nimbus', githubUrl: 'https://github.com/ex/nimbus' },
-  { submitterName: 'Comet Crew', lumaEmail: 'comet@example.com', projectTitle: 'Comet Bridge', videoUrl: 'https://youtu.be/comet', githubUrl: 'https://github.com/ex/comet' },
+  { submitterName: 'Aurora Builders', lumaEmail: 'aurora@example.com', projectTitle: 'Aurora Pay', projectBrief: 'One-tap stablecoin checkout for merchants.', videoUrl: 'https://youtu.be/aurora', githubUrl: 'https://github.com/ex/aurora' },
+  { submitterName: 'Nimbus Labs', lumaEmail: 'nimbus@example.com', projectTitle: 'Nimbus Wallet', projectBrief: 'A mobile smart wallet with social recovery.', videoUrl: 'https://youtu.be/nimbus', githubUrl: 'https://github.com/ex/nimbus' },
+  { submitterName: 'Comet Crew', lumaEmail: 'comet@example.com', projectTitle: 'Comet Bridge', projectBrief: 'Cross-chain asset bridge with a single signature.', videoUrl: 'https://youtu.be/comet', githubUrl: 'https://github.com/ex/comet' },
 ];
 
 // Per-judge scores keyed by project title. req/2, tech/5, innov/5.

@@ -220,6 +220,8 @@ export type ApiSubmission = {
   submitterName: string;
   lumaEmail: string;
   projectTitle: string;
+  /** 2-3 sentence brief: what the project is and what it does. */
+  projectBrief: string;
   videoUrl: string;
   githubUrl: string;
   /** Set once an admin promotes this submission into a Stadium project. */
@@ -1759,6 +1761,7 @@ export const api = {
       submitterName: string;
       lumaEmail: string;
       projectTitle: string;
+      projectBrief: string;
       videoUrl: string;
       githubUrl: string;
       company?: string;

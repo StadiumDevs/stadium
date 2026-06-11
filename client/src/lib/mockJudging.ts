@@ -24,6 +24,8 @@ const MOCK_SUBMISSIONS: ApiSubmission[] = [
     submitterName: "Aurora Builders",
     lumaEmail: "aurora@example.com",
     projectTitle: "Aurora Pay",
+    projectBrief:
+      "Aurora Pay is a one-tap stablecoin checkout for merchants. Shoppers pay in any token and the merchant settles in USDC, with gas abstracted away.",
     videoUrl: "https://youtu.be/aurora",
     githubUrl: "https://github.com/example/aurora",
     createdAt: "2026-06-01T10:00:00.000Z",
@@ -35,6 +37,8 @@ const MOCK_SUBMISSIONS: ApiSubmission[] = [
     submitterName: "Nimbus Labs",
     lumaEmail: "nimbus@example.com",
     projectTitle: "Nimbus Wallet",
+    projectBrief:
+      "Nimbus Wallet is a mobile-first smart wallet with social recovery. It lets users recover funds through trusted contacts instead of seed phrases.",
     videoUrl: "https://youtu.be/nimbus",
     githubUrl: "https://github.com/example/nimbus",
     createdAt: "2026-06-01T11:00:00.000Z",
@@ -47,6 +51,8 @@ const MOCK_SUBMISSIONS: ApiSubmission[] = [
     submitterName: "Comet Crew",
     lumaEmail: "not-registered@example.com",
     projectTitle: "Comet Bridge",
+    projectBrief:
+      "Comet Bridge moves assets across chains with a single signature. It batches routes to find the cheapest path and refunds any unused bridging fees.",
     videoUrl: "https://youtu.be/comet",
     githubUrl: "https://github.com/example/comet",
     createdAt: "2026-06-01T12:00:00.000Z",
@@ -148,6 +154,7 @@ export const mockJudging = {
     submitterName: string;
     lumaEmail: string;
     projectTitle: string;
+    projectBrief: string;
     videoUrl: string;
     githubUrl: string;
   }): ApiSubmission {
@@ -159,6 +166,7 @@ export const mockJudging = {
       submitterName: payload.submitterName,
       lumaEmail: payload.lumaEmail,
       projectTitle: payload.projectTitle,
+      projectBrief: payload.projectBrief,
       videoUrl: payload.videoUrl,
       githubUrl: payload.githubUrl,
       createdAt: now,

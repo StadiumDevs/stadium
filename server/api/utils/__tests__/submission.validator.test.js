@@ -9,6 +9,7 @@ const goodSubmission = {
   submitterName: '  Ada Lovelace ',
   lumaEmail: 'Ada@Example.com',
   projectTitle: 'Analytical Engine',
+  projectBrief: '  A general-purpose mechanical computer. It runs programs from punched cards.  ',
   videoUrl: 'https://youtu.be/demo',
   githubUrl: 'https://github.com/ada/engine',
 };
@@ -19,10 +20,19 @@ describe('validateSubmission', () => {
     expect(r.ok).toBe(true);
     expect(r.value.submitterName).toBe('Ada Lovelace');
     expect(r.value.projectTitle).toBe('Analytical Engine');
+    expect(r.value.projectBrief).toBe('A general-purpose mechanical computer. It runs programs from punched cards.');
   });
 
   it('rejects a missing name', () => {
     expect(validateSubmission({ ...goodSubmission, submitterName: '   ' }).ok).toBe(false);
+  });
+
+  it('rejects a missing brief', () => {
+    expect(validateSubmission({ ...goodSubmission, projectBrief: '   ' }).ok).toBe(false);
+  });
+
+  it('rejects an overly long brief', () => {
+    expect(validateSubmission({ ...goodSubmission, projectBrief: 'x'.repeat(501) }).ok).toBe(false);
   });
 
   it('rejects a malformed email', () => {

@@ -4,6 +4,9 @@
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Max length of the project brief; mirrored by BRIEF_MAX in the client form.
+const BRIEF_MAX = 500;
+
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 
 const isHttpUrl = (v) => {
@@ -23,6 +26,7 @@ export function validateSubmission(body = {}) {
   const submitterName = str(body.submitterName);
   const lumaEmail = str(body.lumaEmail);
   const projectTitle = str(body.projectTitle);
+  const projectBrief = str(body.projectBrief);
   const videoUrl = str(body.videoUrl);
   const githubUrl = str(body.githubUrl);
 
@@ -35,6 +39,9 @@ export function validateSubmission(body = {}) {
   if (!projectTitle || projectTitle.length > 200) {
     return { ok: false, error: 'A project title is required (max 200 characters)' };
   }
+  if (!projectBrief || projectBrief.length > BRIEF_MAX) {
+    return { ok: false, error: `A short brief of what your project does is required (max ${BRIEF_MAX} characters)` };
+  }
   if (!isHttpUrl(videoUrl)) {
     return { ok: false, error: 'A valid video demo link (http/https) is required' };
   }
@@ -44,7 +51,7 @@ export function validateSubmission(body = {}) {
 
   return {
     ok: true,
-    value: { submitterName, lumaEmail, projectTitle, videoUrl, githubUrl },
+    value: { submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl },
   };
 }
 

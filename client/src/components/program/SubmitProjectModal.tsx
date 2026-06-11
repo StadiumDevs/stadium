@@ -9,12 +9,14 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { api, type ApiProgram, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
+const BRIEF_MAX = 500;
 
 /**
  * Public project-submission form for a hackathon program. Anyone can submit;
@@ -33,6 +35,7 @@ export function SubmitProjectModal({
   const [submitterName, setName] = useState("");
   const [lumaEmail, setEmail] = useState("");
   const [projectTitle, setTitle] = useState("");
+  const [projectBrief, setBrief] = useState("");
   const [videoUrl, setVideo] = useState("");
   const [githubUrl, setGithub] = useState("");
   const [company, setCompany] = useState(""); // honeypot
@@ -46,6 +49,7 @@ export function SubmitProjectModal({
       setName("");
       setEmail("");
       setTitle("");
+      setBrief("");
       setVideo("");
       setGithub("");
       setCompany("");
@@ -58,6 +62,8 @@ export function SubmitProjectModal({
     if (!submitterName.trim()) return "Your name is required.";
     if (!EMAIL_RE.test(lumaEmail.trim())) return "A valid email is required.";
     if (!projectTitle.trim()) return "A project title is required.";
+    if (!projectBrief.trim()) return "A short brief of what your project does is required.";
+    if (projectBrief.trim().length > BRIEF_MAX) return `The brief must be ${BRIEF_MAX} characters or fewer.`;
     if (!isHttpUrl(videoUrl)) return "A valid video demo link (http/https) is required.";
     if (!isHttpUrl(githubUrl)) return "A valid GitHub URL (http/https) is required.";
     return null;
@@ -76,6 +82,7 @@ export function SubmitProjectModal({
         submitterName: submitterName.trim(),
         lumaEmail: lumaEmail.trim(),
         projectTitle: projectTitle.trim(),
+        projectBrief: projectBrief.trim(),
         videoUrl: videoUrl.trim(),
         githubUrl: githubUrl.trim(),
         company,
@@ -128,6 +135,21 @@ export function SubmitProjectModal({
               <div className="space-y-1.5">
                 <Label htmlFor="sub-title" className="label-hw-dim">PROJECT TITLE</Label>
                 <Input id="sub-title" value={projectTitle} onChange={(e) => setTitle(e.target.value)} className="font-mono text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-baseline justify-between">
+                  <Label htmlFor="sub-brief" className="label-hw-dim">WHAT DOES IT DO?</Label>
+                  <span className="label-hw-dim">{projectBrief.trim().length}/{BRIEF_MAX}</span>
+                </div>
+                <Textarea
+                  id="sub-brief"
+                  rows={3}
+                  maxLength={BRIEF_MAX}
+                  placeholder="In 2-3 sentences, describe your project and what it does."
+                  value={projectBrief}
+                  onChange={(e) => setBrief(e.target.value)}
+                  className="font-mono text-sm"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="sub-video" className="label-hw-dim">VIDEO DEMO LINK</Label>

@@ -35,6 +35,7 @@ const GOOD_BODY = {
   submitterName: 'Ada',
   lumaEmail: 'ada@example.com',
   projectTitle: 'Engine',
+  projectBrief: 'A mechanical computer that runs programs from punched cards.',
   videoUrl: 'https://youtu.be/x',
   githubUrl: 'https://github.com/ada/x',
 };
