@@ -282,7 +282,7 @@ const AdminProgramPage = () => {
             <header className="mb-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="label-hw-dim mb-2">·ADMIN / PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
-                {isAdminWallet && (
+                {(isAdminWallet || socialCanViewAdmin) && (
                   <button
                     type="button"
                     onClick={() => setEditOpen(true)}
@@ -304,7 +304,7 @@ const AdminProgramPage = () => {
               </div>
             </header>
 
-            {editOpen && connectedAddress && (
+            {editOpen && (isAdminWallet || socialCanViewAdmin) && (
               <ProgramFormModal
                 open={editOpen}
                 onOpenChange={(v) => {
@@ -312,10 +312,11 @@ const AdminProgramPage = () => {
                   if (!v) setAdminsReload((n) => n + 1); // refresh the read-only list
                 }}
                 program={program}
-                connectedAddress={connectedAddress}
+                connectedAddress={connectedAddress ?? ""}
                 onSaved={(p) => setProgram(p)}
-                signAuthHeader={getAdminAuth}
-                isGlobalAdmin={isGlobalAdmin}
+                signAuthHeader={isAdminWallet ? getAdminAuth : getJudgeAuth}
+                isGlobalAdmin={isAdminWallet && isGlobalAdmin}
+                emailMode={!isAdminWallet}
               />
             )}
 
@@ -414,7 +415,7 @@ const AdminProgramPage = () => {
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
                   <span className="lcd inline-flex items-center gap-2 px-3 py-1.5">
                     <span className="led led-sm" aria-hidden="true" />
-                    <span className="label-hw text-display">{socialCanViewAdmin ? "VIEW-ONLY" : "JUDGE"}</span>
+                    <span className="label-hw text-display">{socialCanViewAdmin ? "ADMIN" : "JUDGE"}</span>
                   </span>
                   <span className="label-hw-dim truncate min-w-0">{social.email}</span>
                   <div className="flex-1" />
@@ -445,6 +446,26 @@ const AdminProgramPage = () => {
                   eventEndsAt={program.eventEndsAt}
                 />
 
+                {/* Email admins can run the lighter organizer actions (guests
+                    import, sponsors, program edit). Winners/payouts stay wallet. */}
+                {socialCanViewAdmin && (
+                  <>
+                    <ProgramAdminsSection
+                      programSlug={program.slug}
+                      signAuthHeader={getJudgeAuth}
+                      reloadToken={adminsReload}
+                    />
+                    {program.programType !== "hackathon" && (
+                      <ProgramSponsorsSection programSlug={program.slug} signAuthHeader={getJudgeAuth} />
+                    )}
+                    <ProgramSignupsSection
+                      programSlug={program.slug}
+                      signAuthHeader={getJudgeAuth}
+                      title={program.programType === "hackathon" ? "·LUMA-APPROVED GUESTS" : undefined}
+                    />
+                  </>
+                )}
+
                 {/* Judges + admins both score; judges see ONLY this. Email
                     sessions are never platform admins, so no winner selection. */}
                 {socialCanJudge && (
@@ -466,7 +487,13 @@ const AdminProgramPage = () => {
                   ) : (
                     <div className="space-y-3">
                       {filtered.map((a) => (
-                        <ApplicationCard key={a.id} application={a} programSlug={program.slug} readOnly />
+                        <ApplicationCard
+                          key={a.id}
+                          application={a}
+                          programSlug={program.slug}
+                          signAuthHeader={getJudgeAuth}
+                          onUpdated={handleUpdated}
+                        />
                       ))}
                     </div>
                   ))}
