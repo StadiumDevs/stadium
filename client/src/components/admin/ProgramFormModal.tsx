@@ -148,8 +148,12 @@ export function ProgramFormModal({
   }, [open, program]);
 
   useEffect(() => {
-    if (!slugEdited) setSlug(slugify(name));
-  }, [name, slugEdited]);
+    // Only auto-derive the slug from the name in CREATE mode. In edit mode the
+    // slug is fixed (field disabled); without the `!editing` guard this effect's
+    // stale `slugEdited` closure races the hydrate effect on open and clobbers
+    // the loaded slug to "", which fails validation and blocks every edit save.
+    if (!slugEdited && !editing) setSlug(slugify(name));
+  }, [name, slugEdited, editing]);
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
