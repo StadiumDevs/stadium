@@ -14,9 +14,26 @@ export async function getEmailTransport() {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
+  // Optional global BCC archive: every outbound email is blind-copied to the
+  // address(es) in EMAIL_BCC (comma-separated). Merged with any caller-supplied bcc.
+  const envBcc = (process.env.EMAIL_BCC || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   return {
-    async send({ from, to, cc, subject, html, text }) {
-      const { data, error } = await resend.emails.send({ from, to, cc, subject, html, text });
+    async send({ from, to, cc, bcc, subject, html, text }) {
+      const callerBcc = Array.isArray(bcc) ? bcc : bcc ? [bcc] : [];
+      const allBcc = [...callerBcc, ...envBcc];
+      const { data, error } = await resend.emails.send({
+        from,
+        to,
+        cc,
+        bcc: allBcc.length ? allBcc : undefined,
+        subject,
+        html,
+        text,
+      });
       if (error) throw new Error(error.message ?? String(error));
       return { id: data.id };
     },
