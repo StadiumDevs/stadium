@@ -463,6 +463,39 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
     return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
   }
 
+  // Social path: a verified ADMIN-role email grant administers the program
+  // without a wallet (Option 2). Winners/payouts stay wallet-gated because their
+  // controllers require req.user.isGlobalAdmin, which an email session never sets.
+  // A judge-role (or no) grant falls through to the wallet gate below.
+  const emailToken = extractSupabaseToken(req);
+  if (emailToken) {
+    const user = await getSupabaseUser(emailToken);
+    if (user?.email) {
+      try {
+        const program = await programRepository.findBySlug(slug);
+        if (!program) {
+          return res.status(404).json({ status: 'error', message: 'Program not found' });
+        }
+        const grant = await programAdminEmailRepository.findGrant(program.id, user.email);
+        if (grant && grant.role === 'admin') {
+          logSuccess(`Email admin ${user.email} administering program "${slug}".`);
+          req.user = {
+            email: user.email,
+            supabaseUserId: user.id,
+            programSlug: slug,
+            programId: program.id,
+            role: 'admin',
+            isGlobalAdmin: false,
+            viewOnly: false,
+          };
+          return next();
+        }
+      } catch (err) {
+        logError(`Email-admin check failed, falling back to wallet: ${err.message}`);
+      }
+    }
+  }
+
   const auth = await resolveAuthIdentity(req, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);

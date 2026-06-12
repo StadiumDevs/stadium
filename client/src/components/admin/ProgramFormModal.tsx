@@ -87,6 +87,8 @@ export function ProgramFormModal({
   /** When provided + isGlobalAdmin, the modal hosts the admins/judges management UI. */
   signAuthHeader?: () => Promise<import("@/lib/api").AdminAuthArg>;
   isGlobalAdmin?: boolean;
+  /** Email-admin session (no wallet): save via signAuthHeader instead of a SIWS signature. */
+  emailMode?: boolean;
 }) {
   const editing = Boolean(program);
 
@@ -186,29 +188,37 @@ export function ProgramFormModal({
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await web3Enable("Stadium");
-      const accounts = await web3Accounts();
-      const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
-      if (!account) throw new Error("No wallet account found");
+      // Email admins (no wallet) authorize the save with their Supabase session;
+      // wallet admins sign a SIWS message. The server's requireProgramAdmin accepts
+      // an admin-role email session for program edits.
+      let authHeader: import("@/lib/api").AdminAuthArg;
+      if (emailMode && signAuthHeader) {
+        authHeader = await signAuthHeader();
+      } else {
+        await web3Enable("Stadium");
+        const accounts = await web3Accounts();
+        const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
+        if (!account) throw new Error("No wallet account found");
 
-      const siws = new SiwsMessage({
-        domain: window.location.hostname,
-        uri: window.location.origin,
-        address: account.address,
-        nonce: Math.random().toString(36).slice(2),
-        statement: generateSiwsStatement({
-          action: editing ? "update-program" : "create-program",
-        }),
-      });
-      const injector = await web3FromSource(account.meta.source);
-      const signed = (await siws.sign(injector)) as unknown as { signature: string; message?: string };
-      const messageStr =
-        typeof signed.message === "string" && signed.message
-          ? signed.message
-          : (siws as unknown as { toString: () => string }).toString();
-      const authHeader = btoa(
-        JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }),
-      );
+        const siws = new SiwsMessage({
+          domain: window.location.hostname,
+          uri: window.location.origin,
+          address: account.address,
+          nonce: Math.random().toString(36).slice(2),
+          statement: generateSiwsStatement({
+            action: editing ? "update-program" : "create-program",
+          }),
+        });
+        const injector = await web3FromSource(account.meta.source);
+        const signed = (await siws.sign(injector)) as unknown as { signature: string; message?: string };
+        const messageStr =
+          typeof signed.message === "string" && signed.message
+            ? signed.message
+            : (siws as unknown as { toString: () => string }).toString();
+        authHeader = btoa(
+          JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }),
+        );
+      }
 
       const payload: Partial<ApiProgram> & {
         name: string;

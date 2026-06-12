@@ -16,7 +16,10 @@ vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn() },
+}));
+vi.mock('../../services/submission-confirmation.service.js', () => ({
+  default: { send: vi.fn() },
 }));
 vi.mock('../../repositories/submission-score.repository.js', () => ({
   default: { upsert: vi.fn(), upsertMany: vi.fn() },
@@ -36,6 +39,7 @@ const submissionRepo = (await import('../../repositories/program-submission.repo
 const ballotRepo = (await import('../../repositories/program-judge-ballot.repository.js')).default;
 const scoreRepo = (await import('../../repositories/submission-score.repository.js')).default;
 const signupRepo = (await import('../../repositories/program-signup.repository.js')).default;
+const confirmationService = (await import('../../services/submission-confirmation.service.js')).default;
 const submissionController = (await import('../submission.controller.js')).default;
 
 const mockRes = () => {
@@ -94,25 +98,52 @@ describe('SubmissionController.submit (public)', () => {
     expect(submissionRepo.create).not.toHaveBeenCalled();
   });
 
-  it('409s on a duplicate Luma email', async () => {
+  it('201s on a first submission and emails a confirmation', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     signupRepo.existsByEmail.mockResolvedValue(true);
-    submissionRepo.create.mockResolvedValue({ submission: { id: 'x' }, duplicate: true });
-    const req = { params: { slug: 'bitrefill' }, body: GOOD_BODY };
-    const res = mockRes();
-    await submissionController.submit(req, res);
-    expect(res.status).toHaveBeenCalledWith(409);
-  });
-
-  it('201s with the new id on success', async () => {
-    programService.findBySlug.mockResolvedValue(PROGRAM);
-    signupRepo.existsByEmail.mockResolvedValue(true);
-    submissionRepo.create.mockResolvedValue({ submission: { id: 'engine-ab12' }, duplicate: false });
+    submissionRepo.findByEmail.mockResolvedValue(null);
+    submissionRepo.create.mockResolvedValue({
+      submission: { id: 'engine-ab12', lumaEmail: 'ada@example.com', submitterName: 'Ada', projectTitle: 'Engine' },
+      duplicate: false,
+    });
+    confirmationService.send.mockResolvedValue({ ok: true });
     const req = { params: { slug: 'bitrefill' }, body: GOOD_BODY };
     const res = mockRes();
     await submissionController.submit(req, res);
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith({ status: 'success', data: { id: 'engine-ab12' } });
+    expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ late: false }));
+    expect(confirmationService.send).toHaveBeenCalledWith(expect.objectContaining({ resubmitted: false }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'success', data: { id: 'engine-ab12', late: false }, resubmitted: false, emailSent: true }),
+    );
+  });
+
+  it('resubmits (200) by overwriting the existing entry, not a 409', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(true);
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'engine-ab12', lumaEmail: 'ada@example.com' });
+    submissionRepo.updateSubmission.mockResolvedValue({ id: 'engine-ab12', lumaEmail: 'ada@example.com', submitterName: 'Ada', projectTitle: 'Engine v2' });
+    confirmationService.send.mockResolvedValue({ ok: true });
+    const req = { params: { slug: 'bitrefill' }, body: { ...GOOD_BODY, projectTitle: 'Engine v2' } };
+    const res = mockRes();
+    await submissionController.submit(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.updateSubmission).toHaveBeenCalledWith('engine-ab12', expect.objectContaining({ projectTitle: 'Engine v2' }));
+    expect(submissionRepo.create).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ resubmitted: true }));
+  });
+
+  it('flags a submission after the deadline as late', async () => {
+    programService.findBySlug.mockResolvedValue({ ...PROGRAM, eventEndsAt: '2020-01-01T00:00:00.000Z' });
+    signupRepo.existsByEmail.mockResolvedValue(true);
+    submissionRepo.findByEmail.mockResolvedValue(null);
+    submissionRepo.create.mockResolvedValue({ submission: { id: 'late-1', lumaEmail: 'ada@example.com' }, duplicate: false });
+    confirmationService.send.mockResolvedValue({ ok: false, reason: 'provider_not_configured' });
+    const req = { params: { slug: 'bitrefill' }, body: GOOD_BODY };
+    const res = mockRes();
+    await submissionController.submit(req, res);
+    expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ late: true }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ data: { id: 'late-1', late: true }, emailSent: false }));
   });
 });
 
@@ -161,11 +192,21 @@ describe('SubmissionController.upsertScore (judge)', () => {
   });
 });
 
-describe('SubmissionController.promote (admin)', () => {
+describe('SubmissionController.promote (platform admin)', () => {
+  const globalAdmin = { address: '5Admin', isGlobalAdmin: true };
+
+  it('403s a non-global admin (email or per-program wallet)', async () => {
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { email: 'admin@x.com', isGlobalAdmin: false } };
+    const res = mockRes();
+    await submissionController.promote(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(scoringService.promoteToProject).not.toHaveBeenCalled();
+  });
+
   it('201s with the new project id', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     scoringService.promoteToProject.mockResolvedValue({ project: { id: 'aurora-ab12' } });
-    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' } };
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin };
     const res = mockRes();
     await submissionController.promote(req, res);
     expect(res.status).toHaveBeenCalledWith(201);
@@ -175,7 +216,7 @@ describe('SubmissionController.promote (admin)', () => {
   it('200s (not 201) when already promoted', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     scoringService.promoteToProject.mockResolvedValue({ alreadyPromoted: true, projectId: 'existing-1' });
-    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' } };
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin };
     const res = mockRes();
     await submissionController.promote(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -184,19 +225,29 @@ describe('SubmissionController.promote (admin)', () => {
   it('404s an unknown submission', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     scoringService.promoteToProject.mockResolvedValue({ notFound: true });
-    const req = { params: { slug: 'bitrefill', submissionId: 'nope' }, user: { address: '5Admin' } };
+    const req = { params: { slug: 'bitrefill', submissionId: 'nope' }, user: globalAdmin };
     const res = mockRes();
     await submissionController.promote(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });
 
-describe('SubmissionController.setPaid (admin)', () => {
+describe('SubmissionController.setPaid (platform admin)', () => {
+  const globalAdmin = { address: '5Admin', isGlobalAdmin: true };
+
+  it('403s a non-global admin (payouts stay wallet/global)', async () => {
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { email: 'admin@x.com', isGlobalAdmin: false }, body: { paid: true } };
+    const res = mockRes();
+    await submissionController.setPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(submissionRepo.setPaid).not.toHaveBeenCalled();
+  });
+
   it('marks a submission paid, recording the actor', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill' });
     submissionRepo.setPaid.mockResolvedValue({ id: 's1', paid: true });
-    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' }, body: { paid: true } };
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin, body: { paid: true } };
     const res = mockRes();
     await submissionController.setPaid(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -206,7 +257,7 @@ describe('SubmissionController.setPaid (admin)', () => {
   it('404s a submission from another program', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'other-program' });
-    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: '5Admin' }, body: { paid: true } };
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: globalAdmin, body: { paid: true } };
     const res = mockRes();
     await submissionController.setPaid(req, res);
     expect(res.status).toHaveBeenCalledWith(404);

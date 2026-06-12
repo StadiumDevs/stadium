@@ -294,6 +294,9 @@ export function ProgramJudgingSection({
             <span className="label-hw-dim ml-2">{s.submitterName}</span>
           </div>
           <div className="flex items-center gap-2">
+            {s.late && (
+              <span className="label-hw text-amber-500" title="Submitted after the deadline">·LATE</span>
+            )}
             {!s.eligible && (
               <span className="label-hw text-destructive" title="This email is not in the Luma signup list">·NOT IN LUMA</span>
             )}
@@ -553,6 +556,9 @@ export function ProgramJudgingSection({
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">{r.rank}</td>
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">
                           {r.projectTitle}
+                          {r.late && (
+                            <span className="label-hw text-amber-500 ml-2" title="Submitted after the deadline">·LATE</span>
+                          )}
                           {r.eligible === false && (
                             <span className="label-hw text-destructive ml-2" title="Submitter email not in the Luma signup list">·NOT IN LUMA</span>
                           )}

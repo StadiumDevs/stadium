@@ -65,7 +65,7 @@ export const mockPrograms: ApiProgram[] = [
   },
   {
     id: "bitrefill-2026",
-    name: "Bitrefill 2026",
+    name: "PROMPT x PURCHASE — A Bitrefill Hackathon",
     slug: "bitrefill-2026",
     programType: "hackathon",
     description: "WebZero hackathon hosted with Bitrefill in Berlin.",
@@ -78,8 +78,7 @@ export const mockPrograms: ApiProgram[] = [
     location: "Berlin",
     maxApplicants: null,
     eventUrl: "https://luma.com/internetmoneyhack",
-    coverImageUrl:
-      "https://placehold.co/1200x480/0a0a0a/e0e0e0/png?text=PROMPT+x+PURCHASE%0A-+A+Bitrefill+Hackathon",
+    coverImageUrl: "/bitrefill-cover.png",
     content: [
       {
         type: "schedule",
@@ -435,6 +434,7 @@ export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
     bitrefillGuest(8, "Ravi Anand", "ravi@anand.test"),
     bitrefillGuest(9, "Sora Kim", "sora@kim.test"),
     bitrefillGuest(10, "Bea Fischer", "bea@fischer.test"),
+    bitrefillGuest(11, "Sacha", "sacha@joinwebzero.com"),
   ],
   "pitchoff-2026-denver": [
     builderSignup(1, "Niha Parkash, Pratyush Sawant", {

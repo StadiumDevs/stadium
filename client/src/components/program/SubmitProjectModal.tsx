@@ -88,11 +88,9 @@ export function SubmitProjectModal({
         company,
       });
       setDone(true);
-      toast({ title: "Project submitted", description: "Good luck! The judges will review it." });
+      toast({ title: "Project submitted", description: "Check your email for a confirmation." });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        setError("A project has already been submitted with this email.");
-      } else if (e instanceof ApiError && e.status === 403) {
+      if (e instanceof ApiError && e.status === 403) {
         setError("That email isn't on the checked-in guest list. Use the email you checked in with at the door.");
       } else {
         toast({
@@ -121,7 +119,10 @@ export function SubmitProjectModal({
         {done ? (
           <div className="panel px-4 py-8 text-center">
             <div className="label-hw text-display mb-2">·SUBMISSION RECEIVED</div>
-            <p className="label-hw-dim">Your project is in. You can close this window.</p>
+            <p className="label-hw-dim">
+              Your project is in. We've emailed a confirmation to {lumaEmail.trim() || "your inbox"}. Need to change
+              something? Reopen this form and submit again with the same email before the deadline.
+            </p>
           </div>
         ) : (
           <>
