@@ -275,6 +275,8 @@ class ScoringService {
           prizeAmount: s.prizeAmount ?? null,
           prizeCurrency: s.prizeCurrency ?? null,
           prizeLabel: s.prizeLabel ?? null,
+          // Payout tracking, so the results table can show + toggle PAID.
+          paid: s.paid ?? false,
         };
       })
       .sort(

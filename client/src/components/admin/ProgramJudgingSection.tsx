@@ -39,6 +39,7 @@ const prizeText = (amount?: number | null, currency?: string | null) =>
 export function ProgramJudgingSection({
   programSlug,
   getAuth,
+  signWinnerAction,
   canSelectWinners = false,
   prizeTiers,
   resultsPublishedAt = null,
@@ -46,6 +47,14 @@ export function ProgramJudgingSection({
 }: {
   programSlug: string;
   getAuth: () => Promise<AdminAuthArg>;
+  /**
+   * Fresh-signature source for the high-stakes winner/payout actions
+   * (award prize, publish results, mark paid). When provided, these actions
+   * pop a wallet signature every time instead of riding the cached admin
+   * session — a deliberate human confirmation. Reads still use `getAuth`.
+   * Only wired on the wallet-admin path (`canSelectWinners`).
+   */
+  signWinnerAction?: (action: "mark-paid" | "award-prize" | "publish-results") => Promise<string>;
   canSelectWinners?: boolean;
   prizeTiers?: ApiPrizeTier[] | null;
   resultsPublishedAt?: string | null;
@@ -60,6 +69,7 @@ export function ProgramJudgingSection({
   const [claiming, setClaiming] = useState(false);
   const [savingBatch, setSavingBatch] = useState<number | null>(null);
   const [awardingId, setAwardingId] = useState<string | null>(null);
+  const [paidId, setPaidId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [publishedAt, setPublishedAt] = useState<string | null>(resultsPublishedAt);
   const [publishing, setPublishing] = useState(false);
@@ -206,12 +216,17 @@ export function ProgramJudgingSection({
     }
   };
 
+  // Auth for the high-stakes winner/payout actions: a fresh signature each
+  // time when wired (wallet admins), else the cached admin session.
+  const winnerAuth = (action: "mark-paid" | "award-prize" | "publish-results") =>
+    signWinnerAction ? signWinnerAction(action) : getAuth();
+
   // Platform admin: assign a prize tier (winner) to a submission, or clear it.
   const award = async (submissionId: string, amountRaw: string) => {
     const tier = amountRaw === "" ? null : tiers.find((t) => t.amount === Number(amountRaw)) ?? null;
     setAwardingId(submissionId);
     try {
-      const auth = await getAuth();
+      const auth = await winnerAuth("award-prize");
       await api.awardPrize(programSlug, submissionId, tier, auth);
       setBoard((prev) =>
         prev && !prev.locked
@@ -237,10 +252,33 @@ export function ProgramJudgingSection({
     }
   };
 
+  // Platform admin: toggle payout-sent tracking on a submission.
+  const markPaid = async (submissionId: string, paid: boolean) => {
+    setPaidId(submissionId);
+    try {
+      const auth = await winnerAuth("mark-paid");
+      await api.setSubmissionPaid(programSlug, submissionId, paid, auth);
+      setBoard((prev) =>
+        prev && !prev.locked
+          ? { ...prev, rows: prev.rows.map((r) => (r.submissionId === submissionId ? { ...r, paid } : r)) }
+          : prev,
+      );
+      toast({ title: paid ? "Marked paid" : "Marked unpaid" });
+    } catch (e) {
+      toast({
+        title: "Couldn't update payout status",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setPaidId(null);
+    }
+  };
+
   const togglePublish = async () => {
     setPublishing(true);
     try {
-      const auth = await getAuth();
+      const auth = await winnerAuth("publish-results");
       const res = await api.publishResults(programSlug, !publishedAt, auth);
       setPublishedAt(res.data.resultsPublishedAt);
       onPublishedChange?.(res.data.resultsPublishedAt);
@@ -539,6 +577,7 @@ export function ProgramJudgingSection({
                   <th className="py-2 pr-2">INNOV</th>
                   <th className="py-2 pr-2">JUDGES</th>
                   <th className="py-2 pr-2">PRIZE</th>
+                  <th className="py-2 pr-2">PAID</th>
                 </tr>
               </thead>
               <tbody>
@@ -591,11 +630,29 @@ export function ProgramJudgingSection({
                             <span className="label-hw-dim">—</span>
                           )}
                         </td>
+                        <td className="py-2 pr-2" onClick={(e) => e.stopPropagation()}>
+                          {canSelectWinners ? (
+                            <label className="inline-flex items-center gap-1.5 cursor-pointer label-hw-dim">
+                              <input
+                                type="checkbox"
+                                checked={!!r.paid}
+                                disabled={paidId === r.submissionId}
+                                onChange={(e) => markPaid(r.submissionId, e.target.checked)}
+                                className="accent-display disabled:opacity-50"
+                              />
+                              {r.paid ? <span className="text-display">PAID</span> : "MARK"}
+                            </label>
+                          ) : r.paid ? (
+                            <span className="label-hw text-display">·PAID</span>
+                          ) : (
+                            <span className="label-hw-dim">—</span>
+                          )}
+                        </td>
                       </tr>
                       {isOpen && (
                         <tr className="border-b border-hairline/50 bg-panel-deep/20">
                           <td></td>
-                          <td colSpan={8} className="py-2 pr-2">
+                          <td colSpan={9} className="py-2 pr-2">
                             <div className="label-hw-dim mb-1">·SCORES PER JUDGE</div>
                             {(r.judgeScores ?? []).length === 0 ? (
                               <span className="label-hw-dim">No individual scores.</span>

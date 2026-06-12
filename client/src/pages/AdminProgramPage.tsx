@@ -312,11 +312,9 @@ const AdminProgramPage = () => {
                   if (!v) setAdminsReload((n) => n + 1); // refresh the read-only list
                 }}
                 program={program}
-                connectedAddress={connectedAddress ?? ""}
                 onSaved={(p) => setProgram(p)}
                 signAuthHeader={isAdminWallet ? getAdminAuth : getJudgeAuth}
                 isGlobalAdmin={isAdminWallet && isGlobalAdmin}
-                emailMode={!isAdminWallet}
               />
             )}
 
@@ -337,6 +335,7 @@ const AdminProgramPage = () => {
                 <ProgramJudgingSection
                   programSlug={program.slug}
                   getAuth={getAdminAuth}
+                  signWinnerAction={(a) => auth.signAction(a)}
                   canSelectWinners={isGlobalAdmin}
                   prizeTiers={program.prizeTiers}
                   resultsPublishedAt={program.resultsPublishedAt}

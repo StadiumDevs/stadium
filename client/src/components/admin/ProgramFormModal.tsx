@@ -18,9 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Plus, X } from "lucide-react";
-import { web3Enable, web3Accounts, web3FromSource } from "@polkadot/extension-dapp";
-import { SiwsMessage } from "@talismn/siws";
-import { generateSiwsStatement } from "@/lib/siwsUtils";
 import { api, type ApiProgram } from "@/lib/api";
 import { DEFAULT_PRIZE_TIERS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
@@ -73,7 +70,6 @@ export function ProgramFormModal({
   open,
   onOpenChange,
   program,
-  connectedAddress,
   onSaved,
   signAuthHeader,
   isGlobalAdmin = false,
@@ -82,13 +78,15 @@ export function ProgramFormModal({
   onOpenChange: (v: boolean) => void;
   /** When provided, the modal is in edit mode for this program. Otherwise create mode. */
   program: ApiProgram | null;
-  connectedAddress: string;
   onSaved: (program: ApiProgram) => void;
-  /** When provided + isGlobalAdmin, the modal hosts the admins/judges management UI. */
+  /**
+   * Authorizes the save. Wallet admins pass the cached admin-action bearer,
+   * email admins their Supabase session — the save rides the cached session
+   * either way (no fresh per-save signature). Also gates the hosted
+   * admins/judges management UI when combined with isGlobalAdmin.
+   */
   signAuthHeader?: () => Promise<import("@/lib/api").AdminAuthArg>;
   isGlobalAdmin?: boolean;
-  /** Email-admin session (no wallet): save via signAuthHeader instead of a SIWS signature. */
-  emailMode?: boolean;
 }) {
   const editing = Boolean(program);
 
@@ -188,37 +186,12 @@ export function ProgramFormModal({
     if (!validate()) return;
     setSubmitting(true);
     try {
-      // Email admins (no wallet) authorize the save with their Supabase session;
-      // wallet admins sign a SIWS message. The server's requireProgramAdmin accepts
-      // an admin-role email session for program edits.
-      let authHeader: import("@/lib/api").AdminAuthArg;
-      if (emailMode && signAuthHeader) {
-        authHeader = await signAuthHeader();
-      } else {
-        await web3Enable("Stadium");
-        const accounts = await web3Accounts();
-        const account = accounts.find((a) => a.address === connectedAddress) || accounts[0];
-        if (!account) throw new Error("No wallet account found");
-
-        const siws = new SiwsMessage({
-          domain: window.location.hostname,
-          uri: window.location.origin,
-          address: account.address,
-          nonce: Math.random().toString(36).slice(2),
-          statement: generateSiwsStatement({
-            action: editing ? "update-program" : "create-program",
-          }),
-        });
-        const injector = await web3FromSource(account.meta.source);
-        const signed = (await siws.sign(injector)) as unknown as { signature: string; message?: string };
-        const messageStr =
-          typeof signed.message === "string" && signed.message
-            ? signed.message
-            : (siws as unknown as { toString: () => string }).toString();
-        authHeader = btoa(
-          JSON.stringify({ message: messageStr, signature: signed.signature, address: account.address }),
-        );
-      }
+      // Program edit is a low-stakes action: it rides the cached admin session
+      // rather than popping a fresh signature every save. Wallet admins pass the
+      // cached admin-action bearer, email admins their Supabase session — both
+      // through signAuthHeader. The server's requireProgramAdmin accepts either.
+      if (!signAuthHeader) throw new Error("No admin auth available");
+      const authHeader = await signAuthHeader();
 
       const payload: Partial<ApiProgram> & {
         name: string;
