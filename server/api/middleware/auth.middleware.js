@@ -463,6 +463,39 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
     return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
   }
 
+  // Social path: a verified ADMIN-role email grant administers the program
+  // without a wallet (Option 2). Winners/payouts stay wallet-gated because their
+  // controllers require req.user.isGlobalAdmin, which an email session never sets.
+  // A judge-role (or no) grant falls through to the wallet gate below.
+  const emailToken = extractSupabaseToken(req);
+  if (emailToken) {
+    const user = await getSupabaseUser(emailToken);
+    if (user?.email) {
+      try {
+        const program = await programRepository.findBySlug(slug);
+        if (!program) {
+          return res.status(404).json({ status: 'error', message: 'Program not found' });
+        }
+        const grant = await programAdminEmailRepository.findGrant(program.id, user.email);
+        if (grant && grant.role === 'admin') {
+          logSuccess(`Email admin ${user.email} administering program "${slug}".`);
+          req.user = {
+            email: user.email,
+            supabaseUserId: user.id,
+            programSlug: slug,
+            programId: program.id,
+            role: 'admin',
+            isGlobalAdmin: false,
+            viewOnly: false,
+          };
+          return next();
+        }
+      } catch (err) {
+        logError(`Email-admin check failed, falling back to wallet: ${err.message}`);
+      }
+    }
+  }
+
   const auth = await resolveAuthIdentity(req, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
@@ -517,11 +550,16 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
  * Read-only program access for social (email) admins, with a wallet fallback.
  *
  * First tries the social path: a valid Supabase Auth token (`x-supabase-token`)
- * whose verified email is listed in `program_admin_emails` for this program.
- * That grants VIEW access only (`req.user.viewOnly = true`) — it never unlocks
- * the mutation routes, which keep the stricter wallet-keyed `requireProgramAdmin`
- * / `requireAdmin` gates. If there's no valid email-admin token, behavior is
- * identical to `requireProgramAdmin` (wallet admins are unaffected).
+ * whose verified email is an ADMIN-role grant in `program_admin_emails` for this
+ * program. That grants VIEW access only (`req.user.viewOnly = true`) — it never
+ * unlocks the mutation routes, which keep the stricter wallet-keyed
+ * `requireProgramAdmin` / `requireAdmin` gates.
+ *
+ * JUDGE-role emails are deliberately NOT viewers: a judge must only reach the
+ * scoring surface (`requireProgramJudge`), never the program's applicant PII,
+ * signups, inbox, audit log, or admin roster. If there's no valid admin-email
+ * token, behavior is identical to `requireProgramAdmin` (wallet admins are
+ * unaffected).
  *
  * Apply this only to GET/read routes a viewing admin needs.
  */
@@ -540,7 +578,8 @@ export const requireProgramViewer = (slugParam = 'slug') => async (req, res, nex
         if (!program) {
           return res.status(404).json({ status: 'error', message: 'Program not found' });
         }
-        if (await programAdminEmailRepository.isAdminByEmail(program.id, user.email)) {
+        const grant = await programAdminEmailRepository.findGrant(program.id, user.email);
+        if (grant && grant.role === 'admin') {
           logSuccess(`Email admin ${user.email} viewing program "${slug}".`);
           req.user = {
             email: user.email,
@@ -549,17 +588,85 @@ export const requireProgramViewer = (slugParam = 'slug') => async (req, res, nex
             programId: program.id,
             isGlobalAdmin: false,
             viewOnly: true,
+            role: 'admin',
           };
           return next();
         }
+        // A judge-role (or no) grant is not a viewer — fall through to the
+        // wallet gate, which denies a wallet-less email session.
       } catch (err) {
         logError(`Email-admin viewer check failed, falling back to wallet: ${err.message}`);
       }
     }
   }
 
-  // No valid email-admin token — defer entirely to the wallet program-admin gate.
+  // No valid admin-email token — defer entirely to the wallet program-admin gate.
   return requireProgramAdmin(slugParam)(req, res, next);
+};
+
+/**
+ * Scoped write access for hackathon judges, with a wallet fallback.
+ *
+ * Mirrors `requireProgramViewer`, but instead of view-only it grants the one
+ * extra capability a judge needs: writing their own scores. A valid Supabase
+ * Auth token (`x-supabase-token`) whose verified email holds ANY grant on this
+ * program (role 'judge' OR 'admin') passes, with `req.user.canJudge = true` and
+ * the verified email as the judge identity.
+ *
+ * This is deliberately narrow. Apply it ONLY to the scoring routes
+ * (list submissions / write score / submit ballot / leaderboard). It never
+ * touches the payment/approval/program-mutation routes, which keep their
+ * stricter wallet-keyed `requireAdmin` / `requireProgramAdmin` gates. The
+ * controller MUST use `req.user.email` (not a body field) as the judge identity
+ * so a judge can only write their own ballot.
+ *
+ * If there's no valid email grant, behaviour is identical to
+ * `requireProgramAdmin` — wallet admins are unaffected and can also score.
+ */
+export const requireProgramJudge = (slugParam = 'slug') => async (req, res, next) => {
+  const slug = req.params?.[slugParam];
+  if (!slug || typeof slug !== 'string') {
+    return res.status(400).json({ status: 'error', message: `Program ${slugParam} is required` });
+  }
+
+  const token = extractSupabaseToken(req);
+  if (token) {
+    const user = await getSupabaseUser(token);
+    if (user?.email) {
+      try {
+        const program = await programRepository.findBySlug(slug);
+        if (!program) {
+          return res.status(404).json({ status: 'error', message: 'Program not found' });
+        }
+        const grant = await programAdminEmailRepository.findGrant(program.id, user.email);
+        if (grant) {
+          logSuccess(`Judge ${user.email} (${grant.role}) scoring program "${slug}".`);
+          req.user = {
+            email: user.email,
+            supabaseUserId: user.id,
+            programSlug: slug,
+            programId: program.id,
+            role: grant.role,
+            canJudge: true,
+            viewOnly: false,
+          };
+          return next();
+        }
+      } catch (err) {
+        logError(`Judge email check failed, falling back to wallet: ${err.message}`);
+      }
+    }
+  }
+
+  // No valid judge/admin email token — defer entirely to the wallet gate.
+  // Wallet admins can score too; set canJudge so the controller treats them
+  // uniformly (their address is the identity in that case).
+  return requireProgramAdmin(slugParam)(req, res, (err) => {
+    if (!err && req.user) {
+      req.user.canJudge = true;
+    }
+    return next(err);
+  });
 };
 
 /**

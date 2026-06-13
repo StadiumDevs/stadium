@@ -9,7 +9,7 @@
  *     so previews mirror the canonical-events backfill migration.
  */
 
-import type { ApiProgram, ApiProgramSignup, ApiProgramSponsor } from "./api";
+import type { ApiProgram, ApiProgramAdminEmail, ApiProgramSignup, ApiProgramSponsor } from "./api";
 
 export const mockPrograms: ApiProgram[] = [
   {
@@ -65,18 +65,36 @@ export const mockPrograms: ApiProgram[] = [
   },
   {
     id: "bitrefill-2026",
-    name: "Bitrefill 2026",
+    name: "PROMPT x PURCHASE — A Bitrefill Hackathon",
     slug: "bitrefill-2026",
     programType: "hackathon",
     description: "WebZero hackathon hosted with Bitrefill in Berlin.",
-    status: "draft",
+    status: "open",
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
-    eventStartsAt: "2026-06-17T00:00:00Z",
-    eventEndsAt: null,
+    eventStartsAt: "2026-06-17T09:00:00Z",
+    eventEndsAt: "2026-06-17T20:00:00Z",
     location: "Berlin",
     maxApplicants: null,
+    eventUrl: "https://luma.com/internetmoneyhack",
+    coverImageUrl: "/bitrefill-cover.png",
+    content: [
+      {
+        type: "schedule",
+        title: "Schedule",
+        rows: [
+          { time: "11:30", label: "Brunch & kick-off" },
+          { time: "18:00", label: "Submission deadline" },
+        ],
+      },
+    ],
+    prizeTiers: [
+      { amount: 500, currency: "EUR", label: "Bitrefill giftcard" },
+      { amount: 200, currency: "EUR", label: "Bitrefill giftcard" },
+      { amount: 100, currency: "EUR", label: "Bitrefill giftcard" },
+    ],
+    resultsPublishedAt: null,
     createdAt: "2026-05-20T00:00:00Z",
     updatedAt: "2026-05-20T00:00:00Z",
   },
@@ -378,7 +396,46 @@ const builderSignup = (
 });
 
 /** Per-program signup fixtures (mock mode). */
+// Bitrefill checked-in guests (the "approved guests" list). Only these emails
+// may submit a project. Includes the seed submitter emails so the judging mock
+// stays consistent, plus the demo emails used elsewhere.
+const bitrefillGuest = (
+  id: number,
+  name: string,
+  email: string,
+): ApiProgramSignup => ({
+  id: `bitrefill-guest-${id}`,
+  programId: "bitrefill-2026",
+  email,
+  name,
+  source: "luma",
+  registeredAt: "2026-06-16T18:00:00Z",
+  importedInBatchAt: "2026-06-17T11:25:00Z",
+});
+
+// Email-keyed program admins + judges (mutable in the harness so invite/remove
+// in the EDIT modal persists). Seeded so the read-only list isn't empty.
+export const mockProgramAdminEmails: Record<string, ApiProgramAdminEmail[]> = {
+  "bitrefill-2026": [
+    { programId: "bitrefill-2026", email: "judge@bitrefill.com", role: "judge", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
+    { programId: "bitrefill-2026", email: "ops@bitrefill.com", role: "admin", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
+  ],
+};
+
 export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
+  "bitrefill-2026": [
+    bitrefillGuest(1, "Aurora Builders", "aurora@example.com"),
+    bitrefillGuest(2, "Nimbus Labs", "nimbus@example.com"),
+    bitrefillGuest(3, "Comet Crew", "comet@example.com"),
+    bitrefillGuest(4, "Dana Builder", "dana@builder.test"),
+    bitrefillGuest(5, "Mara Chen", "mara@chen.test"),
+    bitrefillGuest(6, "Theo Vance", "theo@vance.test"),
+    bitrefillGuest(7, "Lena Ortiz", "lena@ortiz.test"),
+    bitrefillGuest(8, "Ravi Anand", "ravi@anand.test"),
+    bitrefillGuest(9, "Sora Kim", "sora@kim.test"),
+    bitrefillGuest(10, "Bea Fischer", "bea@fischer.test"),
+    bitrefillGuest(11, "Sacha", "sacha@joinwebzero.com"),
+  ],
   "pitchoff-2026-denver": [
     builderSignup(1, "Niha Parkash, Pratyush Sawant", {
       build:

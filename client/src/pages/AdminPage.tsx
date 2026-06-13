@@ -109,7 +109,9 @@ const AdminPage = () => {
   const handleConfirmM1Payout = async (data: any) => {
     if (!selectedProject) return;
     try {
-      const authHeaders = await auth.getAdminBearerHeaders();
+      // Payout confirmation moves real funds — re-sign fresh every time
+      // (never the cached admin session) so the human deliberately approves it.
+      const authHeaders = { "x-siws-auth": await auth.signAction("confirm-payment") };
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
@@ -146,7 +148,9 @@ const AdminPage = () => {
   const handleConfirmPayment = async (data: any) => {
     if (!selectedProject) return;
     try {
-      const authHeaders = await auth.getAdminBearerHeaders();
+      // Payout confirmation moves real funds — re-sign fresh every time
+      // (never the cached admin session) so the human deliberately approves it.
+      const authHeaders = { "x-siws-auth": await auth.signAction("confirm-payment") };
       const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
@@ -499,6 +503,7 @@ const AdminPage = () => {
             onRefresh={loadData}
             connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0]?.address : auth.account?.address}
             signAdminAction={auth.getAdminBearerHeaders}
+            signPaymentAction={() => auth.signAction("confirm-payment")}
           />
         </section>
 

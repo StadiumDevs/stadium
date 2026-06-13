@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,11 +46,21 @@ export function M2AgreementModal({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Stable React keys for the three editable string lists, length-synced with
+  // their formData arrays. Keying these add/remove inputs by index lets a
+  // mid-list delete reuse the wrong DOM node and shift focus to a sibling row.
+  const keySeq = useRef(0);
+  const nextKey = () => (keySeq.current += 1);
+  const [featureKeys, setFeatureKeys] = useState<number[]>(() => formData.coreFeatures.map(() => nextKey()));
+  const [docKeys, setDocKeys] = useState<number[]>(() => formData.documentation.map(() => nextKey()));
+  const [niceKeys, setNiceKeys] = useState<number[]>(() => formData.niceToHave.map(() => nextKey()));
+
   const handleAddFeature = () => {
     setFormData(prev => ({
       ...prev,
       coreFeatures: [...prev.coreFeatures, '']
     }));
+    setFeatureKeys(prev => [...prev, nextKey()]);
   };
 
   const handleRemoveFeature = (index: number) => {
@@ -59,6 +69,7 @@ export function M2AgreementModal({
         ...prev,
         coreFeatures: prev.coreFeatures.filter((_, i) => i !== index)
       }));
+      setFeatureKeys(prev => prev.filter((_, i) => i !== index));
     }
   };
 
@@ -74,6 +85,7 @@ export function M2AgreementModal({
       ...prev,
       documentation: [...prev.documentation, '']
     }));
+    setDocKeys(prev => [...prev, nextKey()]);
   };
 
   const handleRemoveDocumentation = (index: number) => {
@@ -82,6 +94,7 @@ export function M2AgreementModal({
         ...prev,
         documentation: prev.documentation.filter((_, i) => i !== index)
       }));
+      setDocKeys(prev => prev.filter((_, i) => i !== index));
     }
   };
 
@@ -97,6 +110,7 @@ export function M2AgreementModal({
       ...prev,
       niceToHave: [...prev.niceToHave, '']
     }));
+    setNiceKeys(prev => [...prev, nextKey()]);
   };
 
   const handleRemoveNiceToHave = (index: number) => {
@@ -105,6 +119,7 @@ export function M2AgreementModal({
         ...prev,
         niceToHave: prev.niceToHave.filter((_, i) => i !== index)
       }));
+      setNiceKeys(prev => prev.filter((_, i) => i !== index));
     }
   };
 
@@ -178,6 +193,11 @@ export function M2AgreementModal({
         targetCompletionDate: '',
         mentorName: ''
       });
+      // Keep the row-key arrays length-matched to the reset defaults above
+      // (1 feature, 2 documentation, 1 nice-to-have).
+      setFeatureKeys([nextKey()]);
+      setDocKeys([nextKey(), nextKey()]);
+      setNiceKeys([nextKey()]);
       onOpenChange(false);
     } catch (error) {
       toast({
@@ -226,7 +246,7 @@ export function M2AgreementModal({
             </p>
             <div className="space-y-2">
               {formData.coreFeatures.map((feature, index) => (
-                <div key={index} className="flex gap-2">
+                <div key={featureKeys[index] ?? index} className="flex gap-2">
                   <Input
                     value={feature}
                     onChange={(e) => handleFeatureChange(index, e.target.value)}
@@ -266,7 +286,7 @@ export function M2AgreementModal({
             <Label>Documentation Required</Label>
             <div className="space-y-2">
               {formData.documentation.map((doc, index) => (
-                <div key={index} className="flex gap-2">
+                <div key={docKeys[index] ?? index} className="flex gap-2">
                   <Input
                     value={doc}
                     onChange={(e) => handleDocumentationChange(index, e.target.value)}
@@ -335,7 +355,7 @@ export function M2AgreementModal({
             <Label>Nice-to-Have (not required for approval)</Label>
             <div className="space-y-2">
               {formData.niceToHave.map((item, index) => (
-                <div key={index} className="flex gap-2">
+                <div key={niceKeys[index] ?? index} className="flex gap-2">
                   <Input
                     value={item}
                     onChange={(e) => handleNiceToHaveChange(index, e.target.value)}

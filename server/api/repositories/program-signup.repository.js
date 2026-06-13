@@ -93,6 +93,19 @@ class ProgramSignupRepository {
     if (error) throw error;
   }
 
+  // Case-insensitive membership check: is this email on the program's signup
+  // (checked-in / approved guest) list? Compares in JS so it stays correct
+  // regardless of how emails were cased on import.
+  async existsByEmail(programId, email) {
+    const target = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!target) return false;
+    const emails = await this.listEmailsByProgramId(programId);
+    for (const e of emails) {
+      if (typeof e === 'string' && e.trim().toLowerCase() === target) return true;
+    }
+    return false;
+  }
+
   async countByProgramId(programId) {
     const { count, error } = await supabase
       .from('program_signups')

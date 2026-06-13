@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,17 +35,26 @@ export function UpdateTeamModal({
   const [members, setMembers] = useState<TeamMember[]>(initialMembers);
   const [payoutAddress, setPayoutAddress] = useState(initialPayoutAddress);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Stable React keys for the member rows, length-synced with `members` so
+  // deleting a middle row keeps each controlled input bound to its own row
+  // instead of shifting focus/values (the index-key failure mode).
+  const [memberKeys, setMemberKeys] = useState<number[]>([]);
+  const memberKeySeq = useRef(0);
+  const nextMemberKey = () => (memberKeySeq.current += 1);
 
   // Reset form when modal opens/closes
   useEffect(() => {
     if (open) {
-      setMembers(initialMembers.length > 0 ? initialMembers : [{ name: '', wallet: '' }]);
+      const init = initialMembers.length > 0 ? initialMembers : [{ name: '', wallet: '' }];
+      setMembers(init);
+      setMemberKeys(init.map(() => nextMemberKey()));
       setPayoutAddress(initialPayoutAddress);
     }
   }, [open, initialMembers, initialPayoutAddress]);
 
   const handleAddMember = () => {
     setMembers([...members, { name: '', wallet: '' }]);
+    setMemberKeys([...memberKeys, nextMemberKey()]);
   };
 
   const handleRemoveMember = (index: number) => {
@@ -58,6 +67,7 @@ export function UpdateTeamModal({
       return;
     }
     setMembers(members.filter((_, i) => i !== index));
+    setMemberKeys(memberKeys.filter((_, i) => i !== index));
   };
 
   const handleMemberChange = (index: number, field: 'name' | 'wallet' | 'role' | 'twitter' | 'github' | 'linkedin', value: string) => {
@@ -122,7 +132,7 @@ export function UpdateTeamModal({
             <h3 className="label-hw text-display mb-3">·TEAM MEMBERS</h3>
             <div className="space-y-3">
               {members.map((member, index) => (
-                <div key={index} className="lcd p-4 space-y-3">
+                <div key={memberKeys[index] ?? index} className="lcd p-4 space-y-3">
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Label htmlFor={`name-${index}`} className="label-hw-dim">NAME *</Label>
