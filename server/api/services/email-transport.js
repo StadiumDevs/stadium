@@ -22,7 +22,7 @@ export async function getEmailTransport() {
     .filter(Boolean);
 
   return {
-    async send({ from, to, cc, bcc, subject, html, text }) {
+    async send({ from, to, cc, bcc, replyTo, subject, html, text }) {
       const callerBcc = Array.isArray(bcc) ? bcc : bcc ? [bcc] : [];
       const allBcc = [...callerBcc, ...envBcc];
       const { data, error } = await resend.emails.send({
@@ -30,6 +30,7 @@ export async function getEmailTransport() {
         to,
         cc,
         bcc: allBcc.length ? allBcc : undefined,
+        replyTo: replyTo || undefined,
         subject,
         html,
         text,

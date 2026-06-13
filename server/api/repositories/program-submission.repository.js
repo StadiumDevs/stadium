@@ -27,6 +27,7 @@ const transform = (row) => {
     paid: row.paid ?? false,
     paidAt: row.paid_at ?? null,
     paidBy: row.paid_by ?? null,
+    prizeNotifiedAt: row.prize_notified_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -155,6 +156,31 @@ class ProgramSubmissionRepository {
         awarded_by: prize ? actor ?? null : null,
         updated_at: new Date().toISOString(),
       })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
+  }
+
+  // Winners (have a prize) not yet emailed about it. Drives the publish-time
+  // prize notification so each winner is mailed exactly once.
+  async listWinnersToNotify(programId) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .select('*')
+      .eq('program_id', programId)
+      .not('prize_amount', 'is', null)
+      .is('prize_notified_at', null);
+    if (error) throw error;
+    return (data || []).map(transform);
+  }
+
+  // Stamp that a winner has been emailed about their prize (idempotency marker).
+  async setPrizeNotified(id) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update({ prize_notified_at: new Date().toISOString() })
       .eq('id', id)
       .select('*')
       .single();
