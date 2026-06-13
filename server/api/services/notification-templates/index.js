@@ -4,6 +4,7 @@ import * as m2Approved from './m2-approved.js';
 import * as m2ChangesRequested from './m2-changes-requested.js';
 import * as programAdminInvite from './program-admin-invite.js';
 import * as submissionConfirmation from './submission-confirmation.js';
+import * as prizeAward from './prize-award.js';
 
 const templates = {
   application_accepted: applicationAccepted,
@@ -12,6 +13,7 @@ const templates = {
   m2_changes_requested: m2ChangesRequested,
   program_admin_invite: programAdminInvite,
   submission_confirmation: submissionConfirmation,
+  prize_award: prizeAward,
 };
 
 export function renderEmail(eventType, payload) {

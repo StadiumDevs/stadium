@@ -31,6 +31,9 @@ vi.mock('../../repositories/program-judge-ballot.repository.js', () => ({
   default: { isSubmitted: vi.fn() },
 }));
 vi.mock('../../services/program-audit-log.service.js', () => ({ default: { logSafe: vi.fn() } }));
+vi.mock('../../services/prize-award.service.js', () => ({
+  default: { notifyWinners: vi.fn() },
+}));
 
 const programService = (await import('../../services/program.service.js')).default;
 const scoringService = (await import('../../services/scoring.service.js')).default;
@@ -40,6 +43,7 @@ const ballotRepo = (await import('../../repositories/program-judge-ballot.reposi
 const scoreRepo = (await import('../../repositories/submission-score.repository.js')).default;
 const signupRepo = (await import('../../repositories/program-signup.repository.js')).default;
 const confirmationService = (await import('../../services/submission-confirmation.service.js')).default;
+const prizeAwardService = (await import('../../services/prize-award.service.js')).default;
 const submissionController = (await import('../submission.controller.js')).default;
 
 const mockRes = () => {
@@ -96,6 +100,28 @@ describe('SubmissionController.submit (public)', () => {
     await submissionController.submit(req, res);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(submissionRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('lets a SUBMIT_TEST_EMAILS address bypass the checked-in gate', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(false); // NOT on the signup list
+    submissionRepo.findByEmail.mockResolvedValue(null);
+    submissionRepo.create.mockResolvedValue({
+      submission: { id: 'engine-ab12', lumaEmail: 'ada@example.com', submitterName: 'Ada', projectTitle: 'Engine' },
+      duplicate: false,
+    });
+    confirmationService.send.mockResolvedValue({ ok: true });
+    const prev = process.env.SUBMIT_TEST_EMAILS;
+    process.env.SUBMIT_TEST_EMAILS = 'ADA@example.com'; // case-insensitive match
+    try {
+      const req = { params: { slug: 'bitrefill' }, body: GOOD_BODY };
+      const res = mockRes();
+      await submissionController.submit(req, res);
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(submissionRepo.create).toHaveBeenCalled();
+    } finally {
+      process.env.SUBMIT_TEST_EMAILS = prev;
+    }
   });
 
   it('201s on a first submission and emails a confirmation', async () => {
@@ -427,9 +453,10 @@ describe('SubmissionController results publish (platform admin)', () => {
     expect(programRepo.setResultsPublished).not.toHaveBeenCalled();
   });
 
-  it('publish sets a timestamp', async () => {
+  it('publish sets a timestamp and notifies winners', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     programRepo.setResultsPublished.mockResolvedValue({ resultsPublishedAt: '2026-06-11T00:00:00.000Z' });
+    prizeAwardService.notifyWinners.mockResolvedValue({ ok: true, sent: 0, failed: 0 });
     const req = { params: { slug: 'bitrefill' }, user: { address: '5Admin', isGlobalAdmin: true } };
     const res = mockRes();
     await submissionController.publishResults(req, res);
@@ -437,9 +464,10 @@ describe('SubmissionController results publish (platform admin)', () => {
     const [slug, publishedAt] = programRepo.setResultsPublished.mock.calls[0];
     expect(slug).toBe('bitrefill');
     expect(publishedAt).toBeTruthy(); // non-null timestamp
+    expect(prizeAwardService.notifyWinners).toHaveBeenCalledWith({ program: PROGRAM });
   });
 
-  it('unpublish clears the timestamp', async () => {
+  it('unpublish clears the timestamp and does NOT notify winners', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     programRepo.setResultsPublished.mockResolvedValue({ resultsPublishedAt: null });
     const req = { params: { slug: 'bitrefill' }, user: { address: '5Admin', isGlobalAdmin: true } };
@@ -447,6 +475,7 @@ describe('SubmissionController results publish (platform admin)', () => {
     await submissionController.unpublishResults(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(programRepo.setResultsPublished).toHaveBeenCalledWith('bitrefill', null);
+    expect(prizeAwardService.notifyWinners).not.toHaveBeenCalled();
   });
 });
 

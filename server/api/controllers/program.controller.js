@@ -465,7 +465,9 @@ class ProgramController {
         emailSent = result.ok;
         emailReason = result.ok ? null : result.reason;
       } catch (err) {
-        emailReason = 'send_failed';
+        // Surface the real Resend reason (admin-only action) so a misconfigured
+        // sender domain / sandbox-mode key is diagnosable from the UI, not just logs.
+        emailReason = `send_failed: ${err?.message || 'unknown error'}`;
         logger.error('Program admin invite email failed:', err);
       }
 

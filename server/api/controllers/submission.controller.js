@@ -7,6 +7,7 @@ import submissionScoreRepository from '../repositories/submission-score.reposito
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
 import submissionConfirmationService from '../services/submission-confirmation.service.js';
+import prizeAwardService from '../services/prize-award.service.js';
 import auditLog from '../services/program-audit-log.service.js';
 
 // Winner selection + publishing are platform-admin only. After requireProgramAdmin,
@@ -38,6 +39,18 @@ async function setResultsPublished(req, res, publish) {
       targetId: program.id,
       metadata: null,
     });
+    // On publish, email each (not-yet-notified) winner about their prize.
+    // Fire-and-forget + best-effort: the response is already sent, and
+    // prize_notified_at makes a later unpublish/republish a no-op.
+    if (publish) {
+      prizeAwardService
+        .notifyWinners({ program })
+        .then((r) => {
+          if (r?.reason) console.warn(`Prize emails not sent (${r.reason}) for ${program.slug}`);
+          else console.log(`Prize emails for ${program.slug}: sent ${r.sent}, failed ${r.failed}`);
+        })
+        .catch((e) => console.error('❌ Prize-award notification failed:', e?.message || e));
+    }
   } catch (error) {
     console.error('❌ Error updating results publish state:', error);
     res.status(500).json({ status: 'error', message: 'Failed to update results' });
@@ -75,8 +88,21 @@ class SubmissionController {
         return res.status(400).json({ status: 'error', message: v.error });
       }
       // Only checked-in attendees may submit: the email must be on the program's
-      // imported Luma (checked-in / approved guest) list.
-      if (!(await programSignupRepository.existsByEmail(program.id, v.value.lumaEmail))) {
+      // imported Luma (checked-in / approved guest) list. SUBMIT_TEST_EMAILS is a
+      // comma-separated allowlist that bypasses this gate for testing (off by
+      // default; set per-deployment). Such submissions are still flagged
+      // eligible:false on the leaderboard since they're not in the Luma list.
+      const testEmails = new Set(
+        (process.env.SUBMIT_TEST_EMAILS || '')
+          .split(',')
+          .map((e) => e.trim().toLowerCase())
+          .filter(Boolean),
+      );
+      const submitterEmail = String(v.value.lumaEmail || '').trim().toLowerCase();
+      if (
+        !testEmails.has(submitterEmail) &&
+        !(await programSignupRepository.existsByEmail(program.id, v.value.lumaEmail))
+      ) {
         return res.status(403).json({
           status: 'error',
           message: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
