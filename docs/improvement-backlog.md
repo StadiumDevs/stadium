@@ -199,3 +199,9 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: hardening CSV export (#122) for formula injection
 - **Suggestion**: #122 sanitises the inbox EXPORT. The Luma CSV IMPORT reads attacker-controllable rows from a third-party file and persists them. The values aren't re-emitted to a spreadsheet from a different surface (yet), so import-side sanitisation isn't urgent — but if any future feature exports a CSV that includes signup names/emails from this table, the same defense must run. Either: apply the prefix at import time (defense in depth, alters stored data), or factor `csvCell` from `program-inbox.service.js` into a shared `csv.util.js` and call it everywhere CSV is generated.
 - **Promoted**: #134
+
+## [2026-06-12] Canonical stadium-tester spec drifted from ProgramJudgingSection
+- **Severity**: minor
+- **File(s)**: `.claude/skills/stadium-tester/flows/client-journey.spec.mjs`
+- **Observed during**: testing the must-sign payouts/results PR
+- **Suggestion**: The committed canonical wallet-gated suite (added in #171, labeled "validated green") targets a `LEADERBOARD` tab, an `ADD TO STADIUM`/promote button, and a score-view `MARK PAID` button that no longer exist in `client/src/components/admin/ProgramJudgingSection.tsx` — the component now has `SCORE`/`RESULTS` tabs, award-via-dropdown, `PUBLISH RESULTS`, and (as of this PR) a PAID toggle in the RESULTS table. The spec would fail if run verbatim, so it can't be trusted as a regression gate. Rewrite the judging portion to the current SCORE/RESULTS surface (claim → score → submit → RESULTS tab → award/PAID/publish).

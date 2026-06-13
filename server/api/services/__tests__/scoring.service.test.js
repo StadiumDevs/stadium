@@ -110,6 +110,24 @@ describe('scoringService.leaderboard — tally + per-judge breakdown', () => {
     expect(r.rows[0].submissionId).toBe('s2');
     expect(r.rows[1].submissionId).toBe('s1');
   });
+
+  it('surfaces each submission\'s paid flag (payout tracking)', async () => {
+    emailRepo.listJudges.mockResolvedValue([{ email: 'a@x.com' }]);
+    ballotRepo.listSubmitted.mockResolvedValue([{ judgeEmail: 'a@x.com' }]);
+    submissionRepo.listByProgramId.mockResolvedValue([
+      { id: 's1', projectTitle: 'Alpha', paid: true },
+      { id: 's2', projectTitle: 'Beta' }, // no paid field -> defaults false
+    ]);
+    scoreRepo.listByProgramId.mockResolvedValue([
+      score('s1', 'a@x.com', 2, 5, 5),
+      score('s2', 'a@x.com', 1, 1, 1),
+    ]);
+
+    const r = await scoringService.leaderboard('prog-1');
+    const byId = Object.fromEntries(r.rows.map((row) => [row.submissionId, row]));
+    expect(byId.s1.paid).toBe(true);
+    expect(byId.s2.paid).toBe(false);
+  });
 });
 
 describe('scoringService.submitBallot — scoped to claimed batches', () => {

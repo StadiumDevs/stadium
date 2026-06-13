@@ -305,6 +305,8 @@ export type ApiLeaderboardRow = {
   prizeAmount?: number | null;
   prizeCurrency?: string | null;
   prizeLabel?: string | null;
+  /** Payout tracking: true once an admin marks the submission paid. */
+  paid?: boolean;
 };
 
 export type ApiLeaderboard =

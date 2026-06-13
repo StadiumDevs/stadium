@@ -398,6 +398,7 @@ export const mockJudging = {
     const youSubmitted = ballotSubmitted();
     const mine = readScores();
     const prizes = readPrizes();
+    const paidMap = readPaid();
     const addedEmails = new Set(readAdded().map((s) => s.lumaEmail));
     const all = allSubmissions();
 
@@ -456,6 +457,7 @@ export const mockJudging = {
           prizeAmount: prize ? prize.amount : null,
           prizeCurrency: prize ? prize.currency : null,
           prizeLabel: prize ? prize.label : null,
+          paid: paidMap[s.id] ?? false,
         };
       })
       .sort((x, y) => y.avgTotal - x.avgTotal || y.avgInnovation - x.avgInnovation)
