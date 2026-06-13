@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { ProjectExplorer } from "@/components/ProjectExplorer";
+import { UnitCard } from "@/components/unit-card";
 import { RotateCw } from "lucide-react";
 import { ChainPicker } from "@/components/auth/ChainPicker";
 import { getProvider } from "@/lib/auth/registry";
