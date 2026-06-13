@@ -90,6 +90,11 @@ const AdminProgramPage = () => {
   const [filter, setFilter] = useState<Filter>("submitted");
   const [editOpen, setEditOpen] = useState(false);
   const [adminsReload, setAdminsReload] = useState(0);
+  // Viewing the program needs no signature. The wallet-admin sections each sign
+  // an admin-action message when they load their data, so we defer mounting them
+  // behind an explicit unlock — one click, one signature (the concurrent section
+  // loads dedup to a single wallet popup) — instead of prompting on page view.
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [errorData, setErrorData] = useState<{
     walletAddresses: string[];
     expectedAddresses: string[];
@@ -319,6 +324,23 @@ const AdminProgramPage = () => {
             )}
 
             {isAdminWallet ? (
+              !adminUnlocked ? (
+                <div className="panel px-4 py-10 text-center mb-3">
+                  <div className="label-hw text-display mb-2">·ADMIN DATA LOCKED</div>
+                  <p className="label-hw-dim mb-4 max-w-prose mx-auto">
+                    Viewing this program needs no signature. Load the admin data
+                    (guests, judging, stats) to manage it; this signs an admin-action
+                    message once.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setAdminUnlocked(true)}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-1.5"
+                  >
+                    LOAD ADMIN DATA ▸
+                  </button>
+                </div>
+              ) : (
               <>
                 <ProgramStatsHeader
                   programSlug={program.slug}
@@ -409,6 +431,7 @@ const AdminProgramPage = () => {
                   </>
                 )}
               </>
+              )
             ) : socialCanJudge || socialCanViewAdmin ? (
               <>
                 <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2">
