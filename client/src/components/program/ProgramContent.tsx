@@ -1,5 +1,6 @@
 import type { ProgramContentSection } from "@/lib/api";
 import { LCDStat } from "@/components/lcd-stat";
+import { MarkdownBody } from "@/components/program/MarkdownBody";
 
 /**
  * Renders a program's templatable `content` (ordered, typed sections) as
@@ -34,6 +35,14 @@ function Section({ section }: { section: ProgramContentSection }) {
           <p className="text-body text-base leading-relaxed whitespace-pre-line">
             {section.body}
           </p>
+        </div>
+      );
+
+    case "markdown":
+      return (
+        <div className="panel p-4 mb-4">
+          <PanelHeading title={section.title} />
+          <MarkdownBody>{section.body}</MarkdownBody>
         </div>
       );
 

@@ -597,6 +597,15 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
+            {/* Hackathon builder reference + submission requirements. Authored as
+                ordered `content` sections so they render directly above the
+                submit panel. Non-hackathon programs render their content higher up. */}
+            {isHackathon && (
+              <ProgramContent
+                sections={program.content?.filter((s) => s.type !== "schedule")}
+              />
+            )}
+
             {program.programType === "hackathon" && (
               <div className="panel p-4">
                 <div className="label-hw mb-3">·SUBMIT YOUR PROJECT</div>

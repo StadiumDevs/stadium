@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, Upload, X } from "lucide-react";
 import { api, type ApiProgram } from "@/lib/api";
 import { DEFAULT_PRIZE_TIERS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
@@ -107,6 +107,8 @@ export function ProgramFormModal({
   const [prizeTierRows, setPrizeTierRows] = useState<PrizeTierRow[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -184,6 +186,38 @@ export function ProgramFormModal({
     }
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset the input so picking the same file again re-fires onChange.
+    e.target.value = "";
+    if (!file) return;
+    if (!program?.slug) {
+      toast({
+        title: "Save the program first",
+        description: "Create the program, then upload a cover image.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setUploadingCover(true);
+    try {
+      if (!signAuthHeader) throw new Error("No admin auth available");
+      const authHeader = await signAuthHeader();
+      const { data } = await api.uploadProgramCover(program.slug, file, authHeader);
+      setCoverImageUrl(data.url);
+      setErrors((prev) => ({ ...prev, coverImageUrl: "" }));
+      toast({ title: "Cover image uploaded", description: "Save the program to apply it." });
+    } catch (err) {
+      toast({
+        title: "Couldn't upload image",
+        description: (err as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingCover(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -426,16 +460,49 @@ export function ProgramFormModal({
           </div>
 
           <div className="sm:col-span-2 space-y-1.5">
-            <Label htmlFor="pf-cover" className="label-hw-dim">·COVER IMAGE URL (PUBLIC PAGE BANNER)</Label>
-            <Input
-              id="pf-cover"
-              type="url"
-              placeholder="https://…/cover.png"
-              value={coverImageUrl}
-              onChange={(e) => setCoverImageUrl(e.target.value)}
-              aria-invalid={errors.coverImageUrl ? true : undefined}
-              className="font-mono text-sm"
-            />
+            <Label htmlFor="pf-cover" className="label-hw-dim">·COVER IMAGE (PUBLIC PAGE BANNER)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="pf-cover"
+                type="url"
+                placeholder="https://…/cover.png"
+                value={coverImageUrl}
+                onChange={(e) => setCoverImageUrl(e.target.value)}
+                aria-invalid={errors.coverImageUrl ? true : undefined}
+                className="font-mono text-sm"
+              />
+              <input
+                ref={coverFileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={handleCoverFile}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => coverFileRef.current?.click()}
+                disabled={uploadingCover || !editing}
+                title={editing ? "Upload an image file" : "Save the program first, then upload"}
+                className="shrink-0 font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-2 inline-flex items-center gap-1.5"
+              >
+                {uploadingCover ? (
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Upload className="h-3 w-3" aria-hidden="true" />
+                )}
+                UPLOAD
+              </button>
+            </div>
+            <p className="label-hw-dim">
+              Paste a public URL or upload a PNG, JPEG, WebP, or GIF (max 5MB). Uploading is available after the program is created.
+            </p>
+            {coverImageUrl.trim() && (
+              <img
+                src={coverImageUrl}
+                alt="Cover preview"
+                className="mt-1 max-h-32 w-auto rounded-sm border border-hairline object-contain"
+              />
+            )}
             {errors.coverImageUrl && (
               <p className="label-hw text-destructive">·{errors.coverImageUrl.toUpperCase()}</p>
             )}

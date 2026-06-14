@@ -10,6 +10,7 @@ import nonMemberApplicationService, { validateNonMemberApplication } from '../se
 import programAdminRepository from '../repositories/program-admin.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
 import programAdminInviteService from '../services/program-admin-invite.service.js';
+import programAssetService, { MAX_COVER_BYTES } from '../services/program-asset.service.js';
 import programSignupRepository from '../repositories/program-signup.repository.js';
 import { validateApplicationFields } from '../utils/application-fields.validator.js';
 import { validateProgram, validateSponsor } from '../utils/validation.js';
@@ -217,6 +218,46 @@ class ProgramController {
       }
       console.error('❌ Error updating program:', error);
       res.status(500).json({ status: 'error', message: 'Failed to update program' });
+    }
+  }
+
+  /**
+   * POST /api/programs/:slug/cover-image  (multipart, field "file")
+   *
+   * Admin-gated upload of a cover banner to Supabase Storage. Returns the public
+   * URL so the admin form can drop it into coverImageUrl and save via the normal
+   * PATCH. We do NOT persist it here — keeping upload and save separate means an
+   * abandoned upload never mutates the program.
+   */
+  async uploadCoverImage(req, res) {
+    try {
+      const { slug } = req.params;
+      const file = req.file;
+      if (!file) {
+        return res.status(422).json({ status: 'error', message: 'No image file provided (field "file")' });
+      }
+      if (!programAssetService.isAllowedImageMime(file.mimetype)) {
+        return res.status(422).json({
+          status: 'error',
+          message: 'Unsupported image type. Use PNG, JPEG, WebP, or GIF.',
+        });
+      }
+      if (file.size > MAX_COVER_BYTES) {
+        return res.status(422).json({ status: 'error', message: 'Image is too large (max 5MB).' });
+      }
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const url = await programAssetService.uploadCover({
+        programId: program.id,
+        buffer: file.buffer,
+        contentType: file.mimetype,
+      });
+      res.status(201).json({ status: 'success', data: { url } });
+    } catch (error) {
+      console.error('❌ Error uploading cover image:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to upload cover image' });
     }
   }
 
