@@ -59,7 +59,7 @@ export function ProgramSpaces({ programs }: { programs: ApiProgram[] }) {
           <span className="led led-sm led-pulse" aria-hidden="true" /> ·EXPLORE PAST PROGRAMS
         </div>
       </div>
-      <p className="text-body text-sm md:text-base max-w-2xl leading-relaxed mb-3">
+      <p className="text-body text-sm md:text-base leading-relaxed mb-4">
         WebZero creates vibrant spaces where the best people come together in the same room to
         explore their creative potential and build something innovative. Stadium is the entry point
         for participating in programs organized by WebZero and a place for these people to leave
