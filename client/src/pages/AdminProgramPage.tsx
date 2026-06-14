@@ -357,7 +357,7 @@ const AdminProgramPage = () => {
                 <ProgramJudgingSection
                   programSlug={program.slug}
                   getAuth={getAdminAuth}
-                  signWinnerAction={(a) => auth.signAction(a)}
+                  signPublishAction={() => auth.signAction("publish-results")}
                   canSelectWinners={isGlobalAdmin}
                   prizeTiers={program.prizeTiers}
                   resultsPublishedAt={program.resultsPublishedAt}

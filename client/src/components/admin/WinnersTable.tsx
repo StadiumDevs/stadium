@@ -93,17 +93,11 @@ interface WinnersTableProps {
    * write below to share the cache.
    */
   signAdminAction: () => Promise<import("@/lib/api").AdminAuthArg>;
-  /**
-   * Auth for the payout action specifically. Pops a FRESH signature every
-   * time (never the cached session) so confirming a payout is a deliberate,
-   * separately-signed step. Falls back to signAdminAction if not provided.
-   */
-  signPaymentAction?: () => Promise<import("@/lib/api").AdminAuthArg>;
 }
 
 type WinnerFilter = "all" | "main-track" | "bounty";
 
-export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminAction, signPaymentAction }: WinnersTableProps) {
+export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminAction }: WinnersTableProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState<string | null>(null);
   const [winnerFilter, setWinnerFilter] = useState<WinnerFilter>("all");
@@ -372,8 +366,7 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     setSaving("payment");
 
     try {
-      // Confirming a payout re-signs fresh every time (not the cached session).
-      const authHeader = await (signPaymentAction ?? signAdminAction)();
+      const authHeader = await signAdminAction();
 
       // Validate
       if (!manageModal.paymentAmount || manageModal.paymentAmount <= 0) {

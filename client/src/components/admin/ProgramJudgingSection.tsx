@@ -39,7 +39,7 @@ const prizeText = (amount?: number | null, currency?: string | null) =>
 export function ProgramJudgingSection({
   programSlug,
   getAuth,
-  signWinnerAction,
+  signPublishAction,
   canSelectWinners = false,
   prizeTiers,
   resultsPublishedAt = null,
@@ -48,13 +48,12 @@ export function ProgramJudgingSection({
   programSlug: string;
   getAuth: () => Promise<AdminAuthArg>;
   /**
-   * Fresh-signature source for the high-stakes winner/payout actions
-   * (award prize, publish results, mark paid). When provided, these actions
-   * pop a wallet signature every time instead of riding the cached admin
-   * session — a deliberate human confirmation. Reads still use `getAuth`.
-   * Only wired on the wallet-admin path (`canSelectWinners`).
+   * Fresh-signature source for PUBLISHING results only — the one irreversible,
+   * public action we still gate behind a deliberate wallet signature. Everything
+   * else (scoring, award, mark paid) rides the cached admin session opened at
+   * sign-in. When omitted, publish falls back to the cached session too.
    */
-  signWinnerAction?: (action: "mark-paid" | "award-prize" | "publish-results") => Promise<string>;
+  signPublishAction?: () => Promise<string>;
   canSelectWinners?: boolean;
   prizeTiers?: ApiPrizeTier[] | null;
   resultsPublishedAt?: string | null;
@@ -216,17 +215,16 @@ export function ProgramJudgingSection({
     }
   };
 
-  // Auth for the high-stakes winner/payout actions: a fresh signature each
-  // time when wired (wallet admins), else the cached admin session.
-  const winnerAuth = (action: "mark-paid" | "award-prize" | "publish-results") =>
-    signWinnerAction ? signWinnerAction(action) : getAuth();
+  // Publish re-signs fresh (the one action still gated). Everything else rides
+  // the cached admin session opened at sign-in.
+  const publishAuth = () => (signPublishAction ? signPublishAction() : getAuth());
 
   // Platform admin: assign a prize tier (winner) to a submission, or clear it.
   const award = async (submissionId: string, amountRaw: string) => {
     const tier = amountRaw === "" ? null : tiers.find((t) => t.amount === Number(amountRaw)) ?? null;
     setAwardingId(submissionId);
     try {
-      const auth = await winnerAuth("award-prize");
+      const auth = await getAuth();
       await api.awardPrize(programSlug, submissionId, tier, auth);
       setBoard((prev) =>
         prev && !prev.locked
@@ -256,7 +254,7 @@ export function ProgramJudgingSection({
   const markPaid = async (submissionId: string, paid: boolean) => {
     setPaidId(submissionId);
     try {
-      const auth = await winnerAuth("mark-paid");
+      const auth = await getAuth();
       await api.setSubmissionPaid(programSlug, submissionId, paid, auth);
       setBoard((prev) =>
         prev && !prev.locked
@@ -278,7 +276,7 @@ export function ProgramJudgingSection({
   const togglePublish = async () => {
     setPublishing(true);
     try {
-      const auth = await winnerAuth("publish-results");
+      const auth = await publishAuth();
       const res = await api.publishResults(programSlug, !publishedAt, auth);
       setPublishedAt(res.data.resultsPublishedAt);
       onPublishedChange?.(res.data.resultsPublishedAt);

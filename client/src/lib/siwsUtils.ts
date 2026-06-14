@@ -3,7 +3,7 @@
  */
 
 export interface SiwsContext {
-  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project' | 'post-update' | 'update-funding-signal' | 'apply-to-program' | 'create-program' | 'update-program' | 'review-application' | 'update-program-sponsors' | 'import-program-signups' | 'submit-continuation' | 'update-notifications' | 'mark-paid' | 'award-prize' | 'publish-results' | 'confirm-payment';
+  action: 'update-team' | 'submit-deliverable' | 'update-project' | 'register-address' | 'admin-action' | 'create-project' | 'delete-project' | 'review-project' | 'approve-project' | 'reject-project' | 'post-update' | 'update-funding-signal' | 'apply-to-program' | 'create-program' | 'update-program' | 'review-application' | 'update-program-sponsors' | 'import-program-signups' | 'submit-continuation' | 'update-notifications' | 'publish-results';
   projectId?: string;
   projectTitle?: string;
   programTitle?: string;
@@ -77,16 +77,10 @@ export function generateSiwsStatement(context: SiwsContext): string {
     case 'update-notifications':
       return `Update notification preferences for wallet on Stadium`;
 
-    // High-stakes payout/results actions: each re-signs fresh (never the
-    // cached admin session) so the human deliberately confirms it.
-    case 'mark-paid':
-      return `Mark a payout as sent on ${baseDomain}`;
-    case 'award-prize':
-      return `Select a winner on ${baseDomain}`;
+    // Publishing results is the one judging action still gated by a fresh
+    // signature (irreversible + public). Everything else rides the session.
     case 'publish-results':
       return `Publish results on ${baseDomain}`;
-    case 'confirm-payment':
-      return `Confirm a milestone payout on ${baseDomain}`;
 
     default:
       return `Sign in to ${baseDomain}`;
