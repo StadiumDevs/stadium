@@ -39,6 +39,8 @@ export const VALID_STATEMENTS = [
   'Submit project continuation on Stadium',
   // Phase 2 revamp: wallet contacts (#67)
   'Update notification preferences for wallet on Stadium',
+  // Publishing results is the one judging action still gated by a fresh signature.
+  'Publish results on Stadium',
 ];
 
 // Patterns for project-specific statements that interpolate a project/program name.
