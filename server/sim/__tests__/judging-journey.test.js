@@ -441,12 +441,12 @@ describe('Bitrefill judging — basic user journeys', () => {
     expect((await publicResults()).body.data.published).toBe(false);
   });
 
-  it('locks a judge ballot after submission (no edits, 409)', async () => {
+  it('lets a judge revise scores after submitting (editable, not locked)', async () => {
     const j = judge(JUDGES[0]);
     const subs = (await j.list()).body.data.submissions;
     const r = await j.score(subs[0].id, { requirements: 0, techStack: 0, innovation: 0 });
-    expect(r.status).toBe(409);
-    note('After submitting, a judge can no longer edit scores (409, locked).');
+    expect(r.status).toBe(200);
+    note('After submitting, a judge can still revise and re-save scores (200); the submitted ballot reflects the latest values.');
   });
 });
 
