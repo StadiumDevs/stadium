@@ -22,6 +22,9 @@ const transformProgram = (row) => {
     content: row.content ?? null,
     prizeTiers: row.prize_tiers ?? null,
     resultsPublishedAt: row.results_published_at ?? null,
+    lumaEventId: row.luma_event_id ?? null,
+    lastGuestSyncAt: row.last_guest_sync_at ?? null,
+    lastGuestSyncStatus: row.last_guest_sync_status ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -46,6 +49,11 @@ const toSnakeCase = (data) => {
   if ('coverImageUrl' in data) row.cover_image_url = data.coverImageUrl ?? null;
   if ('content' in data) row.content = data.content ?? null;
   if ('prizeTiers' in data) row.prize_tiers = data.prizeTiers ?? null;
+  // Normalize an empty/whitespace luma_event_id to null (gate stays off).
+  if ('lumaEventId' in data) {
+    const v = typeof data.lumaEventId === 'string' ? data.lumaEventId.trim() : data.lumaEventId;
+    row.luma_event_id = v || null;
+  }
   return row;
 };
 
@@ -88,6 +96,18 @@ class ProgramRepository {
       .single();
     if (error) throw error;
     return transformProgram(data);
+  }
+
+  // Record the outcome of a Luma guest sync. `status` is a short machine string
+  // ('ok', 'empty_guard', 'truncated', 'error:<reason>') the admin UI surfaces.
+  // We always stamp last_guest_sync_at so the gate's TTL advances even on a
+  // guarded/failed sweep (prevents a hot retry loop on every miss).
+  async setGuestSyncState(programId, { syncedAt, status }) {
+    const { error } = await supabase
+      .from('programs')
+      .update({ last_guest_sync_at: syncedAt, last_guest_sync_status: status })
+      .eq('id', programId);
+    if (error) throw error;
   }
 
   // Publish/unpublish the public results: set or clear results_published_at.

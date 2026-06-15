@@ -565,6 +565,11 @@ export const validateProgram = (data, { partial = false } = {}) => {
       return { valid: false, error: 'eventUrl must start with http:// or https://' };
     }
   }
+  if (has('lumaEventId') && data.lumaEventId !== null && data.lumaEventId !== '') {
+    if (typeof data.lumaEventId !== 'string' || data.lumaEventId.length > 100) {
+      return { valid: false, error: 'lumaEventId must be a string (max 100 characters)' };
+    }
+  }
   if (has('content')) {
     const c = validateProgramContent(data.content);
     if (!c.valid) return c;

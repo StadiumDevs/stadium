@@ -2,6 +2,7 @@ import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
 import programSponsorService from '../services/program-sponsor.service.js';
 import programSignupService from '../services/program-signup.service.js';
+import lumaSyncService from '../services/luma-sync.service.js';
 import programInboxService, { inboxToCsv } from '../services/program-inbox.service.js';
 import auditLog from '../services/program-audit-log.service.js';
 import projectService from '../services/project.service.js';
@@ -752,6 +753,78 @@ class ProgramController {
     } catch (error) {
       console.error('❌ Error importing program signups:', error);
       res.status(500).json({ status: 'error', message: 'Failed to import program signups' });
+    }
+  }
+
+  // Admin: pull the checked-in guest list from Luma now. Mirrors into
+  // program_signups (source='luma_api'). Returns the sync status + counts so the
+  // admin UI can show "synced just now · M checked-in".
+  async syncGuests(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      if (!program.lumaEventId) {
+        return res.status(422).json({
+          status: 'error',
+          message: 'No Luma event id set for this program. Save one first.',
+        });
+      }
+      if (!lumaSyncService.isActive(program)) {
+        return res.status(503).json({
+          status: 'error',
+          message: 'Luma is not configured on the server (LUMA_API_KEY missing).',
+        });
+      }
+      const result = await lumaSyncService.syncProgram(program);
+      const checkedInCount = await programSignupRepository.countBySource(program.id, 'luma_api');
+      res.status(200).json({
+        status: 'success',
+        data: { ...result, syncStatus: result.status, checkedInCount, syncedAt: new Date().toISOString() },
+      });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+        action: 'signups.luma_sync',
+        targetType: 'signups_batch',
+        targetId: null,
+        metadata: { syncStatus: result.status, upserted: result.upserted, removed: result.removed },
+      });
+    } catch (error) {
+      console.error('❌ Error syncing Luma guests:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to sync Luma guests' });
+    }
+  }
+
+  // Admin: manually add a single checked-in email (event-day fallback for the
+  // cases Luma can't cover). Idempotent.
+  async addSignup(req, res) {
+    try {
+      const { slug } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : null;
+      if (!EMAIL_RE.test(email)) {
+        return res.status(400).json({ status: 'error', message: 'A valid email is required' });
+      }
+      const signup = await programSignupRepository.addManual(program.id, email, name);
+      res.status(201).json({ status: 'success', data: signup });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+        action: 'signup.manual_add',
+        targetType: 'signup',
+        targetId: signup.id,
+        metadata: { email: signup.email },
+      });
+    } catch (error) {
+      console.error('❌ Error adding signup:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to add signup' });
     }
   }
 

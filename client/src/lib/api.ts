@@ -420,8 +420,24 @@ export type ApiProgram = {
   prizeTiers?: ApiPrizeTier[] | null;
   /** Set when a platform admin publishes results to the public program page. */
   resultsPublishedAt?: string | null;
+  /** Luma event id (evt-…). When set + server has LUMA_API_KEY, the submit gate
+   *  verifies emails against the event's checked-in guests synced from Luma. */
+  lumaEventId?: string | null;
+  /** Last time the checked-in guest list was synced from Luma (admin display). */
+  lastGuestSyncAt?: string | null;
+  /** Outcome of the last sync: 'ok' | 'truncated' | 'empty_guard' | 'error:…'. */
+  lastGuestSyncStatus?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+/** Result of a manual "Sync now" against the Luma API. */
+export type ProgramGuestSyncResult = {
+  syncStatus: string;
+  checkedInCount: number;
+  syncedAt: string;
+  upserted: number;
+  removed: number;
 };
 
 /** At-a-glance counts for the program admin/judge header (no PII). */
@@ -1486,6 +1502,61 @@ export const api = {
       headers: adminAuthHeaders(authHeader),
     });
     return { status: "success" };
+  },
+
+  // --- Luma guest sync (replaces CSV for Luma-gated programs) ---
+
+  /** Pull the event's checked-in guests from Luma into program_signups now. */
+  syncProgramGuests: async (
+    slug: string,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ProgramGuestSyncResult }> => {
+    if (USE_MOCK_DATA) {
+      return {
+        status: "success",
+        data: {
+          syncStatus: "ok",
+          checkedInCount: 0,
+          syncedAt: new Date().toISOString(),
+          upserted: 0,
+          removed: 0,
+        },
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/signups/sync`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Manually add a single checked-in email (event-day fallback). Idempotent. */
+  addProgramSignup: async (
+    slug: string,
+    payload: { email: string; name?: string | null },
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramSignup }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const row: ApiProgramSignup = {
+        id: `manual-${Date.now()}`,
+        programId: slug,
+        email: payload.email.trim().toLowerCase(),
+        name: payload.name ?? null,
+        wallet: null,
+        registeredAt: null,
+        source: "manual",
+        rawRow: null,
+        importedInBatchAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      mockProgramSignups[slug] = [row, ...(mockProgramSignups[slug] || [])];
+      return { status: "success", data: row };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/signups`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   },
 
   /**

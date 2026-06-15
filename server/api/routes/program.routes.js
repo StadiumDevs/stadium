@@ -116,6 +116,11 @@ router.delete(
 // shared SIWS middleware: parser runs first to produce req.body, then
 // requireProgramAdmin reads x-siws-auth from headers.
 router.get('/:slug/signups', requireProgramViewer('slug'), programController.listSignups);
+// Luma-gated programs: pull checked-in guests from the Luma API instead of a CSV.
+router.post('/:slug/signups/sync', requireProgramAdmin('slug'), programController.syncGuests);
+// Manual single-email add (event-day fallback). Sits before the CSV import and
+// :signupId routes; the static `import`/`sync` segments are matched first.
+router.post('/:slug/signups', requireProgramAdmin('slug'), programController.addSignup);
 router.post(
   '/:slug/signups/import',
   ...csvBody,
