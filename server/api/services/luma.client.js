@@ -107,12 +107,25 @@ export async function fetchAllGuests(eventId) {
   return { guests, pages: MAX_PAGES, truncated: true };
 }
 
-// Convenience: the checked-in subset plus totals, for the sync service.
-export async function fetchCheckedIn(eventId) {
+// Gate modes. 'checked_in' (default, in-person events) requires a physical
+// check-in. 'approved' accepts any approved registrant — used to dry-run the
+// flow BEFORE an event starts (nobody is checked in yet), or if a program ever
+// wants "registered counts" rather than "checked-in counts".
+export const GATE_MODES = ['checked_in', 'approved'];
+
+function isEligible(guest, mode) {
+  // Checked-in guests are always eligible; 'approved' additionally lets through
+  // anyone whose registration is approved.
+  if (guest.checkedIn) return true;
+  return mode === 'approved' && guest.approvalStatus === 'approved';
+}
+
+// The gate-eligible subset plus totals, for the sync service.
+export async function fetchEligibleGuests(eventId, mode = 'checked_in') {
   const { guests, pages, truncated } = await fetchAllGuests(eventId);
   return {
     total: guests.length,
-    checkedIn: guests.filter((g) => g.checkedIn),
+    eligible: guests.filter((g) => isEligible(g, mode)),
     pages,
     truncated,
   };

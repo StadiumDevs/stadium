@@ -4,9 +4,16 @@
 // ("Sync now"). No background timer — freshness only matters at submit time,
 // which is exactly when the gate triggers a sync. See luma.client.js.
 
-import { fetchCheckedIn, isConfigured } from './luma.client.js';
+import { fetchEligibleGuests, isConfigured } from './luma.client.js';
 import signupRepository from '../repositories/program-signup.repository.js';
 import programRepository from '../repositories/program.repository.js';
+
+// Which guests count as gate-eligible. Defaults to physical check-in; set
+// LUMA_GATE_MODE=approved to accept approved registrants (e.g. pre-event dry
+// runs, before anyone has checked in).
+function gateMode() {
+  return process.env.LUMA_GATE_MODE === 'approved' ? 'approved' : 'checked_in';
+}
 
 // One in-flight sync per program. Concurrent submitters that all miss the cache
 // share a single Luma sweep instead of stampeding the API.
@@ -23,19 +30,19 @@ async function runSync(program) {
   let status;
   let result = { total: 0, checkedIn: 0, upserted: 0, removed: 0 };
   try {
-    const { total, checkedIn, truncated } = await fetchCheckedIn(eventId);
+    const { total, eligible, truncated } = await fetchEligibleGuests(eventId, gateMode());
 
     if (truncated) {
       // Partial sweep — never trust it enough to overwrite a good cache.
       status = 'truncated';
-    } else if (checkedIn.length === 0 && (await signupRepository.countBySource(programId, 'luma_api')) > 0) {
+    } else if (eligible.length === 0 && (await signupRepository.countBySource(programId, 'luma_api')) > 0) {
       // Sanity guard: a 0-result sweep against a non-empty cache is almost
       // certainly a wrong event id / revoked key / Luma blip. Keep last-good.
       status = 'empty_guard';
     } else {
-      const { upserted, removed } = await signupRepository.replaceLumaGuests(programId, checkedIn);
+      const { upserted, removed } = await signupRepository.replaceLumaGuests(programId, eligible);
       status = 'ok';
-      result = { total, checkedIn: checkedIn.length, upserted, removed };
+      result = { total, checkedIn: eligible.length, upserted, removed };
     }
   } catch (err) {
     status = shortError(err);

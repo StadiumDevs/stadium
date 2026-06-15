@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../luma.client.js', () => ({
-  fetchCheckedIn: vi.fn(),
+  fetchEligibleGuests: vi.fn(),
   isConfigured: vi.fn(() => true),
 }));
 vi.mock('../../repositories/program-signup.repository.js', () => ({
@@ -45,13 +45,13 @@ describe('lumaSyncService.syncProgram', () => {
     luma.isConfigured.mockReturnValue(false);
     const r = await service.syncProgram(PROGRAM);
     expect(r.status).toBe('not_configured');
-    expect(luma.fetchCheckedIn).not.toHaveBeenCalled();
+    expect(luma.fetchEligibleGuests).not.toHaveBeenCalled();
   });
 
   it('ok: mirrors the checked-in set and stamps state', async () => {
-    luma.fetchCheckedIn.mockResolvedValue({
+    luma.fetchEligibleGuests.mockResolvedValue({
       total: 3,
-      checkedIn: [G('a@x.io'), G('b@x.io')],
+      eligible: [G('a@x.io'), G('b@x.io')],
       truncated: false,
     });
     signupRepo.replaceLumaGuests.mockResolvedValue({ upserted: 2, removed: 0 });
@@ -66,7 +66,7 @@ describe('lumaSyncService.syncProgram', () => {
   });
 
   it('empty_guard: a 0-result sweep does NOT wipe a non-empty cache', async () => {
-    luma.fetchCheckedIn.mockResolvedValue({ total: 0, checkedIn: [], truncated: false });
+    luma.fetchEligibleGuests.mockResolvedValue({ total: 0, eligible: [], truncated: false });
     signupRepo.countBySource.mockResolvedValue(120); // cache currently has 120
 
     const r = await service.syncProgram(PROGRAM);
@@ -79,7 +79,7 @@ describe('lumaSyncService.syncProgram', () => {
   });
 
   it('0 check-ins is allowed to write when the cache is also empty (pre-event)', async () => {
-    luma.fetchCheckedIn.mockResolvedValue({ total: 50, checkedIn: [], truncated: false });
+    luma.fetchEligibleGuests.mockResolvedValue({ total: 50, eligible: [], truncated: false });
     signupRepo.countBySource.mockResolvedValue(0);
 
     const r = await service.syncProgram(PROGRAM);
@@ -88,14 +88,14 @@ describe('lumaSyncService.syncProgram', () => {
   });
 
   it('truncated: never overwrites on a partial sweep', async () => {
-    luma.fetchCheckedIn.mockResolvedValue({ total: 9999, checkedIn: [G('a@x.io')], truncated: true });
+    luma.fetchEligibleGuests.mockResolvedValue({ total: 9999, eligible: [G('a@x.io')], truncated: true });
     const r = await service.syncProgram(PROGRAM);
     expect(r.status).toBe('truncated');
     expect(signupRepo.replaceLumaGuests).not.toHaveBeenCalled();
   });
 
   it('error: surfaces error:<msg> and still stamps the timestamp', async () => {
-    luma.fetchCheckedIn.mockRejectedValue(new Error('Luma 429'));
+    luma.fetchEligibleGuests.mockRejectedValue(new Error('Luma 429'));
     const r = await service.syncProgram(PROGRAM);
     expect(r.status).toMatch(/^error:/);
     expect(programRepo.setGuestSyncState).toHaveBeenCalledWith(
@@ -106,11 +106,11 @@ describe('lumaSyncService.syncProgram', () => {
 
   it('single-flight: concurrent syncs share one Luma sweep', async () => {
     let resolve;
-    luma.fetchCheckedIn.mockReturnValue(new Promise((r) => { resolve = r; }));
+    luma.fetchEligibleGuests.mockReturnValue(new Promise((r) => { resolve = r; }));
     const p1 = service.syncProgram(PROGRAM);
     const p2 = service.syncProgram(PROGRAM);
-    resolve({ total: 1, checkedIn: [G('a@x.io')], truncated: false });
+    resolve({ total: 1, eligible: [G('a@x.io')], truncated: false });
     await Promise.all([p1, p2]);
-    expect(luma.fetchCheckedIn).toHaveBeenCalledTimes(1);
+    expect(luma.fetchEligibleGuests).toHaveBeenCalledTimes(1);
   });
 });
