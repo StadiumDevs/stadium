@@ -174,6 +174,11 @@ export function SubmitProjectModal({
                 className="hidden"
               />
             </div>
+            {submitting && (
+              <p className="font-mono text-[10px] tracking-[0.14em] text-label-mid text-center pt-1" role="status" aria-live="polite">
+                CHECKING YOU AGAINST THE LUMA GUEST LIST. THIS CAN TAKE A FEW SECONDS.
+              </p>
+            )}
             <DialogFooter>
               <button
                 type="button"
@@ -191,7 +196,7 @@ export function SubmitProjectModal({
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> SUBMITTING…
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> VERIFYING CHECK-IN…
                   </>
                 ) : (
                   "SUBMIT PROJECT ▸"
