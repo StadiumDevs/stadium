@@ -174,8 +174,10 @@ describe('SubmissionController.submit (public)', () => {
 });
 
 describe('SubmissionController.upsertScore (judge)', () => {
-  it('409s when the judge ballot is already submitted (locked)', async () => {
-    ballotRepo.isSubmitted.mockResolvedValue(true);
+  it('lets a judge re-save a score after submitting (editable, not locked)', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(true); // already submitted
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill' });
+    scoreRepo.upsert.mockResolvedValue({ id: 'sc1' });
     const req = {
       params: { slug: 'bitrefill', submissionId: 's1' },
       user: { email: 'judge@x.com', programId: 'bitrefill', canJudge: true },
@@ -183,8 +185,10 @@ describe('SubmissionController.upsertScore (judge)', () => {
     };
     const res = mockRes();
     await submissionController.upsertScore(req, res);
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(scoreRepo.upsert).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(scoreRepo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ judgeEmail: 'judge@x.com', submissionId: 's1' }),
+    );
   });
 
   it('saves a valid score for the verified judge email (not a body field)', async () => {
@@ -331,12 +335,14 @@ describe('SubmissionController.saveScores (judge bulk)', () => {
     body: { scores },
   });
 
-  it('409s when the ballot is locked', async () => {
-    ballotRepo.isSubmitted.mockResolvedValue(true);
+  it('lets a judge bulk re-save after submitting (editable, not locked)', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(true); // already submitted
+    submissionRepo.listByProgramId.mockResolvedValue([{ id: 's1' }]);
+    scoreRepo.upsertMany.mockResolvedValue([{ id: 'a' }]);
     const res = mockRes();
     await submissionController.saveScores(baseReq([{ submissionId: 's1', requirements: 1, techStack: 1, innovation: 1 }]), res);
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(submissionRepo.listByProgramId).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(scoreRepo.upsertMany).toHaveBeenCalled();
   });
 
   it('400s an unknown submission in the batch', async () => {
