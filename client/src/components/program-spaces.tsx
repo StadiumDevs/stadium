@@ -59,10 +59,12 @@ export function ProgramSpaces({ programs }: { programs: ApiProgram[] }) {
           <span className="led led-sm led-pulse" aria-hidden="true" /> ·EXPLORE PAST PROGRAMS
         </div>
       </div>
-      <p className="text-body text-sm md:text-base max-w-2xl leading-relaxed mb-3">
-        WebZero is where the best people come together in the same room to explore their creative
-        potential and build something cool. Each program is tied to a specific event, with prizes
-        ranging from cash to event tickets to exclusive merch.
+      <p className="text-body text-sm md:text-base leading-relaxed mb-4">
+        WebZero creates vibrant spaces where the best people come together in the same room to
+        explore their creative potential and build something innovative. Stadium is the entry point
+        for participating in programs organized by WebZero and a place for these people to leave
+        their mark. Each program is tied to a specific event, with prizes ranging from cash to event
+        tickets to exclusive merch.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {SPACES.map(({ type, label, blurb, href, Icon }) => {

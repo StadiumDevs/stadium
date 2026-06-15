@@ -38,6 +38,73 @@ const isHttpUrl = (v) => {
   }
 };
 
+// Caps for the post-submission feedback payload. Feedback is free-form JSONB
+// (the question set is program-specific and lives client-side), so the server
+// validates structure + bounds rather than exact option text — this avoids
+// client/server drift while still rejecting junk. Unknown keys are dropped.
+const FEEDBACK_TEXT_MAX = 1000;
+const FEEDBACK_MAX_SURFACES = 20;
+const FEEDBACK_STRING_KEYS = [
+  'agentEnv',
+  'deadlineStatus',
+  'biggestBlocker',
+  'couldntHandle',
+  'wouldKeepBuilding',
+];
+
+// Validate the optional feedback object. Returns { ok, value } where value is
+// null (no feedback) or a normalized object, or { ok: false, error }.
+export function validateFeedback(feedback) {
+  if (feedback === undefined || feedback === null) return { ok: true, value: null };
+  if (typeof feedback !== 'object' || Array.isArray(feedback)) {
+    return { ok: false, error: 'feedback must be an object' };
+  }
+
+  const out = {};
+
+  if (feedback.surfaces !== undefined) {
+    if (!Array.isArray(feedback.surfaces)) {
+      return { ok: false, error: 'feedback.surfaces must be an array' };
+    }
+    if (feedback.surfaces.length > FEEDBACK_MAX_SURFACES) {
+      return { ok: false, error: 'Too many feedback surfaces selected' };
+    }
+    const surfaces = [];
+    for (const s of feedback.surfaces) {
+      const v = str(s);
+      if (!v || v.length > FEEDBACK_TEXT_MAX) {
+        return { ok: false, error: 'feedback.surfaces entries must be non-empty strings' };
+      }
+      surfaces.push(v);
+    }
+    out.surfaces = surfaces;
+  }
+
+  if (feedback.surfacesPrimary !== undefined && feedback.surfacesPrimary !== null) {
+    const primary = str(feedback.surfacesPrimary);
+    if (primary && (!out.surfaces || !out.surfaces.includes(primary))) {
+      return { ok: false, error: 'feedback.surfacesPrimary must be one of the selected surfaces' };
+    }
+    out.surfacesPrimary = primary || null;
+  } else {
+    out.surfacesPrimary = null;
+  }
+
+  for (const key of FEEDBACK_STRING_KEYS) {
+    if (feedback[key] === undefined || feedback[key] === null) continue;
+    if (typeof feedback[key] !== 'string') {
+      return { ok: false, error: `feedback.${key} must be a string` };
+    }
+    const v = feedback[key].trim();
+    if (v.length > FEEDBACK_TEXT_MAX) {
+      return { ok: false, error: `feedback.${key} is too long` };
+    }
+    out[key] = v;
+  }
+
+  return { ok: true, value: out };
+}
+
 // Returns { ok: true, value } with trimmed/normalized fields, or
 // { ok: false, error } with a human-readable message.
 export function validateSubmission(body = {}) {
@@ -67,9 +134,21 @@ export function validateSubmission(body = {}) {
     return { ok: false, error: 'A valid GitHub URL (http/https) is required' };
   }
 
+  const fb = validateFeedback(body.feedback);
+  if (!fb.ok) return { ok: false, error: fb.error };
+
   return {
     ok: true,
-    value: { submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl },
+    value: {
+      submitterName,
+      lumaEmail,
+      projectTitle,
+      projectBrief,
+      videoUrl,
+      githubUrl,
+      feedback: fb.value,
+      agreedToTerms: body.agreedToTerms === true,
+    },
   };
 }
 

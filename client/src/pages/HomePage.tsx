@@ -1,57 +1,32 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
-import { LCDStat } from "@/components/lcd-stat";
 import { ProgramSpaces } from "@/components/program-spaces";
-import { api, type ApiProject, type ApiProgram } from "@/lib/api";
-import { isMainTrackWinner } from "@/lib/projectUtils";
+import { api, type ApiProgram } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const HomePage = () => {
-  const [allProjects, setAllProjects] = useState<ApiProject[]>([]);
   const [allPrograms, setAllPrograms] = useState<ApiProgram[]>([]);
-  const [statsLoading, setStatsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Load the project stats (for the index panel) and the programs list (for the
-  // program spaces) in parallel. Phase 2 #94: programs come from the `programs`
-  // table so upcoming/past events surface even with zero projects.
+  // Load the programs list for the program spaces. Phase 2 #94: programs come
+  // from the `programs` table so upcoming/past events surface even with zero projects.
   useEffect(() => {
-    const loadStatsAndPrograms = async () => {
+    const loadPrograms = async () => {
       try {
-        const [projectsResp, programsResp] = await Promise.all([
-          api.getProjects({ limit: 2000, sortBy: "updatedAt", sortOrder: "desc" }),
-          api.listPrograms().catch(() => null),
-        ]);
-        const apiProjects: ApiProject[] = Array.isArray(projectsResp?.data) ? projectsResp.data : [];
-        setAllProjects(apiProjects);
+        const programsResp = await api.listPrograms();
         setAllPrograms(programsResp?.data ?? []);
       } catch {
         toast({
           title: "Error",
-          description: "Failed to load directory stats.",
+          description: "Failed to load programs.",
           variant: "destructive",
         });
-      } finally {
-        setStatsLoading(false);
       }
     };
-    loadStatsAndPrograms();
+    loadPrograms();
     // Run once on mount; `toast` is stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const stats = useMemo(() => {
-    const totalProjects = allProjects.length;
-    const winners = allProjects.filter((p) => Array.isArray(p.bountyPrize) && p.bountyPrize.length > 0).length;
-    const m2Graduates = allProjects.filter((p) => p.m2Status === "completed" && isMainTrackWinner(p)).length;
-    const totalPaid = allProjects.reduce((acc, p) => {
-      const paid = (p.totalPaid || []).reduce((s, x) => s + (x.currency === "USDC" ? x.amount : 0), 0);
-      return acc + paid;
-    }, 0);
-    return { totalProjects, winners, m2Graduates, totalPaid };
-  }, [allProjects]);
-
-  const fmtUSD = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n}`;
 
   return (
     <div className="min-h-screen scanlines">
@@ -82,19 +57,6 @@ const HomePage = () => {
               <img src="/logos/arkiv.png" alt="Arkiv" className="h-6 md:h-7 w-auto" />
               <img src="/logos/hyperbridge.png" alt="Hyperbridge" className="h-6 md:h-7 w-auto" />
               <img src="/logos/superteam-germany.png" alt="Superteam Germany" className="h-6 md:h-7 w-auto" />
-            </div>
-          </div>
-        </section>
-
-        {/* Index stats */}
-        <section className="mb-10">
-          <div className="panel p-4">
-            <div className="label-hw mb-3">·INDEX / LIVE</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <LCDStat value={statsLoading ? "—" : stats.totalProjects} label="Total Entries" size="lg" />
-              <LCDStat value={statsLoading ? "—" : stats.winners} label="Winners" showLED pulse />
-              <LCDStat value={statsLoading ? "—" : stats.m2Graduates} label="In M2" showLED />
-              <LCDStat value={statsLoading ? "—" : fmtUSD(stats.totalPaid)} label="Paid" size="sm" showLED />
             </div>
           </div>
         </section>
