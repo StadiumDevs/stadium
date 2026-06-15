@@ -210,14 +210,9 @@ class SubmissionController {
       const judgeEmail = judgeIdentity(req);
       const { submissionId } = req.params;
 
-      // Locked once the judge has submitted their ballot (reopen is iteration 2).
-      if (await programJudgeBallotRepository.isSubmitted(programId, judgeEmail)) {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Your scores are submitted and locked. Ask an admin to reopen them to edit.',
-        });
-      }
-
+      // A judge can revise their own scores at any time, including after
+      // submitting — the leaderboard (submitted ballots only) reflects the
+      // latest values. Submitting is "count me in", not a freeze.
       const submission = await programSubmissionRepository.findById(submissionId);
       if (!submission || submission.programId !== programId) {
         return res.status(404).json({ status: 'error', message: 'Submission not found' });
@@ -310,13 +305,8 @@ class SubmissionController {
       if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
       const judgeEmail = judgeIdentity(req);
 
-      if (await programJudgeBallotRepository.isSubmitted(programId, judgeEmail)) {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Your scores are submitted and locked. Ask an admin to reopen them to edit.',
-        });
-      }
-
+      // Editable after submit too: a judge may re-save (revise) their own
+      // scores anytime; submitted ballots still count and reflect the latest.
       const scores = req.body?.scores;
       if (!Array.isArray(scores) || scores.length === 0) {
         return res.status(400).json({ status: 'error', message: 'scores must be a non-empty array' });

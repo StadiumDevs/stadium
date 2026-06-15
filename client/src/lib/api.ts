@@ -391,6 +391,7 @@ export type ProgramStat = { label: string; value: string };
  */
 export type ProgramContentSection =
   | { type: "text"; title?: string; body: string }
+  | { type: "markdown"; title?: string; body: string }
   | { type: "steps"; title?: string; items: string[] }
   | { type: "schedule"; title?: string; rows: { time: string; label: string }[] }
   | { type: "lineup"; title?: string; items: ProgramLineupItem[] }
@@ -1348,6 +1349,45 @@ export const api = {
     });
   },
 
+  /**
+   * Admin: upload a cover banner image for a program. Returns the public URL,
+   * which the caller drops into coverImageUrl and saves via updateProgram.
+   * Sends multipart/form-data — do NOT set Content-Type (the browser adds the
+   * boundary). In mock mode, resolves to a data URL so previews work offline.
+   */
+  uploadProgramCover: async (
+    slug: string,
+    file: File,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: { url: string } }> => {
+    if (USE_MOCK_DATA) {
+      const url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read the image file"));
+        reader.readAsDataURL(file);
+      });
+      return { status: "success", data: { url } };
+    }
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(
+      `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/cover-image`,
+      { method: "POST", headers: adminAuthHeaders(authHeader), body: form },
+    );
+    if (!response.ok) {
+      let message = "Failed to upload image";
+      try {
+        const body = await response.json();
+        if (body?.message) message = body.message;
+      } catch {
+        // ignore non-JSON body
+      }
+      throw new ApiError(message, response.status);
+    }
+    return response.json();
+  },
+
   // --- Program sponsors ---
 
   listProgramSponsors: async (
@@ -1912,6 +1952,16 @@ export const api = {
       videoUrl: string;
       githubUrl: string;
       company?: string;
+      agreedToTerms?: boolean;
+      feedback?: {
+        surfaces: string[];
+        surfacesPrimary: string | null;
+        agentEnv: string;
+        deadlineStatus: string;
+        biggestBlocker: string;
+        couldntHandle: string;
+        wouldKeepBuilding: string;
+      };
     },
   ): Promise<{ status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean }> => {
     if (USE_MOCK_DATA) {

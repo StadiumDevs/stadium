@@ -28,6 +28,8 @@ const transform = (row) => {
     paidAt: row.paid_at ?? null,
     paidBy: row.paid_by ?? null,
     prizeNotifiedAt: row.prize_notified_at ?? null,
+    agreedToTermsAt: row.agreed_to_terms_at ?? null,
+    feedback: row.feedback ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -70,7 +72,7 @@ class ProgramSubmissionRepository {
   // Returns { submission, duplicate }. Duplicate is decided up front (one
   // submission per Luma email per program) so the controller can answer 409
   // without leaning on the DB error text.
-  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false }) {
+  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, agreedToTerms = false }) {
     const normalized = normalizeEmail(lumaEmail);
     const existing = await this.findByEmail(programId, normalized);
     if (existing) return { submission: existing, duplicate: true };
@@ -87,6 +89,8 @@ class ProgramSubmissionRepository {
         video_url: videoUrl,
         github_url: githubUrl,
         late,
+        feedback: feedback ?? null,
+        agreed_to_terms_at: agreedToTerms ? new Date().toISOString() : null,
       })
       .select('*')
       .single();
@@ -96,18 +100,24 @@ class ProgramSubmissionRepository {
 
   // Resubmission: overwrite the editable fields of an existing submission (one
   // per Luma email). Leaves prize / paid / promoted as-is.
-  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late }) {
+  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late, feedback, agreedToTerms }) {
+    const patch = {
+      submitter_name: submitterName,
+      project_title: projectTitle,
+      project_brief: projectBrief,
+      video_url: videoUrl,
+      github_url: githubUrl,
+      late: !!late,
+      updated_at: new Date().toISOString(),
+    };
+    // Resubmits overwrite the feedback; only re-stamp the terms agreement when
+    // the submitter re-affirmed it (never clear a prior agreement).
+    if (feedback !== undefined) patch.feedback = feedback ?? null;
+    if (agreedToTerms === true) patch.agreed_to_terms_at = new Date().toISOString();
+
     const { data, error } = await supabase
       .from('program_submissions')
-      .update({
-        submitter_name: submitterName,
-        project_title: projectTitle,
-        project_brief: projectBrief,
-        video_url: videoUrl,
-        github_url: githubUrl,
-        late: !!late,
-        updated_at: new Date().toISOString(),
-      })
+      .update(patch)
       .eq('id', id)
       .select('*')
       .single();
