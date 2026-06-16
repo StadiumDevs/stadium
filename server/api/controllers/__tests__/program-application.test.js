@@ -221,7 +221,7 @@ describe('ProgramController.updateApplicationStatus', () => {
 
   it('updates on valid payload', async () => {
     programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding' });
-    applicationService.getById.mockResolvedValue({ id: 'a1', status: 'submitted' });
+    applicationService.getById.mockResolvedValue({ id: 'a1', programId: 'p1', status: 'submitted' });
     applicationService.updateStatus.mockResolvedValue({ id: 'a1', status: 'accepted', projectId: 'proj-1' });
     notificationService.notifyProjectTeam.mockResolvedValue([]);
     const req = {
@@ -242,7 +242,7 @@ describe('ProgramController.updateApplicationStatus', () => {
 
   it('maps PostgREST no-rows error to 404', async () => {
     programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding' });
-    applicationService.getById.mockResolvedValue({ id: 'missing', status: 'submitted' });
+    applicationService.getById.mockResolvedValue({ id: 'missing', programId: 'p1', status: 'submitted' });
     const err = Object.assign(new Error('no rows'), { code: 'PGRST116' });
     applicationService.updateStatus.mockRejectedValue(err);
     const req = {
@@ -257,7 +257,7 @@ describe('ProgramController.updateApplicationStatus', () => {
 
   it('calls notifyProjectTeam with application_accepted when submitted → accepted', async () => {
     programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
-    applicationService.getById.mockResolvedValue({ id: 'app-1', status: 'submitted' });
+    applicationService.getById.mockResolvedValue({ id: 'app-1', programId: 'p1', status: 'submitted' });
     applicationService.updateStatus.mockResolvedValue({ id: 'app-1', status: 'accepted', projectId: 'proj-1' });
     notificationService.notifyProjectTeam.mockResolvedValue([]);
     const req = {
@@ -278,7 +278,7 @@ describe('ProgramController.updateApplicationStatus', () => {
 
   it('calls notifyProjectTeam with application_rejected when submitted → rejected', async () => {
     programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
-    applicationService.getById.mockResolvedValue({ id: 'app-2', status: 'submitted' });
+    applicationService.getById.mockResolvedValue({ id: 'app-2', programId: 'p1', status: 'submitted' });
     applicationService.updateStatus.mockResolvedValue({ id: 'app-2', status: 'rejected', projectId: 'proj-2' });
     notificationService.notifyProjectTeam.mockResolvedValue([]);
     const req = {
@@ -299,7 +299,7 @@ describe('ProgramController.updateApplicationStatus', () => {
 
   it('does not call notifyProjectTeam when new status is submitted (no real transition)', async () => {
     programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
-    applicationService.getById.mockResolvedValue({ id: 'app-3', status: 'submitted' });
+    applicationService.getById.mockResolvedValue({ id: 'app-3', programId: 'p1', status: 'submitted' });
     applicationService.updateStatus.mockResolvedValue({ id: 'app-3', status: 'submitted', projectId: 'proj-3' });
     const req = {
       params: { slug: 'dogfooding-2026', applicationId: 'app-3' },
@@ -314,7 +314,7 @@ describe('ProgramController.updateApplicationStatus', () => {
 
   it('still returns 200 even when notifyProjectTeam rejects', async () => {
     programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
-    applicationService.getById.mockResolvedValue({ id: 'app-4', status: 'submitted' });
+    applicationService.getById.mockResolvedValue({ id: 'app-4', programId: 'p1', status: 'submitted' });
     applicationService.updateStatus.mockResolvedValue({ id: 'app-4', status: 'accepted', projectId: 'proj-4' });
     notificationService.notifyProjectTeam.mockRejectedValue(new Error('boom'));
     const req = {
@@ -327,20 +327,33 @@ describe('ProgramController.updateApplicationStatus', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
-  it('still updates and returns 200 when the prior-status lookup (getById) fails', async () => {
+  it('404s (no write) when the application belongs to a DIFFERENT program (IDOR)', async () => {
     programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
-    applicationService.getById.mockRejectedValue(new Error('supabase transport error'));
-    applicationService.updateStatus.mockResolvedValue({ id: 'app-5', status: 'accepted', projectId: 'proj-5' });
+    // Application exists but is scoped to another program.
+    applicationService.getById.mockResolvedValue({ id: 'other', programId: 'p2', status: 'submitted' });
     const req = {
-      params: { slug: 'dogfooding-2026', applicationId: 'app-5' },
+      params: { slug: 'dogfooding-2026', applicationId: 'other' },
       body: { status: 'accepted' },
       user: { address: 'admin' },
     };
     const res = mockRes();
     await programController.updateApplicationStatus(req, res);
-    // The status update still succeeds; getById failure only skips the notify gate.
-    expect(applicationService.updateStatus).toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(applicationService.updateStatus).not.toHaveBeenCalled();
     expect(notificationService.notifyProjectTeam).not.toHaveBeenCalled();
+  });
+
+  it('404s (no write) when the application does not exist', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'p1', name: 'Dogfooding 2026' });
+    applicationService.getById.mockResolvedValue(null);
+    const req = {
+      params: { slug: 'dogfooding-2026', applicationId: 'ghost' },
+      body: { status: 'accepted' },
+      user: { address: 'admin' },
+    };
+    const res = mockRes();
+    await programController.updateApplicationStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(applicationService.updateStatus).not.toHaveBeenCalled();
   });
 });

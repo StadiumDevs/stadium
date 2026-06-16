@@ -120,15 +120,14 @@ class ProgramController {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
 
-      // Prior-status lookup feeds only the notification gate below — a failure
-      // here must not break the status update or change the HTTP response.
-      let prevStatus;
-      try {
-        const existing = await programApplicationService.getById(applicationId);
-        prevStatus = existing?.status;
-      } catch (err) {
-        logger.error('Failed to read application prior status for notification gating:', err);
+      // Cross-check program scoping: an application from program B must not be
+      // updatable via program A's slug (IDOR). Authoritative — reject before any
+      // write. The fetched row also feeds the prior-status notification gate.
+      const existing = await programApplicationService.getById(applicationId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Application not found' });
       }
+      const prevStatus = existing.status;
 
       const reviewedBy = req.user?.address || req.auth?.address || 'unknown';
       const updated = await programApplicationService.updateStatus({
