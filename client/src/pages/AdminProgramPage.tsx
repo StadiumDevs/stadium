@@ -19,6 +19,7 @@ import { ProgramStatsHeader } from "@/components/admin/ProgramStatsHeader";
 import { ProgramFormModal } from "@/components/admin/ProgramFormModal";
 import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSection";
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
+import { LumaGuestsSection } from "@/components/admin/LumaGuestsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -357,7 +358,7 @@ const AdminProgramPage = () => {
                 <ProgramJudgingSection
                   programSlug={program.slug}
                   getAuth={getAdminAuth}
-                  signWinnerAction={(a) => auth.signAction(a)}
+                  signPublishAction={() => auth.signAction("publish-results")}
                   canSelectWinners={isGlobalAdmin}
                   prizeTiers={program.prizeTiers}
                   resultsPublishedAt={program.resultsPublishedAt}
@@ -371,11 +372,18 @@ const AdminProgramPage = () => {
                   />
                 )}
 
-                <ProgramSignupsSection
-                  programSlug={program.slug}
-                  signAuthHeader={getAdminAuth}
-                  title={program.programType === "hackathon" ? "·LUMA-APPROVED GUESTS" : undefined}
-                />
+                {program.programType === "hackathon" ? (
+                  <LumaGuestsSection
+                    program={program}
+                    signAuthHeader={getAdminAuth}
+                    onProgramChange={(patch) => setProgram((p) => (p ? { ...p, ...patch } : p))}
+                  />
+                ) : (
+                  <ProgramSignupsSection
+                    programSlug={program.slug}
+                    signAuthHeader={getAdminAuth}
+                  />
+                )}
 
                 {program.programType !== "hackathon" && (
                   <ProgramAuditLogSection
@@ -480,11 +488,18 @@ const AdminProgramPage = () => {
                     {program.programType !== "hackathon" && (
                       <ProgramSponsorsSection programSlug={program.slug} signAuthHeader={getJudgeAuth} />
                     )}
-                    <ProgramSignupsSection
-                      programSlug={program.slug}
-                      signAuthHeader={getJudgeAuth}
-                      title={program.programType === "hackathon" ? "·LUMA-APPROVED GUESTS" : undefined}
-                    />
+                    {program.programType === "hackathon" ? (
+                      <LumaGuestsSection
+                        program={program}
+                        signAuthHeader={getJudgeAuth}
+                        onProgramChange={(patch) => setProgram((p) => (p ? { ...p, ...patch } : p))}
+                      />
+                    ) : (
+                      <ProgramSignupsSection
+                        programSlug={program.slug}
+                        signAuthHeader={getJudgeAuth}
+                      />
+                    )}
                   </>
                 )}
 

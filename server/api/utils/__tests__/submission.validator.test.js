@@ -1,12 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateSubmission,
+  validateFeedback,
   validateScore,
   validatePrize,
   prizeTiersFor,
   DEFAULT_PRIZE_TIERS,
   MAX_TOTAL_SCORE,
 } from '../submission.validator.js';
+
+const goodFeedback = {
+  surfaces: ['Hosted MCP', 'REST API'],
+  surfacesPrimary: 'Hosted MCP',
+  agentEnv: 'Claude Code',
+  deadlineStatus: 'A purchase worked, but I handled (or mocked) the payment',
+  biggestBlocker: 'The x402 flow',
+  couldntHandle: '',
+  wouldKeepBuilding: 'Maybe',
+};
 
 const goodSubmission = {
   submitterName: '  Ada Lovelace ',
@@ -46,6 +57,72 @@ describe('validateSubmission', () => {
     expect(validateSubmission({ ...goodSubmission, videoUrl: 'javascript:alert(1)' }).ok).toBe(false);
     expect(validateSubmission({ ...goodSubmission, githubUrl: 'ftp://x/y' }).ok).toBe(false);
     expect(validateSubmission({ ...goodSubmission, githubUrl: 'github.com/no-scheme' }).ok).toBe(false);
+  });
+
+  it('defaults feedback to null and agreedToTerms to false when absent', () => {
+    const r = validateSubmission(goodSubmission);
+    expect(r.ok).toBe(true);
+    expect(r.value.feedback).toBe(null);
+    expect(r.value.agreedToTerms).toBe(false);
+  });
+
+  it('carries valid feedback + terms agreement through', () => {
+    const r = validateSubmission({ ...goodSubmission, feedback: goodFeedback, agreedToTerms: true });
+    expect(r.ok).toBe(true);
+    expect(r.value.feedback.surfaces).toEqual(['Hosted MCP', 'REST API']);
+    expect(r.value.feedback.surfacesPrimary).toBe('Hosted MCP');
+    expect(r.value.agreedToTerms).toBe(true);
+  });
+
+  it('rejects a submission whose feedback is malformed', () => {
+    const r = validateSubmission({
+      ...goodSubmission,
+      feedback: { surfaces: ['MCP'], surfacesPrimary: 'CLI' },
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('treats any non-true agreedToTerms as false', () => {
+    expect(validateSubmission({ ...goodSubmission, agreedToTerms: 'yes' }).value.agreedToTerms).toBe(false);
+  });
+});
+
+describe('validateFeedback', () => {
+  it('returns null value when feedback is absent', () => {
+    expect(validateFeedback(undefined)).toEqual({ ok: true, value: null });
+    expect(validateFeedback(null)).toEqual({ ok: true, value: null });
+  });
+
+  it('rejects a non-object feedback', () => {
+    expect(validateFeedback('nope').ok).toBe(false);
+    expect(validateFeedback(['a']).ok).toBe(false);
+  });
+
+  it('normalizes a valid feedback object', () => {
+    const r = validateFeedback(goodFeedback);
+    expect(r.ok).toBe(true);
+    expect(r.value.surfaces).toEqual(['Hosted MCP', 'REST API']);
+    expect(r.value.surfacesPrimary).toBe('Hosted MCP');
+    expect(r.value.agentEnv).toBe('Claude Code');
+  });
+
+  it('rejects a primary surface that is not among the selected surfaces', () => {
+    expect(validateFeedback({ surfaces: ['MCP'], surfacesPrimary: 'CLI' }).ok).toBe(false);
+  });
+
+  it('rejects non-array surfaces and empty surface entries', () => {
+    expect(validateFeedback({ surfaces: 'MCP' }).ok).toBe(false);
+    expect(validateFeedback({ surfaces: ['  '] }).ok).toBe(false);
+  });
+
+  it('drops unknown keys rather than persisting them', () => {
+    const r = validateFeedback({ ...goodFeedback, secretField: 'x' });
+    expect(r.ok).toBe(true);
+    expect(r.value.secretField).toBeUndefined();
+  });
+
+  it('rejects an over-long free-text answer', () => {
+    expect(validateFeedback({ couldntHandle: 'x'.repeat(1001) }).ok).toBe(false);
   });
 });
 

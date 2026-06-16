@@ -8,6 +8,11 @@ describe('validateStatement', () => {
     }
   });
 
+  it('accepts the publish-results statement the client signs (client↔server contract)', () => {
+    // generateSiwsStatement('publish-results') in client/src/lib/siwsUtils.ts.
+    expect(validateStatement('Publish results on Stadium')).toBe(true);
+  });
+
   it('accepts project-specific statements via pattern match', () => {
     expect(validateStatement('Update team members for Acme Rocket on Stadium')).toBe(true);
     expect(validateStatement('Approve project Acme Rocket on Stadium')).toBe(true);

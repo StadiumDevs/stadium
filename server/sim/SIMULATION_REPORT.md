@@ -23,7 +23,7 @@ Supabase fake.
 15. Winner selection is platform-admin only: a per-program admin is rejected (403).
 16. Platform admin assigned prizes: Aurora Pay 500 EUR, Nimbus Wallet 200 EUR, Comet Bridge 100 EUR (Bitrefill giftcards).
 17. Results published: public page shows all 3 submissions, winners first, with no Luma email exposed.
-18. After submitting, a judge can no longer edit scores (409, locked).
+18. After submitting, a judge can still revise and re-save scores (200); the submitted ballot reflects the latest values.
 
 ## What works
 

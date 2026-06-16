@@ -10,6 +10,7 @@
  */
 
 import type { ApiProgram, ApiProgramAdminEmail, ApiProgramSignup, ApiProgramSponsor } from "./api";
+import { BITREFILL_2026_CONTENT } from "./bitrefillContent";
 
 export const mockPrograms: ApiProgram[] = [
   {
@@ -79,16 +80,7 @@ export const mockPrograms: ApiProgram[] = [
     maxApplicants: null,
     eventUrl: "https://luma.com/internetmoneyhack",
     coverImageUrl: "/bitrefill-cover.png",
-    content: [
-      {
-        type: "schedule",
-        title: "Schedule",
-        rows: [
-          { time: "11:30", label: "Brunch & kick-off" },
-          { time: "18:00", label: "Submission deadline" },
-        ],
-      },
-    ],
+    content: BITREFILL_2026_CONTENT,
     prizeTiers: [
       { amount: 500, currency: "EUR", label: "Bitrefill giftcard" },
       { amount: 200, currency: "EUR", label: "Bitrefill giftcard" },

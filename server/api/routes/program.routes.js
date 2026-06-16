@@ -1,5 +1,6 @@
 import { Router, text, json } from 'express';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
 import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
 import requireAdmin, {
@@ -48,6 +49,29 @@ const submissionLimiter = rateLimit({
   },
 });
 
+// Cover-image uploads buffer the file in memory (small banners) so the controller
+// can stream the bytes straight to Supabase Storage. Hard-cap at 5MB here too so
+// an oversized body is rejected before it's fully read; the controller mirrors
+// this with a friendlier 422.
+const coverUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+});
+
+// Run multer's single-file parse but translate its size/limit errors into a
+// friendly 422 instead of bubbling to the default 500 handler.
+const parseCoverUpload = (req, res, next) =>
+  coverUpload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE'
+        ? 'Image is too large (max 5MB).'
+        : 'Could not read the uploaded file.';
+      return res.status(422).json({ status: 'error', message });
+    }
+    if (err) return next(err);
+    next();
+  });
+
 // --- Public, Read-Only Routes ---
 router.get('/', programController.list);
 router.get('/:slug', programController.getBySlug);
@@ -59,6 +83,13 @@ router.get('/:slug/results', submissionController.publicResults);
 // --- Phase 1 revamp: admin create/edit (#46) ---
 router.post('/', requireAdmin, programController.createProgram);
 router.patch('/:slug', requireProgramAdmin('slug'), programController.updateProgram);
+// Upload a cover banner to Supabase Storage; returns the public URL to save via PATCH.
+router.post(
+  '/:slug/cover-image',
+  requireProgramAdmin('slug'),
+  parseCoverUpload,
+  programController.uploadCoverImage,
+);
 
 // --- Phase 1 revamp: applications (#43, #47) ---
 router.get(
@@ -116,6 +147,11 @@ router.delete(
 // shared SIWS middleware: parser runs first to produce req.body, then
 // requireProgramAdmin reads x-siws-auth from headers.
 router.get('/:slug/signups', requireProgramViewer('slug'), programController.listSignups);
+// Luma-gated programs: pull checked-in guests from the Luma API instead of a CSV.
+router.post('/:slug/signups/sync', requireProgramAdmin('slug'), programController.syncGuests);
+// Manual single-email add (event-day fallback). Sits before the CSV import and
+// :signupId routes; the static `import`/`sync` segments are matched first.
+router.post('/:slug/signups', requireProgramAdmin('slug'), programController.addSignup);
 router.post(
   '/:slug/signups/import',
   ...csvBody,

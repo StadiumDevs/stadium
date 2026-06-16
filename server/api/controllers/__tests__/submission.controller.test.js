@@ -34,6 +34,9 @@ vi.mock('../../services/program-audit-log.service.js', () => ({ default: { logSa
 vi.mock('../../services/prize-award.service.js', () => ({
   default: { notifyWinners: vi.fn() },
 }));
+vi.mock('../../services/luma-sync.service.js', () => ({
+  default: { isActive: vi.fn(() => false), syncProgram: vi.fn() },
+}));
 
 const programService = (await import('../../services/program.service.js')).default;
 const scoringService = (await import('../../services/scoring.service.js')).default;
@@ -44,6 +47,7 @@ const scoreRepo = (await import('../../repositories/submission-score.repository.
 const signupRepo = (await import('../../repositories/program-signup.repository.js')).default;
 const confirmationService = (await import('../../services/submission-confirmation.service.js')).default;
 const prizeAwardService = (await import('../../services/prize-award.service.js')).default;
+const lumaSyncService = (await import('../../services/luma-sync.service.js')).default;
 const submissionController = (await import('../submission.controller.js')).default;
 
 const mockRes = () => {
@@ -173,9 +177,70 @@ describe('SubmissionController.submit (public)', () => {
   });
 });
 
+describe('SubmissionController.submit — Luma-gated JIT verification', () => {
+  // A program whose gate is backed by the Luma API (event id set + key present).
+  const LUMA_PROGRAM = { ...PROGRAM, lumaEventId: 'evt-1', lastGuestSyncAt: null, lastGuestSyncStatus: null };
+
+  it('cache-miss → JIT sync finds the just-checked-in email → 201', async () => {
+    programService.findBySlug.mockResolvedValue(LUMA_PROGRAM);
+    lumaSyncService.isActive.mockReturnValue(true);
+    // absent before the sync, present after it
+    signupRepo.existsByEmail.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    lumaSyncService.syncProgram.mockResolvedValue({ status: 'ok' });
+    submissionRepo.findByEmail.mockResolvedValue(null);
+    submissionRepo.create.mockResolvedValue({ submission: { id: 'x', lumaEmail: 'ada@example.com' }, duplicate: false });
+    confirmationService.send.mockResolvedValue({ ok: true });
+
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: GOOD_BODY }, res);
+    expect(lumaSyncService.syncProgram).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('cache-miss + Luma unreachable (sync error) → 503 transient, NOT a 403', async () => {
+    programService.findBySlug.mockResolvedValue(LUMA_PROGRAM);
+    lumaSyncService.isActive.mockReturnValue(true);
+    signupRepo.existsByEmail.mockResolvedValue(false); // absent before and after
+    lumaSyncService.syncProgram.mockResolvedValue({ status: 'error:Luma 429' });
+
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: GOOD_BODY }, res);
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(submissionRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('cache-miss + healthy sync still absent → 403 definitive', async () => {
+    programService.findBySlug.mockResolvedValue(LUMA_PROGRAM);
+    lumaSyncService.isActive.mockReturnValue(true);
+    signupRepo.existsByEmail.mockResolvedValue(false);
+    lumaSyncService.syncProgram.mockResolvedValue({ status: 'ok' });
+
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: GOOD_BODY }, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it('recently synced (within floor) + last sync errored → 503 without re-syncing', async () => {
+    programService.findBySlug.mockResolvedValue({
+      ...LUMA_PROGRAM,
+      lastGuestSyncAt: new Date().toISOString(), // fresh → inside the JIT floor
+      lastGuestSyncStatus: 'error:Luma 500',
+    });
+    lumaSyncService.isActive.mockReturnValue(true);
+    signupRepo.existsByEmail.mockResolvedValue(false);
+
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: GOOD_BODY }, res);
+    expect(lumaSyncService.syncProgram).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+  });
+});
+
 describe('SubmissionController.upsertScore (judge)', () => {
-  it('409s when the judge ballot is already submitted (locked)', async () => {
-    ballotRepo.isSubmitted.mockResolvedValue(true);
+  it('lets a judge re-save a score after submitting (editable, not locked)', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(true); // already submitted
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill' });
+    scoreRepo.upsert.mockResolvedValue({ id: 'sc1' });
     const req = {
       params: { slug: 'bitrefill', submissionId: 's1' },
       user: { email: 'judge@x.com', programId: 'bitrefill', canJudge: true },
@@ -183,8 +248,10 @@ describe('SubmissionController.upsertScore (judge)', () => {
     };
     const res = mockRes();
     await submissionController.upsertScore(req, res);
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(scoreRepo.upsert).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(scoreRepo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ judgeEmail: 'judge@x.com', submissionId: 's1' }),
+    );
   });
 
   it('saves a valid score for the verified judge email (not a body field)', async () => {
@@ -331,12 +398,14 @@ describe('SubmissionController.saveScores (judge bulk)', () => {
     body: { scores },
   });
 
-  it('409s when the ballot is locked', async () => {
-    ballotRepo.isSubmitted.mockResolvedValue(true);
+  it('lets a judge bulk re-save after submitting (editable, not locked)', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(true); // already submitted
+    submissionRepo.listByProgramId.mockResolvedValue([{ id: 's1' }]);
+    scoreRepo.upsertMany.mockResolvedValue([{ id: 'a' }]);
     const res = mockRes();
     await submissionController.saveScores(baseReq([{ submissionId: 's1', requirements: 1, techStack: 1, innovation: 1 }]), res);
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(submissionRepo.listByProgramId).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(scoreRepo.upsertMany).toHaveBeenCalled();
   });
 
   it('400s an unknown submission in the batch', async () => {

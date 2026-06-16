@@ -8,7 +8,13 @@ import programJudgeBallotRepository from '../repositories/program-judge-ballot.r
 import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
 import submissionConfirmationService from '../services/submission-confirmation.service.js';
 import prizeAwardService from '../services/prize-award.service.js';
+import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
+
+// On a Luma-gated cache-miss we lazily re-sync, but only if the last sync is
+// older than this floor. Bounds Luma calls when not-on-list emails retry, while
+// keeping the worst-case "checked in seconds ago" wait small.
+const JIT_SYNC_FLOOR_MS = 25 * 1000;
 
 // Winner selection + publishing are platform-admin only. After requireProgramAdmin,
 // a global admin carries isGlobalAdmin === true; per-program admins do not.
@@ -99,14 +105,41 @@ class SubmissionController {
           .filter(Boolean),
       );
       const submitterEmail = String(v.value.lumaEmail || '').trim().toLowerCase();
-      if (
-        !testEmails.has(submitterEmail) &&
-        !(await programSignupRepository.existsByEmail(program.id, v.value.lumaEmail))
-      ) {
-        return res.status(403).json({
-          status: 'error',
-          message: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
-        });
+      if (!testEmails.has(submitterEmail)) {
+        let present = await programSignupRepository.existsByEmail(program.id, submitterEmail);
+        // Luma-gated programs: on a miss, lazily re-sync the checked-in list
+        // (someone may have checked in seconds ago) before deciding. Respect a
+        // floor so repeated not-on-list retries can't hammer Luma. A sync
+        // FAILURE must not be reported to a legit attendee as "not on the list"
+        // — distinguish transient (retry) from definitive (rejected).
+        let transient = false;
+        if (!present && lumaSyncService.isActive(program)) {
+          const lastSync = program.lastGuestSyncAt ? Date.parse(program.lastGuestSyncAt) : 0;
+          const stale = !lastSync || Date.now() - lastSync > JIT_SYNC_FLOOR_MS;
+          if (stale) {
+            const sync = await lumaSyncService.syncProgram(program);
+            transient = sync.status === 'truncated' || String(sync.status).startsWith('error');
+            present = await programSignupRepository.existsByEmail(program.id, submitterEmail);
+          } else {
+            // Synced very recently and still absent → treat the last sync's
+            // health as the verdict's confidence.
+            transient =
+              program.lastGuestSyncStatus === 'truncated' ||
+              String(program.lastGuestSyncStatus || '').startsWith('error');
+          }
+        }
+        if (!present) {
+          if (transient) {
+            return res.status(503).json({
+              status: 'error',
+              message: "Couldn't verify your check-in right now. Please try again in a moment.",
+            });
+          }
+          return res.status(403).json({
+            status: 'error',
+            message: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
+          });
+        }
       }
       // Deadline is informational: a submit after event end is flagged late, not blocked.
       const late = !!(program.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
@@ -177,14 +210,9 @@ class SubmissionController {
       const judgeEmail = judgeIdentity(req);
       const { submissionId } = req.params;
 
-      // Locked once the judge has submitted their ballot (reopen is iteration 2).
-      if (await programJudgeBallotRepository.isSubmitted(programId, judgeEmail)) {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Your scores are submitted and locked. Ask an admin to reopen them to edit.',
-        });
-      }
-
+      // A judge can revise their own scores at any time, including after
+      // submitting — the leaderboard (submitted ballots only) reflects the
+      // latest values. Submitting is "count me in", not a freeze.
       const submission = await programSubmissionRepository.findById(submissionId);
       if (!submission || submission.programId !== programId) {
         return res.status(404).json({ status: 'error', message: 'Submission not found' });
@@ -277,13 +305,8 @@ class SubmissionController {
       if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
       const judgeEmail = judgeIdentity(req);
 
-      if (await programJudgeBallotRepository.isSubmitted(programId, judgeEmail)) {
-        return res.status(409).json({
-          status: 'error',
-          message: 'Your scores are submitted and locked. Ask an admin to reopen them to edit.',
-        });
-      }
-
+      // Editable after submit too: a judge may re-save (revise) their own
+      // scores anytime; submitted ballots still count and reflect the latest.
       const scores = req.body?.scores;
       if (!Array.isArray(scores) || scores.length === 0) {
         return res.status(400).json({ status: 'error', message: 'scores must be a non-empty array' });

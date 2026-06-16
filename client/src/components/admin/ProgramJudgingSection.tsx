@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, ExternalLink, Lock, Trophy, Plus, ChevronRight, ChevronDown } from "lucide-react";
+import { Loader2, ExternalLink, Lock, Trophy, Plus, ChevronRight, ChevronDown, Play } from "lucide-react";
 import {
   api,
   type AdminAuthArg,
@@ -11,6 +11,7 @@ import {
 import { prizeTiersFor } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { ProjectReviewModal } from "@/components/admin/ProjectReviewModal";
 
 type Draft = { requirements: number; techStack: number; innovation: number; notes: string };
 type Tab = "score" | "results";
@@ -39,7 +40,7 @@ const prizeText = (amount?: number | null, currency?: string | null) =>
 export function ProgramJudgingSection({
   programSlug,
   getAuth,
-  signWinnerAction,
+  signPublishAction,
   canSelectWinners = false,
   prizeTiers,
   resultsPublishedAt = null,
@@ -48,13 +49,12 @@ export function ProgramJudgingSection({
   programSlug: string;
   getAuth: () => Promise<AdminAuthArg>;
   /**
-   * Fresh-signature source for the high-stakes winner/payout actions
-   * (award prize, publish results, mark paid). When provided, these actions
-   * pop a wallet signature every time instead of riding the cached admin
-   * session — a deliberate human confirmation. Reads still use `getAuth`.
-   * Only wired on the wallet-admin path (`canSelectWinners`).
+   * Fresh-signature source for PUBLISHING results only — the one irreversible,
+   * public action we still gate behind a deliberate wallet signature. Everything
+   * else (scoring, award, mark paid) rides the cached admin session opened at
+   * sign-in. When omitted, publish falls back to the cached session too.
    */
-  signWinnerAction?: (action: "mark-paid" | "award-prize" | "publish-results") => Promise<string>;
+  signPublishAction?: () => Promise<string>;
   canSelectWinners?: boolean;
   prizeTiers?: ApiPrizeTier[] | null;
   resultsPublishedAt?: string | null;
@@ -62,6 +62,8 @@ export function ProgramJudgingSection({
 }) {
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("score");
+  // The demo currently previewed in the in-app review modal (null = closed).
+  const [review, setReview] = useState<{ url: string; title: string } | null>(null);
   const [view, setView] = useState<ApiJudgeView | null>(null);
   const [board, setBoard] = useState<ApiLeaderboard | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -203,7 +205,7 @@ export function ProgramJudgingSection({
     try {
       const auth = await getAuth();
       await api.submitBallot(programSlug, auth);
-      toast({ title: "Scores submitted", description: "Your ballot is locked." });
+      toast({ title: "Scores submitted", description: "Your scores now count. You can still revise and re-save them." });
       await loadSubmissions();
     } catch (e) {
       toast({
@@ -216,17 +218,16 @@ export function ProgramJudgingSection({
     }
   };
 
-  // Auth for the high-stakes winner/payout actions: a fresh signature each
-  // time when wired (wallet admins), else the cached admin session.
-  const winnerAuth = (action: "mark-paid" | "award-prize" | "publish-results") =>
-    signWinnerAction ? signWinnerAction(action) : getAuth();
+  // Publish re-signs fresh (the one action still gated). Everything else rides
+  // the cached admin session opened at sign-in.
+  const publishAuth = () => (signPublishAction ? signPublishAction() : getAuth());
 
   // Platform admin: assign a prize tier (winner) to a submission, or clear it.
   const award = async (submissionId: string, amountRaw: string) => {
     const tier = amountRaw === "" ? null : tiers.find((t) => t.amount === Number(amountRaw)) ?? null;
     setAwardingId(submissionId);
     try {
-      const auth = await winnerAuth("award-prize");
+      const auth = await getAuth();
       await api.awardPrize(programSlug, submissionId, tier, auth);
       setBoard((prev) =>
         prev && !prev.locked
@@ -256,7 +257,7 @@ export function ProgramJudgingSection({
   const markPaid = async (submissionId: string, paid: boolean) => {
     setPaidId(submissionId);
     try {
-      const auth = await winnerAuth("mark-paid");
+      const auth = await getAuth();
       await api.setSubmissionPaid(programSlug, submissionId, paid, auth);
       setBoard((prev) =>
         prev && !prev.locked
@@ -278,7 +279,7 @@ export function ProgramJudgingSection({
   const togglePublish = async () => {
     setPublishing(true);
     try {
-      const auth = await winnerAuth("publish-results");
+      const auth = await publishAuth();
       const res = await api.publishResults(programSlug, !publishedAt, auth);
       setPublishedAt(res.data.resultsPublishedAt);
       onPublishedChange?.(res.data.resultsPublishedAt);
@@ -338,9 +339,13 @@ export function ProgramJudgingSection({
             {!s.eligible && (
               <span className="label-hw text-destructive" title="This email is not in the Luma signup list">·NOT IN LUMA</span>
             )}
-            <a href={s.videoUrl} target="_blank" rel="noreferrer" className="label-hw-dim hover:text-display inline-flex items-center gap-1">
-              VIDEO <ExternalLink className="h-3 w-3" />
-            </a>
+            <button
+              type="button"
+              onClick={() => setReview({ url: s.videoUrl, title: s.projectTitle })}
+              className="label-hw-dim hover:text-display inline-flex items-center gap-1"
+            >
+              VIDEO <Play className="h-3 w-3" />
+            </button>
             <a href={s.githubUrl} target="_blank" rel="noreferrer" className="label-hw-dim hover:text-display inline-flex items-center gap-1">
               GITHUB <ExternalLink className="h-3 w-3" />
             </a>
@@ -359,7 +364,6 @@ export function ProgramJudgingSection({
                 type="number"
                 min={0}
                 max={BOUNDS[field]}
-                disabled={locked}
                 value={d[field]}
                 onChange={(e) => setField(s.id, field, e.target.value)}
                 className="w-full font-mono text-[13px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display disabled:opacity-50"
@@ -370,7 +374,6 @@ export function ProgramJudgingSection({
         </div>
         <textarea
           rows={2}
-          disabled={locked}
           value={d.notes}
           placeholder="Notes (optional)"
           onChange={(e) => setField(s.id, "notes", e.target.value)}
@@ -413,8 +416,7 @@ export function ProgramJudgingSection({
           <>
             {locked && (
               <div className="lcd p-2.5 mb-3 flex flex-wrap items-center gap-2">
-                <Lock className="h-3.5 w-3.5 text-display" aria-hidden="true" />
-                <span className="label-hw text-display">SCORES SUBMITTED · LOCKED</span>
+                <span className="label-hw text-display">·SUBMITTED — YOUR SCORES COUNT. YOU CAN STILL REVISE + SAVE.</span>
                 {view.ballotProgress && (
                   <span className="label-hw-dim">
                     · {view.ballotProgress.submitted} of {view.ballotProgress.total} judges in
@@ -469,22 +471,18 @@ export function ProgramJudgingSection({
             ) : (
               <div className="space-y-5">
                 {claimedGroups.map((g) => {
-                  const groupScored = g.subs.every((s) => s.myScore !== null);
                   return (
                     <div key={g.batchNumber} className="space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <span className="label-hw text-display">·BATCH {g.batchNumber} ({g.subs.length})</span>
-                        {!locked && (
-                          <button
-                            type="button"
-                            onClick={() => saveBatch(g.batchNumber, g.subs)}
-                            disabled={savingBatch === g.batchNumber}
-                            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1"
-                          >
-                            {savingBatch === g.batchNumber ? "SAVING…" : "SAVE BATCH"}
-                          </button>
-                        )}
-                        {locked && groupScored && <span className="label-hw-dim">SAVED</span>}
+                        <button
+                          type="button"
+                          onClick={() => saveBatch(g.batchNumber, g.subs)}
+                          disabled={savingBatch === g.batchNumber}
+                          className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1"
+                        >
+                          {savingBatch === g.batchNumber ? "SAVING…" : "SAVE BATCH"}
+                        </button>
                       </div>
                       {g.subs.map(renderCard)}
                     </div>
@@ -680,6 +678,13 @@ export function ProgramJudgingSection({
           </div>
         </>
       )}
+
+      <ProjectReviewModal
+        open={!!review}
+        url={review?.url ?? null}
+        title={review?.title}
+        onOpenChange={(v) => { if (!v) setReview(null); }}
+      />
     </section>
   );
 }

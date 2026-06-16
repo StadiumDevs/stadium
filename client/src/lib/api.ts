@@ -391,6 +391,7 @@ export type ProgramStat = { label: string; value: string };
  */
 export type ProgramContentSection =
   | { type: "text"; title?: string; body: string }
+  | { type: "markdown"; title?: string; body: string }
   | { type: "steps"; title?: string; items: string[] }
   | { type: "schedule"; title?: string; rows: { time: string; label: string }[] }
   | { type: "lineup"; title?: string; items: ProgramLineupItem[] }
@@ -420,8 +421,24 @@ export type ApiProgram = {
   prizeTiers?: ApiPrizeTier[] | null;
   /** Set when a platform admin publishes results to the public program page. */
   resultsPublishedAt?: string | null;
+  /** Luma event id (evt-…). When set + server has LUMA_API_KEY, the submit gate
+   *  verifies emails against the event's checked-in guests synced from Luma. */
+  lumaEventId?: string | null;
+  /** Last time the checked-in guest list was synced from Luma (admin display). */
+  lastGuestSyncAt?: string | null;
+  /** Outcome of the last sync: 'ok' | 'truncated' | 'empty_guard' | 'error:…'. */
+  lastGuestSyncStatus?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+/** Result of a manual "Sync now" against the Luma API. */
+export type ProgramGuestSyncResult = {
+  syncStatus: string;
+  checkedInCount: number;
+  syncedAt: string;
+  upserted: number;
+  removed: number;
 };
 
 /** At-a-glance counts for the program admin/judge header (no PII). */
@@ -1332,6 +1349,45 @@ export const api = {
     });
   },
 
+  /**
+   * Admin: upload a cover banner image for a program. Returns the public URL,
+   * which the caller drops into coverImageUrl and saves via updateProgram.
+   * Sends multipart/form-data — do NOT set Content-Type (the browser adds the
+   * boundary). In mock mode, resolves to a data URL so previews work offline.
+   */
+  uploadProgramCover: async (
+    slug: string,
+    file: File,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: { url: string } }> => {
+    if (USE_MOCK_DATA) {
+      const url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read the image file"));
+        reader.readAsDataURL(file);
+      });
+      return { status: "success", data: { url } };
+    }
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(
+      `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/cover-image`,
+      { method: "POST", headers: adminAuthHeaders(authHeader), body: form },
+    );
+    if (!response.ok) {
+      let message = "Failed to upload image";
+      try {
+        const body = await response.json();
+        if (body?.message) message = body.message;
+      } catch {
+        // ignore non-JSON body
+      }
+      throw new ApiError(message, response.status);
+    }
+    return response.json();
+  },
+
   // --- Program sponsors ---
 
   listProgramSponsors: async (
@@ -1486,6 +1542,61 @@ export const api = {
       headers: adminAuthHeaders(authHeader),
     });
     return { status: "success" };
+  },
+
+  // --- Luma guest sync (replaces CSV for Luma-gated programs) ---
+
+  /** Pull the event's checked-in guests from Luma into program_signups now. */
+  syncProgramGuests: async (
+    slug: string,
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ProgramGuestSyncResult }> => {
+    if (USE_MOCK_DATA) {
+      return {
+        status: "success",
+        data: {
+          syncStatus: "ok",
+          checkedInCount: 0,
+          syncedAt: new Date().toISOString(),
+          upserted: 0,
+          removed: 0,
+        },
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/signups/sync`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Manually add a single checked-in email (event-day fallback). Idempotent. */
+  addProgramSignup: async (
+    slug: string,
+    payload: { email: string; name?: string | null },
+    authHeader?: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiProgramSignup }> => {
+    if (USE_MOCK_DATA) {
+      const { mockProgramSignups } = await import("./mockPrograms");
+      const row: ApiProgramSignup = {
+        id: `manual-${Date.now()}`,
+        programId: slug,
+        email: payload.email.trim().toLowerCase(),
+        name: payload.name ?? null,
+        wallet: null,
+        registeredAt: null,
+        source: "manual",
+        rawRow: null,
+        importedInBatchAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      mockProgramSignups[slug] = [row, ...(mockProgramSignups[slug] || [])];
+      return { status: "success", data: row };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/signups`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   },
 
   /**
@@ -1841,6 +1952,16 @@ export const api = {
       videoUrl: string;
       githubUrl: string;
       company?: string;
+      agreedToTerms?: boolean;
+      feedback?: {
+        surfaces: string[];
+        surfacesPrimary: string | null;
+        agentEnv: string;
+        deadlineStatus: string;
+        biggestBlocker: string;
+        couldntHandle: string;
+        wouldKeepBuilding: string;
+      };
     },
   ): Promise<{ status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean }> => {
     if (USE_MOCK_DATA) {
