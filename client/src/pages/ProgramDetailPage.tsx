@@ -60,6 +60,10 @@ const ProgramDetailPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
+  // Public results: search box over published submissions, and the collapsible
+  // "about" panel (hackathon info) that sits below the projects once published.
+  const [resultsQuery, setResultsQuery] = useState("");
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
   // accepts admins). Without this branch, the page would dead-end at "You need to be a team member"
@@ -240,6 +244,15 @@ const ProgramDetailPage = () => {
     .filter((s): s is Extract<ProgramContentSection, { type: "schedule" }> => s.type === "schedule")
     .flatMap((s) => s.rows);
 
+  // Once a hackathon's results are published, flip the page: searchable projects
+  // on top, hackathon info collapsed at the bottom.
+  const isPublished = isHackathon && !!results?.published && results.submissions.length > 0;
+  const filteredResults = (results?.submissions ?? []).filter((s) => {
+    const q = resultsQuery.trim().toLowerCase();
+    if (!q) return true;
+    return [s.projectTitle, s.submitterName, s.projectBrief].some((v) => (v ?? "").toLowerCase().includes(q));
+  });
+
   const RackButton = ({
     onClick, disabled, children,
   }: { onClick?: () => void; disabled?: boolean; children: React.ReactNode }) => (
@@ -382,7 +395,43 @@ const ProgramDetailPage = () => {
               </div>
             </header>
 
-            {program.description && (
+            {/* Published hackathon: searchable projects up top. */}
+            {isPublished && (
+              <section className="panel p-4 mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="label-hw text-display">·PROJECTS ({filteredResults.length})</div>
+                  <input
+                    type="search"
+                    value={resultsQuery}
+                    onChange={(e) => setResultsQuery(e.target.value)}
+                    placeholder="Search projects…"
+                    className="bg-panel-deep border border-hairline text-display placeholder:text-label-dim font-mono text-[12px] px-2 py-1.5 focus:outline-none focus:border-display w-full sm:w-56"
+                  />
+                </div>
+                {filteredResults.length === 0 ? (
+                  <p className="label-hw-dim">No projects match your search.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {filteredResults.map((s, i) => (
+                      <UnitCard
+                        key={`${s.projectTitle}-${i}`}
+                        unitNumber={String(i + 1).padStart(3, "0")}
+                        title={s.projectTitle}
+                        author={s.submitterName}
+                        description={s.projectBrief || ""}
+                        track={s.prize ? s.prize.label : "Submission"}
+                        isWinner={Boolean(s.prize)}
+                        prize={s.prize ? `${s.prize.amount} ${s.prize.currency}` : undefined}
+                        demoUrl={s.videoUrl}
+                        githubUrl={s.githubUrl}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {!isPublished && program.description && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-2">·DESCRIPTION</div>
                 <p className="text-body text-base leading-relaxed whitespace-pre-line">
@@ -393,7 +442,7 @@ const ProgramDetailPage = () => {
 
             {!isHackathon && <ProgramContent sections={program.content} />}
 
-            {isHackathon && (
+            {isHackathon && !isPublished && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·KEY INFO</div>
                 {program.coverImageUrl && !coverError && (
@@ -513,7 +562,7 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
-            {results?.published && results.submissions.length > 0 && (
+            {results?.published && results.submissions.length > 0 && !isPublished && (
               <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·RESULTS</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -600,13 +649,66 @@ const ProgramDetailPage = () => {
             {/* Hackathon builder reference + submission requirements. Authored as
                 ordered `content` sections so they render directly above the
                 submit panel. Non-hackathon programs render their content higher up. */}
-            {isHackathon && (
+            {isHackathon && !isPublished && (
               <ProgramContent
                 sections={program.content?.filter((s) => s.type !== "schedule")}
               />
             )}
 
-            {program.programType === "hackathon" && (
+            {/* Published hackathon: all the event info collapsed below the projects. */}
+            {isPublished && (
+              <section className="panel p-4 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setAboutOpen((v) => !v)}
+                  aria-expanded={aboutOpen}
+                  className="w-full flex items-center justify-between gap-2 text-left"
+                >
+                  <span className="label-hw text-display">·ABOUT THIS HACKATHON</span>
+                  <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
+                </button>
+                {aboutOpen && (
+                  <div className="mt-3 space-y-4">
+                    {program.description && (
+                      <p className="text-body text-base leading-relaxed whitespace-pre-line">
+                        {program.description}
+                      </p>
+                    )}
+                    {program.coverImageUrl && !coverError && (
+                      <img
+                        src={program.coverImageUrl}
+                        alt={`${program.name} event`}
+                        onError={() => setCoverError(true)}
+                        className="w-full rounded-sm border border-hairline object-cover"
+                      />
+                    )}
+                    <div className="space-y-2">
+                      {eventRange && (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="label-hw-dim">DATE</span>
+                          <span className="font-mono text-[12px] text-display">{eventRange}</span>
+                        </div>
+                      )}
+                      {program.location && (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="label-hw-dim">LOCATION</span>
+                          <span className="font-mono text-[12px] text-display">{program.location}</span>
+                        </div>
+                      )}
+                      {scheduleRows.map((r, i) => (
+                        <div key={i} className="flex items-center justify-between gap-3">
+                          <span className="label-hw-dim">{r.time}</span>
+                          <span className="font-mono text-[12px] text-display text-right">{r.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
+                  </div>
+                )}
+              </section>
+            )}
+
+            {program.programType === "hackathon" && !isPublished && (
               <div className="panel p-4">
                 <div className="label-hw mb-3">·SUBMIT YOUR PROJECT</div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
