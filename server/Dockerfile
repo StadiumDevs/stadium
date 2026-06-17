@@ -1,8 +1,12 @@
 # Use Node.js LTS version
 FROM node:20-alpine
 
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
+# Install build dependencies for native modules. Retry on transient Alpine
+# mirror/network failures (apk exit 15) so a flaky CDN can't break a deploy.
+RUN for i in 1 2 3 4 5; do \
+      apk add --no-cache python3 make g++ && break; \
+      echo "apk add failed (attempt $i), retrying in 5s..."; sleep 5; \
+    done
 
 # Set working directory
 WORKDIR /app
