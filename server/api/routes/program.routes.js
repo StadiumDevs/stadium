@@ -178,6 +178,8 @@ router.get('/:slug/audit-log', requireProgramViewer('slug'), programController.l
 // admin. requireProgramJudge NEVER unlocks the payment/approval routes above.
 router.post('/:slug/submissions', submissionLimiter, submissionController.submit);
 router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
+// Download all submissions + their feedback survey as CSV (judge/admin).
+router.get('/:slug/submissions.csv', requireProgramJudge('slug'), submissionController.exportCsv);
 router.put(
   '/:slug/submissions/:submissionId/score',
   requireProgramJudge('slug'),
