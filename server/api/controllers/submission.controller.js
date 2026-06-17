@@ -547,7 +547,7 @@ class SubmissionController {
     try {
       const programId = await resolveProgramId(req);
       if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const data = await scoringService.leaderboard(programId);
+      const data = await scoringService.leaderboard(programId, judgeIdentity(req));
       res.status(200).json({ status: 'success', data });
     } catch (error) {
       console.error('❌ Error building leaderboard:', error);

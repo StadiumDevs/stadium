@@ -305,8 +305,10 @@ export type ApiLeaderboardRow = {
   avgTechStack: number;
   avgInnovation: number;
   judgeCount: number;
-  /** Individual per-judge scores (submitted judges only) for the breakdown view. */
+  /** Individual per-judge scores for the breakdown view. */
   judgeScores?: { judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }[];
+  /** The viewing judge's own score (null = not yet scored), for inline edit + re-save. */
+  myScore?: { requirements: number; techStack: number; innovation: number; notes: string } | null;
   /** Current prize on this submission (null = not a winner). */
   prizeAmount?: number | null;
   prizeCurrency?: string | null;

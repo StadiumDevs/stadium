@@ -86,6 +86,45 @@ export function ProgramJudgingSection({
   const [selectedBatches, setSelectedBatches] = useState<Set<number>>(new Set());
   const [openBatch, setOpenBatch] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Inline score edits made from the RESULTS view (keyed by submission id).
+  const [resultDrafts, setResultDrafts] = useState<Record<string, { requirements: number; techStack: number; innovation: number }>>({});
+  const [savingScoreId, setSavingScoreId] = useState<string | null>(null);
+
+  const setResultField = (
+    id: string,
+    field: "requirements" | "techStack" | "innovation",
+    raw: string,
+    current: { requirements: number; techStack: number; innovation: number },
+  ) =>
+    setResultDrafts((prev) => {
+      const cur = prev[id] ?? current;
+      const n = Math.max(0, Math.min(BOUNDS[field], round1(Number(raw) || 0)));
+      return { ...prev, [id]: { ...cur, [field]: n } };
+    });
+
+  // Save the viewing judge's own score for one project straight from RESULTS.
+  const saveResultScore = async (
+    submissionId: string,
+    current: { requirements: number; techStack: number; innovation: number },
+  ) => {
+    const draft = resultDrafts[submissionId] ?? current;
+    setSavingScoreId(submissionId);
+    try {
+      const auth = await getAuth();
+      await api.upsertScore(programSlug, submissionId, draft, auth);
+      toast({ title: "Score saved" });
+      await loadLeaderboard(); // refresh averages + ranking
+      setResultDrafts((prev) => {
+        const next = { ...prev };
+        delete next[submissionId];
+        return next;
+      });
+    } catch (e) {
+      toast({ title: "Couldn't save score", description: (e as Error)?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setSavingScoreId(null);
+    }
+  };
 
   const handleExportCsv = async () => {
     setExporting(true);
@@ -876,6 +915,42 @@ export function ProgramJudgingSection({
                         <tr className="border-b border-hairline/50 bg-panel-deep/20">
                           <td></td>
                           <td colSpan={9} className="py-2 pr-2">
+                            {(() => {
+                              const myCur = r.myScore ?? { requirements: 0, techStack: 0, innovation: 0 };
+                              const d = resultDrafts[r.submissionId] ?? myCur;
+                              return (
+                                <div className="lcd p-2.5 mb-3">
+                                  <div className="label-hw-dim mb-1.5">·YOUR SCORE — EDIT + SAVE</div>
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    {(["requirements", "techStack", "innovation"] as const).map((field) => (
+                                      <label key={field} className="block">
+                                        <span className="label-hw-dim block mb-1">
+                                          {field === "requirements" ? "REQ /2" : field === "techStack" ? "TECH /5" : "INNOV /5"}
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={BOUNDS[field]}
+                                          step={0.1}
+                                          value={d[field]}
+                                          onChange={(e) => setResultField(r.submissionId, field, e.target.value, myCur)}
+                                          className="w-20 font-mono text-[13px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+                                        />
+                                      </label>
+                                    ))}
+                                    <span className="label-hw text-display self-center">TOTAL {round1(d.requirements + d.techStack + d.innovation)}/12</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => saveResultScore(r.submissionId, myCur)}
+                                      disabled={savingScoreId === r.submissionId}
+                                      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1.5"
+                                    >
+                                      {savingScoreId === r.submissionId ? "SAVING…" : r.myScore ? "RE-SAVE ▸" : "SAVE SCORE ▸"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             <div className="label-hw-dim mb-1">·SCORES PER JUDGE</div>
                             {(r.judgeScores ?? []).length === 0 ? (
                               <span className="label-hw-dim">No individual scores.</span>

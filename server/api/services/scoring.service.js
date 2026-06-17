@@ -236,7 +236,7 @@ class ScoringService {
   // every project. When unlocked, ranks submissions by the mean of each submitted
   // judge's total (/12), with per-criterion means, the individual per-judge
   // scores, and tie-breaks on innovation then tech stack.
-  async leaderboard(programId) {
+  async leaderboard(programId, judgeEmail = null) {
     const [registeredJudges, submittedBallots, submissions, allScores, signupEmails] = await Promise.all([
       programAdminEmailRepository.listJudges(programId),
       programJudgeBallotRepository.listSubmitted(programId),
@@ -266,9 +266,17 @@ class ScoringService {
     const submissionsScored = submissions.filter((s) => (scoresBySubmission.get(s.id) || []).length > 0).length;
     const complete = submissionsTotal > 0 && submissionsScored === submissionsTotal;
 
+    // The viewing judge's own score per submission, so they can edit + re-save
+    // straight from the results view.
+    const me = normalizeEmail(judgeEmail);
+    const myScores = new Map(
+      allScores.filter((sc) => normalizeEmail(sc.judgeEmail) === me).map((sc) => [sc.submissionId, sc]),
+    );
+
     const rows = submissions
       .map((s) => {
         const scores = scoresBySubmission.get(s.id) || [];
+        const my = myScores.get(s.id);
         const avgRequirements = mean(scores.map((x) => x.requirements));
         const avgTechStack = mean(scores.map((x) => x.techStack));
         const avgInnovation = mean(scores.map((x) => x.innovation));
@@ -293,6 +301,11 @@ class ScoringService {
             innovation: x.innovation,
             total: x.requirements + x.techStack + x.innovation,
           })),
+          // The viewing judge's own score (null if they haven't scored it), so
+          // they can edit + re-save it from the results view.
+          myScore: my
+            ? { requirements: my.requirements, techStack: my.techStack, innovation: my.innovation, notes: my.notes ?? '' }
+            : null,
           // Current prize (winner) on this submission, so the results tab can
           // render selections against the rank order. Null = not a winner.
           prizeAmount: s.prizeAmount ?? null,

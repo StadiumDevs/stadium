@@ -98,6 +98,21 @@ describe('scoringService.leaderboard — tally + per-judge breakdown', () => {
     expect(r.rows[1].judgeScores.every((s) => s.judgeEmail.includes('@'))).toBe(true);
   });
 
+  it("includes the viewing judge's own score per row (for inline edit from results)", async () => {
+    emailRepo.listJudges.mockResolvedValue([{ email: 'a@x.com' }, { email: 'b@x.com' }]);
+    ballotRepo.listSubmitted.mockResolvedValue([]);
+    submissionRepo.listByProgramId.mockResolvedValue([{ id: 's1', projectTitle: 'Alpha' }, { id: 's2', projectTitle: 'Beta' }]);
+    scoreRepo.listByProgramId.mockResolvedValue([
+      score('s1', 'a@x.com', 2, 5, 5),
+      score('s2', 'b@x.com', 1, 1, 1),
+    ]);
+
+    const r = await scoringService.leaderboard('prog-1', 'a@x.com');
+    const byId = Object.fromEntries(r.rows.map((row) => [row.submissionId, row]));
+    expect(byId.s1.myScore).toMatchObject({ requirements: 2, techStack: 5, innovation: 5 });
+    expect(byId.s2.myScore).toBeNull(); // a@x.com didn't score s2
+  });
+
   it('breaks ties by innovation then tech stack', async () => {
     emailRepo.listJudges.mockResolvedValue([{ email: 'a@x.com' }]);
     ballotRepo.listSubmitted.mockResolvedValue([{ judgeEmail: 'a@x.com' }]);
