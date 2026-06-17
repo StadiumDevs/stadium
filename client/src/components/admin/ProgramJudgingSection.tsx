@@ -794,13 +794,36 @@ export function ProgramJudgingSection({
                         </td>
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">{r.rank}</td>
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">
-                          {r.projectTitle}
-                          {r.late && (
-                            <span className="label-hw text-amber-500 ml-2" title="Submitted after the deadline">·LATE</span>
-                          )}
-                          {r.eligible === false && (
-                            <span className="label-hw text-destructive ml-2" title="Submitter email not in the Luma signup list">·NOT IN LUMA</span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span>{r.projectTitle}</span>
+                            {r.late && (
+                              <span className="label-hw text-amber-500" title="Submitted after the deadline">·LATE</span>
+                            )}
+                            {r.eligible === false && (
+                              <span className="label-hw text-destructive" title="Submitter email not in the Luma signup list">·NOT IN LUMA</span>
+                            )}
+                            <span className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              {r.videoUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReview({ url: r.videoUrl!, title: r.projectTitle })}
+                                  className="label-hw-dim hover:text-display inline-flex items-center gap-1"
+                                >
+                                  <Play className="h-3 w-3" /> VIDEO
+                                </button>
+                              )}
+                              {r.githubUrl && (
+                                <a
+                                  href={r.githubUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="label-hw-dim hover:text-display inline-flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" /> GIT
+                                </a>
+                              )}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">{fmt(r.avgTotal)}</td>
                         <td className="py-2 pr-2 font-mono text-[12px] text-body">{fmt(r.avgRequirements)}</td>
