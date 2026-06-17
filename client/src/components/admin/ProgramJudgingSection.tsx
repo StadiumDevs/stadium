@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, ExternalLink, Lock, Trophy, Plus, ChevronRight, ChevronDown, Play } from "lucide-react";
+import { Loader2, ExternalLink, Lock, Trophy, Plus, ChevronRight, ChevronDown, Play, Trash2 } from "lucide-react";
 import {
   api,
   type AdminAuthArg,
@@ -26,8 +26,12 @@ const draftFromRow = (row: ApiSubmissionRow): Draft => ({
 });
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+const round1 = (n: number) => Math.round(n * 10) / 10;
 const prizeText = (amount?: number | null, currency?: string | null) =>
   amount != null ? `${amount} ${currency ?? ""}`.trim() : null;
+// Short, readable judge label (local-part of the email) for "who's working on this".
+const judgeLabel = (email: string) => email.split("@")[0];
+const judgesText = (emails?: string[]) => (emails && emails.length ? emails.map(judgeLabel).join(", ") : "");
 
 /**
  * Judge/admin scoring surface. Judging is split into fixed batches of 10; a
@@ -77,6 +81,11 @@ export function ProgramJudgingSection({
   const [publishing, setPublishing] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [exporting, setExporting] = useState(false);
+  // Batch overview: which unclaimed batches are checked for multi-claim, which
+  // batch is expanded to preview its submissions, and an in-flight delete.
+  const [selectedBatches, setSelectedBatches] = useState<Set<number>>(new Set());
+  const [openBatch, setOpenBatch] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleExportCsv = async () => {
     setExporting(true);
@@ -177,7 +186,8 @@ export function ProgramJudgingSection({
       const cur = prev[id] ?? { requirements: 0, techStack: 0, innovation: 0, notes: "" };
       if (field === "notes") return { ...prev, [id]: { ...cur, notes: raw } };
       const max = BOUNDS[field];
-      const n = Math.max(0, Math.min(max, Math.round(Number(raw) || 0)));
+      // One decimal place (e.g. 4.3), clamped to [0, max].
+      const n = Math.max(0, Math.min(max, round1(Number(raw) || 0)));
       return { ...prev, [id]: { ...cur, [field]: n } };
     });
   };
@@ -199,6 +209,63 @@ export function ProgramJudgingSection({
       });
     } finally {
       setClaiming(false);
+    }
+  };
+
+  const toggleSelect = (batchNumber: number) =>
+    setSelectedBatches((prev) => {
+      const next = new Set(prev);
+      if (next.has(batchNumber)) next.delete(batchNumber);
+      else next.add(batchNumber);
+      return next;
+    });
+
+  // Claim several batches at once (sequential idempotent claims; last view wins).
+  const claimSelected = async () => {
+    const nums = [...selectedBatches].sort((a, b) => a - b);
+    if (nums.length === 0) return;
+    setClaiming(true);
+    try {
+      const auth = await getAuth();
+      let last: Awaited<ReturnType<typeof api.claimBatch>> | undefined;
+      for (const n of nums) {
+        last = await api.claimBatch(programSlug, n, auth);
+      }
+      if (last) {
+        setView(last.data);
+        seedDrafts(last.data.submissions);
+      }
+      setSelectedBatches(new Set());
+      toast({ title: `Claimed ${nums.length} batch${nums.length === 1 ? "" : "es"}` });
+    } catch (e) {
+      toast({
+        title: "Couldn't claim batches",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  // Admin: delete a submission (e.g. a test entry). Reloads so batch membership
+  // (which shifts when a submission is removed) stays correct.
+  const deleteSub = async (s: ApiSubmissionRow) => {
+    if (!window.confirm(`Delete "${s.projectTitle}" by ${s.submitterName}? This removes the submission and any scores, and can't be undone.`)) return;
+    setDeletingId(s.id);
+    try {
+      const auth = await getAuth();
+      await api.deleteSubmission(programSlug, s.id, auth);
+      toast({ title: "Submission deleted" });
+      await loadSubmissions();
+    } catch (e) {
+      toast({
+        title: "Couldn't delete submission",
+        description: (e as Error)?.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -375,6 +442,17 @@ export function ProgramJudgingSection({
             <a href={s.githubUrl} target="_blank" rel="noreferrer" className="label-hw-dim hover:text-display inline-flex items-center gap-1">
               GITHUB <ExternalLink className="h-3 w-3" />
             </a>
+            {canSelectWinners && (
+              <button
+                type="button"
+                onClick={() => deleteSub(s)}
+                disabled={deletingId === s.id}
+                title="Delete this submission (admin)"
+                className="label-hw-dim hover:text-destructive inline-flex items-center gap-1 disabled:opacity-50"
+              >
+                {deletingId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              </button>
+            )}
           </div>
         </div>
         {s.projectBrief && (
@@ -390,13 +468,14 @@ export function ProgramJudgingSection({
                 type="number"
                 min={0}
                 max={BOUNDS[field]}
+                step={0.1}
                 value={d[field]}
                 onChange={(e) => setField(s.id, field, e.target.value)}
                 className="w-full font-mono text-[13px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display disabled:opacity-50"
               />
             </label>
           ))}
-          <div className="label-hw text-display self-center">TOTAL {total} / 12</div>
+          <div className="label-hw text-display self-center">TOTAL {round1(total)} / 12</div>
         </div>
         <textarea
           rows={2}
@@ -405,7 +484,14 @@ export function ProgramJudgingSection({
           onChange={(e) => setField(s.id, "notes", e.target.value)}
           className="mt-2 w-full font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display disabled:opacity-50"
         />
-        <div className="mt-2 label-hw-dim">{s.myScore ? "SAVED" : "NOT SCORED"}</div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 label-hw-dim">
+          <span>{s.myScore ? "·YOU: SAVED" : "·YOU: NOT SCORED"}</span>
+          {s.scoredBy && s.scoredBy.length > 0 && (
+            <span title={s.scoredBy.join(", ")}>
+              SCORED BY {s.scoredBy.length}: {judgesText(s.scoredBy)}
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -465,38 +551,119 @@ export function ProgramJudgingSection({
               </div>
             )}
 
-            {/* Batch coverage strip + claim controls. */}
+            {/* Batch overview: preview each batch's submissions, see who's working
+                on it, and claim one or several. */}
             {!locked && view.batches && view.batches.length > 0 && (
               <div className="lcd p-3 mb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <span className="label-hw text-display">·BATCHES ({view.batchSize ?? 10} EACH)</span>
-                  <button
-                    type="button"
-                    onClick={() => claimBatch()}
-                    disabled={claiming || view.batches.every((b) => b.claimedByMe)}
-                    className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1 inline-flex items-center gap-1"
-                  >
-                    <Plus className="h-3 w-3" aria-hidden="true" /> {claiming ? "CLAIMING…" : `CLAIM NEXT ${view.batchSize ?? 10} ▸`}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {view.batches.map((b) => (
+                  <div className="flex items-center gap-2">
+                    {selectedBatches.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={claimSelected}
+                        disabled={claiming}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1 inline-flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" aria-hidden="true" /> {claiming ? "CLAIMING…" : `CLAIM SELECTED (${selectedBatches.size}) ▸`}
+                      </button>
+                    )}
                     <button
-                      key={b.batchNumber}
                       type="button"
-                      onClick={() => !b.claimedByMe && claimBatch(b.batchNumber)}
-                      disabled={claiming || b.claimedByMe}
-                      title={`${b.size} projects · ${b.claimCount} judge${b.claimCount === 1 ? "" : "s"} claimed`}
-                      className={cn(
-                        "font-mono text-[10px] tracking-[0.12em] border px-2 py-1",
-                        b.claimedByMe
-                          ? "border-display bg-display text-shell"
-                          : "border-hairline text-display hover:bg-panel-deep",
-                      )}
+                      onClick={() => claimBatch()}
+                      disabled={claiming || view.batches.every((b) => b.claimedByMe)}
+                      className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1 inline-flex items-center gap-1"
                     >
-                      B{b.batchNumber} · {b.size}p · {b.claimCount}j{b.claimedByMe ? " · MINE" : ""}
+                      {claiming ? "CLAIMING…" : `CLAIM NEXT ${view.batchSize ?? 10} ▸`}
                     </button>
-                  ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {view.batches.map((b) => {
+                    const subs = view.submissions.filter((s) => s.batchNumber === b.batchNumber);
+                    const open = openBatch === b.batchNumber;
+                    return (
+                      <div key={b.batchNumber} className={cn("border", b.claimedByMe ? "border-display" : "border-hairline")}>
+                        <div className="flex items-center gap-2 px-2 py-1.5">
+                          {!b.claimedByMe && (
+                            <input
+                              type="checkbox"
+                              aria-label={`Select batch ${b.batchNumber}`}
+                              checked={selectedBatches.has(b.batchNumber)}
+                              onChange={() => toggleSelect(b.batchNumber)}
+                              className="accent-display"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setOpenBatch(open ? null : b.batchNumber)}
+                            className="min-w-0 flex-1 inline-flex items-center gap-1.5 text-left"
+                          >
+                            {open ? <ChevronDown className="h-3 w-3 flex-shrink-0" /> : <ChevronRight className="h-3 w-3 flex-shrink-0" />}
+                            <span className="font-mono text-[11px] text-display">BATCH {b.batchNumber}</span>
+                            <span className="label-hw-dim">· {b.size}p</span>
+                            {b.claimedByMe && <span className="label-hw text-led">· MINE</span>}
+                          </button>
+                          <span
+                            className="label-hw-dim truncate max-w-[45%] text-right"
+                            title={b.claimedBy && b.claimedBy.length ? b.claimedBy.join(", ") : "Unclaimed"}
+                          >
+                            {b.claimCount === 0 ? "UNCLAIMED" : `WORKING: ${judgesText(b.claimedBy)}`}
+                          </span>
+                        </div>
+                        {open && (
+                          <div className="border-t border-hairline-subtle px-2 py-1.5 space-y-1">
+                            {subs.length === 0 ? (
+                              <p className="label-hw-dim">No submissions in this batch.</p>
+                            ) : (
+                              subs.map((s) => {
+                                const scs = s.scores ?? [];
+                                const avg = scs.length ? round1(scs.reduce((acc, x) => acc + x.total, 0) / scs.length) : null;
+                                const breakdown = scs.map((x) => `${judgeLabel(x.judgeEmail)}: ${round1(x.total)}/12`).join(", ");
+                                return (
+                                  <div key={s.id} className="py-1 border-b border-hairline-subtle last:border-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="min-w-0 truncate font-mono text-[11px] text-display">
+                                        {s.projectTitle} <span className="label-hw-dim">· {s.submitterName}</span>
+                                      </span>
+                                      <span className="flex items-center gap-2 flex-shrink-0 label-hw-dim">
+                                        <button
+                                          type="button"
+                                          onClick={() => setReview({ url: s.videoUrl, title: s.projectTitle })}
+                                          className="hover:text-display inline-flex items-center gap-1"
+                                        >
+                                          VIDEO <Play className="h-3 w-3" />
+                                        </button>
+                                        <a href={s.githubUrl} target="_blank" rel="noreferrer" className="hover:text-display inline-flex items-center gap-1">
+                                          GIT <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                        {canSelectWinners && (
+                                          <button
+                                            type="button"
+                                            onClick={() => deleteSub(s)}
+                                            disabled={deletingId === s.id}
+                                            title="Delete this submission (admin)"
+                                            className="hover:text-destructive disabled:opacity-50"
+                                          >
+                                            {deletingId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                          </button>
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="label-hw-dim mt-0.5" title={breakdown || undefined}>
+                                      {avg != null
+                                        ? `SCORE ${avg}/12 AVG · ${scs.length} judge${scs.length === 1 ? "" : "s"}: ${judgesText(s.scoredBy)}`
+                                        : "NOT SCORED YET"}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
