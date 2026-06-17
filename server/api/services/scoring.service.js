@@ -10,6 +10,11 @@ import projectService from './project.service.js';
 const normalizeEmail = (email) =>
   typeof email === 'string' ? email.trim().toLowerCase() : '';
 
+// A real judge identity is an email. Wallet/admin sessions score under their
+// wallet address (no '@') as a non-counting "preview", so the same person who is
+// both an admin wallet and an email judge isn't double-counted.
+const isEmailJudge = (judgeEmail) => typeof judgeEmail === 'string' && judgeEmail.includes('@');
+
 const mean = (nums) => (nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0);
 
 // Batch N (1-based) holds submissions [(N-1)*BATCH_SIZE .. N*BATCH_SIZE) in the
@@ -72,6 +77,7 @@ class ScoringService {
     const scoredBySubmission = new Map();
     const scoresBySubmission = new Map();
     for (const sc of allScores) {
+      if (!isEmailJudge(sc.judgeEmail)) continue; // wallet/admin preview scores don't show
       if (!scoredBySubmission.has(sc.submissionId)) scoredBySubmission.set(sc.submissionId, []);
       scoredBySubmission.get(sc.submissionId).push(sc.judgeEmail);
       if (!scoresBySubmission.has(sc.submissionId)) scoresBySubmission.set(sc.submissionId, []);
@@ -230,7 +236,7 @@ class ScoringService {
   // every project. When unlocked, ranks submissions by the mean of each submitted
   // judge's total (/12), with per-criterion means, the individual per-judge
   // scores, and tie-breaks on innovation then tech stack.
-  async leaderboard(programId) {
+  async leaderboard(programId, judgeEmail = null) {
     const [registeredJudges, submittedBallots, submissions, allScores, signupEmails] = await Promise.all([
       programAdminEmailRepository.listJudges(programId),
       programJudgeBallotRepository.listSubmitted(programId),
@@ -244,33 +250,33 @@ class ScoringService {
     const submittedEmails = new Set(submittedBallots.map((b) => normalizeEmail(b.judgeEmail)));
     const pendingJudges = registeredEmails.filter((e) => !submittedEmails.has(e));
 
-    // Only count scores from judges who actually submitted. Ignores wallet-admin
-    // "preview" scores and any stale rows.
-    const counted = submittedEmails;
+    // Count every email-judge's saved score so results are LIVE as they score
+    // (no ballot needed). Wallet/admin "preview" scores never count, so someone
+    // who is both an admin wallet and an email judge isn't double-counted.
+    // Coverage (`complete`) is informational + gates PUBLISH; it no longer hides
+    // the standings.
     const scoresBySubmission = new Map();
     for (const score of allScores) {
-      if (!counted.has(normalizeEmail(score.judgeEmail))) continue;
+      if (!isEmailJudge(score.judgeEmail)) continue;
       if (!scoresBySubmission.has(score.submissionId)) scoresBySubmission.set(score.submissionId, []);
       scoresBySubmission.get(score.submissionId).push(score);
     }
 
-    // Coverage gate: locked until every submission has at least one counted score.
     const submissionsTotal = submissions.length;
     const submissionsScored = submissions.filter((s) => (scoresBySubmission.get(s.id) || []).length > 0).length;
-    const complete =
-      submittedBallots.length > 0 && submissionsTotal > 0 && submissionsScored === submissionsTotal;
-    if (!complete) {
-      return {
-        locked: true,
-        submissionsScored,
-        submissionsTotal,
-        pendingJudges,
-      };
-    }
+    const complete = submissionsTotal > 0 && submissionsScored === submissionsTotal;
+
+    // The viewing judge's own score per submission, so they can edit + re-save
+    // straight from the results view.
+    const me = normalizeEmail(judgeEmail);
+    const myScores = new Map(
+      allScores.filter((sc) => normalizeEmail(sc.judgeEmail) === me).map((sc) => [sc.submissionId, sc]),
+    );
 
     const rows = submissions
       .map((s) => {
         const scores = scoresBySubmission.get(s.id) || [];
+        const my = myScores.get(s.id);
         const avgRequirements = mean(scores.map((x) => x.requirements));
         const avgTechStack = mean(scores.map((x) => x.techStack));
         const avgInnovation = mean(scores.map((x) => x.innovation));
@@ -295,6 +301,11 @@ class ScoringService {
             innovation: x.innovation,
             total: x.requirements + x.techStack + x.innovation,
           })),
+          // The viewing judge's own score (null if they haven't scored it), so
+          // they can edit + re-save it from the results view.
+          myScore: my
+            ? { requirements: my.requirements, techStack: my.techStack, innovation: my.innovation, notes: my.notes ?? '' }
+            : null,
           // Current prize (winner) on this submission, so the results tab can
           // render selections against the rank order. Null = not a winner.
           prizeAmount: s.prizeAmount ?? null,
@@ -312,7 +323,16 @@ class ScoringService {
       )
       .map((row, i) => ({ rank: i + 1, ...row }));
 
-    return { locked: false, submitted: submittedBallots.length, total: registeredEmails.length, rows };
+    return {
+      locked: false,
+      complete,
+      submissionsScored,
+      submissionsTotal,
+      submitted: submittedBallots.length,
+      total: registeredEmails.length,
+      pendingJudges,
+      rows,
+    };
   }
 
   // Public, PII-free results for the program page. Only exposes submissions once

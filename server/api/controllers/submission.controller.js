@@ -328,9 +328,9 @@ class SubmissionController {
       const programId = await resolveProgramId(req);
       if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
       const judgeEmail = judgeIdentity(req);
-      if (await programJudgeBallotRepository.isSubmitted(programId, judgeEmail)) {
-        return res.status(409).json({ status: 'error', message: 'Your ballot is submitted and locked.' });
-      }
+      // A submitted ballot no longer locks claiming: scores count as soon as they
+      // are saved, so a judge (or admin) can keep claiming + scoring more batches
+      // after submitting their first.
       const batchNumber = req.body?.batchNumber;
       const result = await scoringService.claimBatch(programId, judgeEmail, batchNumber);
       if (result.invalid) {
@@ -547,7 +547,7 @@ class SubmissionController {
     try {
       const programId = await resolveProgramId(req);
       if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const data = await scoringService.leaderboard(programId);
+      const data = await scoringService.leaderboard(programId, judgeIdentity(req));
       res.status(200).json({ status: 'success', data });
     } catch (error) {
       console.error('❌ Error building leaderboard:', error);

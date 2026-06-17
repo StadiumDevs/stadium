@@ -305,8 +305,10 @@ export type ApiLeaderboardRow = {
   avgTechStack: number;
   avgInnovation: number;
   judgeCount: number;
-  /** Individual per-judge scores (submitted judges only) for the breakdown view. */
+  /** Individual per-judge scores for the breakdown view. */
   judgeScores?: { judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }[];
+  /** The viewing judge's own score (null = not yet scored), for inline edit + re-save. */
+  myScore?: { requirements: number; techStack: number; innovation: number; notes: string } | null;
   /** Current prize on this submission (null = not a winner). */
   prizeAmount?: number | null;
   prizeCurrency?: string | null;
@@ -315,10 +317,18 @@ export type ApiLeaderboardRow = {
   paid?: boolean;
 };
 
-export type ApiLeaderboard =
-  // Locked = not yet full coverage (some submission has no score from a submitted judge).
-  | { locked: true; submissionsScored: number; submissionsTotal: number; pendingJudges: string[] }
-  | { locked: false; submitted: number; total: number; rows: ApiLeaderboardRow[] };
+/** Live standings. `rows` is always present; `complete` (every submission has
+ *  a score) gates publishing — it no longer hides the table. */
+export type ApiLeaderboard = {
+  locked: boolean;
+  complete: boolean;
+  submissionsScored: number;
+  submissionsTotal: number;
+  submitted: number;
+  total: number;
+  pendingJudges: string[];
+  rows: ApiLeaderboardRow[];
+};
 
 /** One row in the unified program inbox (signups + applications merged). */
 export type ApiInboxEntry = {

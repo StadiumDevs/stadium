@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, ExternalLink, Lock, Trophy, Plus, ChevronRight, ChevronDown, Play, Trash2 } from "lucide-react";
+import { Loader2, ExternalLink, Trophy, Plus, ChevronRight, ChevronDown, Play, Trash2 } from "lucide-react";
 import {
   api,
   type AdminAuthArg,
@@ -86,6 +86,45 @@ export function ProgramJudgingSection({
   const [selectedBatches, setSelectedBatches] = useState<Set<number>>(new Set());
   const [openBatch, setOpenBatch] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Inline score edits made from the RESULTS view (keyed by submission id).
+  const [resultDrafts, setResultDrafts] = useState<Record<string, { requirements: number; techStack: number; innovation: number }>>({});
+  const [savingScoreId, setSavingScoreId] = useState<string | null>(null);
+
+  const setResultField = (
+    id: string,
+    field: "requirements" | "techStack" | "innovation",
+    raw: string,
+    current: { requirements: number; techStack: number; innovation: number },
+  ) =>
+    setResultDrafts((prev) => {
+      const cur = prev[id] ?? current;
+      const n = Math.max(0, Math.min(BOUNDS[field], round1(Number(raw) || 0)));
+      return { ...prev, [id]: { ...cur, [field]: n } };
+    });
+
+  // Save the viewing judge's own score for one project straight from RESULTS.
+  const saveResultScore = async (
+    submissionId: string,
+    current: { requirements: number; techStack: number; innovation: number },
+  ) => {
+    const draft = resultDrafts[submissionId] ?? current;
+    setSavingScoreId(submissionId);
+    try {
+      const auth = await getAuth();
+      await api.upsertScore(programSlug, submissionId, draft, auth);
+      toast({ title: "Score saved" });
+      await loadLeaderboard(); // refresh averages + ranking
+      setResultDrafts((prev) => {
+        const next = { ...prev };
+        delete next[submissionId];
+        return next;
+      });
+    } catch (e) {
+      toast({ title: "Couldn't save score", description: (e as Error)?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setSavingScoreId(null);
+    }
+  };
 
   const handleExportCsv = async () => {
     setExporting(true);
@@ -539,7 +578,7 @@ export function ProgramJudgingSection({
           <>
             {locked && (
               <div className="lcd p-2.5 mb-3 flex flex-wrap items-center gap-2">
-                <span className="label-hw text-display">·SUBMITTED — YOUR SCORES COUNT. YOU CAN STILL REVISE + SAVE.</span>
+                <span className="label-hw text-display">·SUBMITTED — SCORES COUNT. YOU CAN STILL REVISE, AND CLAIM + SCORE MORE BATCHES.</span>
                 {view.ballotProgress && (
                   <span className="label-hw-dim">
                     · {view.ballotProgress.submitted} of {view.ballotProgress.total} judges in
@@ -552,8 +591,9 @@ export function ProgramJudgingSection({
             )}
 
             {/* Batch overview: preview each batch's submissions, see who's working
-                on it, and claim one or several. */}
-            {!locked && view.batches && view.batches.length > 0 && (
+                on it, and claim one or several. Available even after submitting,
+                so a judge can keep going through more batches. */}
+            {view.batches && view.batches.length > 0 && (
               <div className="lcd p-3 mb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <span className="label-hw text-display">·BATCHES ({view.batchSize ?? 10} EACH)</span>
@@ -712,33 +752,30 @@ export function ProgramJudgingSection({
             )}
           </>
         )
-      ) : !board ? (
-        <p className="label-hw-dim py-3">No results yet.</p>
-      ) : board.locked ? (
-        <div className="lcd p-4">
-          <div className="label-hw text-display mb-2 inline-flex items-center gap-2">
-            <Lock className="h-3.5 w-3.5" aria-hidden="true" /> RESULTS LOCKED
-          </div>
-          <p className="label-hw-dim">
-            {board.submissionsScored} of {board.submissionsTotal} submissions scored. Winners can be selected once every
-            submission has a score from a submitted judge.
-          </p>
-          {board.pendingJudges.length > 0 && (
-            <p className="label-hw-dim mt-1">Judges still finishing: {board.pendingJudges.join(", ")}</p>
-          )}
-        </div>
+      ) : !board || board.rows.length === 0 ? (
+        <p className="label-hw-dim py-3">No submissions yet.</p>
       ) : (
         <>
+          {!board.complete && (
+            <div className="lcd p-2.5 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="label-hw text-amber-500">·LIVE — {board.submissionsScored}/{board.submissionsTotal} SUBMISSIONS SCORED</span>
+              {board.pendingJudges.length > 0 && (
+                <span className="label-hw-dim">· judges still finishing: {board.pendingJudges.join(", ")}</span>
+              )}
+              <span className="label-hw-dim">· publish unlocks once every submission is scored</span>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <span className="label-hw text-display inline-flex items-center gap-1.5">
-              <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> {board.total} JUDGES · FINAL
+              <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> {board.total} JUDGES · {board.complete ? "FINAL" : "LIVE"}
             </span>
             <div className="flex items-center gap-2">
               {canSelectWinners && (
                 <button
                   type="button"
                   onClick={togglePublish}
-                  disabled={publishing}
+                  disabled={publishing || (!publishedAt && !board.complete)}
+                  title={!publishedAt && !board.complete ? "Score every submission before publishing" : undefined}
                   className={cn(
                     "font-mono text-[10px] tracking-[0.14em] px-3 py-1 disabled:opacity-50",
                     publishedAt
@@ -796,13 +833,36 @@ export function ProgramJudgingSection({
                         </td>
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">{r.rank}</td>
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">
-                          {r.projectTitle}
-                          {r.late && (
-                            <span className="label-hw text-amber-500 ml-2" title="Submitted after the deadline">·LATE</span>
-                          )}
-                          {r.eligible === false && (
-                            <span className="label-hw text-destructive ml-2" title="Submitter email not in the Luma signup list">·NOT IN LUMA</span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span>{r.projectTitle}</span>
+                            {r.late && (
+                              <span className="label-hw text-amber-500" title="Submitted after the deadline">·LATE</span>
+                            )}
+                            {r.eligible === false && (
+                              <span className="label-hw text-destructive" title="Submitter email not in the Luma signup list">·NOT IN LUMA</span>
+                            )}
+                            <span className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              {r.videoUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReview({ url: r.videoUrl!, title: r.projectTitle })}
+                                  className="label-hw-dim hover:text-display inline-flex items-center gap-1"
+                                >
+                                  <Play className="h-3 w-3" /> VIDEO
+                                </button>
+                              )}
+                              {r.githubUrl && (
+                                <a
+                                  href={r.githubUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="label-hw-dim hover:text-display inline-flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" /> GIT
+                                </a>
+                              )}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-2 pr-2 font-mono text-[13px] text-display">{fmt(r.avgTotal)}</td>
                         <td className="py-2 pr-2 font-mono text-[12px] text-body">{fmt(r.avgRequirements)}</td>
@@ -855,6 +915,42 @@ export function ProgramJudgingSection({
                         <tr className="border-b border-hairline/50 bg-panel-deep/20">
                           <td></td>
                           <td colSpan={9} className="py-2 pr-2">
+                            {(() => {
+                              const myCur = r.myScore ?? { requirements: 0, techStack: 0, innovation: 0 };
+                              const d = resultDrafts[r.submissionId] ?? myCur;
+                              return (
+                                <div className="lcd p-2.5 mb-3">
+                                  <div className="label-hw-dim mb-1.5">·YOUR SCORE — EDIT + SAVE</div>
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    {(["requirements", "techStack", "innovation"] as const).map((field) => (
+                                      <label key={field} className="block">
+                                        <span className="label-hw-dim block mb-1">
+                                          {field === "requirements" ? "REQ /2" : field === "techStack" ? "TECH /5" : "INNOV /5"}
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={BOUNDS[field]}
+                                          step={0.1}
+                                          value={d[field]}
+                                          onChange={(e) => setResultField(r.submissionId, field, e.target.value, myCur)}
+                                          className="w-20 font-mono text-[13px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+                                        />
+                                      </label>
+                                    ))}
+                                    <span className="label-hw text-display self-center">TOTAL {round1(d.requirements + d.techStack + d.innovation)}/12</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => saveResultScore(r.submissionId, myCur)}
+                                      disabled={savingScoreId === r.submissionId}
+                                      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1.5"
+                                    >
+                                      {savingScoreId === r.submissionId ? "SAVING…" : r.myScore ? "RE-SAVE ▸" : "SAVE SCORE ▸"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             <div className="label-hw-dim mb-1">·SCORES PER JUDGE</div>
                             {(r.judgeScores ?? []).length === 0 ? (
                               <span className="label-hw-dim">No individual scores.</span>
