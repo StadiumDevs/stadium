@@ -43,32 +43,37 @@ beforeEach(() => {
 });
 
 describe('scoringService.leaderboard — coverage gate', () => {
-  it('locks until every submission has a score from a submitted judge', async () => {
+  it('shows live standings (not locked) but flags complete:false until every submission is scored', async () => {
     ballotRepo.listSubmitted.mockResolvedValue([{ judgeEmail: 'a@x.com' }]);
     emailRepo.listJudges.mockResolvedValue([{ email: 'a@x.com' }, { email: 'b@x.com' }]);
     submissionRepo.listByProgramId.mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
     scoreRepo.listByProgramId.mockResolvedValue([score('s1', 'a@x.com', 2, 5, 5)]); // s2 unscored
 
     const r = await scoringService.leaderboard('prog-1');
-    expect(r.locked).toBe(true);
+    expect(r.locked).toBe(false);
+    expect(r.complete).toBe(false);
     expect(r.submissionsScored).toBe(1);
     expect(r.submissionsTotal).toBe(2);
     expect(r.pendingJudges).toEqual(['b@x.com']);
+    expect(r.rows).toHaveLength(2); // both submissions shown, s2 at 0
   });
 
-  it('locks when no judge has submitted', async () => {
+  it('shows live standings even when no judge has submitted a ballot', async () => {
     ballotRepo.listSubmitted.mockResolvedValue([]);
+    emailRepo.listJudges.mockResolvedValue([]);
     submissionRepo.listByProgramId.mockResolvedValue([{ id: 's1' }]);
     scoreRepo.listByProgramId.mockResolvedValue([]);
 
     const r = await scoringService.leaderboard('prog-1');
-    expect(r.locked).toBe(true);
+    expect(r.locked).toBe(false);
+    expect(r.complete).toBe(false);
     expect(r.submissionsTotal).toBe(1);
+    expect(r.rows).toHaveLength(1);
   });
 });
 
 describe('scoringService.leaderboard — tally + per-judge breakdown', () => {
-  it('unlocks on full coverage, ranks by mean total, ignores non-submitted scores', async () => {
+  it('complete on full coverage, counts every saved score (incl. non-submitted), ranks by mean', async () => {
     emailRepo.listJudges.mockResolvedValue([{ email: 'a@x.com' }, { email: 'b@x.com' }]);
     ballotRepo.listSubmitted.mockResolvedValue([{ judgeEmail: 'a@x.com' }, { judgeEmail: 'b@x.com' }]);
     submissionRepo.listByProgramId.mockResolvedValue([
@@ -78,17 +83,18 @@ describe('scoringService.leaderboard — tally + per-judge breakdown', () => {
     scoreRepo.listByProgramId.mockResolvedValue([
       score('s1', 'a@x.com', 2, 5, 5), // 12
       score('s1', 'b@x.com', 2, 5, 3), // 10  -> mean 11
-      score('s2', 'a@x.com', 1, 3, 2),
-      score('s2', 'b@x.com', 1, 3, 2), // mean 6
-      score('s2', '5WalletAdmin', 2, 5, 5), // not submitted -> ignored
+      score('s2', 'a@x.com', 1, 3, 2), // 6
+      score('s2', 'b@x.com', 1, 3, 2), // 6
+      score('s2', '5WalletAdmin', 2, 5, 5), // 12 -> now counted (live)
     ]);
 
     const r = await scoringService.leaderboard('prog-1');
     expect(r.locked).toBe(false);
+    expect(r.complete).toBe(true);
     expect(r.rows[0]).toMatchObject({ rank: 1, submissionId: 's1', avgTotal: 11, judgeCount: 2 });
-    expect(r.rows[1]).toMatchObject({ rank: 2, submissionId: 's2', avgTotal: 6, judgeCount: 2 });
-    // Per-judge breakdown present and excludes the non-submitted wallet-admin.
-    expect(r.rows[1].judgeScores).toHaveLength(2);
+    // s2 now includes the wallet-admin score: mean (6+6+12)/3 = 8, 3 judges.
+    expect(r.rows[1]).toMatchObject({ rank: 2, submissionId: 's2', avgTotal: 8, judgeCount: 3 });
+    expect(r.rows[1].judgeScores).toHaveLength(3);
     expect(r.rows[0].judgeScores).toContainEqual(
       expect.objectContaining({ judgeEmail: 'a@x.com', total: 12 }),
     );

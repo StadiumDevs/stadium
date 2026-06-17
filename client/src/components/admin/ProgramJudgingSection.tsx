@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, ExternalLink, Lock, Trophy, Plus, ChevronRight, ChevronDown, Play, Trash2 } from "lucide-react";
+import { Loader2, ExternalLink, Trophy, Plus, ChevronRight, ChevronDown, Play, Trash2 } from "lucide-react";
 import {
   api,
   type AdminAuthArg,
@@ -712,33 +712,30 @@ export function ProgramJudgingSection({
             )}
           </>
         )
-      ) : !board ? (
-        <p className="label-hw-dim py-3">No results yet.</p>
-      ) : board.locked ? (
-        <div className="lcd p-4">
-          <div className="label-hw text-display mb-2 inline-flex items-center gap-2">
-            <Lock className="h-3.5 w-3.5" aria-hidden="true" /> RESULTS LOCKED
-          </div>
-          <p className="label-hw-dim">
-            {board.submissionsScored} of {board.submissionsTotal} submissions scored. Winners can be selected once every
-            submission has a score from a submitted judge.
-          </p>
-          {board.pendingJudges.length > 0 && (
-            <p className="label-hw-dim mt-1">Judges still finishing: {board.pendingJudges.join(", ")}</p>
-          )}
-        </div>
+      ) : !board || board.rows.length === 0 ? (
+        <p className="label-hw-dim py-3">No submissions yet.</p>
       ) : (
         <>
+          {!board.complete && (
+            <div className="lcd p-2.5 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="label-hw text-amber-500">·LIVE — {board.submissionsScored}/{board.submissionsTotal} SUBMISSIONS SCORED</span>
+              {board.pendingJudges.length > 0 && (
+                <span className="label-hw-dim">· judges still finishing: {board.pendingJudges.join(", ")}</span>
+              )}
+              <span className="label-hw-dim">· publish unlocks once every submission is scored</span>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <span className="label-hw text-display inline-flex items-center gap-1.5">
-              <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> {board.total} JUDGES · FINAL
+              <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> {board.total} JUDGES · {board.complete ? "FINAL" : "LIVE"}
             </span>
             <div className="flex items-center gap-2">
               {canSelectWinners && (
                 <button
                   type="button"
                   onClick={togglePublish}
-                  disabled={publishing}
+                  disabled={publishing || (!publishedAt && !board.complete)}
+                  title={!publishedAt && !board.complete ? "Score every submission before publishing" : undefined}
                   className={cn(
                     "font-mono text-[10px] tracking-[0.14em] px-3 py-1 disabled:opacity-50",
                     publishedAt

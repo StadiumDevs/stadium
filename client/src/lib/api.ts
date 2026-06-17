@@ -315,10 +315,18 @@ export type ApiLeaderboardRow = {
   paid?: boolean;
 };
 
-export type ApiLeaderboard =
-  // Locked = not yet full coverage (some submission has no score from a submitted judge).
-  | { locked: true; submissionsScored: number; submissionsTotal: number; pendingJudges: string[] }
-  | { locked: false; submitted: number; total: number; rows: ApiLeaderboardRow[] };
+/** Live standings. `rows` is always present; `complete` (every submission has
+ *  a score) gates publishing — it no longer hides the table. */
+export type ApiLeaderboard = {
+  locked: boolean;
+  complete: boolean;
+  submissionsScored: number;
+  submissionsTotal: number;
+  submitted: number;
+  total: number;
+  pendingJudges: string[];
+  rows: ApiLeaderboardRow[];
+};
 
 /** One row in the unified program inbox (signups + applications merged). */
 export type ApiInboxEntry = {

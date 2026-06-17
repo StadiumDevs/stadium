@@ -244,29 +244,19 @@ class ScoringService {
     const submittedEmails = new Set(submittedBallots.map((b) => normalizeEmail(b.judgeEmail)));
     const pendingJudges = registeredEmails.filter((e) => !submittedEmails.has(e));
 
-    // Only count scores from judges who actually submitted. Ignores wallet-admin
-    // "preview" scores and any stale rows.
-    const counted = submittedEmails;
+    // Count every saved score so the results view is LIVE as judges score (not
+    // only after they finalize a ballot) and an admin's own scores show up.
+    // Coverage (`complete`) is informational + gates PUBLISH; it no longer hides
+    // the standings.
     const scoresBySubmission = new Map();
     for (const score of allScores) {
-      if (!counted.has(normalizeEmail(score.judgeEmail))) continue;
       if (!scoresBySubmission.has(score.submissionId)) scoresBySubmission.set(score.submissionId, []);
       scoresBySubmission.get(score.submissionId).push(score);
     }
 
-    // Coverage gate: locked until every submission has at least one counted score.
     const submissionsTotal = submissions.length;
     const submissionsScored = submissions.filter((s) => (scoresBySubmission.get(s.id) || []).length > 0).length;
-    const complete =
-      submittedBallots.length > 0 && submissionsTotal > 0 && submissionsScored === submissionsTotal;
-    if (!complete) {
-      return {
-        locked: true,
-        submissionsScored,
-        submissionsTotal,
-        pendingJudges,
-      };
-    }
+    const complete = submissionsTotal > 0 && submissionsScored === submissionsTotal;
 
     const rows = submissions
       .map((s) => {
@@ -312,7 +302,16 @@ class ScoringService {
       )
       .map((row, i) => ({ rank: i + 1, ...row }));
 
-    return { locked: false, submitted: submittedBallots.length, total: registeredEmails.length, rows };
+    return {
+      locked: false,
+      complete,
+      submissionsScored,
+      submissionsTotal,
+      submitted: submittedBallots.length,
+      total: registeredEmails.length,
+      pendingJudges,
+      rows,
+    };
   }
 
   // Public, PII-free results for the program page. Only exposes submissions once

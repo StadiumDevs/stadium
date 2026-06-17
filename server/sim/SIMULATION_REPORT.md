@@ -17,8 +17,8 @@ Supabase fake.
 9. Judge sees all 3 submissions; all from checked-in attendees (eligible).
 10. Out-of-range score (requirements=5 > max 2) rejected (400).
 11. Ballot submit blocked until every submission in the claimed batch is scored (409).
-12. Leaderboard locked: 0 of 3 submissions covered by a submitted judge.
-13. Coverage gate: one judge covering every project unlocks the leaderboard (not all judges required).
+12. Live standings: a judge's saved scores appear immediately (no ballot required).
+13. Coverage (complete) is informational now; the standings are always visible.
 14. Leaderboard ranking (each row carries per-judge scores): 1. Aurora Pay (11.33/12)  2. Comet Bridge (8.67/12)  3. Nimbus Wallet (7.67/12).
 15. Winner selection is platform-admin only: a per-program admin is rejected (403).
 16. Platform admin assigned prizes: Aurora Pay 500 EUR, Nimbus Wallet 200 EUR, Comet Bridge 100 EUR (Bitrefill giftcards).

@@ -336,22 +336,24 @@ describe('Bitrefill judging — basic user journeys', () => {
       return j;
     };
 
-    // Before anyone submits -> locked, nothing covered.
+    // Scores show LIVE as soon as they're saved — no ballot needed, never locked.
     const j1 = await scoreAllFor(JUDGES[0]);
     const start = await j1.leaderboard();
-    expect(start.body.data.locked).toBe(true);
-    expect(start.body.data.submissionsScored).toBe(0); // no submitted ballots yet
-    note(`Leaderboard locked: 0 of ${start.body.data.submissionsTotal} submissions covered by a submitted judge.`);
+    expect(start.body.data.locked).toBe(false);
+    expect(start.body.data.complete).toBe(true); // all 3 covered by j1's saved scores
+    expect(start.body.data.submissionsScored).toBe(start.body.data.submissionsTotal);
+    const auroraStart = start.body.data.rows.find((r) => r.projectTitle === 'Aurora Pay');
+    expect(auroraStart.judgeCount).toBe(1);
+    note('Live standings: a judge\'s saved scores appear immediately (no ballot required).');
 
-    // One judge submits -> every submission now has a score from a submitted
-    // judge -> coverage met -> UNLOCKS even though the other judges haven't.
+    // Submitting the ballot still finalizes; the standings enrich as more judges score.
     await j1.submitBallot();
     const afterOne = await j1.leaderboard();
     expect(afterOne.body.data.locked).toBe(false);
     const auroraOne = afterOne.body.data.rows.find((r) => r.projectTitle === 'Aurora Pay');
     expect(auroraOne.judgeCount).toBe(1);
     expect(auroraOne.judgeScores).toHaveLength(1); // per-judge breakdown
-    note('Coverage gate: one judge covering every project unlocks the leaderboard (not all judges required).');
+    note('Coverage (complete) is informational now; the standings are always visible.');
 
     // The other two judges also score + submit -> averages enrich to 3 judges.
     await (await scoreAllFor(JUDGES[1])).submitBallot();
