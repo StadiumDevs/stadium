@@ -365,12 +365,13 @@ describe('SubmissionController.claimBatch (judge)', () => {
     body,
   });
 
-  it('409s when the ballot is already submitted', async () => {
-    ballotRepo.isSubmitted.mockResolvedValue(true);
+  it('allows claiming more batches even after the ballot is submitted', async () => {
+    ballotRepo.isSubmitted.mockResolvedValue(true); // already submitted
+    scoringService.claimBatch.mockResolvedValue({ claimed: 3, view: { batches: [] } });
     const res = mockRes();
-    await submissionController.claimBatch(judgeReq(), res);
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(scoringService.claimBatch).not.toHaveBeenCalled();
+    await submissionController.claimBatch(judgeReq({ batchNumber: 3 }), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(scoringService.claimBatch).toHaveBeenCalledWith('bitrefill', 'judge@x.com', 3);
   });
 
   it('claims and returns the refreshed view', async () => {

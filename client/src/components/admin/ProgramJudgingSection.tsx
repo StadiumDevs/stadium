@@ -539,7 +539,7 @@ export function ProgramJudgingSection({
           <>
             {locked && (
               <div className="lcd p-2.5 mb-3 flex flex-wrap items-center gap-2">
-                <span className="label-hw text-display">·SUBMITTED — YOUR SCORES COUNT. YOU CAN STILL REVISE + SAVE.</span>
+                <span className="label-hw text-display">·SUBMITTED — SCORES COUNT. YOU CAN STILL REVISE, AND CLAIM + SCORE MORE BATCHES.</span>
                 {view.ballotProgress && (
                   <span className="label-hw-dim">
                     · {view.ballotProgress.submitted} of {view.ballotProgress.total} judges in
@@ -552,8 +552,9 @@ export function ProgramJudgingSection({
             )}
 
             {/* Batch overview: preview each batch's submissions, see who's working
-                on it, and claim one or several. */}
-            {!locked && view.batches && view.batches.length > 0 && (
+                on it, and claim one or several. Available even after submitting,
+                so a judge can keep going through more batches. */}
+            {view.batches && view.batches.length > 0 && (
               <div className="lcd p-3 mb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <span className="label-hw text-display">·BATCHES ({view.batchSize ?? 10} EACH)</span>
