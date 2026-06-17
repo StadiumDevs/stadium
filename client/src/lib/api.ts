@@ -263,6 +263,8 @@ export type ApiSubmissionRow = ApiSubmission & {
   batchNumber?: number;
   /** Emails of judges who have saved a score for this submission. */
   scoredBy?: string[];
+  /** Every judge's score for this submission so far (for the live overview). */
+  scores?: Array<{ judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }>;
 };
 
 /** Coverage of one batch: how many judges claimed it + whether this judge has. */

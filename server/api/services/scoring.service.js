@@ -70,9 +70,18 @@ class ScoringService {
       claimedByBatch.get(c.batchNumber).push(c.judgeEmail);
     }
     const scoredBySubmission = new Map();
+    const scoresBySubmission = new Map();
     for (const sc of allScores) {
       if (!scoredBySubmission.has(sc.submissionId)) scoredBySubmission.set(sc.submissionId, []);
       scoredBySubmission.get(sc.submissionId).push(sc.judgeEmail);
+      if (!scoresBySubmission.has(sc.submissionId)) scoresBySubmission.set(sc.submissionId, []);
+      scoresBySubmission.get(sc.submissionId).push({
+        judgeEmail: sc.judgeEmail,
+        requirements: sc.requirements,
+        techStack: sc.techStack,
+        innovation: sc.innovation,
+        total: Math.round((sc.requirements + sc.techStack + sc.innovation) * 10) / 10,
+      });
     }
     const count = batchCountFor(submissions.length);
     const batches = [];
@@ -101,6 +110,7 @@ class ScoringService {
         myScore: scoreBySubmission.get(s.id) || null,
         batchNumber: byBatch.get(s.id),
         scoredBy: scoredBySubmission.get(s.id) || [],
+        scores: scoresBySubmission.get(s.id) || [],
       })),
     };
   }

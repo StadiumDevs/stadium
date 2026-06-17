@@ -616,29 +616,48 @@ export function ProgramJudgingSection({
                             {subs.length === 0 ? (
                               <p className="label-hw-dim">No submissions in this batch.</p>
                             ) : (
-                              subs.map((s) => (
-                                <div key={s.id} className="flex items-center justify-between gap-2">
-                                  <span className="min-w-0 truncate font-mono text-[11px] text-body">
-                                    {s.projectTitle} <span className="label-hw-dim">· {s.submitterName}</span>
-                                  </span>
-                                  <span className="flex items-center gap-2 flex-shrink-0">
-                                    <span className="label-hw-dim" title={s.scoredBy?.join(", ")}>
-                                      {s.scoredBy && s.scoredBy.length > 0 ? `${s.scoredBy.length} SCORED` : "—"}
-                                    </span>
-                                    {canSelectWinners && (
-                                      <button
-                                        type="button"
-                                        onClick={() => deleteSub(s)}
-                                        disabled={deletingId === s.id}
-                                        title="Delete this submission (admin)"
-                                        className="label-hw-dim hover:text-destructive disabled:opacity-50"
-                                      >
-                                        {deletingId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                      </button>
-                                    )}
-                                  </span>
-                                </div>
-                              ))
+                              subs.map((s) => {
+                                const scs = s.scores ?? [];
+                                const avg = scs.length ? round1(scs.reduce((acc, x) => acc + x.total, 0) / scs.length) : null;
+                                const breakdown = scs.map((x) => `${judgeLabel(x.judgeEmail)}: ${round1(x.total)}/12`).join(", ");
+                                return (
+                                  <div key={s.id} className="py-1 border-b border-hairline-subtle last:border-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="min-w-0 truncate font-mono text-[11px] text-display">
+                                        {s.projectTitle} <span className="label-hw-dim">· {s.submitterName}</span>
+                                      </span>
+                                      <span className="flex items-center gap-2 flex-shrink-0 label-hw-dim">
+                                        <button
+                                          type="button"
+                                          onClick={() => setReview({ url: s.videoUrl, title: s.projectTitle })}
+                                          className="hover:text-display inline-flex items-center gap-1"
+                                        >
+                                          VIDEO <Play className="h-3 w-3" />
+                                        </button>
+                                        <a href={s.githubUrl} target="_blank" rel="noreferrer" className="hover:text-display inline-flex items-center gap-1">
+                                          GIT <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                        {canSelectWinners && (
+                                          <button
+                                            type="button"
+                                            onClick={() => deleteSub(s)}
+                                            disabled={deletingId === s.id}
+                                            title="Delete this submission (admin)"
+                                            className="hover:text-destructive disabled:opacity-50"
+                                          >
+                                            {deletingId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                          </button>
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="label-hw-dim mt-0.5" title={breakdown || undefined}>
+                                      {avg != null
+                                        ? `SCORE ${avg}/12 AVG · ${scs.length} judge${scs.length === 1 ? "" : "s"}: ${judgesText(s.scoredBy)}`
+                                        : "NOT SCORED YET"}
+                                    </div>
+                                  </div>
+                                );
+                              })
                             )}
                           </div>
                         )}

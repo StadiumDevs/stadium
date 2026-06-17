@@ -10,9 +10,11 @@ const transform = (row) => {
     submissionId: row.submission_id,
     programId: row.program_id,
     judgeEmail: row.judge_email,
-    requirements: row.requirements_score,
-    techStack: row.tech_stack_score,
-    innovation: row.innovation_score,
+    // NUMERIC columns come back from PostgREST as strings ("4.3"); coerce so all
+    // score arithmetic (totals, averages) stays numeric, not string-concat.
+    requirements: Number(row.requirements_score),
+    techStack: Number(row.tech_stack_score),
+    innovation: Number(row.innovation_score),
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
