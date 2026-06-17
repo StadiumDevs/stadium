@@ -76,6 +76,32 @@ export function ProgramJudgingSection({
   const [publishedAt, setPublishedAt] = useState<string | null>(resultsPublishedAt);
   const [publishing, setPublishing] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const auth = await getAuth();
+      const blob = await api.exportProgramSubmissionsCsv(programSlug, auth);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${programSlug}-submissions-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Submissions CSV downloaded" });
+    } catch (e) {
+      toast({
+        title: "Couldn't export submissions",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const tiers = useMemo(() => prizeTiersFor(prizeTiers), [prizeTiers]);
 
@@ -388,7 +414,17 @@ export function ProgramJudgingSection({
     <section className="panel p-4 mb-3">
       <header className="mb-3 flex items-center justify-between gap-3">
         <div className="label-hw text-display">·JUDGING</div>
-        <div className="inline-flex border border-hairline">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={exporting}
+            title="Download all submissions + feedback responses as CSV"
+            className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
+          >
+            {exporting ? "EXPORTING…" : "DOWNLOAD CSV"}
+          </button>
+          <div className="inline-flex border border-hairline">
           {(["score", "results"] as Tab[]).map((t) => (
             <button
               key={t}
@@ -402,6 +438,7 @@ export function ProgramJudgingSection({
               {t === "score" ? "SCORE" : "RESULTS"}
             </button>
           ))}
+          </div>
         </div>
       </header>
 

@@ -6,6 +6,7 @@ import programSignupRepository from '../repositories/program-signup.repository.j
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
+import { submissionsToCsv } from '../utils/submissions-csv.js';
 import submissionConfirmationService from '../services/submission-confirmation.service.js';
 import prizeAwardService from '../services/prize-award.service.js';
 import lumaSyncService from '../services/luma-sync.service.js';
@@ -199,6 +200,24 @@ class SubmissionController {
     } catch (error) {
       console.error('❌ Error listing submissions:', error);
       res.status(500).json({ status: 'error', message: 'Failed to list submissions' });
+    }
+  }
+
+  // Judge/admin: download every submission + its feedback survey as a CSV.
+  async exportCsv(req, res) {
+    try {
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const { slug } = req.params;
+      const submissions = await programSubmissionRepository.listByProgramId(programId);
+      const csv = submissionsToCsv(submissions, { programSlug: slug });
+      const filename = `${slug}-submissions-${new Date().toISOString().slice(0, 10)}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
+    } catch (error) {
+      console.error('❌ Error exporting submissions CSV:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to export submissions' });
     }
   }
 

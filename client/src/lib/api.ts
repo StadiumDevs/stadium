@@ -2306,6 +2306,31 @@ export const api = {
     return response.blob();
   },
 
+  // Download all submissions + their feedback survey as a CSV (judge/admin).
+  exportProgramSubmissionsCsv: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<Blob> => {
+    if (USE_MOCK_DATA) {
+      return new Blob(["submittedAt,submitterName,lumaEmail,projectTitle\n"], { type: "text/csv" });
+    }
+    const url = `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/submissions.csv`;
+    const response = await fetch(url, { headers: adminAuthHeaders(authHeader) });
+    if (!response.ok) {
+      let message = mapStatusToMessage(response.status);
+      try {
+        const body = await response.json();
+        if (body && typeof body.message === "string" && body.message.trim()) {
+          message = body.error ? `${body.message}: ${body.error}` : body.message;
+        }
+      } catch {
+        // non-JSON error body — keep status-based message
+      }
+      throw new ApiError(message, response.status);
+    }
+    return response.blob();
+  },
+
   // --- Program audit log ---
 
   listProgramAuditLog: async (
