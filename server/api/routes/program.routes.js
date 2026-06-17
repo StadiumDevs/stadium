@@ -180,6 +180,12 @@ router.post('/:slug/submissions', submissionLimiter, submissionController.submit
 router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
 // Download all submissions + their feedback survey as CSV (judge/admin).
 router.get('/:slug/submissions.csv', requireProgramJudge('slug'), submissionController.exportCsv);
+// Admin-only: delete a submission (e.g. a test entry). Judges (requireProgramJudge) cannot.
+router.delete(
+  '/:slug/submissions/:submissionId',
+  requireProgramAdmin('slug'),
+  submissionController.deleteSubmission,
+);
 router.put(
   '/:slug/submissions/:submissionId/score',
   requireProgramJudge('slug'),

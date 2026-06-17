@@ -16,7 +16,7 @@ vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
 }));
 vi.mock('../../services/submission-confirmation.service.js', () => ({
   default: { send: vi.fn() },
@@ -587,5 +587,40 @@ describe('SubmissionController.publicResults (public)', () => {
     await submissionController.publicResults(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({ status: 'success', data: { published: false, submissions: [] } });
+  });
+});
+
+describe('SubmissionController.deleteSubmission (admin)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('204s and deletes a submission that belongs to the program', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'bitrefill', lumaEmail: 'x@y.com', projectTitle: 'T' });
+    submissionRepo.delete.mockResolvedValue();
+    const req = { params: { slug: 'bitrefill', submissionId: 's1' }, user: { address: 'admin' } };
+    const res = mockRes();
+    await submissionController.deleteSubmission(req, res);
+    expect(submissionRepo.delete).toHaveBeenCalledWith('s1');
+    expect(res.status).toHaveBeenCalledWith(204);
+  });
+
+  it('404s (no delete) when the submission belongs to a DIFFERENT program (IDOR)', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM); // id: 'bitrefill'
+    submissionRepo.findById.mockResolvedValue({ id: 'other', programId: 'another-prog' });
+    const req = { params: { slug: 'bitrefill', submissionId: 'other' }, user: { address: 'admin' } };
+    const res = mockRes();
+    await submissionController.deleteSubmission(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(submissionRepo.delete).not.toHaveBeenCalled();
+  });
+
+  it('404s when the submission does not exist', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    submissionRepo.findById.mockResolvedValue(null);
+    const req = { params: { slug: 'bitrefill', submissionId: 'ghost' }, user: { address: 'admin' } };
+    const res = mockRes();
+    await submissionController.deleteSubmission(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(submissionRepo.delete).not.toHaveBeenCalled();
   });
 });

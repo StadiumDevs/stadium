@@ -221,6 +221,38 @@ class SubmissionController {
     }
   }
 
+  // Admin: hard-delete a submission (e.g. a test entry). Scores cascade.
+  // Route-gated by requireProgramAdmin. Intended for cleanup BEFORE judging —
+  // deleting after scoring starts shifts batch membership (created_at order).
+  async deleteSubmission(req, res) {
+    try {
+      const { slug, submissionId } = req.params;
+      const program = await programService.findBySlug(slug);
+      if (!program) {
+        return res.status(404).json({ status: 'error', message: 'Program not found' });
+      }
+      // Program-scope check (IDOR): a submission from program B must not be
+      // deletable via program A's slug.
+      const existing = await programSubmissionRepository.findById(submissionId);
+      if (!existing || existing.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Submission not found' });
+      }
+      await programSubmissionRepository.delete(submissionId);
+      res.status(204).end();
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+        action: 'submission.delete',
+        targetType: 'submission',
+        targetId: submissionId,
+        metadata: { lumaEmail: existing.lumaEmail, projectTitle: existing.projectTitle },
+      });
+    } catch (error) {
+      console.error('❌ Error deleting submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to delete submission' });
+    }
+  }
+
   // Judge/admin: upsert this judge's score for one submission (draft save).
   async upsertScore(req, res) {
     try {

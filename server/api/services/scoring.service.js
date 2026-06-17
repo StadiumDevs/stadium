@@ -28,7 +28,7 @@ class ScoringService {
   // `eligible` is advisory: a submission whose email isn't in program_signups is
   // flagged but still scoreable.
   async listForJudge(programId, judgeEmail) {
-    const [submissions, myScores, signupEmails, registeredJudges, submittedBallots, ballot, myBatches, allClaims] =
+    const [submissions, myScores, signupEmails, registeredJudges, submittedBallots, ballot, myBatches, allClaims, allScores] =
       await Promise.all([
         programSubmissionRepository.listByProgramId(programId),
         submissionScoreRepository.listByJudge(programId, judgeEmail),
@@ -38,6 +38,7 @@ class ScoringService {
         programJudgeBallotRepository.find(programId, judgeEmail),
         programJudgeBatchRepository.listByJudge(programId, judgeEmail),
         programJudgeBatchRepository.listByProgram(programId),
+        submissionScoreRepository.listByProgramId(programId),
       ]);
 
     // listEmailsByProgramId returns a Set of raw signup emails; lowercase for a
@@ -60,17 +61,39 @@ class ScoringService {
     // Batch coverage overview: how many judges have claimed each batch + whether
     // this judge has. Lets the panel show "Claim next 10" and per-batch coverage.
     const claimedSet = new Set(myBatches);
-    const claimCounts = new Map();
-    for (const c of allClaims) claimCounts.set(c.batchNumber, (claimCounts.get(c.batchNumber) || 0) + 1);
+    // Who has claimed each batch (judges shown as "working on" it) and who has
+    // saved a score for each submission. Both additive — the write path is
+    // unchanged.
+    const claimedByBatch = new Map();
+    for (const c of allClaims) {
+      if (!claimedByBatch.has(c.batchNumber)) claimedByBatch.set(c.batchNumber, []);
+      claimedByBatch.get(c.batchNumber).push(c.judgeEmail);
+    }
+    const scoredBySubmission = new Map();
+    const scoresBySubmission = new Map();
+    for (const sc of allScores) {
+      if (!scoredBySubmission.has(sc.submissionId)) scoredBySubmission.set(sc.submissionId, []);
+      scoredBySubmission.get(sc.submissionId).push(sc.judgeEmail);
+      if (!scoresBySubmission.has(sc.submissionId)) scoresBySubmission.set(sc.submissionId, []);
+      scoresBySubmission.get(sc.submissionId).push({
+        judgeEmail: sc.judgeEmail,
+        requirements: sc.requirements,
+        techStack: sc.techStack,
+        innovation: sc.innovation,
+        total: Math.round((sc.requirements + sc.techStack + sc.innovation) * 10) / 10,
+      });
+    }
     const count = batchCountFor(submissions.length);
     const batches = [];
     for (let n = 1; n <= count; n += 1) {
       const start = (n - 1) * BATCH_SIZE;
+      const claimedBy = claimedByBatch.get(n) || [];
       batches.push({
         batchNumber: n,
         size: Math.min(BATCH_SIZE, submissions.length - start),
-        claimCount: claimCounts.get(n) || 0,
+        claimCount: claimedBy.length,
         claimedByMe: claimedSet.has(n),
+        claimedBy,
       });
     }
 
@@ -86,6 +109,8 @@ class ScoringService {
         eligible: eligibleSet.has(normalizeEmail(s.lumaEmail)),
         myScore: scoreBySubmission.get(s.id) || null,
         batchNumber: byBatch.get(s.id),
+        scoredBy: scoredBySubmission.get(s.id) || [],
+        scores: scoresBySubmission.get(s.id) || [],
       })),
     };
   }

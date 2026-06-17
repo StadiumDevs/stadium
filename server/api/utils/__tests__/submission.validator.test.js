@@ -179,9 +179,18 @@ describe('validateScore', () => {
     expect(validateScore({ requirements: 2, techStack: 5, innovation: -1 }).ok).toBe(false);
   });
 
-  it('rejects non-integer values', () => {
-    expect(validateScore({ requirements: 1.5, techStack: 5, innovation: 5 }).ok).toBe(false);
+  it('accepts in-range decimal scores, rounded to 1 decimal place', () => {
+    const r = validateScore({ requirements: 1.5, techStack: 4.3, innovation: 5 });
+    expect(r.ok).toBe(true);
+    expect(r.value).toMatchObject({ requirements: 1.5, techStack: 4.3, innovation: 5 });
+    // 4.34 rounds to 4.3 (matches NUMERIC(3,1) storage)
+    expect(validateScore({ requirements: 0, techStack: 4.34, innovation: 0 }).value.techStack).toBe(4.3);
+  });
+
+  it('rejects non-numeric values', () => {
     expect(validateScore({ requirements: '2', techStack: 5, innovation: 5 }).ok).toBe(false);
+    expect(validateScore({ requirements: NaN, techStack: 5, innovation: 5 }).ok).toBe(false);
+    expect(validateScore({ techStack: 5, innovation: 5 }).ok).toBe(false); // missing requirements
   });
 
   it('rejects overly long notes', () => {
