@@ -10,6 +10,11 @@ import projectService from './project.service.js';
 const normalizeEmail = (email) =>
   typeof email === 'string' ? email.trim().toLowerCase() : '';
 
+// A real judge identity is an email. Wallet/admin sessions score under their
+// wallet address (no '@') as a non-counting "preview", so the same person who is
+// both an admin wallet and an email judge isn't double-counted.
+const isEmailJudge = (judgeEmail) => typeof judgeEmail === 'string' && judgeEmail.includes('@');
+
 const mean = (nums) => (nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0);
 
 // Batch N (1-based) holds submissions [(N-1)*BATCH_SIZE .. N*BATCH_SIZE) in the
@@ -72,6 +77,7 @@ class ScoringService {
     const scoredBySubmission = new Map();
     const scoresBySubmission = new Map();
     for (const sc of allScores) {
+      if (!isEmailJudge(sc.judgeEmail)) continue; // wallet/admin preview scores don't show
       if (!scoredBySubmission.has(sc.submissionId)) scoredBySubmission.set(sc.submissionId, []);
       scoredBySubmission.get(sc.submissionId).push(sc.judgeEmail);
       if (!scoresBySubmission.has(sc.submissionId)) scoresBySubmission.set(sc.submissionId, []);
@@ -244,12 +250,14 @@ class ScoringService {
     const submittedEmails = new Set(submittedBallots.map((b) => normalizeEmail(b.judgeEmail)));
     const pendingJudges = registeredEmails.filter((e) => !submittedEmails.has(e));
 
-    // Count every saved score so the results view is LIVE as judges score (not
-    // only after they finalize a ballot) and an admin's own scores show up.
+    // Count every email-judge's saved score so results are LIVE as they score
+    // (no ballot needed). Wallet/admin "preview" scores never count, so someone
+    // who is both an admin wallet and an email judge isn't double-counted.
     // Coverage (`complete`) is informational + gates PUBLISH; it no longer hides
     // the standings.
     const scoresBySubmission = new Map();
     for (const score of allScores) {
+      if (!isEmailJudge(score.judgeEmail)) continue;
       if (!scoresBySubmission.has(score.submissionId)) scoresBySubmission.set(score.submissionId, []);
       scoresBySubmission.get(score.submissionId).push(score);
     }

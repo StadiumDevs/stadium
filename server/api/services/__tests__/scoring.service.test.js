@@ -73,7 +73,7 @@ describe('scoringService.leaderboard — coverage gate', () => {
 });
 
 describe('scoringService.leaderboard — tally + per-judge breakdown', () => {
-  it('complete on full coverage, counts every saved score (incl. non-submitted), ranks by mean', async () => {
+  it('counts email-judge scores live (excludes wallet/admin preview), ranks by mean', async () => {
     emailRepo.listJudges.mockResolvedValue([{ email: 'a@x.com' }, { email: 'b@x.com' }]);
     ballotRepo.listSubmitted.mockResolvedValue([{ judgeEmail: 'a@x.com' }, { judgeEmail: 'b@x.com' }]);
     submissionRepo.listByProgramId.mockResolvedValue([
@@ -84,20 +84,18 @@ describe('scoringService.leaderboard — tally + per-judge breakdown', () => {
       score('s1', 'a@x.com', 2, 5, 5), // 12
       score('s1', 'b@x.com', 2, 5, 3), // 10  -> mean 11
       score('s2', 'a@x.com', 1, 3, 2), // 6
-      score('s2', 'b@x.com', 1, 3, 2), // 6
-      score('s2', '5WalletAdmin', 2, 5, 5), // 12 -> now counted (live)
+      score('s2', 'b@x.com', 1, 3, 2), // 6  -> mean 6
+      score('s2', '5WalletAdmin', 2, 5, 5), // wallet (no @) -> NOT counted
     ]);
 
     const r = await scoringService.leaderboard('prog-1');
     expect(r.locked).toBe(false);
     expect(r.complete).toBe(true);
     expect(r.rows[0]).toMatchObject({ rank: 1, submissionId: 's1', avgTotal: 11, judgeCount: 2 });
-    // s2 now includes the wallet-admin score: mean (6+6+12)/3 = 8, 3 judges.
-    expect(r.rows[1]).toMatchObject({ rank: 2, submissionId: 's2', avgTotal: 8, judgeCount: 3 });
-    expect(r.rows[1].judgeScores).toHaveLength(3);
-    expect(r.rows[0].judgeScores).toContainEqual(
-      expect.objectContaining({ judgeEmail: 'a@x.com', total: 12 }),
-    );
+    // Wallet-admin preview score is ignored -> s2 stays at 2 judges / mean 6.
+    expect(r.rows[1]).toMatchObject({ rank: 2, submissionId: 's2', avgTotal: 6, judgeCount: 2 });
+    expect(r.rows[1].judgeScores).toHaveLength(2);
+    expect(r.rows[1].judgeScores.every((s) => s.judgeEmail.includes('@'))).toBe(true);
   });
 
   it('breaks ties by innovation then tech stack', async () => {
