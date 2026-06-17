@@ -261,6 +261,8 @@ export type ApiSubmissionRow = ApiSubmission & {
   myScore: ApiScore | null;
   /** Which batch (of batchSize) this submission falls in. */
   batchNumber?: number;
+  /** Emails of judges who have saved a score for this submission. */
+  scoredBy?: string[];
 };
 
 /** Coverage of one batch: how many judges claimed it + whether this judge has. */
@@ -269,6 +271,8 @@ export type ApiBatchInfo = {
   size: number;
   claimCount: number;
   claimedByMe: boolean;
+  /** Emails of judges currently working on (claimed) this batch. */
+  claimedBy?: string[];
 };
 
 export type ApiJudgeView = {
@@ -2057,6 +2061,24 @@ export const api = {
       headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({ scores }),
     });
+  },
+
+  /** Admin: delete a submission (e.g. a test entry). Scores cascade. */
+  deleteSubmission: async (
+    slug: string,
+    submissionId: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string }> => {
+    if (USE_MOCK_DATA) {
+      const { mockJudging } = await import("./mockJudging");
+      mockJudging.deleteSubmission?.(submissionId);
+      return { status: "success" };
+    }
+    await request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}`, {
+      method: "DELETE",
+      headers: adminAuthHeaders(authHeader),
+    });
+    return { status: "success" };
   },
 
   /** Judge/admin: finalize the ballot (requires every submission scored). */

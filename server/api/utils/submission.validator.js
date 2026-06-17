@@ -181,20 +181,26 @@ export const SCORE_BOUNDS = {
 export const MAX_TOTAL_SCORE =
   SCORE_BOUNDS.requirements.max + SCORE_BOUNDS.techStack.max + SCORE_BOUNDS.innovation.max;
 
-const isIntInRange = (v, { min, max }) =>
-  typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max;
+const isNumInRange = (v, { min, max }) =>
+  typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+
+// Scores accept one decimal place (e.g. 4.3). Round half-up to 1dp so the
+// validator and the NUMERIC(3,1) column agree on the stored value.
+const roundTo1dp = (v) => Math.round(v * 10) / 10;
 
 export function validateScore(body = {}) {
-  const { requirements, techStack, innovation } = body;
-  for (const [key, value] of Object.entries({ requirements, techStack, innovation })) {
-    if (!isIntInRange(value, SCORE_BOUNDS[key])) {
+  const out = {};
+  for (const key of ['requirements', 'techStack', 'innovation']) {
+    const value = body[key];
+    if (!isNumInRange(value, SCORE_BOUNDS[key])) {
       const { min, max } = SCORE_BOUNDS[key];
-      return { ok: false, error: `${key} must be an integer between ${min} and ${max}` };
+      return { ok: false, error: `${key} must be a number between ${min} and ${max}` };
     }
+    out[key] = roundTo1dp(value);
   }
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   if (notes.length > 5000) {
     return { ok: false, error: 'Notes must be 5000 characters or fewer' };
   }
-  return { ok: true, value: { requirements, techStack, innovation, notes } };
+  return { ok: true, value: { ...out, notes } };
 }

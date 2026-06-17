@@ -206,6 +206,12 @@ class ProgramSubmissionRepository {
     if (error) throw error;
     return count ?? 0;
   }
+
+  // Hard-delete a submission. submission_scores rows cascade (ON DELETE CASCADE).
+  async delete(id) {
+    const { error } = await supabase.from('program_submissions').delete().eq('id', id);
+    if (error) throw error;
+  }
 }
 
 export default new ProgramSubmissionRepository();
