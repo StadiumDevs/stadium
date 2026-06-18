@@ -227,9 +227,9 @@ class ScoringService {
 
     const project = await projectService.createProject({
       projectName: submission.projectTitle,
-      description:
-        `Hackathon submission by ${submission.submitterName} (${submission.lumaEmail}).` +
-        ` Video demo: ${submission.videoUrl}`,
+      // Do NOT embed the submitter's email here — project descriptions are
+      // public. Contact stays admin-only (judging view + CSV export).
+      description: `Hackathon submission by ${submission.submitterName}. Video demo: ${submission.videoUrl}`,
       projectRepo: submission.githubUrl,
       demoUrl: submission.videoUrl,
       // hackathon_*/project_state are NOT NULL on projects; backfill from the
