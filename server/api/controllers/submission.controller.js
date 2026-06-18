@@ -398,7 +398,13 @@ class SubmissionController {
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
-      const result = await scoringService.promoteToProject(program, submissionId);
+      // Optional bounty override (e.g. a "Showcase" 100 EUR award); else the
+      // submission's own awarded prize is used.
+      const bounty =
+        req.body && (req.body.bountyName || req.body.bountyAmount != null)
+          ? { name: req.body.bountyName, amount: req.body.bountyAmount, currency: req.body.bountyCurrency }
+          : null;
+      const result = await scoringService.promoteToProject(program, submissionId, bounty);
       if (result.notFound) {
         return res.status(404).json({ status: 'error', message: 'Submission not found' });
       }

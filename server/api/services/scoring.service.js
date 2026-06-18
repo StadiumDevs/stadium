@@ -206,12 +206,24 @@ class ScoringService {
   // Luma email + video into the description since the project/team schema has no
   // email field. The payout wallet is added by an admin later (no wallet is
   // collected at submission time).
-  async promoteToProject(program, submissionId) {
+  // `bounty` lets the caller override the prize that lands on the winners panel
+  // (e.g. a "Showcase" 100 EUR award); otherwise the submission's own awarded
+  // prize is used. A submission with no prize promotes without a bounty row.
+  async promoteToProject(program, submissionId, bounty = null) {
     const submission = await programSubmissionRepository.findById(submissionId);
     if (!submission || submission.programId !== program.id) return { notFound: true };
     if (submission.promotedProjectId) {
       return { alreadyPromoted: true, projectId: submission.promotedProjectId };
     }
+
+    // Bounty for the winners panel: explicit override, else the awarded prize.
+    const prizeName = bounty?.name || submission.prizeLabel || 'Prize';
+    const prizeAmount = bounty?.amount ?? submission.prizeAmount ?? null;
+    const prizeCurrency = bounty?.currency || submission.prizeCurrency || 'EUR';
+    const bountyPrize =
+      prizeAmount != null
+        ? [{ name: prizeName, amount: prizeAmount, currency: prizeCurrency, hackathonWonAtId: program.slug }]
+        : [];
 
     const project = await projectService.createProject({
       projectName: submission.projectTitle,
@@ -220,11 +232,13 @@ class ScoringService {
         ` Video demo: ${submission.videoUrl}`,
       projectRepo: submission.githubUrl,
       demoUrl: submission.videoUrl,
-      // hackathon_* are NOT NULL on projects; backfill from the program (same
-      // convention as elsewhere — hackathon_id mirrors the program slug).
-      hackathon: { id: program.slug, name: program.name },
+      // hackathon_*/project_state are NOT NULL on projects; backfill from the
+      // program (hackathon_id mirrors the program slug; end date from the event).
+      hackathon: { id: program.slug, name: program.name, endDate: program.eventEndsAt ?? program.eventStartsAt ?? null },
       program: { id: program.id },
+      projectState: 'submitted',
       teamMembers: [{ name: submission.submitterName, github: submission.githubUrl }],
+      bountyPrize,
     });
 
     await programSubmissionRepository.setPromotedProject(submissionId, project.id);
@@ -314,6 +328,8 @@ class ScoringService {
           prizeAmount: s.prizeAmount ?? null,
           prizeCurrency: s.prizeCurrency ?? null,
           prizeLabel: s.prizeLabel ?? null,
+          // Whether this winner has been pushed into the central winners panel.
+          promotedProjectId: s.promotedProjectId ?? null,
           // Payout tracking, so the results table can show + toggle PAID.
           paid: s.paid ?? false,
         };

@@ -129,7 +129,7 @@ export type ApiProject = {
   /** Live/production website URL */
   liveUrl?: string;
   donationAddress?: string;
-  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
+  bountyPrize?: { name: string; amount: number; currency?: string; hackathonWonAtId: string }[];
   techStack?: string[];
   categories?: string[];
   m2Status?: "building" | "under_review" | "completed";
@@ -311,6 +311,8 @@ export type ApiLeaderboardRow = {
   judgeScores?: { judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }[];
   /** The viewing judge's own score (null = not yet scored), for inline edit + re-save. */
   myScore?: { requirements: number; techStack: number; innovation: number; notes: string } | null;
+  /** Set once this winner has been pushed into the central winners panel. */
+  promotedProjectId?: string | null;
   /** Current prize on this submission (null = not a winner). */
   prizeAmount?: number | null;
   prizeCurrency?: string | null;
@@ -2122,6 +2124,7 @@ export const api = {
     slug: string,
     submissionId: string,
     authHeader: AdminAuthArg,
+    bounty?: { bountyName?: string; bountyAmount?: number; bountyCurrency?: string },
   ): Promise<{ status: string; data: { projectId: string; alreadyPromoted?: boolean } }> => {
     if (USE_MOCK_DATA) {
       const { mockJudging } = await import("./mockJudging");
@@ -2129,7 +2132,11 @@ export const api = {
     }
     return request(
       `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/promote`,
-      { method: "POST", headers: adminAuthHeaders(authHeader) },
+      {
+        method: "POST",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify(bounty ?? {}),
+      },
     );
   },
 

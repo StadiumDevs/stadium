@@ -84,6 +84,7 @@ const transformProject = (row) => {
         bountyPrize: (row.bounty_prizes || []).map(b => ({
             name: b.name,
             amount: b.amount,
+            currency: b.currency || 'USD',
             hackathonWonAtId: b.hackathon_won_at_id
         })),
         milestones: (row.milestones || []).map(m => ({
@@ -282,6 +283,7 @@ class ProjectRepository {
                     project_id: projectId,
                     name: b.name,
                     amount: b.amount,
+                    currency: b.currency || 'USD',
                     hackathon_won_at_id: b.hackathonWonAtId
                 })));
             if (bountyError) throw bountyError;
