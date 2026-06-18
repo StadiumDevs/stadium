@@ -294,6 +294,8 @@ export type ApiLeaderboardRow = {
   submissionId: string;
   projectTitle: string;
   submitterName?: string;
+  /** Submitter contact email (admin/judge view only; stripped from public results). */
+  lumaEmail?: string;
   githubUrl?: string;
   videoUrl?: string;
   /** False when the submitter's Luma email isn't in the signup list. */

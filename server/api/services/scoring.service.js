@@ -284,6 +284,9 @@ class ScoringService {
           submissionId: s.id,
           projectTitle: s.projectTitle,
           submitterName: s.submitterName,
+          // Contact email — admin/judge view only (this endpoint is gated;
+          // publicResults strips it). Lets admins reach winners.
+          lumaEmail: s.lumaEmail,
           githubUrl: s.githubUrl,
           videoUrl: s.videoUrl,
           eligible: eligibleSet.has(normalizeEmail(s.lumaEmail)),

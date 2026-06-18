@@ -951,6 +951,12 @@ export function ProgramJudgingSection({
                                 </div>
                               );
                             })()}
+                            {r.lumaEmail && (
+                              <div className="label-hw-dim mb-2">
+                                ·CONTACT: {r.submitterName ? `${r.submitterName} — ` : ""}
+                                <a href={`mailto:${r.lumaEmail}`} className="text-display hover:underline">{r.lumaEmail}</a>
+                              </div>
+                            )}
                             <div className="label-hw-dim mb-1">·SCORES PER JUDGE</div>
                             {(r.judgeScores ?? []).length === 0 ? (
                               <span className="label-hw-dim">No individual scores.</span>
