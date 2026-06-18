@@ -89,6 +89,22 @@ export function ProgramJudgingSection({
   // Inline score edits made from the RESULTS view (keyed by submission id).
   const [resultDrafts, setResultDrafts] = useState<Record<string, { requirements: number; techStack: number; innovation: number }>>({});
   const [savingScoreId, setSavingScoreId] = useState<string | null>(null);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+
+  // Admin: push a winning submission into the central winners/payments panel.
+  const promoteWinner = async (submissionId: string) => {
+    setPromotingId(submissionId);
+    try {
+      const auth = await getAuth();
+      const r = await api.promoteSubmission(programSlug, submissionId, auth);
+      toast({ title: r.data.alreadyPromoted ? "Already in the winners panel" : "Added to the winners panel" });
+      await loadLeaderboard();
+    } catch (e) {
+      toast({ title: "Couldn't promote", description: (e as Error)?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setPromotingId(null);
+    }
+  };
 
   const setResultField = (
     id: string,
@@ -951,6 +967,29 @@ export function ProgramJudgingSection({
                                 </div>
                               );
                             })()}
+                            {r.lumaEmail && (
+                              <div className="label-hw-dim mb-2">
+                                ·CONTACT: {r.submitterName ? `${r.submitterName} — ` : ""}
+                                <a href={`mailto:${r.lumaEmail}`} className="text-display hover:underline">{r.lumaEmail}</a>
+                              </div>
+                            )}
+                            {canSelectWinners && r.prizeAmount != null && (
+                              <div className="mb-2">
+                                <button
+                                  type="button"
+                                  onClick={() => promoteWinner(r.submissionId)}
+                                  disabled={promotingId === r.submissionId || !!r.promotedProjectId}
+                                  title="Add this winner to the central winners + payments panel"
+                                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:bg-panel-deep disabled:text-label-dim disabled:border-hairline px-3 py-1.5"
+                                >
+                                  {r.promotedProjectId
+                                    ? "✓ IN WINNERS PANEL"
+                                    : promotingId === r.submissionId
+                                      ? "ADDING…"
+                                      : "ADD TO WINNERS PANEL ▸"}
+                                </button>
+                              </div>
+                            )}
                             <div className="label-hw-dim mb-1">·SCORES PER JUDGE</div>
                             {(r.judgeScores ?? []).length === 0 ? (
                               <span className="label-hw-dim">No individual scores.</span>
