@@ -4,7 +4,6 @@ import {
   api,
   USE_MOCK_DATA,
   type ApiProgram,
-  type ApiProgramStats,
   type ApiLeaderboard,
   type ApiLeaderboardRow,
   type ApiResultsFeedbackAggregate,
@@ -183,7 +182,6 @@ export function ProgramResultsSummarySection({
   getAuth: () => Promise<AdminAuthArg>;
 }) {
   const [leaderboard, setLeaderboard] = useState<ApiLeaderboard | null>(null);
-  const [stats, setStats] = useState<ApiProgramStats | null>(null);
   const [feedback, setFeedback] = useState<ApiResultsFeedbackAggregate | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -201,14 +199,12 @@ export function ProgramResultsSummarySection({
       .then((authHeader) =>
         Promise.allSettled([
           api.getLeaderboard(program.slug, authHeader),
-          api.getProgramStats(program.slug, authHeader),
           api.getFeedbackAggregate(program.slug, authHeader),
         ]),
       )
-      .then(([lb, st, fb]) => {
+      .then(([lb, fb]) => {
         if (!active) return;
         if (lb.status === "fulfilled") setLeaderboard(lb.value.data);
-        if (st.status === "fulfilled") setStats(st.value.data);
         if (fb.status === "fulfilled") setFeedback(fb.value.data);
       })
       .catch(() => { /* silently degrade — sections render with empty states */ })
@@ -239,10 +235,8 @@ export function ProgramResultsSummarySection({
           </button>
         </div>
 
-        {/* Stats strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-          <LCDStat size="sm" value={stats?.confirmedParticipants ?? "—"} label="Checked in" />
-          <LCDStat size="sm" value={stats?.submissionsCount ?? "—"} label="Submissions" />
+        {/* Stats strip — participants/submissions already shown in the page header above */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <LCDStat size="sm" value={leaderboard ? winners.length : "—"} label="Winners" />
           <LCDStat size="sm" value={hours ?? "—"} label="Hours of hacking" />
         </div>
