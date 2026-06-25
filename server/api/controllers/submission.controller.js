@@ -554,6 +554,19 @@ class SubmissionController {
       res.status(500).json({ status: 'error', message: 'Failed to build leaderboard' });
     }
   }
+
+  // Admin: aggregated feedback survey counts for the results summary panel.
+  async feedbackAggregate(req, res) {
+    try {
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const data = await programSubmissionRepository.aggregateFeedback(program.id);
+      res.status(200).json({ status: 'success', data });
+    } catch (error) {
+      console.error('❌ Error aggregating feedback:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to aggregate feedback' });
+    }
+  }
 }
 
 export default new SubmissionController();

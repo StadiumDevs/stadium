@@ -221,5 +221,7 @@ router.patch(
 );
 router.post('/:slug/results/publish', requireProgramAdmin('slug'), submissionController.publishResults);
 router.post('/:slug/results/unpublish', requireProgramAdmin('slug'), submissionController.unpublishResults);
+// Admin: aggregated feedback counts for the completed-program results panel.
+router.get('/:slug/submissions/feedback-aggregate', requireProgramAdmin('slug'), submissionController.feedbackAggregate);
 
 export default router;
