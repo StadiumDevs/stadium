@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, Github, Loader2 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import {
   api,
   USE_MOCK_DATA,
   type ApiProgram,
@@ -156,55 +148,27 @@ function FeedbackChart({
 }) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) return null;
-  const data = entries.map(([name, value]) => ({ name, value }));
-  const maxVal = Math.max(...data.map((d) => d.value));
-
-  // min-w-[1px] + debounce prevents Recharts creating a 0-dim canvas pattern
-  // when the admin panel first opens (layout still in flight).
-  // Y-axis width is computed from the longest label so long option strings
-  // don't overflow; tickFormatter truncates anything that still doesn't fit.
-  const longestLabel = Math.max(...entries.map(([k]) => k.length));
-  const yAxisWidth = Math.min(160, Math.max(80, Math.ceil(longestLabel * 5.4)));
-  const maxChars = Math.floor(yAxisWidth / 5.4);
+  const maxVal = Math.max(...entries.map(([, v]) => v));
 
   return (
-    <div className="min-w-0" style={{ minWidth: 1 }}>
-      <div className="label-hw-dim mb-1">{title.toUpperCase()}</div>
-      <ResponsiveContainer width="100%" height={data.length * 28 + 10} debounce={50}>
-        <BarChart
-          data={data}
-          layout="vertical"
-          margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
-        >
-          <XAxis
-            type="number"
-            domain={[0, maxVal]}
-            tick={{ fontSize: 9, fontFamily: "monospace", fill: "var(--color-label-mid)" }}
-            tickLine={false}
-            axisLine={false}
-            allowDecimals={false}
-          />
-          <YAxis
-            type="category"
-            dataKey="name"
-            width={yAxisWidth}
-            tickFormatter={(v: string) => v.length > maxChars ? v.slice(0, maxChars - 1) + "…" : v}
-            tick={{ fontSize: 9, fontFamily: "monospace", fill: "var(--color-label-mid)" }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <Tooltip
-            contentStyle={{
-              background: "var(--color-panel-deep)",
-              border: "1px solid var(--color-hairline)",
-              fontSize: 10,
-              fontFamily: "monospace",
-            }}
-            cursor={{ fill: "var(--color-panel-deep)" }}
-          />
-          <Bar dataKey="value" fill="var(--color-display)" radius={[0, 2, 2, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="min-w-0">
+      <div className="label-hw-dim mb-2">{title.toUpperCase()}</div>
+      <div className="space-y-2">
+        {entries.map(([label, count]) => (
+          <div key={label}>
+            <div className="label-hw-dim text-[9px] leading-tight mb-0.5">{label}</div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-panel-deep">
+                <div
+                  className="h-full bg-display"
+                  style={{ width: `${Math.round((count / maxVal) * 100)}%` }}
+                />
+              </div>
+              <span className="label-hw text-display text-[9px] w-4 text-right shrink-0">{count}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
