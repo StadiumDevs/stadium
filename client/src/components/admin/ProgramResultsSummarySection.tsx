@@ -220,7 +220,6 @@ export function ProgramResultsSummarySection({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setError(null);
     // In mock mode the API functions ignore the auth header — skip the wallet
     // signing call entirely so the preview works without a real token.
     const authPromise: Promise<AdminAuthArg> = USE_MOCK_DATA
