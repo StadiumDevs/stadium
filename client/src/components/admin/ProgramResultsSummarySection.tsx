@@ -216,7 +216,6 @@ export function ProgramResultsSummarySection({
   const [stats, setStats] = useState<ApiProgramStats | null>(null);
   const [feedback, setFeedback] = useState<ApiResultsFeedbackAggregate | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -241,16 +240,8 @@ export function ProgramResultsSummarySection({
         if (lb.status === "fulfilled") setLeaderboard(lb.value.data);
         if (st.status === "fulfilled") setStats(st.value.data);
         if (fb.status === "fulfilled") setFeedback(fb.value.data);
-        // Surface only unexpected failures (not 404s from un-deployed endpoints)
-        const firstFail = [lb, st].find((r) => r.status === "rejected");
-        if (firstFail && firstFail.status === "rejected") {
-          setError((firstFail.reason as Error)?.message || "Failed to load results data");
-        }
       })
-      .catch((e: unknown) => {
-        if (!active) return;
-        setError((e as Error)?.message || "Failed to load results data");
-      })
+      .catch(() => { /* silently degrade — sections render with empty states */ })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -282,10 +273,6 @@ export function ProgramResultsSummarySection({
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             LOADING RESULTS DATA…
           </div>
-        )}
-
-        {error && (
-          <div className="label-hw text-destructive mb-3">·{error.toUpperCase()}</div>
         )}
 
         {!loading && leaderboard && (
