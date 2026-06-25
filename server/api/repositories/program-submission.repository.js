@@ -212,6 +212,49 @@ class ProgramSubmissionRepository {
     const { error } = await supabase.from('program_submissions').delete().eq('id', id);
     if (error) throw error;
   }
+
+  // Aggregate categorical feedback fields across all submissions for a program.
+  // Returns tallied counts + up to 20 free-text samples. No PII in the output.
+  async aggregateFeedback(programId) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .select('feedback')
+      .eq('program_id', programId)
+      .not('feedback', 'is', null);
+    if (error) throw error;
+    const rows = (data || []).map((r) => r.feedback).filter(Boolean);
+
+    const tally = (key) => {
+      const counts = {};
+      for (const fb of rows) {
+        const val = fb[key];
+        if (val === null || val === undefined) continue;
+        if (Array.isArray(val)) {
+          for (const v of val) { counts[v] = (counts[v] ?? 0) + 1; }
+        } else {
+          counts[String(val)] = (counts[String(val)] ?? 0) + 1;
+        }
+      }
+      return counts;
+    };
+
+    const textSamples = (key, max = 20) =>
+      rows
+        .map((fb) => (typeof fb[key] === 'string' ? fb[key].trim() : null))
+        .filter((v) => v && v.length > 0)
+        .slice(0, max);
+
+    return {
+      deadlineStatus: tally('deadlineStatus'),
+      agentEnv: tally('agentEnv'),
+      wouldKeepBuilding: tally('wouldKeepBuilding'),
+      surfaces: tally('surfaces'),
+      surfacesPrimary: tally('surfacesPrimary'),
+      biggestBlockerSamples: textSamples('biggestBlocker'),
+      couldntHandleSamples: textSamples('couldntHandle'),
+      total: rows.length,
+    };
+  }
 }
 
 export default new ProgramSubmissionRepository();

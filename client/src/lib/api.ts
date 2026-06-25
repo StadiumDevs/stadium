@@ -437,6 +437,10 @@ export type ApiProgram = {
   prizeTiers?: ApiPrizeTier[] | null;
   /** Set when a platform admin publishes results to the public program page. */
   resultsPublishedAt?: string | null;
+  /** Honorary mentions for the completed-program results panel. */
+  honoraryMentions?: { name: string; videoUrl?: string | null; githubUrl?: string | null }[] | null;
+  /** Link to an event photo gallery (e.g. Google Drive folder). */
+  galleryUrl?: string | null;
   /** Luma event id (evt-…). When set + server has LUMA_API_KEY, the submit gate
    *  verifies emails against the event's checked-in guests synced from Luma. */
   lumaEventId?: string | null;
@@ -459,6 +463,18 @@ export type ProgramGuestSyncResult = {
 
 /** At-a-glance counts for the program admin/judge header (no PII). */
 export type ApiProgramStats = { confirmedParticipants: number; submissionsCount: number };
+
+/** Aggregated feedback survey counts for the completed-program results panel. */
+export type ApiResultsFeedbackAggregate = {
+  deadlineStatus: Record<string, number>;
+  agentEnv: Record<string, number>;
+  wouldKeepBuilding: Record<string, number>;
+  surfaces: Record<string, number>;
+  surfacesPrimary: Record<string, number>;
+  biggestBlockerSamples: string[];
+  couldntHandleSamples: string[];
+  total: number;
+};
 
 /** Public, PII-free results payload for the program page (gated on publish). */
 export type ApiPublicResultEntry = {
@@ -2217,6 +2233,31 @@ export const api = {
     const action = publish ? "publish" : "unpublish";
     return request(`/programs/${encodeURIComponent(slug)}/results/${action}`, {
       method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Admin: aggregated feedback counts for the completed-program results panel. */
+  getFeedbackAggregate: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiResultsFeedbackAggregate }> => {
+    if (USE_MOCK_DATA) {
+      return {
+        status: "success",
+        data: {
+          deadlineStatus: { comfortable: 5, tight: 3, "too tight": 1 },
+          agentEnv: { yes: 6, no: 2, partial: 1 },
+          wouldKeepBuilding: { yes: 7, maybe: 1, no: 1 },
+          surfaces: { wallet: 5, dapp: 4, "smart contract": 3 },
+          surfacesPrimary: { wallet: 4, dapp: 3 },
+          biggestBlockerSamples: ["Polkadot docs hard to navigate", "Limited time"],
+          couldntHandleSamples: ["Complex multi-chain state management"],
+          total: 9,
+        },
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/feedback-aggregate`, {
       headers: adminAuthHeaders(authHeader),
     });
   },

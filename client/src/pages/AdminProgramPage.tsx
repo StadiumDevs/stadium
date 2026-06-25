@@ -21,6 +21,7 @@ import { ProgramSponsorsSection } from "@/components/admin/ProgramSponsorsSectio
 import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection";
 import { LumaGuestsSection } from "@/components/admin/LumaGuestsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
+import { ProgramResultsSummarySection } from "@/components/admin/ProgramResultsSummarySection";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -348,6 +349,13 @@ const AdminProgramPage = () => {
                   getAuth={getAdminAuth}
                   eventEndsAt={program.eventEndsAt}
                 />
+
+                {program.status === "completed" && (
+                  <ProgramResultsSummarySection
+                    program={program}
+                    getAuth={getAdminAuth}
+                  />
+                )}
 
                 <ProgramAdminsSection
                   programSlug={program.slug}

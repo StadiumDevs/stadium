@@ -25,6 +25,8 @@ const transformProgram = (row) => {
     lumaEventId: row.luma_event_id ?? null,
     lastGuestSyncAt: row.last_guest_sync_at ?? null,
     lastGuestSyncStatus: row.last_guest_sync_status ?? null,
+    honoraryMentions: row.honorary_mentions ?? null,
+    galleryUrl: row.gallery_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -54,6 +56,8 @@ const toSnakeCase = (data) => {
     const v = typeof data.lumaEventId === 'string' ? data.lumaEventId.trim() : data.lumaEventId;
     row.luma_event_id = v || null;
   }
+  if ('honoraryMentions' in data) row.honorary_mentions = data.honoraryMentions ?? null;
+  if ('galleryUrl' in data) row.gallery_url = data.galleryUrl ?? null;
   return row;
 };
 
