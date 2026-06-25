@@ -471,7 +471,7 @@ export type ApiResultsFeedbackAggregate = {
   wouldKeepBuilding: Record<string, number>;
   surfaces: Record<string, number>;
   surfacesPrimary: Record<string, number>;
-  biggestBlockerSamples: string[];
+  biggestBlocker: Record<string, number>;
   couldntHandleSamples: string[];
   total: number;
 };
@@ -2246,14 +2246,25 @@ export const api = {
       return {
         status: "success",
         data: {
-          deadlineStatus: { comfortable: 5, tight: 3, "too tight": 1 },
-          agentEnv: { yes: 6, no: 2, partial: 1 },
-          wouldKeepBuilding: { yes: 7, maybe: 1, no: 1 },
-          surfaces: { wallet: 5, dapp: 4, "smart contract": 3 },
-          surfacesPrimary: { wallet: 4, dapp: 3 },
-          biggestBlockerSamples: ["Polkadot docs hard to navigate", "Limited time"],
-          couldntHandleSamples: ["Complex multi-chain state management"],
-          total: 9,
+          deadlineStatus: {
+            "Agent bought and paid on its own, running in about an hour": 3,
+            "Agent bought and paid on its own, but it took most of the day": 4,
+            "A purchase worked, but I handled (or mocked) the payment": 2,
+            "Search/pricing worked, never completed a buy": 3,
+            "Couldn't get a core flow going": 5,
+          },
+          wouldKeepBuilding: { "Yes, already planning to": 7, "Maybe": 1, "No": 1 },
+          biggestBlocker: {
+            "Finding the right product in the catalog": 5,
+            "Access / keys / OAuth": 3,
+            "Nothing major, it was smooth": 2,
+            "Webhooks / order status": 2,
+          },
+          agentEnv: { "Claude Code": 6, "Cursor": 2, "Custom agent framework": 1 },
+          surfaces: { "Hosted MCP": 8, "REST API": 5, "Agent Skills (bitrefill/agents)": 4 },
+          surfacesPrimary: { "Hosted MCP": 7, "REST API": 3 },
+          couldntHandleSamples: ["Complex multi-step invoice flows", "Webhook retry logic"],
+          total: 17,
         },
       };
     }
