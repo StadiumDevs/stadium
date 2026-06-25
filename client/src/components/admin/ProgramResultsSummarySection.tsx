@@ -52,7 +52,7 @@ function buildFeedbackInsights(agg: ApiResultsFeedbackAggregate): string {
     if (comfyPct >= 60) {
       parts.push(`${comfyPct}% of teams found the deadline comfortable.`);
     } else if (tooTight > comfy) {
-      parts.push("Teams generally felt the timeline was tight — more hacking time would help.");
+      parts.push("Teams generally felt the timeline was tight; more hacking time would help.");
     } else {
       parts.push("Teams had mixed feelings about the deadline.");
     }
@@ -68,9 +68,10 @@ function buildFeedbackInsights(agg: ApiResultsFeedbackAggregate): string {
   }
 
   // Top blocker
-  if (agg.biggestBlockerSamples.length > 0) {
-    const sample = agg.biggestBlockerSamples[0];
-    if (sample.length < 120) {
+  const blockerSamples = agg.biggestBlockerSamples ?? [];
+  if (blockerSamples.length > 0) {
+    const sample = blockerSamples[0];
+    if (sample && sample.length < 120) {
       parts.push(`The most cited blocker: "${sample}"`);
     }
   }
@@ -110,14 +111,15 @@ function CategoryColumn({
   scoreKey: "avgRequirements" | "avgTechStack" | "avgInnovation";
   maxScore: number;
 }) {
+  const safeRows = rows ?? [];
   return (
     <div className="panel p-3 flex-1 min-w-0">
       <div className="label-hw text-display mb-2">·{title}</div>
-      {rows.length === 0 ? (
+      {safeRows.length === 0 ? (
         <p className="label-hw-dim">No scored submissions.</p>
       ) : (
         <div className="space-y-2">
-          {rows.map((r, i) => (
+          {safeRows.map((r, i) => (
             <div key={r.submissionId} className="flex items-start gap-2">
               <span className="lcd px-1.5 py-0.5 label-hw text-display shrink-0">
                 {String(i + 1).padStart(2, "0")}
@@ -360,12 +362,12 @@ export function ProgramResultsSummarySection({
               <FeedbackChart title="Agent environment used" counts={feedback.agentEnv} />
               <FeedbackChart title="Surfaces built for" counts={feedback.surfaces} />
             </div>
-            {feedback.biggestBlockerSamples.length > 0 && (
+            {(feedback.biggestBlockerSamples ?? []).length > 0 && (
               <div className="mb-2">
                 <div className="label-hw-dim mb-1">·BIGGEST BLOCKERS (SAMPLE)</div>
                 <ul className="space-y-1">
-                  {feedback.biggestBlockerSamples.slice(0, 5).map((s, i) => (
-                    <li key={i} className="label-hw-dim text-[11px]">— {s}</li>
+                  {(feedback.biggestBlockerSamples ?? []).slice(0, 5).map((s, i) => (
+                    <li key={i} className="label-hw-dim text-[11px]">- {s}</li>
                   ))}
                 </ul>
               </div>
