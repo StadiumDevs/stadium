@@ -570,6 +570,35 @@ export const validateProgram = (data, { partial = false } = {}) => {
       return { valid: false, error: 'lumaEventId must be a string (max 100 characters)' };
     }
   }
+  if (has('galleryUrl') && data.galleryUrl !== null && data.galleryUrl !== '') {
+    if (typeof data.galleryUrl !== 'string' || data.galleryUrl.length > 500) {
+      return { valid: false, error: 'galleryUrl must be a string (max 500 characters)' };
+    }
+    if (!/^https?:\/\//i.test(data.galleryUrl)) {
+      return { valid: false, error: 'galleryUrl must start with http:// or https://' };
+    }
+  }
+  if (has('honoraryMentions') && data.honoraryMentions !== null) {
+    if (!Array.isArray(data.honoraryMentions)) {
+      return { valid: false, error: 'honoraryMentions must be an array' };
+    }
+    for (let i = 0; i < data.honoraryMentions.length; i++) {
+      const m = data.honoraryMentions[i];
+      if (!m || typeof m !== 'object' || typeof m.name !== 'string' || !m.name.trim()) {
+        return { valid: false, error: `honoraryMentions[${i}].name is required` };
+      }
+      if (m.videoUrl !== undefined && m.videoUrl !== null && m.videoUrl !== '') {
+        if (typeof m.videoUrl !== 'string' || !/^https?:\/\//i.test(m.videoUrl)) {
+          return { valid: false, error: `honoraryMentions[${i}].videoUrl must start with http:// or https://` };
+        }
+      }
+      if (m.githubUrl !== undefined && m.githubUrl !== null && m.githubUrl !== '') {
+        if (typeof m.githubUrl !== 'string' || !/^https?:\/\//i.test(m.githubUrl)) {
+          return { valid: false, error: `honoraryMentions[${i}].githubUrl must start with http:// or https://` };
+        }
+      }
+    }
+  }
   if (has('content')) {
     const c = validateProgramContent(data.content);
     if (!c.valid) return c;

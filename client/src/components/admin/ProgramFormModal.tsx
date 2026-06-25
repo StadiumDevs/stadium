@@ -105,6 +105,9 @@ export function ProgramFormModal({
   const [eventStartsAt, setEventStartsAt] = useState("");
   const [eventEndsAt, setEventEndsAt] = useState("");
   const [prizeTierRows, setPrizeTierRows] = useState<PrizeTierRow[]>([]);
+  const [galleryUrl, setGalleryUrl] = useState("");
+  type HonoraryMentionRow = { name: string; videoUrl: string; githubUrl: string };
+  const [honoraryMentionRows, setHonoraryMentionRows] = useState<HonoraryMentionRow[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -129,6 +132,14 @@ export function ProgramFormModal({
       setEventStartsAt(isoToLocal(program.eventStartsAt));
       setEventEndsAt(isoToLocal(program.eventEndsAt));
       setPrizeTierRows(tierRowsFromProgram(program));
+      setGalleryUrl(program.galleryUrl || "");
+      setHonoraryMentionRows(
+        (program.honoraryMentions ?? []).map((m) => ({
+          name: m.name,
+          videoUrl: m.videoUrl ?? "",
+          githubUrl: m.githubUrl ?? "",
+        })),
+      );
     } else {
       setName("");
       setSlug("");
@@ -145,6 +156,8 @@ export function ProgramFormModal({
       setEventStartsAt("");
       setEventEndsAt("");
       setPrizeTierRows(tierRowsFromProgram(null));
+      setGalleryUrl("");
+      setHonoraryMentionRows([]);
     }
     setErrors({});
   }, [open, program]);
@@ -173,6 +186,9 @@ export function ProgramFormModal({
     }
     if (coverImageUrl.trim() && !/^https?:\/\//i.test(coverImageUrl.trim())) {
       e.coverImageUrl = "Must start with http:// or https://";
+    }
+    if (galleryUrl.trim() && !/^https?:\/\//i.test(galleryUrl.trim())) {
+      e.galleryUrl = "Must start with http:// or https://";
     }
     if (applicationsOpenAt && applicationsCloseAt) {
       if (new Date(applicationsOpenAt).getTime() >= new Date(applicationsCloseAt).getTime()) {
@@ -254,6 +270,14 @@ export function ProgramFormModal({
         prizeTiers: prizeTierRows
           .map((r) => ({ amount: Number(r.amount), currency: r.currency.trim(), label: r.label.trim() }))
           .filter((t) => Number.isInteger(t.amount) && t.amount > 0 && t.currency),
+        galleryUrl: galleryUrl.trim() || null,
+        honoraryMentions: honoraryMentionRows
+          .filter((m) => m.name.trim())
+          .map((m) => ({
+            name: m.name.trim(),
+            videoUrl: m.videoUrl.trim() || null,
+            githubUrl: m.githubUrl.trim() || null,
+          })),
       };
 
       const res = editing
@@ -353,6 +377,29 @@ export function ProgramFormModal({
               </SelectContent>
             </Select>
           </div>
+
+          {status === "completed" && (
+            <div className="sm:col-span-2 space-y-1">
+              {!galleryUrl.trim() && (
+                <p className="label-hw text-[10px]">
+                  <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
+                  ·GALLERY URL IS MISSING: add it below so the results panel can link to event photos.
+                </p>
+              )}
+              {honoraryMentionRows.length === 0 && (
+                <p className="label-hw text-[10px]">
+                  <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
+                  ·HONORARY MENTIONS ARE EMPTY: add them below if applicable.
+                </p>
+              )}
+              {(!eventStartsAt || !eventEndsAt) && (
+                <p className="label-hw text-[10px]">
+                  <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
+                  ·EVENT DATES MISSING: hours of hacking will not be shown in the results panel.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="sm:col-span-2 space-y-1.5">
             <Label htmlFor="pf-description" className="label-hw-dim">·DESCRIPTION</Label>
@@ -506,6 +553,85 @@ export function ProgramFormModal({
             {errors.coverImageUrl && (
               <p className="label-hw text-destructive">·{errors.coverImageUrl.toUpperCase()}</p>
             )}
+          </div>
+
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label htmlFor="pf-gallery-url" className="label-hw-dim">·GALLERY URL (EVENT PHOTOS)</Label>
+            <Input
+              id="pf-gallery-url"
+              type="url"
+              placeholder="https://drive.google.com/drive/folders/…"
+              value={galleryUrl}
+              onChange={(e) => setGalleryUrl(e.target.value)}
+              aria-invalid={errors.galleryUrl ? true : undefined}
+              className="font-mono text-sm"
+            />
+            {errors.galleryUrl && (
+              <p className="label-hw text-destructive">·{errors.galleryUrl.toUpperCase()}</p>
+            )}
+          </div>
+
+          <div className="sm:col-span-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="label-hw-dim">·HONORARY MENTIONS</Label>
+              <button
+                type="button"
+                onClick={() =>
+                  setHonoraryMentionRows((rows) => [...rows, { name: "", videoUrl: "", githubUrl: "" }])
+                }
+                className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-2 py-1 inline-flex items-center gap-1"
+              >
+                <Plus className="h-3 w-3" aria-hidden="true" /> ADD
+              </button>
+            </div>
+            <p className="label-hw-dim">Projects that deserve recognition beyond the official prizes.</p>
+            {honoraryMentionRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  placeholder="Project name"
+                  aria-label={`Mention ${i + 1} name`}
+                  value={row.name}
+                  onChange={(e) =>
+                    setHonoraryMentionRows((rows) =>
+                      rows.map((r, j) => (j === i ? { ...r, name: e.target.value } : r)),
+                    )
+                  }
+                  className="font-mono text-sm flex-1"
+                />
+                <Input
+                  placeholder="Video URL"
+                  aria-label={`Mention ${i + 1} video URL`}
+                  value={row.videoUrl}
+                  onChange={(e) =>
+                    setHonoraryMentionRows((rows) =>
+                      rows.map((r, j) => (j === i ? { ...r, videoUrl: e.target.value } : r)),
+                    )
+                  }
+                  className="font-mono text-sm w-36"
+                />
+                <Input
+                  placeholder="GitHub URL"
+                  aria-label={`Mention ${i + 1} GitHub URL`}
+                  value={row.githubUrl}
+                  onChange={(e) =>
+                    setHonoraryMentionRows((rows) =>
+                      rows.map((r, j) => (j === i ? { ...r, githubUrl: e.target.value } : r)),
+                    )
+                  }
+                  className="font-mono text-sm w-36"
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove mention ${i + 1}`}
+                  onClick={() =>
+                    setHonoraryMentionRows((rows) => rows.filter((_, j) => j !== i))
+                  }
+                  className="border border-hairline text-display hover:bg-panel-deep p-1.5"
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </div>
+            ))}
           </div>
 
           {programType === "hackathon" && (
