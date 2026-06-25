@@ -14,7 +14,7 @@ if (typeof window !== "undefined") {
 // simulated (localStorage + in-memory). Controlled by VITE_USE_MOCK_DATA — set to
 // "true" in Vercel Preview so branch previews never call the production API.
 // Expose for console debugging: window.__STADIUM_MOCK__
-const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
+export const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 if (typeof window !== "undefined") {
   (window as unknown as { __STADIUM_MOCK__?: boolean }).__STADIUM_MOCK__ = USE_MOCK_DATA;
 }

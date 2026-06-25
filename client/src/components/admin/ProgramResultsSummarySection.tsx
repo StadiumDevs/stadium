@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import {
   api,
+  USE_MOCK_DATA,
   type ApiProgram,
   type ApiProgramStats,
   type ApiLeaderboard,
@@ -221,7 +222,13 @@ export function ProgramResultsSummarySection({
     let active = true;
     setLoading(true);
     setError(null);
-    getAuth()
+    // In mock mode the API functions ignore the auth header — skip the wallet
+    // signing call entirely so the preview works without a real token.
+    const authPromise: Promise<AdminAuthArg> = USE_MOCK_DATA
+      ? Promise.resolve({} as AdminAuthArg)
+      : getAuth();
+
+    authPromise
       .then((authHeader) =>
         Promise.allSettled([
           api.getLeaderboard(program.slug, authHeader),
