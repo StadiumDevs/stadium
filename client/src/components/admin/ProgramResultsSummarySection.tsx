@@ -223,7 +223,7 @@ export function ProgramResultsSummarySection({
     setError(null);
     getAuth()
       .then((authHeader) =>
-        Promise.all([
+        Promise.allSettled([
           api.getLeaderboard(program.slug, authHeader),
           api.getProgramStats(program.slug, authHeader),
           api.getFeedbackAggregate(program.slug, authHeader),
@@ -231,9 +231,14 @@ export function ProgramResultsSummarySection({
       )
       .then(([lb, st, fb]) => {
         if (!active) return;
-        setLeaderboard(lb.data);
-        setStats(st.data);
-        setFeedback(fb.data);
+        if (lb.status === "fulfilled") setLeaderboard(lb.value.data);
+        if (st.status === "fulfilled") setStats(st.value.data);
+        if (fb.status === "fulfilled") setFeedback(fb.value.data);
+        // Surface only unexpected failures (not 404s from un-deployed endpoints)
+        const firstFail = [lb, st].find((r) => r.status === "rejected");
+        if (firstFail && firstFail.status === "rejected") {
+          setError((firstFail.reason as Error)?.message || "Failed to load results data");
+        }
       })
       .catch((e: unknown) => {
         if (!active) return;
