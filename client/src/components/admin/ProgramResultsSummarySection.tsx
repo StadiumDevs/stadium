@@ -163,9 +163,11 @@ function FeedbackChart({
   const maxVal = Math.max(...data.map((d) => d.value));
 
   return (
-    <div className="min-w-0">
+    // min-w-[1px] + debounce prevents Recharts creating a 0-dim canvas pattern
+    // when the admin panel first opens (layout still in flight).
+    <div className="min-w-0" style={{ minWidth: 1 }}>
       <div className="label-hw-dim mb-1">{title.toUpperCase()}</div>
-      <ResponsiveContainer width="100%" height={data.length * 28 + 10}>
+      <ResponsiveContainer width="100%" height={data.length * 28 + 10} debounce={50}>
         <BarChart
           data={data}
           layout="vertical"
