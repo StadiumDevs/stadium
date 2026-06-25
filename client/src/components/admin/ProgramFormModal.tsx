@@ -383,19 +383,19 @@ export function ProgramFormModal({
               {!galleryUrl.trim() && (
                 <p className="label-hw text-[10px]">
                   <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
-                  ·GALLERY URL IS MISSING — add it below so the results panel can link to event photos.
+                  ·GALLERY URL IS MISSING: add it below so the results panel can link to event photos.
                 </p>
               )}
               {honoraryMentionRows.length === 0 && (
                 <p className="label-hw text-[10px]">
                   <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
-                  ·HONORARY MENTIONS ARE EMPTY — add them below if applicable.
+                  ·HONORARY MENTIONS ARE EMPTY: add them below if applicable.
                 </p>
               )}
               {(!eventStartsAt || !eventEndsAt) && (
                 <p className="label-hw text-[10px]">
                   <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
-                  ·EVENT DATES MISSING — hours of hacking will not be shown in the results panel.
+                  ·EVENT DATES MISSING: hours of hacking will not be shown in the results panel.
                 </p>
               )}
             </div>
