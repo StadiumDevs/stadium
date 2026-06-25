@@ -250,7 +250,7 @@ class ProgramSubmissionRepository {
       wouldKeepBuilding: tally('wouldKeepBuilding'),
       surfaces: tally('surfaces'),
       surfacesPrimary: tally('surfacesPrimary'),
-      biggestBlockerSamples: textSamples('biggestBlocker'),
+      biggestBlocker: tally('biggestBlocker'),
       couldntHandleSamples: textSamples('couldntHandle'),
       total: rows.length,
     };
