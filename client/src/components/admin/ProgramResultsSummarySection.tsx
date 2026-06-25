@@ -42,38 +42,35 @@ function top3By(
 function buildFeedbackInsights(agg: ApiResultsFeedbackAggregate): string {
   const parts: string[] = [];
 
-  // Deadline comfort
-  const deadlineCounts = agg.deadlineStatus;
-  const comfy = deadlineCounts["comfortable"] ?? 0;
-  const tight = deadlineCounts["tight"] ?? 0;
-  const tooTight = deadlineCounts["too tight"] ?? 0;
-  const deadlineTotal = comfy + tight + tooTight;
-  if (deadlineTotal > 0) {
-    const comfyPct = Math.round((comfy / deadlineTotal) * 100);
-    if (comfyPct >= 60) {
-      parts.push(`${comfyPct}% of teams found the deadline comfortable.`);
-    } else if (tooTight > comfy) {
-      parts.push("Teams generally felt the timeline was tight; more hacking time would help.");
-    } else {
-      parts.push("Teams had mixed feelings about the deadline.");
+  // Would keep building: match "yes…" or "maybe" prefix, case-insensitive
+  const keepEntries = Object.entries(agg.wouldKeepBuilding);
+  const keepTotal = keepEntries.reduce((s, [, v]) => s + v, 0);
+  if (keepTotal > 0) {
+    const continuers = keepEntries
+      .filter(([k]) => /^yes/i.test(k) || /^maybe/i.test(k))
+      .reduce((s, [, v]) => s + v, 0);
+    parts.push(`${Math.round((continuers / keepTotal) * 100)}% plan to keep building.`);
+  }
+
+  // Deadline: find top outcome by count and categorise by pattern
+  const deadlineEntries = Object.entries(agg.deadlineStatus).sort((a, b) => b[1] - a[1]);
+  if (deadlineEntries.length > 0) {
+    const [top, topCount] = [deadlineEntries[0][0], deadlineEntries[0][1]];
+    const deadlineTotal = deadlineEntries.reduce((s, [, v]) => s + v, 0);
+    const topPct = Math.round((topCount / deadlineTotal) * 100);
+    if (/bought and paid/i.test(top)) {
+      parts.push(`${topPct}% completed a full autonomous purchase.`);
+    } else if (/couldn.t get a core flow/i.test(top)) {
+      parts.push(`${topPct}% couldn't get a core flow going.`);
     }
   }
 
-  // Would keep building
-  const keepCounts = agg.wouldKeepBuilding;
-  const yes = keepCounts["yes"] ?? 0;
-  const maybe = keepCounts["maybe"] ?? 0;
-  if (agg.total > 0) {
-    const continuePct = Math.round(((yes + maybe) / agg.total) * 100);
-    parts.push(`${continuePct}% plan to continue building their project.`);
-  }
-
-  // Top blocker
-  const blockerSamples = agg.biggestBlockerSamples ?? [];
-  if (blockerSamples.length > 0) {
-    const sample = blockerSamples[0];
-    if (sample && sample.length < 120) {
-      parts.push(`The most cited blocker: "${sample}"`);
+  // Top blocker from tally
+  const blockerEntries = Object.entries(agg.biggestBlocker ?? {}).sort((a, b) => b[1] - a[1]);
+  if (blockerEntries.length > 0 && blockerEntries[0][1] > 1) {
+    const [label, count] = blockerEntries[0];
+    if (label.length < 80) {
+      parts.push(`Top blocker: "${label}" (${count} teams).`);
     }
   }
 
@@ -162,9 +159,15 @@ function FeedbackChart({
   const data = entries.map(([name, value]) => ({ name, value }));
   const maxVal = Math.max(...data.map((d) => d.value));
 
+  // min-w-[1px] + debounce prevents Recharts creating a 0-dim canvas pattern
+  // when the admin panel first opens (layout still in flight).
+  // Y-axis width is computed from the longest label so long option strings
+  // don't overflow; tickFormatter truncates anything that still doesn't fit.
+  const longestLabel = Math.max(...entries.map(([k]) => k.length));
+  const yAxisWidth = Math.min(160, Math.max(80, Math.ceil(longestLabel * 5.4)));
+  const maxChars = Math.floor(yAxisWidth / 5.4);
+
   return (
-    // min-w-[1px] + debounce prevents Recharts creating a 0-dim canvas pattern
-    // when the admin panel first opens (layout still in flight).
     <div className="min-w-0" style={{ minWidth: 1 }}>
       <div className="label-hw-dim mb-1">{title.toUpperCase()}</div>
       <ResponsiveContainer width="100%" height={data.length * 28 + 10} debounce={50}>
@@ -184,7 +187,8 @@ function FeedbackChart({
           <YAxis
             type="category"
             dataKey="name"
-            width={90}
+            width={yAxisWidth}
+            tickFormatter={(v: string) => v.length > maxChars ? v.slice(0, maxChars - 1) + "…" : v}
             tick={{ fontSize: 9, fontFamily: "monospace", fill: "var(--color-label-mid)" }}
             tickLine={false}
             axisLine={false}
@@ -218,6 +222,7 @@ export function ProgramResultsSummarySection({
   const [stats, setStats] = useState<ApiProgramStats | null>(null);
   const [feedback, setFeedback] = useState<ApiResultsFeedbackAggregate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -249,7 +254,7 @@ export function ProgramResultsSummarySection({
     return () => { active = false; };
   // getAuth is a stable memoised ref — intentionally excluded to run once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [program.slug]);
+  }, [program.slug, refreshTick]);
 
   const hours = eventHours(program);
   const rows = leaderboard?.rows ?? [];
@@ -259,7 +264,16 @@ export function ProgramResultsSummarySection({
   return (
     <div className="mb-3 space-y-3">
       <div className="panel px-3 py-2.5">
-        <div className="label-hw text-display mb-3">·RESULTS SUMMARY</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="label-hw text-display">·RESULTS SUMMARY</div>
+          <button
+            onClick={() => { setLoading(true); setRefreshTick((n) => n + 1); }}
+            disabled={loading}
+            className="label-hw-dim hover:text-display text-[10px] tracking-widest disabled:opacity-40"
+          >
+            {loading ? "LOADING…" : "↺ REFRESH"}
+          </button>
+        </div>
 
         {/* Stats strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
@@ -357,16 +371,18 @@ export function ProgramResultsSummarySection({
               ·PARTICIPANT FEEDBACK ({feedback.total} response{feedback.total !== 1 ? "s" : ""})
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
-              <FeedbackChart title="Deadline comfort" counts={feedback.deadlineStatus} />
+              <FeedbackChart title="Where did you land?" counts={feedback.deadlineStatus} />
               <FeedbackChart title="Would keep building" counts={feedback.wouldKeepBuilding} />
-              <FeedbackChart title="Agent environment used" counts={feedback.agentEnv} />
-              <FeedbackChart title="Surfaces built for" counts={feedback.surfaces} />
+              <FeedbackChart title="Agent environment" counts={feedback.agentEnv} />
+              <FeedbackChart title="Surfaces used" counts={feedback.surfaces} />
+              <FeedbackChart title="Primary surface" counts={feedback.surfacesPrimary} />
+              <FeedbackChart title="Biggest blocker" counts={feedback.biggestBlocker} />
             </div>
-            {(feedback.biggestBlockerSamples ?? []).length > 0 && (
+            {(feedback.couldntHandleSamples ?? []).length > 0 && (
               <div className="mb-2">
-                <div className="label-hw-dim mb-1">·BIGGEST BLOCKERS (SAMPLE)</div>
+                <div className="label-hw-dim mb-1">·WHAT BITREFILL COULDN'T HANDLE (OPEN TEXT)</div>
                 <ul className="space-y-1">
-                  {(feedback.biggestBlockerSamples ?? []).slice(0, 5).map((s, i) => (
+                  {(feedback.couldntHandleSamples ?? []).slice(0, 10).map((s, i) => (
                     <li key={i} className="label-hw-dim text-[11px]">- {s}</li>
                   ))}
                 </ul>
