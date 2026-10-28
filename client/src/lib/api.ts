@@ -19,6 +19,11 @@ if (typeof window !== "undefined") {
   (window as unknown as { __STADIUM_MOCK__?: boolean }).__STADIUM_MOCK__ = USE_MOCK_DATA;
 }
 
+// Thrown by the tracked-submission API methods outside mock mode: the server
+// side is planned but not built yet (docs/zcash/free-society-hack.md).
+const trackedNotOnServer = () =>
+  new ApiError("This program feature is not available on the server yet.", 501);
+
 class ApiError extends Error {
   status: number;
   code?: string;
@@ -490,6 +495,143 @@ export type ApiPublicResults = {
   published: boolean;
   prizeTiers?: ApiPrizeTier[] | null;
   submissions: ApiPublicResultEntry[];
+};
+
+// --- Tracked submissions (programs with a profile in programProfiles.ts) ---
+// Additive to the Bitrefill submission shape above. Mock-mode only for now: the
+// server does not store `details` yet (see docs/zcash/free-society-hack.md).
+
+export type SubmissionTrack = "privacy" | "agentic" | "both";
+/** A single judged track (a "both" entry is judged in each). */
+export type JudgedTrack = Exclude<SubmissionTrack, "both">;
+
+export type TxCheckStatus = "verified" | "not_found" | "not_shielded" | "could_not_check";
+export type ApiTxCheck = { status: TxCheckStatus; checkedAt: string | null; attempts?: number };
+
+export type ApiTeamMember = { name: string; email?: string | null; role?: string | null };
+
+export type MilestonePayoutStatus = "pending" | "released" | "not_completed";
+
+/** The tracked 30-day milestone (Ecosystem Prize-flagged projects only). */
+export type ApiSubmissionMilestone = {
+  /** Builder-written; also the submission's next milestone until agreed. */
+  sentence: string;
+  partnerName: string | null;
+  partnerProject: string | null;
+  agreedAt: string | null;
+  /** Builder-written public link to the delivered milestone. */
+  deliveryLink: string | null;
+  partnerConfirmed: boolean | null;
+  partnerConfirmedAt: string | null;
+  /** ZecHub Friday Lounge date the milestone was shared. */
+  loungeDate: string | null;
+  payoutStatus: MilestonePayoutStatus;
+  payoutReleasedAt: string | null;
+};
+
+export type ApiCheckIn = {
+  day: number;
+  stillBuilding: boolean | null;
+  link: string | null;
+  answeredAt: string | null;
+};
+
+export type ApiSubmissionDetails = {
+  track: SubmissionTrack;
+  themes: string[];
+  /** One-line pitch. `projectBrief` keeps the longer description. */
+  pitch: string;
+  team: ApiTeamMember[];
+  appType: string;
+  publicUrl: string | null;
+  demoVideoLength?: string | null;
+  technologies: string[];
+  network?: string | null;
+  pool?: string | null;
+  testnetTxid: string | null;
+  txCheck: ApiTxCheck | null;
+  nextStep: string;
+  /** Links to anything already started toward the next milestone. */
+  nextStepLinks: string[];
+  /** Hide the point person's and teammates' names publicly (admins still see them). */
+  anonymous?: boolean;
+  frictionNotes: string | null;
+  frictionAreas: string[];
+  milestone: ApiSubmissionMilestone | null;
+  checkIns: ApiCheckIn[];
+};
+
+/** One judge's scoring progress; names only, so every judge can see the table. */
+export type ApiJudgingProgressRow = { name: string; tracks: JudgedTrack[]; scored: number; total: number; isYou?: boolean };
+
+/** Admin/judge view of a tracked submission (includes emails). */
+export type ApiTrackedSubmission = ApiSubmission & {
+  details: ApiSubmissionDetails;
+  /** Prizes keyed by judged track — a project can win in both. */
+  prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
+  /** Ecosystem Prize flag: a second award on top of a podium prize (not a tier). */
+  ecosystemPrize: boolean;
+};
+
+/** Public, email-free projection of a tracked submission. */
+export type ApiPublicSubmission = {
+  id: string;
+  projectTitle: string;
+  projectBrief: string;
+  /** Point person's name (never their email). */
+  submitterName: string;
+  videoUrl: string;
+  githubUrl: string;
+  late: boolean;
+  createdAt: string;
+  details: Omit<ApiSubmissionDetails, "team" | "checkIns"> & {
+    team: { name: string; role?: string | null }[];
+  };
+  /** Only populated once results are published. */
+  prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
+  /** Only true once results are published. */
+  ecosystemPrize: boolean;
+};
+
+export type ApiPublicSubmissions = { published: boolean; submissions: ApiPublicSubmission[] };
+
+/** One judge's rubric score for one submission in one track. Null = unscored. */
+export type ApiRubricScore = {
+  submissionId: string;
+  judgeEmail: string;
+  track: JudgedTrack;
+  criteria: Record<string, number | null>;
+  notes: string;
+  session: string;
+  updatedAt: string;
+};
+
+export type ApiRubricLeaderboardRow = {
+  rank: number;
+  submissionId: string;
+  projectTitle: string;
+  submitterName: string;
+  track: SubmissionTrack;
+  avgTotal: number;
+  avgByCriterion: Record<string, number>;
+  bonusCount: number;
+  judgeCount: number;
+  /** Set when this row's order against the row above was decided by a tie-break. */
+  tieBrokenBy: string | null;
+  judgeScores: { judgeEmail: string; total: number; criteria: Record<string, number | null>; notes: string; session: string }[];
+  txCheck: ApiTxCheck | null;
+  prize: ApiPrizeTier | null;
+  ecosystemPrize: boolean;
+  /** Set when the rubric's winner gate blocks this project from a prize. */
+  winnerBlocked: string | null;
+};
+
+export type ApiRubricLeaderboard = {
+  track: JudgedTrack;
+  judges: string[];
+  submissionsTotal: number;
+  submissionsFullyScored: number;
+  rows: ApiRubricLeaderboardRow[];
 };
 
 /** Per-program sponsor / partner with goals + follow-up tracking. */
@@ -1994,6 +2136,8 @@ export const api = {
         couldntHandle: string;
         wouldKeepBuilding: string;
       };
+      /** Tracked-program fields (programProfiles.ts). Mock mode only for now. */
+      details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns">;
     },
   ): Promise<{ status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean }> => {
     if (USE_MOCK_DATA) {
@@ -2010,6 +2154,13 @@ export const api = {
       // Deadline is informational: a submit after event end is flagged late, not blocked.
       const program = mockPrograms.find((p) => p.slug === slug);
       const late = !!(program?.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
+      if (payload.details) {
+        const { mockTracked } = await import("./mockTrackedSubmissions");
+        const sub = mockTracked.add(slug, { ...payload, details: payload.details, late });
+        // Never blocks the submission: the check runs after it is stored.
+        void mockTracked.recheckTx(slug, sub.id);
+        return { status: "success", data: { id: sub.id, late } };
+      }
       const { mockJudging } = await import("./mockJudging");
       const sub = mockJudging.addSubmission({ ...payload, late });
       return { status: "success", data: { id: sub.id, late } };
@@ -2175,6 +2326,12 @@ export const api = {
   ): Promise<{ status: string; data: ApiProgramStats }> => {
     if (USE_MOCK_DATA) {
       const { mockJudging } = await import("./mockJudging");
+      const { getProgramProfile } = await import("./programProfiles");
+      if (getProgramProfile(slug)) {
+        const { mockTracked } = await import("./mockTrackedSubmissions");
+        const { confirmedParticipants } = mockJudging.stats(slug);
+        return { status: "success", data: { confirmedParticipants, ...mockTracked.stats(slug) } };
+      }
       return { status: "success", data: mockJudging.stats(slug) };
     }
     return request(`/programs/${encodeURIComponent(slug)}/stats`, {
@@ -2280,6 +2437,238 @@ export const api = {
       return { status: "success", data: mockJudging.publicResults() };
     }
     return request(`/programs/${encodeURIComponent(slug)}/results`);
+  },
+
+  // --- Tracked submissions (programs with a profile in programProfiles.ts) ---
+  // Mock mode only for now: the server endpoints are planned in
+  // docs/zcash/free-society-hack.md. Outside mock mode these throw 501.
+
+  /** Public: every submitted project (live), winners first once published. */
+  listPublicSubmissions: async (slug: string): Promise<{ status: string; data: ApiPublicSubmissions }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.publicList(slug) };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Public: a winning project's page. 404 for non-winners. */
+  getPublicWinner: async (slug: string, submissionId: string): Promise<{ status: string; data: ApiPublicSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const data = mockTracked.publicWinner(slug, submissionId);
+      if (!data) throw new ApiError("Project not found", 404);
+      return { status: "success", data };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Admin/judge: all tracked submissions with emails, prizes, milestones and check-ins. */
+  listTrackedSubmissions: async (
+    slug: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null; checkInsSent: Record<string, string> } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return {
+        status: "success",
+        data: {
+          submissions: mockTracked.list(slug),
+          resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
+          checkInsSent: mockTracked.checkInsSent(slug),
+        },
+      };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Admin: the program's judges and the tracks each may score. */
+  listTrackJudges: async (
+    slug: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { email: string; name: string; tracks: JudgedTrack[] }[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.judges(slug) };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Judge: this judge's saved rubric scores. */
+  listMyRubricScores: async (
+    slug: string,
+    judgeEmail: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiRubricScore[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.scores(slug).filter((s) => s.judgeEmail === judgeEmail) };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Judge/admin: how many projects each judge has scored out of their tracks' total. */
+  getJudgingProgress: async (
+    slug: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiJudgingProgressRow[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.judgingProgress(slug) };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Mock mode only: wipe the playground program and re-seed it from its fixture. */
+  resetMockPlayground: async (slug: string): Promise<void> => {
+    if (!USE_MOCK_DATA) throw new ApiError("Only available in mock mode", 400);
+    const { mockTracked } = await import("./mockTrackedSubmissions");
+    mockTracked.reset(slug);
+  },
+
+  /** Judge: save (upsert) a rubric score for one submission in one track. */
+  saveRubricScore: async (
+    slug: string,
+    score: Omit<ApiRubricScore, "updatedAt">,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiRubricScore }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      try {
+        return { status: "success", data: mockTracked.saveScore(slug, score) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, 403);
+      }
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Judge/admin: per-track leaderboard (average weighted total + tie-breaks). */
+  getRubricLeaderboard: async (
+    slug: string,
+    track: JudgedTrack,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiRubricLeaderboard }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.leaderboard(slug, track) };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Platform admin: award (or clear) a track prize. A project can win in both tracks. */
+  awardTrackPrize: async (
+    slug: string,
+    submissionId: string,
+    track: JudgedTrack,
+    prize: ApiPrizeTier | null,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      let data;
+      try {
+        data = mockTracked.awardPrize(slug, submissionId, track, prize);
+      } catch (e) {
+        throw new ApiError((e as Error).message, 409);
+      }
+      if (!data) throw new ApiError("Submission not found", 404);
+      return { status: "success", data };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Platform admin: flag (or unflag) a podium project as an Ecosystem Prize winner. */
+  setEcosystemPrize: async (
+    slug: string,
+    submissionId: string,
+    flagged: boolean,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      try {
+        return { status: "success", data: mockTracked.setEcosystemPrize(slug, submissionId, flagged) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, 409);
+      }
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Platform admin: publish / unpublish tracked results. */
+  setTrackedResultsPublished: async (
+    slug: string,
+    publish: boolean,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { resultsPublishedAt: string | null } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: { resultsPublishedAt: mockTracked.setPublished(slug, publish) } };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Admin: re-run the testnet transaction check for one submission. */
+  recheckSubmissionTx: async (
+    slug: string,
+    submissionId: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const data = await mockTracked.recheckTx(slug, submissionId);
+      if (!data) throw new ApiError("Submission not found", 404);
+      return { status: "success", data };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /**
+   * Update a tracked milestone. Builders write `sentence` and `deliveryLink`;
+   * admins assign the partner and record confirmation, Lounge date and payout.
+   */
+  updateSubmissionMilestone: async (
+    slug: string,
+    submissionId: string,
+    patch: Partial<ApiSubmissionMilestone>,
+    _authHeader: AdminAuthArg | null,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const data = mockTracked.updateMilestone(slug, submissionId, patch);
+      if (!data) throw new ApiError("Milestone not found", 404);
+      return { status: "success", data };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Admin: send the 14- or 30-day check-in email to every point person. */
+  sendCheckIns: async (
+    slug: string,
+    day: number,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { sentAt: string; recipients: number } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.sendCheckIns(slug, day) };
+    }
+    throw trackedNotOnServer();
+  },
+
+  /** Builder (via the emailed link): answer a check-in. */
+  answerCheckIn: async (
+    slug: string,
+    submissionId: string,
+    answer: { day: number; stillBuilding: boolean; link: string | null },
+  ): Promise<{ status: string; data: { day: number } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const data = mockTracked.answerCheckIn(slug, submissionId, answer);
+      if (!data) throw new ApiError("Check-in link not recognised", 404);
+      return { status: "success", data: { day: answer.day } };
+    }
+    throw trackedNotOnServer();
   },
 
   // --- Admin tiers (app_admins / global_admins) ---
