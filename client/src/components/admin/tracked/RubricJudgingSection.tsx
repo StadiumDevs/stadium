@@ -27,12 +27,13 @@ import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadg
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
+import { CriteriaCarousel } from "./CriteriaCarousel";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 // A change not yet confirmed by the server. Kept on this device until it is,
 // so a refresh or a dropped connection never loses a judge's work.
-type Draft = { criteria: Record<string, number | null>; notes: string };
+type Draft = { criteria: Record<string, number | null>; notes: string; revisit?: boolean };
 const draftId = (submissionId: string, track: JudgedTrack) => `${submissionId}:${track}`;
 
 const readDrafts = (key: string): Record<string, Draft> => {
@@ -191,9 +192,9 @@ export function RubricJudgingSection({
     const d = drafts[draftId(submissionId, track)];
     if (d) return d;
     const saved = savedFor(submissionId, track);
-    if (saved) return { criteria: saved.criteria, notes: saved.notes };
+    if (saved) return { criteria: saved.criteria, notes: saved.notes, revisit: !!saved.revisit };
     const rubric = trackById(profile, track).rubric;
-    return { criteria: Object.fromEntries(rubric.criteria.map((c) => [c.id, null])), notes: "" };
+    return { criteria: Object.fromEntries(rubric.criteria.map((c) => [c.id, null])), notes: "", revisit: false };
   };
 
   const setPending = (all: Record<string, Draft>) => {
@@ -214,7 +215,7 @@ export function RubricJudgingSection({
         const auth = await getAuth();
         const r = await api.saveRubricScore(
           programSlug,
-          { submissionId, judgeEmail, track, criteria: d.criteria, notes: d.notes, session },
+          { submissionId, judgeEmail, track, criteria: d.criteria, notes: d.notes, session, revisit: !!d.revisit },
           auth,
         );
         setMyScores((prev) => [...prev.filter((x) => !(x.submissionId === submissionId && x.track === track)), r.data]);
@@ -263,11 +264,13 @@ export function RubricJudgingSection({
     };
   }, [judgeEmail, flushAll]);
 
+  // revisit = the judge marked it to come back to (light orange, wins);
   // saved = fully scored on the server; draft = in progress (partial, or a
   // change still being saved); unscored = not touched yet.
   const itemState = (submissionId: string, track: JudgedTrack): ScoringNavItem["state"] => {
     const rubric = trackById(profile, track).rubric;
     const d = drafts[draftId(submissionId, track)];
+    if (d?.revisit ?? savedFor(submissionId, track)?.revisit) return "revisit";
     if (d) return isFullyScored(rubric, d.criteria) && !sync[draftId(submissionId, track)] ? "saved" : "draft";
     const saved = savedFor(submissionId, track);
     if (!saved) return "unscored";
@@ -275,12 +278,13 @@ export function RubricJudgingSection({
     return Object.values(saved.criteria).some((v) => typeof v === "number") || saved.notes ? "draft" : "unscored";
   };
 
-  const nextUnscored = (fromId: string | null) => {
+  // The next project still to do: not fully scored, or marked to revisit.
+  const nextToDo = (fromId: string | null) => {
     const at = queue.findIndex((q) => draftId(q.s.id, q.track) === fromId);
     const rotated = [...queue.slice(at + 1), ...queue.slice(0, Math.max(at, 0))];
     const next = rotated.find((q) => itemState(q.s.id, q.track) !== "saved");
     if (next) goTo(draftId(next.s.id, next.track));
-    else toast({ title: "Every project is scored", description: "You can still reopen any project from the bar." });
+    else toast({ title: "Nothing left to do", description: "Every project is scored and none is marked to revisit." });
   };
 
   const goTo = (key: string) => {
@@ -378,6 +382,7 @@ export function RubricJudgingSection({
   const ecosystemCount = board?.rows.filter((r) => r.ecosystemPrize).length ?? 0;
   const visibleQueue = unscoredOnly ? queue.filter(({ s, track }) => itemState(s.id, track) !== "saved") : queue;
   const draftCount = queue.filter(({ s, track }) => itemState(s.id, track) === "draft").length;
+  const revisitCount = queue.filter(({ s, track }) => itemState(s.id, track) === "revisit").length;
   const navItems: ScoringNavItem[] = visibleQueue.map(({ s, track }) => ({
     key: draftId(s.id, track),
     number: queue.findIndex((q) => q.s.id === s.id && q.track === track) + 1,
@@ -438,6 +443,7 @@ export function RubricJudgingSection({
             currentKey={currentItem ? draftId(currentItem.s.id, currentItem.track) : null}
             scored={scoredCount}
             drafts={draftCount}
+            revisits={revisitCount}
             total={queue.length}
             onJump={goTo}
           >
@@ -456,7 +462,7 @@ export function RubricJudgingSection({
             </label>
             <label className="flex items-center gap-1.5 label-hw-dim cursor-pointer">
               <input type="checkbox" checked={unscoredOnly} onChange={(e) => setUnscoredOnly(e.target.checked)} />
-              UNSCORED ONLY
+              TO DO ONLY
             </label>
             {guideTrack && (
               <a
@@ -482,7 +488,8 @@ export function RubricJudgingSection({
               const d = draftFor(s.id, track);
               const saved = savedFor(s.id, track);
               const pending = !!drafts[id];
-              const state = itemState(s.id, track);
+              const complete = isFullyScored(rubric, d.criteria);
+              const started = Object.values(d.criteria).some((v) => typeof v === "number") || !!d.notes;
               const total = weightedTotal(rubric, d.criteria);
               const prev = queue[(currentIdx - 1 + queue.length) % queue.length];
               const next = queue[(currentIdx + 1) % queue.length];
@@ -496,7 +503,7 @@ export function RubricJudgingSection({
                     <span className="label-hw-dim">{trackById(profile, track).shortLabel}</span>
                     {track === "privacy" && <TxCheckBadge check={s.details.txCheck} />}
 <span
-                      className={cn("label-hw", sync[id] === "error" ? "text-destructive" : state === "saved" ? "text-led" : "text-label-mid")}
+                      className={cn("label-hw", sync[id] === "error" ? "text-destructive" : complete && !pending ? "text-led" : "text-label-mid")}
                       data-testid="save-status"
                       aria-live="polite"
                     >
@@ -504,12 +511,25 @@ export function RubricJudgingSection({
                         ? "NOT SAVED YET · RETRYING"
                         : pending
                           ? "SAVING…"
-                          : state === "saved"
+                          : complete
                             ? `SAVED${saved?.session ? ` · ${saved.session.toUpperCase()}` : ""}`
-                            : state === "draft"
+                            : started
                               ? "IN PROGRESS · SAVED"
                               : "UNSCORED"}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => updateDraft(s.id, track, { ...d, revisit: !d.revisit })}
+                      aria-pressed={!!d.revisit}
+                      data-testid="revisit-toggle"
+                      title="Unsure? Mark it and come back to it later. Doesn't change the score."
+                      className={cn(
+                        "font-mono text-[10px] tracking-[0.12em] border rounded-sm px-2.5 py-1",
+                        d.revisit ? "bg-warn border-warn text-shell font-bold" : "border-hairline text-display hover:bg-panel-deep",
+                      )}
+                    >
+                      ⚑ {d.revisit ? "TO REVISIT" : "MARK TO REVISIT"}
+                    </button>
                     <span className="font-mono text-[12px] text-display">
                       {fmt(total)}/{maxScore(rubric)}
                     </span>
@@ -546,48 +566,20 @@ export function RubricJudgingSection({
                       </div>
                     )}
 
-                    {rubric.criteria.map((c) => (
-                      <fieldset key={c.id} className="space-y-1.5">
-                        <legend className="label-hw">
-                          {c.label.toUpperCase()} {c.weight > 1 ? `×${c.weight}` : ""}
-                        </legend>
-                        <div className={cn("grid gap-1.5", c.levels ? "grid-cols-1 md:grid-cols-2" : "grid-cols-6")}>
-                          {Array.from({ length: c.max + 1 }, (_, v) => v).map((v) => {
-                            const selected = d.criteria[c.id] === v;
-                            return (
-                              <button
-                                key={v}
-                                type="button"
-                                aria-pressed={selected}
-                                onClick={() => updateDraft(s.id, track, { ...d, criteria: { ...d.criteria, [c.id]: v } })}
-                                className={cn(
-                                  "text-left border px-2 py-1.5 text-[12px] leading-snug flex gap-2",
-                                  selected ? "border-display bg-display text-shell" : "border-hairline text-body hover:bg-panel-deep",
-                                )}
-                              >
-                                <span className="font-mono font-bold">{v}</span>
-                                {c.levels?.[v] && <span>{c.levels[v]}</span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </fieldset>
-                    ))}
-                    <label className="block space-y-1">
-                      <span className="label-hw">NOTE</span>
-                      <textarea
-                        rows={2}
-                        value={d.notes}
-                        onChange={(e) => updateDraft(s.id, track, { ...d, notes: e.target.value }, NOTE_DEBOUNCE_MS)}
-                        className="w-full bg-panel-deep border border-hairline text-display font-mono text-[12px] px-2 py-1.5"
-                      />
-                    </label>
+                    <CriteriaCarousel
+                      key={id}
+                      rubric={rubric}
+                      criteria={d.criteria}
+                      notes={d.notes}
+                      onPick={(cid, v) => updateDraft(s.id, track, { ...d, criteria: { ...d.criteria, [cid]: v } })}
+                      onNotes={(notes) => updateDraft(s.id, track, { ...d, notes }, NOTE_DEBOUNCE_MS)}
+                    />
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" onClick={() => goTo(draftId(prev.s.id, prev.track))} className={btnGhost} disabled={queue.length < 2}>
                         ◂ PREV
                       </button>
-                      <button type="button" onClick={() => nextUnscored(id)} className={btnSolid}>
-                        NEXT UNSCORED ▸
+                      <button type="button" onClick={() => nextToDo(id)} className={btnSolid}>
+                        NEXT TO DO ▸
                       </button>
                       <div className="flex-1" />
                       <button type="button" onClick={() => goTo(draftId(next.s.id, next.track))} className={btnGhost} disabled={queue.length < 2}>

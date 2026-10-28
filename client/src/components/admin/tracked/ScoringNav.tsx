@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export type ScoringNavItem = { key: string; number: number; title: string; state: "saved" | "draft" | "unscored" };
+export type ScoringNavItem = { key: string; number: number; title: string; state: "saved" | "draft" | "unscored" | "revisit" };
 
 /**
  * Sticky bar at the top of the scoring view: overall progress, then one box
- * per project (green = fully scored, dashed = in progress, outlined = untouched, ringed =
+ * per project (green = fully scored, dashed = in progress, outlined = untouched,
+ * light orange = marked to revisit, ringed =
  * the one open now), so what still needs scoring stands out. Clicking a box jumps to that project.
  */
 export function ScoringNav({
@@ -13,6 +14,7 @@ export function ScoringNav({
   currentKey,
   scored,
   drafts,
+  revisits = 0,
   total,
   onJump,
   children,
@@ -21,6 +23,7 @@ export function ScoringNav({
   currentKey: string | null;
   scored: number;
   drafts: number;
+  revisits?: number;
   total: number;
   onJump: (key: string) => void;
   /** Controls on the bar's header row (session, guide, filter). */
@@ -31,7 +34,7 @@ export function ScoringNav({
     <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-panel-mid border-b border-hairline space-y-2" data-testid="scoring-nav">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-[12px] text-display" data-testid="scoring-nav-count">
-          {scored} / {total} SCORED{drafts > 0 ? ` · ${drafts} IN PROGRESS` : ""}
+          {scored} / {total} SCORED{drafts > 0 ? ` · ${drafts} IN PROGRESS` : ""}{revisits > 0 ? ` · ${revisits} TO REVISIT` : ""}
         </span>
         <div className="flex flex-wrap items-center gap-3">{children}</div>
       </div>
@@ -54,6 +57,7 @@ export function ScoringNav({
               it.state === "saved" && "bg-led text-shell border-led font-bold",
               it.state === "draft" && "border-dashed border-display text-display",
               it.state === "unscored" && "border-hairline text-label-mid hover:text-display",
+              it.state === "revisit" && "bg-warn text-shell border-warn font-bold",
               it.key === currentKey && "ring-2 ring-display ring-offset-1 ring-offset-panel-mid",
             )}
           >
