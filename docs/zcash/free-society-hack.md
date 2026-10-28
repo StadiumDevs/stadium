@@ -99,7 +99,7 @@ See `docs/improvement-backlog.md` (2026-10-25 entries):
 ### Privacy rubric
 
 `client/src/lib/programProfiles.ts` holds a per-track rubric:
-- **Privacy (final, 28 Oct):** Works, Private, Easy, Needed, Continuing scored 0–3 plus a Bonus of 0 or 1, no weights, max 16, with the brief's level descriptors. Tie-breaks are Continuing, then Needed. **Winner gate:** a project whose average Works is 0 can't take a prize; the leaderboard shows a warning and disables its prize select (the mock also refuses it). The judge view links the Privacy judging guide.
+- **Privacy (final, 28 Oct):** Works, Private, Easy, Needed, Continuing scored 0–3 plus a Bonus of 0 or 1, no weights, max 16, with the brief's level descriptors. Tie-breaks are Continuing, then Needed. **Winner gate:** a project whose average Works is 0 can't take a prize; the leaderboard shows a warning and disables its prize select (the mock also refuses it). The judge view links the [Privacy track judging guide](https://app.notion.com/p/Privacy-track-judging-guide-4023e52aeb158049acc3e80512df018d) on Notion.
 - **Agentic Commerce:** Bitrefill's existing 0–2 / 0–5 / 0–5 criteria. Tie-breaks are innovation, then tech stack, as today.
 
 Judges pick a level line per criterion and write a note. The leaderboard ranks by the average total across the judges who scored each project, and labels any tie with what broke it.
@@ -125,6 +125,13 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
 - **Judges locked to their email.** No judge picker. A judge signed in by their email link scores only as themselves; the wallet admin gets no scoring, only progress, leaderboard, prizes and CSV. In the playground, `?judge=<email>` (the OPEN AS JUDGE links on the playground bar) stands in for the emailed link; it is ignored outside mock mode.
 - **Live judges' progress.** A table at the top of the judging panel shows every judge's scored / total for their tracks (names only). It refreshes every 5 s, after each save, and on saves from other tabs.
 - **Scoring view.** A sticky bar with "N / M SCORED · K DRAFTS", a progress fill and one numbered box per project (saved, draft, unscored, current). One project at a time, with PREV / NEXT and SAVE & NEXT (jumps to the next unscored project). The open project is remembered per judge.
+
+### More updates (28 Oct, `updates-review.md`)
+- **Leaderboard names open the project.** Clicking a project's name on the leaderboard opens the same details modal as the public cards, so a judge can recall what it was. Judges get the public view (anonymous names hidden); the wallet admin sees names. Each judge's individual scores moved to a JUDGES' SCORES ▾ toggle on the row.
+- **Judging guide.** JUDGING GUIDE ▸ now points to the Privacy track judging guide on Notion.
+- **Scored boxes are green.** In the scoring bar, saved projects are filled green (as is the progress fill); drafts stay dashed and unscored stay outlined.
+- **About panel under the header, on every program.** ·ABOUT THIS HACKATHON (or PROGRAM) sits right under the header and is as wide as the sections below: the event thumbnail on the left; the description, date, location, schedule and the Luma link on the right. One column on phones. It replaces the old KEY INFO, DESCRIPTION and KEY DATES panels. Once results are published, the rest of the page content collapses into ·HACKATHON DETAILS below the projects.
+- **Judging rubric off the public page.** The "How Privacy projects are judged" section is gone; a Builder Pack section links to the [Free Society Hack Builder Pack](https://app.notion.com/p/Free-Society-Hack-Builder-Pack-3ff3e52aeb15807eace6f16f84a74c14) instead. The content migration was regenerated.
 
 ## 4. Server build plan (after review)
 
