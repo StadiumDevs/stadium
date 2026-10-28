@@ -33,7 +33,7 @@ const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }
   "free-society-hack-2026": { build: buildFreeSocietyHackSeed, judges: FSH_JUDGES },
 };
 
-const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v3`;
+const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v4`;
 
 const read = <T,>(key: string, fallback: T): T => {
   try {

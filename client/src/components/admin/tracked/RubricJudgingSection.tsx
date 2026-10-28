@@ -28,6 +28,7 @@ import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDe
 import { JudgingProgressTable } from "./JudgingProgressTable";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
 import { CriteriaCarousel, type CheckStep } from "./CriteriaCarousel";
+import { DemoVideo } from "./DemoVideo";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -280,15 +281,16 @@ export function RubricJudgingSection({
 
   // "Check first" steps before the questions: the video, the repo, and (Privacy
   // track, with a txid) the transaction.
-  const checkStepsFor = (sub: ApiTrackedSubmission, track: JudgedTrack): CheckStep[] => {
+  const checkStepsFor = (sub: ApiTrackedSubmission, track: JudgedTrack, onWatched: () => void): CheckStep[] => {
     const steps: CheckStep[] = [
       {
         id: "video",
         chip: "VIDEO",
         title: "Watch the demo",
-        prompt: "2 minutes max. Does it show the core flow actually working?",
+        prompt: "2 minutes max. Watch it here; does it show the core flow actually working?",
         href: sub.videoUrl,
-        linkLabel: "OPEN VIDEO",
+        linkLabel: "OPEN VIDEO IN A NEW TAB",
+        media: <DemoVideo url={sub.videoUrl} title={sub.projectTitle} onPlay={onWatched} />,
       },
       {
         id: "repo",
@@ -613,7 +615,9 @@ export function RubricJudgingSection({
                       rubric={rubric}
                       criteria={d.criteria}
                       notes={d.notes}
-                      checkSteps={checkStepsFor(s, track)}
+                      checkSteps={checkStepsFor(s, track, () => {
+                        if (!d.checks?.video) updateDraft(s.id, track, { ...d, checks: { ...d.checks, video: true } });
+                      })}
                       checks={d.checks ?? {}}
                       onPick={(cid, v) => updateDraft(s.id, track, { ...d, criteria: { ...d.criteria, [cid]: v } })}
                       onNotes={(notes) => updateDraft(s.id, track, { ...d, notes }, NOTE_DEBOUNCE_MS)}

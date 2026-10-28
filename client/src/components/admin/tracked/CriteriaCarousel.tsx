@@ -23,6 +23,8 @@ export type CheckStep = {
   extraLinks?: { href: string; label: string }[];
   /** Extra content under the links (e.g. Stadium's tx check). */
   extra?: ReactNode;
+  /** A player shown above the links, mounted only while this step is open. */
+  media?: ReactNode;
 };
 
 const navBtn = "font-mono text-[10px] tracking-[0.14em] border rounded-sm px-3 py-1.5 disabled:opacity-40";
@@ -183,6 +185,7 @@ export function CriteriaCarousel({
                   </div>
                   <p className="text-[14px] text-body leading-relaxed mt-1">{st.prompt}</p>
                 </div>
+                {st.media && index === i && st.media}
                 <div className="border border-hairline bg-panel-light rounded-sm p-3.5 space-y-2.5">
                   <a
                     href={st.href}

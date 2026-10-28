@@ -38,6 +38,8 @@ import {
   type ProgramJudge,
 } from "../programProfiles";
 
+const SAMPLE_DEMO_VIDEO = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
+
 export const FSH_JUDGES: ProgramJudge[] = [
   { email: "judge-a@example.com", name: "Judge A (mock)", tracks: ["privacy"] },
   { email: "judge-b@example.com", name: "Judge B (mock)", tracks: ["privacy"] },
@@ -921,7 +923,8 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
       lumaEmail: p.person[1],
       projectTitle: p.title,
       projectBrief: p.description,
-      videoUrl: `https://video.example.com/${p.key}-demo`,
+      // A public CC0 sample clip (MDN), so the judges' inline player has something to play.
+      videoUrl: SAMPLE_DEMO_VIDEO,
       githubUrl: `https://github.com/example/${p.key}`,
       late: false,
       createdAt,
