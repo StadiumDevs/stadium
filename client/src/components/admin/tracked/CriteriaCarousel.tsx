@@ -3,9 +3,6 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/com
 import type { Rubric, RubricCriterion } from "@/lib/programProfiles";
 import { cn } from "@/lib/utils";
 
-// Wait a beat after a pick so the judge sees it land before the next question.
-const ADVANCE_MS = 250;
-
 const shortLabel = (c: RubricCriterion) => c.label.split(":")[0].trim();
 const question = (c: RubricCriterion) => {
   const i = c.label.indexOf(":");
@@ -16,7 +13,7 @@ const question = (c: RubricCriterion) => {
 /**
  * One rubric question per slide, in sequence, then a NOTE slide. Swipe, use
  * the arrows (or ←/→), or tap a step chip to move. Picking a level autosaves
- * (via onPick) and moves on to the next question.
+ * (via onPick) and stays on the question; the judge moves on when ready.
  */
 export function CriteriaCarousel({
   rubric,
@@ -37,7 +34,6 @@ export function CriteriaCarousel({
   const firstOpen = rubric.criteria.findIndex((c) => typeof criteria[c.id] !== "number");
   const [index, setIndex] = useState(firstOpen === -1 ? rubric.criteria.length : firstOpen);
   const startAt = useRef(index);
-  const timer = useRef<number>();
 
   // Slides differ in height; size the window to the current one so a short
   // slide (the note) doesn't leave a gap.
@@ -62,16 +58,11 @@ export function CriteriaCarousel({
     };
   }, [api]);
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
   const go = (i: number) => api?.scrollTo(Math.max(0, Math.min(total - 1, i)));
 
-  const pick = (c: RubricCriterion, v: number, i: number) => {
-    onPick(c.id, v);
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => go(i + 1), ADVANCE_MS);
-  };
 
+  // Once this question is answered, NEXT QUESTION is the obvious next tap.
+  const currentAnswered = index < rubric.criteria.length && typeof criteria[rubric.criteria[index].id] === "number";
   const answered = rubric.criteria.filter((c) => typeof criteria[c.id] === "number").length;
 
   return (
@@ -150,7 +141,7 @@ export function CriteriaCarousel({
                         key={v}
                         type="button"
                         aria-pressed={selected}
-                        onClick={() => pick(c, v, i)}
+                        onClick={() => onPick(c.id, v)}
                         className={cn(
                           "text-left border rounded-sm px-3.5 py-3 flex items-start gap-3 transition-colors",
                           selected
@@ -229,7 +220,12 @@ export function CriteriaCarousel({
           type="button"
           onClick={() => go(index + 1)}
           disabled={index === total - 1}
-          className="font-mono text-[10px] tracking-[0.14em] border border-hairline rounded-sm px-3 py-1.5 text-display hover:bg-panel-deep disabled:opacity-40"
+          className={cn(
+            "font-mono text-[10px] tracking-[0.14em] border rounded-sm px-3 py-1.5 disabled:opacity-40",
+            currentAnswered
+              ? "border-display bg-display text-shell hover:bg-display-dim"
+              : "border-hairline text-display hover:bg-panel-deep",
+          )}
         >
           {index === rubric.criteria.length - 1 ? "NOTE ▸" : "NEXT QUESTION ▸"}
         </button>

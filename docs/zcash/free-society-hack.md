@@ -138,7 +138,7 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
 - **Judging updates (29 Oct).**
   - **Revisit.** A judge can mark a project ⚑ TO REVISIT when unsure; its box turns light orange (a new `warn` colour token) and the bar counts "R TO REVISIT". It's the judge's own reminder: a fully scored project still counts as scored. The flag is saved in the judge's record (`revisit` on `submission_rubric_scores`). NEXT TO DO ▸ (was NEXT UNSCORED) and the TO DO ONLY filter include flagged projects.
   - **Lighter options.** Level options are light cards with 14px body text and a round number badge; the selected one gets a green border and ✓ instead of a white fill.
-  - **Questions as a carousel.** One question per slide with its title and number (WORKS · 1 / 6), then a NOTE slide with the note and a summary. Swipe, ◂ BACK / NEXT QUESTION ▸, ←/→ keys, or tap a question chip. Picking a level autosaves and moves to the next question. A project opens on its first unanswered question (or the note when all are answered).
+  - **Questions as a carousel.** One question per slide with its title and number (WORKS · 1 / 6), then a NOTE slide with the note and a summary. Swipe, ◂ BACK / NEXT QUESTION ▸, ←/→ keys, or tap a question chip. Picking a level autosaves and stays on the question (you can change it); NEXT QUESTION ▸ (solid once answered), a swipe or ← → moves on. A project opens on its first unanswered question (or the note when all are answered).
 
 ## 4. Server build plan (after review)
 
