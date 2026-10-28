@@ -4,7 +4,7 @@ import { validateRubricScore } from '../submission.validator.js';
 describe('validateRubricScore', () => {
   it('accepts a partial privacy score (unscored criteria are null or absent)', () => {
     const v = validateRubricScore('privacy', { criteria: { works: 3, private: null }, notes: '  ok  ', session: 'evening' });
-    expect(v).toEqual({ ok: true, value: { criteria: { works: 3, private: null }, notes: 'ok', session: 'evening', revisit: false } });
+    expect(v).toEqual({ ok: true, value: { criteria: { works: 3, private: null }, notes: 'ok', session: 'evening', revisit: false, checks: {} } });
   });
 
   it('accepts a full agentic score', () => {
@@ -42,5 +42,12 @@ describe('validateRubricScore', () => {
   it('accepts a revisit flag and rejects a non-boolean one', () => {
     expect(validateRubricScore('privacy', { criteria: {}, revisit: true }).value.revisit).toBe(true);
     expect(validateRubricScore('privacy', { criteria: {}, revisit: 'yes' }).ok).toBe(false);
+  });
+
+  it('accepts video/repo/tx checks and rejects unknown keys or non-booleans', () => {
+    expect(validateRubricScore('privacy', { criteria: {}, checks: { video: true, tx: false } }).value.checks).toEqual({ video: true, tx: false });
+    expect(validateRubricScore('privacy', { criteria: {}, checks: { demo: true } }).ok).toBe(false);
+    expect(validateRubricScore('privacy', { criteria: {}, checks: { video: 'yes' } }).ok).toBe(false);
+    expect(validateRubricScore('privacy', { criteria: {}, checks: [true] }).ok).toBe(false);
   });
 });

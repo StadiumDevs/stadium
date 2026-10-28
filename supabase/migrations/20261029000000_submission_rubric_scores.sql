@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS submission_rubric_scores (
   -- The judge's own "unsure, come back to this" mark. Doesn't change whether
   -- a fully scored row counts.
   revisit BOOLEAN NOT NULL DEFAULT false,
+  -- What the judge checked before scoring: { "video", "repo", "tx": boolean }.
+  -- A prompt and reminder only; doesn't affect scoring.
+  checks JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT submission_rubric_scores_one_per_judge_track UNIQUE (submission_id, judge_email, track)

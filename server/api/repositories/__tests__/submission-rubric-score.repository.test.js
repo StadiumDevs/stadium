@@ -28,6 +28,7 @@ const row = {
   notes: null,
   session: 'evening',
   revisit: true,
+  checks: { video: true },
   created_at: 't0',
   updated_at: 't1',
 };
@@ -47,12 +48,13 @@ describe('SubmissionRubricScoreRepository', () => {
       notes: '',
       session: 'evening',
       revisit: true,
+      checks: { video: true },
     });
     expect(supabase.from).toHaveBeenCalledWith('submission_rubric_scores');
     const [payload, opts] = chain.upsert.mock.calls[0];
     expect(opts).toEqual({ onConflict: 'submission_id,judge_email,track' });
-    expect(payload).toMatchObject({ submission_id: 's1', program_id: 'p1', judge_email: 'judge@x.com', track: 'privacy', notes: null, revisit: true });
-    expect(saved).toMatchObject({ submissionId: 's1', judgeEmail: 'judge@x.com', track: 'privacy', criteria: { works: 3, private: null }, notes: '', session: 'evening', revisit: true });
+    expect(payload).toMatchObject({ submission_id: 's1', program_id: 'p1', judge_email: 'judge@x.com', track: 'privacy', notes: null, revisit: true, checks: { video: true } });
+    expect(saved).toMatchObject({ submissionId: 's1', judgeEmail: 'judge@x.com', track: 'privacy', criteria: { works: 3, private: null }, notes: '', session: 'evening', revisit: true, checks: { video: true } });
   });
 
   it('lists one judge’s scores in a program', async () => {

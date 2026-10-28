@@ -20,3 +20,6 @@ export const RUBRICS = {
 };
 
 export const RUBRIC_TRACKS = Object.keys(RUBRICS);
+
+// The "check first" steps a judge ticks before scoring (client carousel).
+export const RUBRIC_CHECKS = ['video', 'repo', 'tx'];

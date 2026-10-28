@@ -2,7 +2,7 @@
 // Pure functions — no DB, no I/O — so they're trivially unit-testable and
 // reusable from the controller.
 
-import { RUBRICS } from '../constants/rubrics.js';
+import { RUBRICS, RUBRIC_CHECKS } from '../constants/rubrics.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -209,7 +209,8 @@ export function validateScore(body = {}) {
 
 // Rubric scores (tracked programs). Partial is allowed: each criterion is an
 // integer 0..max or null (not scored yet), so a judge's work can autosave.
-// `revisit` is the judge's own "come back to this" mark.
+// `revisit` is the judge's own "come back to this" mark; `checks` records
+// what they looked at before scoring (video, repo, tx).
 export function validateRubricScore(track, body = {}) {
   const rubric = RUBRICS[track];
   if (!rubric) return { ok: false, error: `Unknown track: ${track}` };
@@ -244,5 +245,16 @@ export function validateRubricScore(track, body = {}) {
   if (body.revisit !== undefined && typeof body.revisit !== 'boolean') {
     return { ok: false, error: 'revisit must be true or false' };
   }
-  return { ok: true, value: { criteria, notes, session, revisit: body.revisit === true } };
+  const checks = {};
+  if (body.checks !== undefined && body.checks !== null) {
+    if (typeof body.checks !== 'object' || Array.isArray(body.checks)) {
+      return { ok: false, error: 'checks must be an object' };
+    }
+    for (const [key, value] of Object.entries(body.checks)) {
+      if (!RUBRIC_CHECKS.includes(key)) return { ok: false, error: `Unknown check: ${key}` };
+      if (typeof value !== 'boolean') return { ok: false, error: `${key} check must be true or false` };
+      checks[key] = value;
+    }
+  }
+  return { ok: true, value: { criteria, notes, session, revisit: body.revisit === true, checks } };
 }

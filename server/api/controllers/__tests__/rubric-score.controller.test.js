@@ -81,7 +81,15 @@ describe('SubmissionController.upsertRubricScore', () => {
       notes: '',
       session: 'evening',
       revisit: false,
+      checks: {},
     });
+  });
+
+  it('stores what the judge checked before scoring', async () => {
+    const res = mockRes();
+    await submissionController.upsertRubricScore(judgeReq({ body: { criteria: {}, checks: { video: true, repo: true } } }), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(rubricRepo.upsert).toHaveBeenCalledWith(expect.objectContaining({ checks: { video: true, repo: true } }));
   });
 
   it('stores the judge\'s revisit flag', async () => {
