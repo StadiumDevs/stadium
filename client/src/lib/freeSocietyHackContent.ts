@@ -10,6 +10,9 @@ import type { ProgramContentSection } from "@/lib/api";
  *
  * Copy rules: no em-dashes; all times IST (UTC+5:30).
  */
+export const FREE_SOCIETY_HACK_BUILDER_PACK_URL =
+  "https://app.notion.com/p/Free-Society-Hack-Builder-Pack-3ff3e52aeb15807eace6f16f84a74c14";
+
 export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
   {
     type: "schedule",
@@ -71,18 +74,10 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
   },
   {
     type: "markdown",
-    title: "How Privacy projects are judged",
+    title: "Builder Pack",
     body:
-      "Five criteria scored 0 to 3, plus a Bonus of 0 or 1. No weights.\n\n" +
-      "| Criterion | 0 | 1 | 2 | 3 |\n" +
-      "| --- | --- | --- | --- | --- |\n" +
-      "| Works: how much of the demonstrated core flow is real? | Nothing meaningfully interacts with Zcash | The Zcash interaction is mocked or simulated | Real shielded testnet interaction, but a core step is incomplete, manual or unverified | The demonstrated core flow works as intended, with no core step faked, manual or bypassed, and with verifiable evidence |\n" +
-      "| Private: does it protect information appropriately? | No meaningful privacy protection, or serious undisclosed exposure | Shielded transactions, but significant metadata or data exposure is not adequately addressed | Shielded transactions and a considered privacy design, with remaining limitations identified | Privacy is designed into the flow; disclosures are minimized, and remaining exposures and trust assumptions are clearly explained |\n" +
-      "| Easy: can its intended user use it? | Only the builder can use it | Usable with the builder's help | Usable by the intended audience with the README or provided instructions | A representative user can complete the core task unaided, in minutes |\n" +
-      "| Needed: is there evidence of a real need? | No clear user or problem | A user is named, but the need is assumed | A specific user problem is explained and backed by evidence, such as a documented ecosystem gap or conversations with users | Strong validation: target users have requested it, a partner wants to adopt or pilot it, or users have demonstrated demand |\n" +
-      "| Continuing: is the builder moving it forward? | No next milestone | A vague plan | A concrete 30-day plan with an identifiable beneficiary | Already taking concrete steps: an upstream PR, an active issue, a partner discussion, a pilot or engaged users |\n" +
-      "| Bonus (0 or 1) | Nothing exceptional | Genuinely exceptional and not captured above: original technical contribution, elegant solution, or reusable ecosystem contribution | | |\n\n" +
-      "Maximum 16. A project whose average Works score is 0 can't win. Ties go to the higher Continuing score, then the higher Needed score. Agentic Commerce uses Bitrefill's criteria.",
+      "Everything you need to build, including how Privacy projects are judged, is in the " +
+      "[Free Society Hack Builder Pack](" + FREE_SOCIETY_HACK_BUILDER_PACK_URL + ").",
   },
   {
     type: "markdown",

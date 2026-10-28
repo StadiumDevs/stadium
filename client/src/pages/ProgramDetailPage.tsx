@@ -35,6 +35,9 @@ const formatDateRange = (from?: string | null, to?: string | null) => {
   return `${fmt(from)} → ${fmt(to)}`;
 };
 
+// One width for the header, the about panel and everything below it.
+const PAGE_WIDTH = "max-w-6xl";
+
 const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
   dogfooding: "DOGFOODING",
   pitch_off: "PITCH-OFF",
@@ -264,6 +267,17 @@ const ProgramDetailPage = () => {
     .filter((s): s is Extract<ProgramContentSection, { type: "schedule" }> => s.type === "schedule")
     .flatMap((s) => s.rows);
 
+  // The about panel: cover image on the left, description and the event's
+  // basic details on the right. Same template for every program type.
+  const showCover = !!program?.coverImageUrl && !coverError;
+  const infoRows: { label: string; value: string }[] = [
+    ...(!isHackathon && applicationsRange ? [{ label: "APPLICATIONS", value: applicationsRange }] : []),
+    ...(eventRange ? [{ label: isHackathon ? "DATE" : "EVENT", value: eventRange }] : []),
+    ...(program?.location ? [{ label: "LOCATION", value: program.location }] : []),
+    ...scheduleRows.map((r) => ({ label: r.time.toUpperCase(), value: r.label })),
+  ];
+  const hasAbout = showCover || !!program?.description || infoRows.length > 0 || !!program?.eventUrl;
+
   // Once a hackathon's results are published, flip the page: searchable projects
   // on top, hackathon info collapsed at the bottom.
   const isPublished = profile
@@ -401,8 +415,9 @@ const ProgramDetailPage = () => {
           </div>
         ) : program ? (
           <>
-          {/* Program header first on every program, above any project grid. */}
-          <header className={`mb-6 mx-auto ${profile && tracked && isPublished ? "max-w-6xl" : "max-w-3xl"}`} data-testid="program-header">
+          {/* Program header first on every program, then the about panel, both
+              the same width as the sections below. */}
+          <header className={`mb-6 mx-auto ${PAGE_WIDTH}`} data-testid="program-header">
             <div className="label-hw-dim mb-2">·PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
             <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-3">
               {program.name}
@@ -417,10 +432,51 @@ const ProgramDetailPage = () => {
               )}
             </div>
           </header>
+          {hasAbout && (
+            <section className={`panel p-4 md:p-6 mb-4 mx-auto ${PAGE_WIDTH}`} data-testid="program-about">
+              <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>
+              <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-2" : ""}`}>
+                {showCover && (
+                  <img
+                    src={program.coverImageUrl ?? undefined}
+                    alt={`${program.name} event`}
+                    onError={() => setCoverError(true)}
+                    className="w-full aspect-video rounded-sm border border-hairline object-cover"
+                    data-testid="program-cover"
+                  />
+                )}
+                <div className="flex flex-col gap-4 min-w-0" data-testid="program-key-info">
+                  {program.description && (
+                    <p className="text-body text-base leading-relaxed whitespace-pre-line">{program.description}</p>
+                  )}
+                  {infoRows.length > 0 && (
+                    <div className="space-y-2">
+                      {infoRows.map((r, i) => (
+                        <div key={i} className="flex items-baseline justify-between gap-3 border-b border-hairline-subtle pb-1.5 last:border-0">
+                          <span className="label-hw-dim shrink-0">{r.label}</span>
+                          <span className="font-mono text-[12px] text-display text-right">{r.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {program.eventUrl && (
+                    <a
+                      href={program.eventUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="self-start inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
+                    >
+                      {isHackathon ? "SIGN UP ON LUMA ▸" : "EVENT PAGE ▸"}
+                    </a>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
           {/* Tracked programs: the wide project grid sits above the event info once
               results are published (the Bitrefill "flip"), below it until then. */}
           {profile && tracked && isPublished && (
-            <div className="max-w-6xl mx-auto">
+            <div className={`${PAGE_WIDTH} mx-auto`}>
               <TrackedProjectsSection
                 profile={profile}
                 programSlug={program.slug}
@@ -429,7 +485,7 @@ const ProgramDetailPage = () => {
               />
             </div>
           )}
-          <article className="max-w-3xl mx-auto">
+          <article className={`${PAGE_WIDTH} mx-auto`}>
 
             {/* Published hackathon: searchable projects up top. */}
             {isPublished && !profile && (
@@ -467,93 +523,7 @@ const ProgramDetailPage = () => {
               </section>
             )}
 
-            {!isPublished && program.description && (
-              <div className="panel p-4 mb-4">
-                <div className="label-hw mb-2">·DESCRIPTION</div>
-                <p className="text-body text-base leading-relaxed whitespace-pre-line">
-                  {program.description}
-                </p>
-              </div>
-            )}
-
             {!isHackathon && <ProgramContent sections={program.content} />}
-
-            {isHackathon && !isPublished && (
-              <div className="panel p-4 mb-4">
-                <div className="label-hw mb-3">·KEY INFO</div>
-                {program.coverImageUrl && !coverError && (
-                  <img
-                    src={program.coverImageUrl}
-                    alt={`${program.name} event`}
-                    onError={() => setCoverError(true)}
-                    className="w-full rounded-sm border border-hairline mb-3 object-cover"
-                  />
-                )}
-                <div className="space-y-2">
-                  {eventRange && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">DATE</span>
-                      <span className="font-mono text-[12px] text-display">{eventRange}</span>
-                    </div>
-                  )}
-                  {program.location && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">LOCATION</span>
-                      <span className="font-mono text-[12px] text-display">{program.location}</span>
-                    </div>
-                  )}
-                  {scheduleRows.map((r, i) => (
-                    <div key={i} className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">{r.time}</span>
-                      <span className="font-mono text-[12px] text-display text-right">{r.label}</span>
-                    </div>
-                  ))}
-                </div>
-                {program.eventUrl && (
-                  <a
-                    href={program.eventUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
-                  >
-                    SIGN UP ON LUMA ▸
-                  </a>
-                )}
-              </div>
-            )}
-
-            {!isHackathon && (applicationsRange || eventRange || program.eventUrl) && (
-              <div className="panel p-4 mb-4">
-                <div className="label-hw mb-3">·KEY DATES</div>
-                <div className="space-y-2">
-                  {applicationsRange && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">APPLICATIONS</span>
-                      <span className="font-mono text-[12px] text-display">{applicationsRange}</span>
-                    </div>
-                  )}
-                  {eventRange && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">EVENT</span>
-                      <span className="font-mono text-[12px] text-display">{eventRange}</span>
-                    </div>
-                  )}
-                  {program.eventUrl && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">SIGN UP</span>
-                      <a
-                        href={program.eventUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-[12px] text-display hover:underline break-all max-w-[60%] text-right"
-                      >
-                        {program.eventUrl}
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {!isHackathon && sponsors.length > 0 && (
               <div className="panel p-4 mb-4">
@@ -691,8 +661,9 @@ const ProgramDetailPage = () => {
               />
             )}
 
-            {/* Published hackathon: all the event info collapsed below the projects. */}
-            {isPublished && (
+            {/* Published hackathon: the rest of the event info (tracks, prizes,
+                FAQ) collapsed below the projects. */}
+            {isPublished && (program.content ?? []).some((c) => c.type !== "schedule") && (
               <section className="panel p-4 mb-4">
                 <button
                   type="button"
@@ -700,44 +671,11 @@ const ProgramDetailPage = () => {
                   aria-expanded={aboutOpen}
                   className="w-full flex items-center justify-between gap-2 text-left"
                 >
-                  <span className="label-hw text-display">·ABOUT THIS HACKATHON</span>
+                  <span className="label-hw text-display">·HACKATHON DETAILS</span>
                   <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
                 </button>
                 {aboutOpen && (
-                  <div className="mt-3 space-y-4">
-                    {program.description && (
-                      <p className="text-body text-base leading-relaxed whitespace-pre-line">
-                        {program.description}
-                      </p>
-                    )}
-                    {program.coverImageUrl && !coverError && (
-                      <img
-                        src={program.coverImageUrl}
-                        alt={`${program.name} event`}
-                        onError={() => setCoverError(true)}
-                        className="w-full rounded-sm border border-hairline object-cover"
-                      />
-                    )}
-                    <div className="space-y-2">
-                      {eventRange && (
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="label-hw-dim">DATE</span>
-                          <span className="font-mono text-[12px] text-display">{eventRange}</span>
-                        </div>
-                      )}
-                      {program.location && (
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="label-hw-dim">LOCATION</span>
-                          <span className="font-mono text-[12px] text-display">{program.location}</span>
-                        </div>
-                      )}
-                      {scheduleRows.map((r, i) => (
-                        <div key={i} className="flex items-center justify-between gap-3">
-                          <span className="label-hw-dim">{r.time}</span>
-                          <span className="font-mono text-[12px] text-display text-right">{r.label}</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="mt-3">
                     <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
                   </div>
                 )}
@@ -816,7 +754,7 @@ const ProgramDetailPage = () => {
             />
           </article>
           {profile && tracked && !isPublished && (
-            <div className="max-w-6xl mx-auto mt-4">
+            <div className={`${PAGE_WIDTH} mx-auto mt-4`}>
               <TrackedProjectsSection
                 profile={profile}
                 programSlug={program.slug}
