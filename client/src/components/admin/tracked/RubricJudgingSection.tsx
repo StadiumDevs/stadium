@@ -27,13 +27,13 @@ import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadg
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
-import { CriteriaCarousel } from "./CriteriaCarousel";
+import { CriteriaCarousel, type CheckStep } from "./CriteriaCarousel";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 // A change not yet confirmed by the server. Kept on this device until it is,
 // so a refresh or a dropped connection never loses a judge's work.
-type Draft = { criteria: Record<string, number | null>; notes: string; revisit?: boolean };
+type Draft = { criteria: Record<string, number | null>; notes: string; revisit?: boolean; checks?: ApiRubricScore["checks"] };
 const draftId = (submissionId: string, track: JudgedTrack) => `${submissionId}:${track}`;
 
 const readDrafts = (key: string): Record<string, Draft> => {
@@ -192,9 +192,9 @@ export function RubricJudgingSection({
     const d = drafts[draftId(submissionId, track)];
     if (d) return d;
     const saved = savedFor(submissionId, track);
-    if (saved) return { criteria: saved.criteria, notes: saved.notes, revisit: !!saved.revisit };
+    if (saved) return { criteria: saved.criteria, notes: saved.notes, revisit: !!saved.revisit, checks: saved.checks ?? {} };
     const rubric = trackById(profile, track).rubric;
-    return { criteria: Object.fromEntries(rubric.criteria.map((c) => [c.id, null])), notes: "", revisit: false };
+    return { criteria: Object.fromEntries(rubric.criteria.map((c) => [c.id, null])), notes: "", revisit: false, checks: {} };
   };
 
   const setPending = (all: Record<string, Draft>) => {
@@ -215,7 +215,7 @@ export function RubricJudgingSection({
         const auth = await getAuth();
         const r = await api.saveRubricScore(
           programSlug,
-          { submissionId, judgeEmail, track, criteria: d.criteria, notes: d.notes, session, revisit: !!d.revisit },
+          { submissionId, judgeEmail, track, criteria: d.criteria, notes: d.notes, session, revisit: !!d.revisit, checks: d.checks ?? {} },
           auth,
         );
         setMyScores((prev) => [...prev.filter((x) => !(x.submissionId === submissionId && x.track === track)), r.data]);
@@ -276,6 +276,48 @@ export function RubricJudgingSection({
     if (!saved) return "unscored";
     if (isFullyScored(rubric, saved.criteria)) return "saved";
     return Object.values(saved.criteria).some((v) => typeof v === "number") || saved.notes ? "draft" : "unscored";
+  };
+
+  // "Check first" steps before the questions: the video, the repo, and (Privacy
+  // track, with a txid) the transaction.
+  const checkStepsFor = (sub: ApiTrackedSubmission, track: JudgedTrack): CheckStep[] => {
+    const steps: CheckStep[] = [
+      {
+        id: "video",
+        chip: "VIDEO",
+        title: "Watch the demo",
+        prompt: "2 minutes max. Does it show the core flow actually working?",
+        href: sub.videoUrl,
+        linkLabel: "OPEN VIDEO",
+      },
+      {
+        id: "repo",
+        chip: "REPO",
+        title: "Check the repo",
+        prompt: "Is there a README, and does the code match what the demo shows?",
+        href: sub.githubUrl,
+        linkLabel: "OPEN REPO",
+        extraLinks: sub.details.publicUrl ? [{ href: sub.details.publicUrl, label: `The app: ${sub.details.publicUrl}` }] : undefined,
+      },
+    ];
+    const txid = sub.details.testnetTxid;
+    if (track === "privacy" && txid && profile.txExplorerUrl) {
+      steps.push({
+        id: "tx",
+        chip: "TX",
+        title: "Check the transaction",
+        prompt: "Their testnet transaction on the public explorer. Stadium checked it exists and is shielded; amounts and memos stay private.",
+        href: profile.txExplorerUrl(txid),
+        linkLabel: "OPEN IN EXPLORER",
+        extra: (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="label-hw-dim">STADIUM'S CHECK</span>
+            <TxCheckBadge check={sub.details.txCheck} />
+          </div>
+        ),
+      });
+    }
+    return steps;
   };
 
   // The next project still to do: not fully scored, or marked to revisit.
@@ -571,8 +613,11 @@ export function RubricJudgingSection({
                       rubric={rubric}
                       criteria={d.criteria}
                       notes={d.notes}
+                      checkSteps={checkStepsFor(s, track)}
+                      checks={d.checks ?? {}}
                       onPick={(cid, v) => updateDraft(s.id, track, { ...d, criteria: { ...d.criteria, [cid]: v } })}
                       onNotes={(notes) => updateDraft(s.id, track, { ...d, notes }, NOTE_DEBOUNCE_MS)}
+                      onCheck={(cid, v) => updateDraft(s.id, track, { ...d, checks: { ...d.checks, [cid]: v } })}
                     />
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" onClick={() => goTo(draftId(prev.s.id, prev.track))} className={btnGhost} disabled={queue.length < 2}>

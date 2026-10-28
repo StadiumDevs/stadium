@@ -605,6 +605,8 @@ export type ApiRubricScore = {
   session: string;
   /** The judge's own "unsure, come back to this" mark. Doesn't change scoring. */
   revisit?: boolean;
+  /** What the judge checked before scoring. Doesn't change scoring. */
+  checks?: { video?: boolean; repo?: boolean; tx?: boolean };
   updatedAt: string;
 };
 
@@ -2551,7 +2553,7 @@ export const api = {
       {
         method: "PUT",
         headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
-        body: JSON.stringify({ criteria: score.criteria, notes: score.notes, session: score.session, revisit: !!score.revisit }),
+        body: JSON.stringify({ criteria: score.criteria, notes: score.notes, session: score.session, revisit: !!score.revisit, checks: score.checks ?? {} }),
       },
     );
   },

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import type { Rubric, RubricCriterion } from "@/lib/programProfiles";
 import { cn } from "@/lib/utils";
@@ -10,33 +10,71 @@ const question = (c: RubricCriterion) => {
   return q.charAt(0).toUpperCase() + q.slice(1);
 };
 
+/** A "check first" step shown before the questions (watch the video, etc.). */
+export type CheckStep = {
+  id: "video" | "repo" | "tx";
+  chip: string;
+  title: string;
+  prompt: string;
+  /** The main link (opening it marks the step checked). */
+  href: string;
+  linkLabel: string;
+  /** Secondary links shown under the main one. */
+  extraLinks?: { href: string; label: string }[];
+  /** Extra content under the links (e.g. Stadium's tx check). */
+  extra?: ReactNode;
+};
+
+const navBtn = "font-mono text-[10px] tracking-[0.14em] border rounded-sm px-3 py-1.5 disabled:opacity-40";
+const chipBase = "font-mono text-[10px] tracking-[0.1em] uppercase border rounded-sm px-2 py-1 transition-colors";
+const chipDone = "bg-led/15 border-led text-display";
+const chipTodo = "border-hairline text-label-dim hover:text-display";
+const chipCurrent = "ring-1 ring-display ring-offset-1 ring-offset-panel-dark";
+
 /**
- * One rubric question per slide, in sequence, then a NOTE slide. Swipe, use
- * the arrows (or ←/→), or tap a step chip to move. Picking a level autosaves
- * (via onPick) and stays on the question; the judge moves on when ready.
+ * The judge's walk through one project: first the checks (watch the video,
+ * look at the repo, check the transaction), then one rubric question per
+ * slide, then a NOTE slide. Swipe, use the buttons (or ←/→), or tap a chip
+ * to move. Picking a level or ticking a check autosaves (via the callbacks)
+ * and stays put; the judge moves on when ready.
  */
 export function CriteriaCarousel({
   rubric,
   criteria,
   notes,
+  checkSteps,
+  checks,
   onPick,
   onNotes,
+  onCheck,
 }: {
   rubric: Rubric;
   criteria: Record<string, number | null>;
   notes: string;
+  checkSteps: CheckStep[];
+  checks: Partial<Record<CheckStep["id"], boolean>>;
   onPick: (criterionId: string, value: number) => void;
   onNotes: (notes: string) => void;
+  onCheck: (id: CheckStep["id"], value: boolean) => void;
 }) {
   const [api, setApi] = useState<CarouselApi>();
-  const total = rubric.criteria.length + 1; // + NOTE
-  // Open on the first unanswered question, or the note when all are answered.
-  const firstOpen = rubric.criteria.findIndex((c) => typeof criteria[c.id] !== "number");
-  const [index, setIndex] = useState(firstOpen === -1 ? rubric.criteria.length : firstOpen);
+  // Slide order: checks, then questions, then the note.
+  const nChecks = checkSteps.length;
+  const nCriteria = rubric.criteria.length;
+  const noteAt = nChecks + nCriteria;
+  const total = noteAt + 1;
+
+  // Open on the next thing to do: an unchecked step (if scoring isn't done),
+  // else the first unanswered question, else the note.
+  const firstQuestion = rubric.criteria.findIndex((c) => typeof criteria[c.id] !== "number");
+  const firstCheck = checkSteps.findIndex((s) => !checks[s.id]);
+  const [index, setIndex] = useState(
+    firstQuestion === -1 ? noteAt : firstCheck !== -1 ? firstCheck : nChecks + firstQuestion,
+  );
   const startAt = useRef(index);
 
   // Slides differ in height; size the window to the current one so a short
-  // slide (the note) doesn't leave a gap.
+  // slide doesn't leave a gap.
   const [height, setHeight] = useState<number | undefined>(undefined);
   useEffect(() => {
     if (!api) return;
@@ -60,15 +98,36 @@ export function CriteriaCarousel({
 
   const go = (i: number) => api?.scrollTo(Math.max(0, Math.min(total - 1, i)));
 
-
-  // Once this question is answered, NEXT QUESTION is the obvious next tap.
-  const currentAnswered = index < rubric.criteria.length && typeof criteria[rubric.criteria[index].id] === "number";
+  const onCheckStep = index < nChecks;
+  const qIndex = index - nChecks; // question index when on a question slide
+  // Once the current step is done, NEXT is the obvious next tap.
+  const currentDone = onCheckStep
+    ? !!checks[checkSteps[index].id]
+    : qIndex >= 0 && qIndex < nCriteria && typeof criteria[rubric.criteria[qIndex].id] === "number";
   const answered = rubric.criteria.filter((c) => typeof criteria[c.id] === "number").length;
+  const nextLabel =
+    index === nChecks - 1 ? "START SCORING ▸" : qIndex === nCriteria - 1 ? "NOTE ▸" : onCheckStep ? "NEXT CHECK ▸" : "NEXT QUESTION ▸";
 
   return (
     <div className="space-y-3" data-testid="criteria-carousel">
-      {/* Step chips: where you are, and what's answered. */}
-      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Scoring questions">
+      {/* Chips: the checks, then the questions, then the note. */}
+      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Judging steps">
+        {checkSteps.map((st, i) => (
+          <button
+            key={st.id}
+            type="button"
+            role="tab"
+            aria-selected={index === i}
+            onClick={() => go(i)}
+            data-testid="check-chip"
+            data-done={!!checks[st.id]}
+            className={cn(chipBase, checks[st.id] ? chipDone : chipTodo, index === i && chipCurrent)}
+          >
+            {checks[st.id] ? "✓ " : ""}
+            {st.chip}
+          </button>
+        ))}
+        {nChecks > 0 && <span className="w-px h-5 bg-hairline mx-1" aria-hidden="true" />}
         {rubric.criteria.map((c, i) => {
           const v = criteria[c.id];
           const done = typeof v === "number";
@@ -77,15 +136,11 @@ export function CriteriaCarousel({
               key={c.id}
               type="button"
               role="tab"
-              aria-selected={index === i}
-              onClick={() => go(i)}
+              aria-selected={index === nChecks + i}
+              onClick={() => go(nChecks + i)}
               data-testid="criterion-chip"
               data-done={done}
-              className={cn(
-                "font-mono text-[10px] tracking-[0.1em] uppercase border rounded-sm px-2 py-1 transition-colors",
-                done ? "bg-led/15 border-led text-display" : "border-hairline text-label-dim hover:text-display",
-                index === i && "ring-1 ring-display ring-offset-1 ring-offset-panel-dark",
-              )}
+              className={cn(chipBase, done ? chipDone : chipTodo, index === nChecks + i && chipCurrent)}
             >
               {shortLabel(c)}
               {done ? ` · ${v}` : ""}
@@ -95,20 +150,16 @@ export function CriteriaCarousel({
         <button
           type="button"
           role="tab"
-          aria-selected={index === rubric.criteria.length}
-          onClick={() => go(rubric.criteria.length)}
+          aria-selected={index === noteAt}
+          onClick={() => go(noteAt)}
           data-testid="criterion-chip"
           data-done={!!notes.trim()}
-          className={cn(
-            "font-mono text-[10px] tracking-[0.1em] border rounded-sm px-2 py-1",
-            notes.trim() ? "bg-led/15 border-led text-display" : "border-hairline text-label-dim hover:text-display",
-            index === rubric.criteria.length && "ring-1 ring-display ring-offset-1 ring-offset-panel-dark",
-          )}
+          className={cn(chipBase, notes.trim() ? chipDone : chipTodo, index === noteAt && chipCurrent)}
         >
           NOTE
         </button>
         <span className="label-hw-dim ml-auto">
-          {answered}/{rubric.criteria.length} ANSWERED
+          {answered}/{nCriteria} ANSWERED
         </span>
       </div>
 
@@ -117,17 +168,80 @@ export function CriteriaCarousel({
         opts={{ align: "start" }}
         className="w-full overflow-hidden transition-[height] duration-200"
         style={{ height }}
-        aria-label="Scoring question"
+        aria-label="Judging step"
       >
         <CarouselContent className="items-start">
+          {checkSteps.map((st, i) => (
+            <CarouselItem key={st.id} data-testid="check-slide" aria-label={`${st.title}, check ${i + 1} of ${nChecks}`}>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h3 className="font-display text-xl uppercase tracking-tight text-display">{st.title}</h3>
+                    <span className="label-hw-dim">
+                      CHECK {i + 1} / {nChecks}
+                    </span>
+                  </div>
+                  <p className="text-[14px] text-body leading-relaxed mt-1">{st.prompt}</p>
+                </div>
+                <div className="border border-hairline bg-panel-light rounded-sm p-3.5 space-y-2.5">
+                  <a
+                    href={st.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => onCheck(st.id, true)}
+                    data-testid="check-open"
+                    className="inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim rounded-sm px-4 py-2"
+                  >
+                    {st.linkLabel} ↗
+                  </a>
+                  <p className="font-mono text-[11px] text-label-dim break-all">{st.href}</p>
+                  {st.extraLinks?.map((l) => (
+                    <a
+                      key={l.href}
+                      href={l.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-[13px] text-display-dim underline break-all hover:text-display"
+                    >
+                      {l.label} ↗
+                    </a>
+                  ))}
+                  {st.extra}
+                </div>
+                <button
+                  type="button"
+                  aria-pressed={!!checks[st.id]}
+                  onClick={() => onCheck(st.id, !checks[st.id])}
+                  data-testid="check-toggle"
+                  className={cn(
+                    "border rounded-sm px-3.5 py-2.5 flex items-center gap-3 text-left w-full sm:w-auto transition-colors",
+                    checks[st.id]
+                      ? "border-led bg-led/10 text-display"
+                      : "border-hairline bg-panel-light text-display-dim hover:bg-panel-mid hover:border-label-dim",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "shrink-0 w-7 h-7 rounded-full border flex items-center justify-center font-mono text-[12px] font-bold",
+                      checks[st.id] ? "bg-led border-led text-shell" : "border-label-dim text-display",
+                    )}
+                    aria-hidden="true"
+                  >
+                    {checks[st.id] ? "✓" : ""}
+                  </span>
+                  <span className="text-[14px]">{checks[st.id] ? "Checked" : "Mark as checked"}</span>
+                </button>
+              </div>
+            </CarouselItem>
+          ))}
           {rubric.criteria.map((c, i) => (
-            <CarouselItem key={c.id} data-testid="criterion-slide" aria-label={`${shortLabel(c)}, question ${i + 1} of ${rubric.criteria.length}`}>
+            <CarouselItem key={c.id} data-testid="criterion-slide" aria-label={`${shortLabel(c)}, question ${i + 1} of ${nCriteria}`}>
               <div className="space-y-3">
                 <div>
                   <div className="flex items-baseline justify-between gap-2">
                     <h3 className="font-display text-xl uppercase tracking-tight text-display">{shortLabel(c)}</h3>
                     <span className="label-hw-dim">
-                      {i + 1} / {rubric.criteria.length}
+                      {i + 1} / {nCriteria}
                       {c.weight > 1 ? ` · ×${c.weight}` : ""}
                     </span>
                   </div>
@@ -194,7 +308,7 @@ export function CriteriaCarousel({
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => go(i)}
+                    onClick={() => go(nChecks + i)}
                     className="font-mono text-[11px] border border-hairline rounded-sm px-2 py-1 text-display-dim hover:text-display"
                   >
                     {shortLabel(c)} {typeof criteria[c.id] === "number" ? criteria[c.id] : "–"}
@@ -211,23 +325,24 @@ export function CriteriaCarousel({
           type="button"
           onClick={() => go(index - 1)}
           disabled={index === 0}
-          className="font-mono text-[10px] tracking-[0.14em] border border-hairline rounded-sm px-3 py-1.5 text-display hover:bg-panel-deep disabled:opacity-40"
+          className={cn(navBtn, "border-hairline text-display hover:bg-panel-deep")}
         >
           ◂ BACK
         </button>
-        <span className="label-hw-dim">SWIPE OR USE ← →</span>
+        <span className="label-hw-dim hidden sm:inline">SWIPE OR USE ← →</span>
         <button
           type="button"
           onClick={() => go(index + 1)}
           disabled={index === total - 1}
+          data-testid="carousel-next"
           className={cn(
-            "font-mono text-[10px] tracking-[0.14em] border rounded-sm px-3 py-1.5 disabled:opacity-40",
-            currentAnswered
+            navBtn,
+            currentDone
               ? "border-display bg-display text-shell hover:bg-display-dim"
               : "border-hairline text-display hover:bg-panel-deep",
           )}
         >
-          {index === rubric.criteria.length - 1 ? "NOTE ▸" : "NEXT QUESTION ▸"}
+          {nextLabel}
         </button>
       </div>
     </div>
