@@ -21,6 +21,14 @@ import {
   getSubmissionFeedback,
   type FeedbackAnswers,
 } from "@/lib/submissionFeedback";
+import { getProgramProfile } from "@/lib/programProfiles";
+import { TrackedSubmissionFields } from "@/components/program/tracked/TrackedSubmissionFields";
+import {
+  emptyTrackedForm,
+  trackedFormToDetails,
+  validateTrackedForm,
+  type TrackedFormState,
+} from "@/components/program/tracked/trackedForm";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
@@ -45,6 +53,9 @@ export function SubmitProjectModal({
 }) {
   const terms = getSubmissionTerms(program.slug);
   const feedbackConfig = getSubmissionFeedback(program.slug);
+  // Tracked programs (programProfiles.ts) collect tracks, txid, next milestone, etc.
+  const profile = getProgramProfile(program.slug);
+  const [tracked, setTracked] = useState<TrackedFormState>(emptyTrackedForm);
 
   const [submitterName, setName] = useState("");
   const [lumaEmail, setEmail] = useState("");
@@ -82,6 +93,7 @@ export function SubmitProjectModal({
       setSurfacesPrimary(null);
       setSingles({});
       setTexts({});
+      setTracked(emptyTrackedForm());
       setError(null);
       setDone(false);
     }
@@ -109,7 +121,7 @@ export function SubmitProjectModal({
     if (feedbackConfig) {
       for (const q of feedbackConfig.questions) {
         if (q.kind === "multi-primary") {
-          if (surfaces.length === 0) return "Select at least one Bitrefill surface you built with.";
+          if (surfaces.length === 0) return `Please answer: ${q.label}`;
           if (!surfacesPrimary) return "Star the surface you relied on most.";
         } else if (q.kind === "single") {
           if (!singles[q.id]) return `Please answer: ${q.label}`;
@@ -117,6 +129,11 @@ export function SubmitProjectModal({
           if (!(texts[q.id] || "").trim()) return `Please answer: ${q.label}`;
         }
       }
+    }
+
+    if (profile) {
+      const trackedError = validateTrackedForm(profile, tracked);
+      if (trackedError) return trackedError;
     }
 
     if (terms && !agreedToTerms) return "You must agree to the submission terms.";
@@ -154,6 +171,7 @@ export function SubmitProjectModal({
         company,
         ...(terms ? { agreedToTerms: true } : {}),
         ...(feedback ? { feedback } : {}),
+        ...(profile ? { details: trackedFormToDetails(tracked) } : {}),
       });
       setDone(true);
       toast({ title: "Project submitted", description: "Check your email for a confirmation." });
@@ -197,11 +215,16 @@ export function SubmitProjectModal({
             <>
               <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-name" className="label-hw-dim">YOUR NAME</Label>
+                  <Label htmlFor="sub-name" className="label-hw-dim">{profile ? "POINT PERSON NAME" : "YOUR NAME"}</Label>
                   <Input id="sub-name" value={submitterName} onChange={(e) => setName(e.target.value)} className="font-mono text-sm" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-email" className="label-hw-dim">EMAIL USED ON LUMA</Label>
+                  <Label htmlFor="sub-email" className="label-hw-dim">
+                    {profile ? "POINT PERSON EMAIL (USED ON LUMA)" : "EMAIL USED ON LUMA"}
+                  </Label>
+                  {profile && (
+                    <p className="label-hw-dim normal-case">Prizes go to the point person. Never shown publicly.</p>
+                  )}
                   <Input id="sub-email" type="email" value={lumaEmail} onChange={(e) => setEmail(e.target.value)} className="font-mono text-sm" />
                 </div>
                 <div className="space-y-1.5">
@@ -210,7 +233,7 @@ export function SubmitProjectModal({
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-baseline justify-between">
-                    <Label htmlFor="sub-brief" className="label-hw-dim">WHAT DOES IT DO?</Label>
+                    <Label htmlFor="sub-brief" className="label-hw-dim">{profile ? "DESCRIPTION" : "WHAT DOES IT DO?"}</Label>
                     <span className="label-hw-dim">{projectBrief.trim().length}/{BRIEF_MAX}</span>
                   </div>
                   <Textarea
@@ -224,13 +247,17 @@ export function SubmitProjectModal({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-video" className="label-hw-dim">VIDEO DEMO LINK</Label>
+                  <Label htmlFor="sub-video" className="label-hw-dim">{profile ? "DEMO VIDEO LINK (2 MINUTES MAX)" : "VIDEO DEMO LINK"}</Label>
                   <Input id="sub-video" placeholder="https://…" value={videoUrl} onChange={(e) => setVideo(e.target.value)} className="font-mono text-sm" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-github" className="label-hw-dim">GITHUB URL</Label>
+                  <Label htmlFor="sub-github" className="label-hw-dim">{profile ? "PUBLIC REPO WITH A README" : "GITHUB URL"}</Label>
                   <Input id="sub-github" placeholder="https://github.com/…" value={githubUrl} onChange={(e) => setGithub(e.target.value)} className="font-mono text-sm" />
                 </div>
+
+                {profile && (
+                  <TrackedSubmissionFields profile={profile} value={tracked} onChange={setTracked} />
+                )}
 
                 {feedbackConfig && (
                   <div className="space-y-4 border-t border-hairline-subtle pt-4">

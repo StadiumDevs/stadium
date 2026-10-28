@@ -24,6 +24,9 @@ import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
 import { SubmitProjectModal } from "@/components/program/SubmitProjectModal";
 import { ProgramContent } from "@/components/program/ProgramContent";
+import { TrackedProjectsSection } from "@/components/program/tracked/TrackedProjectsSection";
+import { getProgramProfile } from "@/lib/programProfiles";
+import type { ApiPublicSubmissions } from "@/lib/api";
 
 const formatDateRange = (from?: string | null, to?: string | null) => {
   if (!from && !to) return null;
@@ -56,6 +59,9 @@ const ProgramDetailPage = () => {
   const [projects, setProjects] = useState<ApiProgramProject[]>([]);
   const [entries, setEntries] = useState<ApiProject[]>([]);
   const [results, setResults] = useState<ApiPublicResults | null>(null);
+  // Tracked programs (programProfiles.ts) list every submission live.
+  const profile = getProgramProfile(slug);
+  const [tracked, setTracked] = useState<ApiPublicSubmissions | null>(null);
   const [coverError, setCoverError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
@@ -150,14 +156,28 @@ const ProgramDetailPage = () => {
   // Public, PII-free submissions + winners. Returns published:false (and an
   // empty list) until a platform admin publishes the results.
   useEffect(() => {
-    if (!slug || !program) { setResults(null); return; }
+    if (!slug || !program || profile) { setResults(null); return; }
     let active = true;
     api
       .getProgramResults(slug)
       .then((r) => { if (active) setResults(r.data); })
       .catch(() => { if (active) setResults(null); });
     return () => { active = false; };
-  }, [slug, program]);
+  }, [slug, program, profile]);
+
+  useEffect(() => {
+    if (!slug || !program || !profile?.showSubmissionsLive) { setTracked(null); return; }
+    let active = true;
+    const load = () =>
+      api
+        .listPublicSubmissions(slug)
+        .then((r) => { if (active) setTracked(r.data); })
+        .catch(() => { if (active) setTracked(null); });
+    load();
+    // Pick up a project submitted from the modal (or another tab) without a reload.
+    window.addEventListener("focus", load);
+    return () => { active = false; window.removeEventListener("focus", load); };
+  }, [slug, program, profile, submitOpen]);
 
   // Stadium project entries belonging to this program (hackathons etc.).
   // Server filters on hackathon_id, backfilled to match program slugs.
@@ -246,7 +266,9 @@ const ProgramDetailPage = () => {
 
   // Once a hackathon's results are published, flip the page: searchable projects
   // on top, hackathon info collapsed at the bottom.
-  const isPublished = isHackathon && !!results?.published && results.submissions.length > 0;
+  const isPublished = profile
+    ? isHackathon && !!tracked?.published && tracked.submissions.length > 0
+    : isHackathon && !!results?.published && results.submissions.length > 0;
   const filteredResults = (results?.submissions ?? []).filter((s) => {
     const q = resultsQuery.trim().toLowerCase();
     if (!q) return true;
@@ -378,25 +400,39 @@ const ProgramDetailPage = () => {
             <p className="label-hw-dim">{error}</p>
           </div>
         ) : program ? (
-          <article className="max-w-3xl mx-auto">
-            <header className="mb-6">
-              <div className="label-hw-dim mb-2">·PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
-              <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-3">
-                {program.name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="lcd inline-flex items-center gap-2 px-3 py-1.5">
-                  <span className={`led led-sm ${program.status === "open" ? "led-pulse" : ""}`} aria-hidden="true" />
-                  <span className="label-hw text-display">{program.status.toUpperCase()}</span>
-                </div>
-                {program.location && (
-                  <span className="label-hw-dim">{program.location.toUpperCase()}</span>
-                )}
+          <>
+          {/* Program header first on every program, above any project grid. */}
+          <header className={`mb-6 mx-auto ${profile && tracked && isPublished ? "max-w-6xl" : "max-w-3xl"}`} data-testid="program-header">
+            <div className="label-hw-dim mb-2">·PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
+            <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-3">
+              {program.name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="lcd inline-flex items-center gap-2 px-3 py-1.5">
+                <span className={`led led-sm ${program.status === "open" ? "led-pulse" : ""}`} aria-hidden="true" />
+                <span className="label-hw text-display">{program.status.toUpperCase()}</span>
               </div>
-            </header>
+              {program.location && (
+                <span className="label-hw-dim">{program.location.toUpperCase()}</span>
+              )}
+            </div>
+          </header>
+          {/* Tracked programs: the wide project grid sits above the event info once
+              results are published (the Bitrefill "flip"), below it until then. */}
+          {profile && tracked && isPublished && (
+            <div className="max-w-6xl mx-auto">
+              <TrackedProjectsSection
+                profile={profile}
+                programSlug={program.slug}
+                submissions={tracked.submissions}
+                published={tracked.published}
+              />
+            </div>
+          )}
+          <article className="max-w-3xl mx-auto">
 
             {/* Published hackathon: searchable projects up top. */}
-            {isPublished && (
+            {isPublished && !profile && (
               <section className="panel p-4 mb-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div className="label-hw text-display">·PROJECTS ({filteredResults.length})</div>
@@ -779,6 +815,17 @@ const ProgramDetailPage = () => {
               program={program}
             />
           </article>
+          {profile && tracked && !isPublished && (
+            <div className="max-w-6xl mx-auto mt-4">
+              <TrackedProjectsSection
+                profile={profile}
+                programSlug={program.slug}
+                submissions={tracked.submissions}
+                published={tracked.published}
+              />
+            </div>
+          )}
+          </>
         ) : null}
       </main>
     </div>
