@@ -647,6 +647,8 @@ export const requireProgramJudge = (slugParam = 'slug') => async (req, res, next
             programSlug: slug,
             programId: program.id,
             role: grant.role,
+            // Tracked programs: the tracks this judge may score (null = all).
+            tracks: grant.tracks ?? null,
             canJudge: true,
             viewOnly: false,
           };

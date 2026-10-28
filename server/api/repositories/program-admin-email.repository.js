@@ -14,6 +14,8 @@ const transform = (row) => {
     programId: row.program_id,
     email: row.email,
     role: row.role || 'admin',
+    // Tracks this grant may score (tracked programs). null = every track.
+    tracks: Array.isArray(row.tracks) ? row.tracks : null,
     invitedBy: row.invited_by,
     createdAt: row.created_at,
   };

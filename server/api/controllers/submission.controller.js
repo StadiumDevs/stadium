@@ -4,8 +4,15 @@ import programRepository from '../repositories/program.repository.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import programSignupRepository from '../repositories/program-signup.repository.js';
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
+import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
-import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
+import {
+  validateSubmission,
+  validateScore,
+  validateRubricScore,
+  validatePrize,
+  prizeTiersFor,
+} from '../utils/submission.validator.js';
 import { submissionsToCsv } from '../utils/submissions-csv.js';
 import submissionConfirmationService from '../services/submission-confirmation.service.js';
 import prizeAwardService from '../services/prize-award.service.js';
@@ -63,6 +70,8 @@ async function setResultsPublished(req, res, publish) {
     res.status(500).json({ status: 'error', message: 'Failed to update results' });
   }
 }
+
+const RUBRIC_JUDGES_ONLY = "Admins don't score; judges score from their email sign-in link.";
 
 // The judge identity is whatever the auth gate verified: an email for social
 // judges, a wallet address for the admin fallback. Never read from the body.
@@ -283,6 +292,60 @@ class SubmissionController {
       res.status(200).json({ status: 'success', data: score });
     } catch (error) {
       console.error('❌ Error saving score:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to save score' });
+    }
+  }
+
+  // Judge (email session) only: this judge's rubric scores for a tracked
+  // program, so their work restores after a refresh or on another device.
+  async listMyRubricScores(req, res) {
+    try {
+      if (!req.user?.email) {
+        return res.status(403).json({ status: 'error', message: RUBRIC_JUDGES_ONLY });
+      }
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const scores = await submissionRubricScoreRepository.listByJudge(programId, req.user.email);
+      res.status(200).json({ status: 'success', data: scores });
+    } catch (error) {
+      console.error('❌ Error listing rubric scores:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load scores' });
+    }
+  }
+
+  // Judge (email session) only: autosave this judge's rubric score for one
+  // submission and track. Partial scores are allowed; the identity is the
+  // verified session email (any judgeEmail in the body is ignored).
+  async upsertRubricScore(req, res) {
+    try {
+      const judgeEmail = req.user?.email;
+      if (!judgeEmail) {
+        return res.status(403).json({ status: 'error', message: RUBRIC_JUDGES_ONLY });
+      }
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const { submissionId, track } = req.params;
+      if (Array.isArray(req.user.tracks) && !req.user.tracks.includes(track)) {
+        return res.status(403).json({ status: 'error', message: `You are not a judge for the ${track} track.` });
+      }
+      const submission = await programSubmissionRepository.findById(submissionId);
+      if (!submission || submission.programId !== programId) {
+        return res.status(404).json({ status: 'error', message: 'Submission not found' });
+      }
+      const v = validateRubricScore(track, req.body);
+      if (!v.ok) {
+        return res.status(400).json({ status: 'error', message: v.error });
+      }
+      const score = await submissionRubricScoreRepository.upsert({
+        submissionId,
+        programId,
+        judgeEmail,
+        track,
+        ...v.value,
+      });
+      res.status(200).json({ status: 'success', data: score });
+    } catch (error) {
+      console.error('❌ Error saving rubric score:', error);
       res.status(500).json({ status: 'error', message: 'Failed to save score' });
     }
   }

@@ -2,6 +2,8 @@
 // Pure functions — no DB, no I/O — so they're trivially unit-testable and
 // reusable from the controller.
 
+import { RUBRICS } from '../constants/rubrics.js';
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Max length of the project brief; mirrored by BRIEF_MAX in the client form.
@@ -203,4 +205,40 @@ export function validateScore(body = {}) {
     return { ok: false, error: 'Notes must be 5000 characters or fewer' };
   }
   return { ok: true, value: { ...out, notes } };
+}
+
+// Rubric scores (tracked programs). Partial is allowed: each criterion is an
+// integer 0..max or null (not scored yet), so a judge's work can autosave.
+export function validateRubricScore(track, body = {}) {
+  const rubric = RUBRICS[track];
+  if (!rubric) return { ok: false, error: `Unknown track: ${track}` };
+  const input = body.criteria;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return { ok: false, error: 'criteria must be an object' };
+  }
+  const criteria = {};
+  for (const [key, value] of Object.entries(input)) {
+    const c = rubric.find((x) => x.id === key);
+    if (!c) return { ok: false, error: `Unknown criterion for ${track}: ${key}` };
+    if (value === null) {
+      criteria[key] = null;
+      continue;
+    }
+    if (!Number.isInteger(value) || value < 0 || value > c.max) {
+      return { ok: false, error: `${key} must be a whole number between 0 and ${c.max}` };
+    }
+    criteria[key] = value;
+  }
+  const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
+  if (notes.length > 5000) {
+    return { ok: false, error: 'Notes must be 5000 characters or fewer' };
+  }
+  let session = null;
+  if (body.session !== undefined && body.session !== null && body.session !== '') {
+    if (typeof body.session !== 'string' || !/^[a-z0-9-]{1,32}$/.test(body.session)) {
+      return { ok: false, error: 'session must be up to 32 lowercase letters, digits or dashes' };
+    }
+    session = body.session;
+  }
+  return { ok: true, value: { criteria, notes, session } };
 }
