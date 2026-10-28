@@ -81,7 +81,7 @@ export const weightedTotal = (rubric: Rubric, criteria: Record<string, number | 
 export const isFullyScored = (rubric: Rubric, criteria: Record<string, number | null>) =>
   rubric.criteria.every((c) => typeof criteria[c.id] === "number");
 
-export const PRIVACY_JUDGING_GUIDE_URL = "https://claude.ai/artifact/UhmhKnSEg4v8arqj2nua66";
+export const PRIVACY_JUDGING_GUIDE_URL = "https://app.notion.com/p/Privacy-track-judging-guide-4023e52aeb158049acc3e80512df018d";
 
 // Final five-criterion Privacy rubric (brief, 28 Oct): unweighted 0-3 plus a
 // 0/1 Bonus, max 16. Ties: Continuing, then Needed. Works 0 can't win.

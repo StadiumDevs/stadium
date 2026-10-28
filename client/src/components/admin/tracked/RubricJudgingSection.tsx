@@ -22,7 +22,9 @@ import {
   type ProgramProfile,
 } from "@/lib/programProfiles";
 import { buildSubmissionsCsv, downloadCsv } from "@/lib/trackedCsv";
+import { toPublicSubmission } from "@/lib/trackedDisplay";
 import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadge";
+import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
 import { useToast } from "@/hooks/use-toast";
@@ -104,6 +106,8 @@ export function RubricJudgingSection({
   const [boardTrack, setBoardTrack] = useState<JudgedTrack>(profile.tracks[0].id);
   const [board, setBoard] = useState<ApiRubricLeaderboard | null>(null);
   const [openRow, setOpenRow] = useState<string | null>(null);
+  // Leaderboard row whose project details are open (a reminder of what it was).
+  const [detailsId, setDetailsId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -313,6 +317,9 @@ export function RubricJudgingSection({
   }));
   const currentIdx = Math.max(0, queue.findIndex((q) => draftId(q.s.id, q.track) === current));
   const currentItem = queue[currentIdx] ?? null;
+  const detailsRecord = detailsId ? submissions.find((x) => x.id === detailsId) ?? null : null;
+  // Judges get the public view (anonymous names hidden); admins see the names.
+  const detailsSubmission = detailsRecord ? toPublicSubmission(detailsRecord, { showPrizes: true, showNames: !isJudge }) : null;
   const guideTrack = judge?.tracks.find((t) => trackById(profile, t).rubric.guideUrl);
 
   return (
@@ -572,10 +579,24 @@ export function RubricJudgingSection({
                         <tr className="border-t border-hairline-subtle align-top" data-testid="leaderboard-row">
                           <td className="py-2 pr-2 font-mono">{r.rank}</td>
                           <td className="py-2 pr-2">
-                            <button type="button" onClick={() => setOpenRow(openRow === r.submissionId ? null : r.submissionId)} className="text-left text-display hover:underline">
+                            <button
+                              type="button"
+                              onClick={() => setDetailsId(r.submissionId)}
+                              className="text-left text-display underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                              title="Show project details"
+                              data-testid="leaderboard-project"
+                            >
                               {r.projectTitle}
                             </button>
                             <div className="flex flex-wrap gap-1 mt-1">
+                              <button
+                                type="button"
+                                onClick={() => setOpenRow(openRow === r.submissionId ? null : r.submissionId)}
+                                aria-expanded={openRow === r.submissionId}
+                                className="label-hw-dim hover:text-display"
+                              >
+                                {openRow === r.submissionId ? "HIDE SCORES ▴" : "JUDGES' SCORES ▾"}
+                              </button>
                               {r.track === "both" && <span className="label-hw-dim">BOTH TRACKS</span>}
                               {boardTrack === "privacy" && <TxCheckBadge check={r.txCheck} />}
                               {r.tieBrokenBy && <span className="label-hw text-display">TIE · BROKEN BY {r.tieBrokenBy.toUpperCase()}</span>}
@@ -658,6 +679,13 @@ export function RubricJudgingSection({
           )}
         </>
       )}
+      <SubmissionDetailModal
+        profile={profile}
+        programSlug={programSlug}
+        submission={detailsSubmission}
+        onOpenChange={(open) => !open && setDetailsId(null)}
+        showPageLink={!!publishedAt}
+      />
     </section>
   );
 }

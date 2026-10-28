@@ -87,7 +87,7 @@ export function JudgingProgressTable({
                 </td>
                 <td className="py-1.5">
                   <div className="h-1.5 bg-panel-deep border border-hairline-subtle" aria-hidden="true">
-                    <div className={cn("h-full", pct === 100 ? "bg-display" : "bg-led")} style={{ width: `${pct}%` }} />
+                    <div className={cn("h-full", pct === 100 ? "bg-led" : "bg-display")} style={{ width: `${pct}%` }} />
                   </div>
                 </td>
               </tr>

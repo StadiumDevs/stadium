@@ -27,6 +27,7 @@ import {
 } from "./programProfiles";
 import { buildFreeSocietyHackSeed, FSH_JUDGES, type TrackedSeed } from "./mocks/freeSocietyHack.seed";
 import { checkTestnetTx } from "./txCheck";
+import { toPublicSubmission } from "./trackedDisplay";
 
 const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }> = {
   "free-society-hack-2026": { build: buildFreeSocietyHackSeed, judges: FSH_JUDGES },
@@ -72,27 +73,8 @@ const now = () => new Date().toISOString();
 const mean = (ns: number[]) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
 const EPS = 1e-9;
 
-export const ANONYMOUS = "Anonymous";
-
-const toPublic = (s: ApiTrackedSubmission, published: boolean): ApiPublicSubmission => {
-  // Strip emails and private check-in answers; prizes only once published.
-  // Anonymous entries also hide every name (admins read the full record).
-  const { team, checkIns, ...rest } = s.details;
-  const anon = !!s.details.anonymous;
-  return {
-    id: s.id,
-    projectTitle: s.projectTitle,
-    projectBrief: s.projectBrief,
-    submitterName: anon ? ANONYMOUS : s.submitterName,
-    videoUrl: s.videoUrl,
-    githubUrl: s.githubUrl,
-    late: !!s.late,
-    createdAt: s.createdAt,
-    details: { ...rest, team: team.map((m) => ({ name: anon ? "Teammate" : m.name, role: m.role ?? null })) },
-    prizes: published ? s.prizes : {},
-    ecosystemPrize: published && s.ecosystemPrize,
-  };
-};
+const toPublic = (s: ApiTrackedSubmission, published: boolean): ApiPublicSubmission =>
+  toPublicSubmission(s, { showPrizes: published });
 
 const bestPrize = (s: { prizes: Partial<Record<JudgedTrack, ApiPrizeTier>> }) =>
   Math.max(-1, ...Object.values(s.prizes).map((p) => p?.amount ?? -1));

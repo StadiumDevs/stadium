@@ -7,17 +7,20 @@ import { SubmissionDetails } from "./SubmissionDetails";
 import { EcosystemBadge } from "./SubmissionCard";
 import { formatPrize, prizeEntries } from "@/lib/trackedDisplay";
 
-/** Opens from a project card: every submitted field, no page needed. */
+/** Opens from a project card (or a leaderboard row): every submitted field, no page needed. */
 export function SubmissionDetailModal({
   profile,
   programSlug,
   submission,
   onOpenChange,
+  showPageLink = true,
 }: {
   profile: ProgramProfile;
   programSlug: string;
   submission: ApiPublicSubmission | null;
   onOpenChange: (open: boolean) => void;
+  /** Winner page link; off where results may not be published yet (judging). */
+  showPageLink?: boolean;
 }) {
   const prizes = submission ? prizeEntries(submission) : [];
   const milestone = submission && isEcosystem(submission) ? submission.details.milestone : null;
@@ -26,8 +29,15 @@ export function SubmissionDetailModal({
       {/* Inset from the viewport at every width with a visible border, so the
           panel never runs into the screen edge. The inner wrapper scrolls, so
           the close button (positioned on the dialog itself) never scrolls away. */}
+      {/* Focus the dialog itself on open: the default (first focusable) is the
+          tx badge, which pops its tooltip and makes the first Escape close
+          only the tooltip. */}
       <DialogContent
         data-testid="submission-modal"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement).focus();
+        }}
         className="w-[calc(100%-2rem)] sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden border border-hairline rounded-sm [&>button]:z-10"
       >
         {submission && (
@@ -50,7 +60,7 @@ export function SubmissionDetailModal({
             )}
             {milestone && <MilestoneProgress profile={profile} milestone={milestone} />}
             <SubmissionDetails profile={profile} submission={submission} />
-            {prizes.length > 0 && (
+            {showPageLink && prizes.length > 0 && (
               <Link
                 to={`/programs/${programSlug}/projects/${submission.id}`}
                 className="self-start font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
