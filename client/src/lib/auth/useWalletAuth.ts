@@ -11,9 +11,20 @@ import type { Chain, WalletAccount } from './types'
 import { getProvider } from './registry'
 import { generateSiwsStatement, type SiwsContext } from '@/lib/siwsUtils'
 import { readAdminToken, writeAdminToken, clearAdminToken } from './adminSession'
-import { API_BASE_URL } from '@/lib/api'
+import { API_BASE_URL, USE_MOCK_DATA } from '@/lib/api'
 
 const SESSION_KEY = 'stadium_wallet_session_v2'
+// Mock mode has no server to exchange with: one signature proves the wallet and
+// opens a local session as long as the server's default (ADMIN_SESSION_TTL_SECONDS).
+const MOCK_SESSION_TTL_MS = 15 * 60 * 1000
+
+/** A silent (non-interactive) admin-auth call found no cached session. */
+export class AdminSignInRequired extends Error {
+  constructor() {
+    super('Admin session expired: sign in again')
+    this.name = 'AdminSignInRequired'
+  }
+}
 
 /** Headers an admin caller can attach. Exactly one of these is populated. */
 export type AdminAuthHeaders =
@@ -38,9 +49,12 @@ export interface WalletAuth {
   /**
    * Get an admin auth bearer token, signing once + exchanging if the cache
    * is empty or expired. Resolves with `Authorization: Bearer …` headers so
-   * the caller can spread them straight into a fetch.
+   * the caller can spread them straight into a fetch. With
+   * `{ interactive: false }` it never opens the wallet: it returns the cached
+   * session or throws `AdminSignInRequired` (for background refreshes).
+   * `account` signs as an account just selected, before state has updated.
    */
-  getAdminBearerHeaders: () => Promise<AdminAuthHeaders>
+  getAdminBearerHeaders: (opts?: { interactive?: boolean; account?: WalletAccount }) => Promise<AdminAuthHeaders>
   disconnect: () => void
 }
 
@@ -140,14 +154,18 @@ export function useWalletAuth(): WalletAuth {
   // getAdminBearerHeaders on mount) fire 4 simultaneous SIWS signs and the
   // wallet extension rate-limits the burst with "rate limit exceeded".
   const inflightSignRef = useRef<Promise<AdminAuthHeaders> | null>(null)
+  // The connected account; callers may pass a just-selected one instead.
+  const currentAccount = account
 
-  const getAdminBearerHeaders = useCallback(async (): Promise<AdminAuthHeaders> => {
+  const getAdminBearerHeaders = useCallback(async (opts?: { interactive?: boolean; account?: WalletAccount }): Promise<AdminAuthHeaders> => {
+    const account = opts?.account ?? currentAccount
     if (!account) throw new Error('Wallet not connected')
 
     const cached = readAdminToken(account.chain, account.address)
     if (cached) {
       return { Authorization: `Bearer ${cached}` }
     }
+    if (opts?.interactive === false) throw new AdminSignInRequired()
 
     // A sign is already in flight — piggy-back on it instead of triggering
     // a parallel popup.
@@ -163,6 +181,18 @@ export function useWalletAuth(): WalletAuth {
         if (!provider) throw new Error(`Unsupported sign-in chain: ${account.chain}`)
         const statement = generateSiwsStatement({ action: 'admin-action' })
         const siwsHeader = await provider.signIn({ account, statement })
+
+        if (USE_MOCK_DATA) {
+          // The mock API ignores auth; never send the signature to a server
+          // (a preview build would otherwise hit the production API).
+          writeAdminToken({
+            chain: account.chain,
+            address: account.address,
+            token: 'mock-session',
+            expiresAt: new Date(Date.now() + MOCK_SESSION_TTL_MS).toISOString(),
+          })
+          return { Authorization: 'Bearer mock-session' }
+        }
 
         try {
           const res = await fetch(`${API_BASE_URL}/admin/session`, {
@@ -200,7 +230,7 @@ export function useWalletAuth(): WalletAuth {
 
     inflightSignRef.current = signFlow
     return signFlow
-  }, [account])
+  }, [currentAccount])
 
   const disconnect = useCallback(() => {
     if (account) {

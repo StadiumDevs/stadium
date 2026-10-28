@@ -80,6 +80,7 @@ export function RubricJudgingSection({
   programSlug,
   prizeTiers,
   getAuth,
+  getPollAuth,
   canSelectWinners,
   judgeEmail,
 }: {
@@ -87,6 +88,8 @@ export function RubricJudgingSection({
   programSlug: string;
   prizeTiers: ApiPrizeTier[] | null | undefined;
   getAuth: () => Promise<AdminAuthArg>;
+  /** Auth for background refreshes; must never open the wallet. Defaults to getAuth. */
+  getPollAuth?: () => Promise<AdminAuthArg>;
   canSelectWinners: boolean;
   /** The signed-in judge (from their email link). null = admin: no scoring. */
   judgeEmail: string | null;
@@ -345,6 +348,7 @@ export function RubricJudgingSection({
         profile={profile}
         programSlug={programSlug}
         getAuth={getAuth}
+        getPollAuth={getPollAuth}
         youName={judge?.name}
         refreshToken={progressToken}
       />

@@ -10,44 +10,52 @@ const POLL_MS = 5000;
  * judges and admins. Refreshes on its own: polls while mounted, re-reads when
  * another tab saves (the playground's multi-judge setup), and whenever
  * `refreshToken` changes (this judge just saved). Names only, never emails.
+ * Background refreshes use `getPollAuth`, which must never open the wallet:
+ * if it has no session it throws and the last table stays.
  */
 export function JudgingProgressTable({
   profile,
   programSlug,
   getAuth,
+  getPollAuth = getAuth,
   youName,
   refreshToken,
 }: {
   profile: ProgramProfile;
   programSlug: string;
   getAuth: () => Promise<AdminAuthArg>;
+  getPollAuth?: () => Promise<AdminAuthArg>;
   youName?: string | null;
   refreshToken: number;
 }) {
   const [rows, setRows] = useState<ApiJudgingProgressRow[] | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const r = await api.getJudgingProgress(programSlug, await getAuth());
-      setRows(r.data);
-    } catch {
-      // Keep the last good table; the next poll tries again.
-    }
-  }, [getAuth, programSlug]);
+  const load = useCallback(
+    async (auth: () => Promise<AdminAuthArg>) => {
+      try {
+        const r = await api.getJudgingProgress(programSlug, await auth());
+        setRows(r.data);
+      } catch {
+        // Keep the last good table; the next poll tries again.
+      }
+    },
+    [programSlug],
+  );
 
   useEffect(() => {
-    load();
-  }, [load, refreshToken]);
+    load(getAuth);
+  }, [load, getAuth, refreshToken]);
 
   useEffect(() => {
-    const id = window.setInterval(load, POLL_MS);
-    const onStorage = () => load();
+    const poll = () => load(getPollAuth);
+    const id = window.setInterval(poll, POLL_MS);
+    const onStorage = () => poll();
     window.addEventListener("storage", onStorage);
     return () => {
       window.clearInterval(id);
       window.removeEventListener("storage", onStorage);
     };
-  }, [load]);
+  }, [load, getPollAuth]);
 
   if (!rows) return null;
   const done = rows.filter((r) => r.total > 0 && r.scored >= r.total).length;

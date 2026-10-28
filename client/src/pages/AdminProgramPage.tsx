@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
+import { readAdminToken } from "@/lib/auth/adminSession";
 import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import { isAdmin as checkIsAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
 import {
@@ -75,6 +76,9 @@ const AdminProgramPage = () => {
   // renders because `getAdminBearerHeaders` is memoized against `account`.
   const { getAdminBearerHeaders } = auth;
   const getAdminAuth = useCallback(() => getAdminBearerHeaders(), [getAdminBearerHeaders]);
+  // Background refreshes (the judges' progress poll) reuse the session and
+  // never open the wallet; without a session they skip silently.
+  const getAdminPollAuth = useCallback(() => getAdminBearerHeaders({ interactive: false }), [getAdminBearerHeaders]);
 
   // Social (email magic link) auth — a parallel, view-only path. An invited
   // email admin signs in here and reads their program; the server gates access
@@ -106,11 +110,15 @@ const AdminProgramPage = () => {
   const [filter, setFilter] = useState<Filter>("submitted");
   const [editOpen, setEditOpen] = useState(false);
   const [adminsReload, setAdminsReload] = useState(0);
-  // Viewing the program needs no signature. The wallet-admin sections each sign
-  // an admin-action message when they load their data, so we defer mounting them
-  // behind an explicit unlock — one click, one signature (the concurrent section
-  // loads dedup to a single wallet popup) — instead of prompting on page view.
+  // Logging in (connecting the admin wallet) is the one signature: it opens an
+  // admin session that every section reuses, so the page loads straight in.
+  // Only when that session has expired (a later visit) does the unlock panel
+  // ask for one more signature. Viewing the program itself needs none.
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  useEffect(() => {
+    const acct = auth.account;
+    if (acct && readAdminToken(acct.chain, acct.address)) setAdminUnlocked(true);
+  }, [auth.account]);
   const [errorData, setErrorData] = useState<{
     walletAddresses: string[];
     expectedAddresses: string[];
@@ -225,6 +233,9 @@ const AdminProgramPage = () => {
       if (globalAdmin) {
         auth.selectAccount(globalAdmin);
         setIsProgramAdmin(false);
+        // The login signature: opens the admin session the sections reuse.
+        await auth.getAdminBearerHeaders({ account: globalAdmin });
+        setAdminUnlocked(true);
         return;
       }
 
@@ -243,9 +254,10 @@ const AdminProgramPage = () => {
       try {
         // First call also primes the admin session cache: signs once,
         // exchanges via /api/admin/session, caches the bearer for later.
-        const authHeader = await auth.getAdminBearerHeaders();
+        const authHeader = await auth.getAdminBearerHeaders({ account: candidate });
         await api.listProgramAdmins(slug, authHeader);
         setIsProgramAdmin(true);
+        setAdminUnlocked(true);
       } catch (probeErr) {
         if (probeErr instanceof ApiError && probeErr.status === 403) {
           setErrorData({
@@ -369,18 +381,24 @@ const AdminProgramPage = () => {
             ) : isAdminWallet ? (
               !adminUnlocked ? (
                 <div className="panel px-4 py-10 text-center mb-3">
-                  <div className="label-hw text-display mb-2">·ADMIN DATA LOCKED</div>
+                  <div className="label-hw text-display mb-2">·ADMIN SESSION EXPIRED</div>
                   <p className="label-hw-dim mb-4 max-w-prose mx-auto">
-                    Viewing this program needs no signature. Load the admin data
-                    (guests, judging, stats) to manage it; this signs an admin-action
-                    message once.
+                    Your admin session has ended. Sign once to continue: it opens a
+                    new session for the guests, judging and stats, with no further
+                    prompts while it lasts.
                   </p>
                   <button
                     type="button"
-                    onClick={() => setAdminUnlocked(true)}
+                    onClick={() =>
+                      getAdminAuth()
+                        .then(() => setAdminUnlocked(true))
+                        .catch((e) =>
+                          toast({ title: "Couldn't sign in", description: (e as Error)?.message || "Unknown error", variant: "destructive" }),
+                        )
+                    }
                     className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-1.5"
                   >
-                    LOAD ADMIN DATA ▸
+                    SIGN IN AGAIN ▸
                   </button>
                 </div>
               ) : (
@@ -415,6 +433,7 @@ const AdminProgramPage = () => {
                       programSlug={program.slug}
                       prizeTiers={program.prizeTiers}
                       getAuth={getAdminAuth}
+                      getPollAuth={getAdminPollAuth}
                       canSelectWinners={isGlobalAdmin}
                       judgeEmail={null}
                     />
