@@ -134,3 +134,8 @@ supabase/.temp/
 
 # Generated descriptors (optional: uncomment if not needed in repo)
 # server/.papi/
+# Local working notes and scratch output (not part of the app)
+/new-brief.md
+/updates-review.md
+/todo.md
+/showcase/
