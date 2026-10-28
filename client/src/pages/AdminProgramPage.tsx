@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { HardwareToggle } from "@/components/hardware-toggle";
@@ -8,6 +8,7 @@ import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import { isAdmin as checkIsAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
 import {
   api,
+  USE_MOCK_DATA,
   type ApiProgram,
   type ApiProgramApplication,
   ApiError,
@@ -22,6 +23,12 @@ import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection"
 import { LumaGuestsSection } from "@/components/admin/LumaGuestsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
 import { ProgramResultsSummarySection } from "@/components/admin/ProgramResultsSummarySection";
+import { RubricJudgingSection } from "@/components/admin/tracked/RubricJudgingSection";
+import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdminSection";
+import { CheckInsSection } from "@/components/admin/tracked/CheckInsSection";
+import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
+import { MockPlaygroundBar } from "@/components/admin/tracked/MockPlaygroundBar";
+import { getProgramProfile } from "@/lib/programProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +52,13 @@ const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
 const AdminProgramPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const { toast } = useToast();
+  // Tracked programs (programProfiles.ts) swap in rubric judging + milestones.
+  const profile = getProgramProfile(slug);
+  // Mock mode only: `?judge=<email>` stands in for a judge's emailed sign-in
+  // link (the playground has no Supabase). Ignored against a real API.
+  const [searchParams] = useSearchParams();
+  const mockJudgeEmail = USE_MOCK_DATA && profile ? searchParams.get("judge") : null;
+  const getMockJudgeAuth = useCallback(async () => undefined, []);
   const auth = useWalletAuth();
   const connectedAddress = auth.account?.address ?? null;
   // Phase 3 #95: a global admin matches `ADMIN_ADDRESSES`; a per-program
@@ -325,7 +339,34 @@ const AdminProgramPage = () => {
               />
             )}
 
-            {isAdminWallet ? (
+            {mockJudgeEmail && profile ? (
+              <>
+                <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2 border-dashed" data-testid="mock-judge-bar">
+                  <span className="lcd inline-flex items-center gap-2 px-3 py-1.5">
+                    <span className="led led-sm" aria-hidden="true" />
+                    <span className="label-hw text-display">JUDGE</span>
+                  </span>
+                  <span className="label-hw-dim truncate min-w-0">{mockJudgeEmail}</span>
+                  <span className="label-hw-dim">· PLAYGROUND EMAIL LINK</span>
+                  <div className="flex-1" />
+                  <Link
+                    to={`/admin/programs/${program.slug}`}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-label-dim hover:text-display px-3 py-1.5"
+                  >
+                    SIGN OUT
+                  </Link>
+                </div>
+                <RubricJudgingSection
+                  key={mockJudgeEmail}
+                  profile={profile}
+                  programSlug={program.slug}
+                  prizeTiers={program.prizeTiers}
+                  getAuth={getMockJudgeAuth}
+                  canSelectWinners={false}
+                  judgeEmail={mockJudgeEmail}
+                />
+              </>
+            ) : isAdminWallet ? (
               !adminUnlocked ? (
                 <div className="panel px-4 py-10 text-center mb-3">
                   <div className="label-hw text-display mb-2">·ADMIN DATA LOCKED</div>
@@ -344,13 +385,17 @@ const AdminProgramPage = () => {
                 </div>
               ) : (
               <>
+                {profile && <MockPlaygroundBar program={program} onProgramChange={setProgram} />}
+
                 <ProgramStatsHeader
                   programSlug={program.slug}
                   getAuth={getAdminAuth}
                   eventEndsAt={program.eventEndsAt}
                 />
 
-                {program.status === "completed" && (
+                {/* Bitrefill-shaped feedback summary; tracked programs get the
+                    friction report below instead. */}
+                {program.status === "completed" && !profile && (
                   <ProgramResultsSummarySection
                     program={program}
                     getAuth={getAdminAuth}
@@ -363,15 +408,31 @@ const AdminProgramPage = () => {
                   reloadToken={adminsReload}
                 />
 
-                <ProgramJudgingSection
-                  programSlug={program.slug}
-                  getAuth={getAdminAuth}
-                  signPublishAction={() => auth.signAction("publish-results")}
-                  canSelectWinners={isGlobalAdmin}
-                  prizeTiers={program.prizeTiers}
-                  resultsPublishedAt={program.resultsPublishedAt}
-                  onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
-                />
+                {profile ? (
+                  <>
+                    <RubricJudgingSection
+                      profile={profile}
+                      programSlug={program.slug}
+                      prizeTiers={program.prizeTiers}
+                      getAuth={getAdminAuth}
+                      canSelectWinners={isGlobalAdmin}
+                      judgeEmail={null}
+                    />
+                    <MilestonesAdminSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
+                    <CheckInsSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
+                    <FrictionReportSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
+                  </>
+                ) : (
+                  <ProgramJudgingSection
+                    programSlug={program.slug}
+                    getAuth={getAdminAuth}
+                    signPublishAction={() => auth.signAction("publish-results")}
+                    canSelectWinners={isGlobalAdmin}
+                    prizeTiers={program.prizeTiers}
+                    resultsPublishedAt={program.resultsPublishedAt}
+                    onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
+                  />
+                )}
 
                 {program.programType !== "hackathon" && (
                   <ProgramSponsorsSection
@@ -513,7 +574,17 @@ const AdminProgramPage = () => {
 
                 {/* Judges + admins both score; judges see ONLY this. Email
                     sessions are never platform admins, so no winner selection. */}
-                {socialCanJudge && (
+                {socialCanJudge && profile && (
+                  <RubricJudgingSection
+                    profile={profile}
+                    programSlug={program.slug}
+                    prizeTiers={program.prizeTiers}
+                    getAuth={getJudgeAuth}
+                    canSelectWinners={false}
+                    judgeEmail={social.email}
+                  />
+                )}
+                {socialCanJudge && !profile && (
                   <ProgramJudgingSection
                     programSlug={program.slug}
                     getAuth={getJudgeAuth}
