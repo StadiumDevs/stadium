@@ -5,7 +5,7 @@ export type ScoringNavItem = { key: string; number: number; title: string; state
 
 /**
  * Sticky bar at the top of the scoring view: overall progress, then one box
- * per project (green = saved, dashed = draft, outlined = unscored, ringed =
+ * per project (green = fully scored, dashed = in progress, outlined = untouched, ringed =
  * the one open now), so what still needs scoring stands out. Clicking a box jumps to that project.
  */
 export function ScoringNav({
@@ -31,7 +31,7 @@ export function ScoringNav({
     <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-panel-mid border-b border-hairline space-y-2" data-testid="scoring-nav">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-[12px] text-display" data-testid="scoring-nav-count">
-          {scored} / {total} SCORED{drafts > 0 ? ` · ${drafts} DRAFT${drafts === 1 ? "" : "S"}` : ""}
+          {scored} / {total} SCORED{drafts > 0 ? ` · ${drafts} IN PROGRESS` : ""}
         </span>
         <div className="flex flex-wrap items-center gap-3">{children}</div>
       </div>

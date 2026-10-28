@@ -2498,13 +2498,16 @@ export const api = {
   listMyRubricScores: async (
     slug: string,
     judgeEmail: string,
-    _authHeader: AdminAuthArg,
+    authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiRubricScore[] }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return { status: "success", data: mockTracked.scores(slug).filter((s) => s.judgeEmail === judgeEmail) };
     }
-    throw trackedNotOnServer();
+    // The server knows the judge from their email session; judgeEmail is mock-only.
+    return request(`/programs/${encodeURIComponent(slug)}/rubric-scores/mine`, {
+      headers: adminAuthHeaders(authHeader),
+    });
   },
 
   /** Judge/admin: how many projects each judge has scored out of their tracks' total. */
@@ -2530,7 +2533,7 @@ export const api = {
   saveRubricScore: async (
     slug: string,
     score: Omit<ApiRubricScore, "updatedAt">,
-    _authHeader: AdminAuthArg,
+    authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiRubricScore }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
@@ -2540,7 +2543,15 @@ export const api = {
         throw new ApiError((e as Error).message, 403);
       }
     }
-    throw trackedNotOnServer();
+    // Partial scores are fine (autosave). The judge is the verified session email.
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(score.submissionId)}/rubric-scores/${score.track}`,
+      {
+        method: "PUT",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify({ criteria: score.criteria, notes: score.notes, session: score.session }),
+      },
+    );
   },
 
   /** Judge/admin: per-track leaderboard (average weighted total + tie-breaks). */

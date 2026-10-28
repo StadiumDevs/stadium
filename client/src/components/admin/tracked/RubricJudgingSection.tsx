@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RotateCw } from "lucide-react";
 import {
   api,
@@ -30,6 +30,8 @@ import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
+// A change not yet confirmed by the server. Kept on this device until it is,
+// so a refresh or a dropped connection never loses a judge's work.
 type Draft = { criteria: Record<string, number | null>; notes: string };
 const draftId = (submissionId: string, track: JudgedTrack) => `${submissionId}:${track}`;
 
@@ -48,7 +50,11 @@ const writeDrafts = (key: string, drafts: Record<string, Draft>) => {
   }
 };
 
+// The open project lives in the URL hash (#p=<submission>:<track>) and in
+// localStorage, so a refresh reopens it. The hash wins (it survives a copied link).
 const readPos = (key: string): string | null => {
+  const m = window.location.hash.match(/^#p=(.+)$/);
+  if (m) return decodeURIComponent(m[1]);
   try {
     return localStorage.getItem(`${key}_pos`);
   } catch {
@@ -56,12 +62,16 @@ const readPos = (key: string): string | null => {
   }
 };
 const writePos = (key: string, pos: string) => {
+  window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#p=${encodeURIComponent(pos)}`);
   try {
     localStorage.setItem(`${key}_pos`, pos);
   } catch {
-    // Storage unavailable — position resets on reload.
+    // Storage unavailable — the hash still keeps the position.
   }
 };
+
+const NOTE_DEBOUNCE_MS = 700;
+const RETRY_MS = 15000;
 
 const fmt = (n: number) => (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, "");
 const btn = "font-mono text-[10px] tracking-[0.14em] border px-3 py-1.5 disabled:opacity-50";
@@ -103,6 +113,11 @@ export function RubricJudgingSection({
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [myScores, setMyScores] = useState<ApiRubricScore[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  // Per (submission, track): a save in flight, or the last one failed.
+  const [sync, setSync] = useState<Record<string, "saving" | "error">>({});
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  const timers = useRef<Record<string, number>>({});
   const [current, setCurrent] = useState<string | null>(null);
   const [progressToken, setProgressToken] = useState(0);
   const [unscoredOnly, setUnscoredOnly] = useState(false);
@@ -133,12 +148,20 @@ export function RubricJudgingSection({
 
   useEffect(() => {
     if (!judgeEmail) return;
-    setDrafts(readDrafts(draftKey));
+    const pending = readDrafts(draftKey);
+    draftsRef.current = pending;
+    setDrafts(pending);
     setCurrent(readPos(draftKey));
     getAuth()
       .then((auth) => api.listMyRubricScores(programSlug, judgeEmail, auth))
-      .then((r) => setMyScores(r.data))
+      .then((r) => {
+        setMyScores(r.data);
+        // Changes made before a refresh that never reached the server.
+        for (const id of Object.keys(draftsRef.current)) window.setTimeout(() => flush(id), 0);
+      })
       .catch(() => setMyScores([]));
+    // Load once per judge; flush is only read here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [judgeEmail, draftKey, getAuth, programSlug]);
 
   const loadBoard = useCallback(async () => {
@@ -173,16 +196,91 @@ export function RubricJudgingSection({
     return { criteria: Object.fromEntries(rubric.criteria.map((c) => [c.id, null])), notes: "" };
   };
 
-  const updateDraft = (submissionId: string, track: JudgedTrack, next: Draft) => {
-    const all = { ...drafts, [draftId(submissionId, track)]: next };
+  const setPending = (all: Record<string, Draft>) => {
+    draftsRef.current = all;
     setDrafts(all);
     writeDrafts(draftKey, all);
   };
 
+  // Send one pending change to the judge's record. Partial scores are fine;
+  // only fully scored projects count towards progress and the leaderboard.
+  const flush = useCallback(
+    async (id: string) => {
+      const d = draftsRef.current[id];
+      if (!d || !judgeEmail) return;
+      const [submissionId, track] = id.split(":") as [string, JudgedTrack];
+      setSync((x) => ({ ...x, [id]: "saving" }));
+      try {
+        const auth = await getAuth();
+        const r = await api.saveRubricScore(
+          programSlug,
+          { submissionId, judgeEmail, track, criteria: d.criteria, notes: d.notes, session },
+          auth,
+        );
+        setMyScores((prev) => [...prev.filter((x) => !(x.submissionId === submissionId && x.track === track)), r.data]);
+        // Clear it unless the judge changed it again while this was saving.
+        if (draftsRef.current[id] === d) {
+          const rest = { ...draftsRef.current };
+          delete rest[id];
+          draftsRef.current = rest;
+          setDrafts(rest);
+          writeDrafts(draftKey, rest);
+        }
+        setSync((x) => {
+          const rest = { ...x };
+          delete rest[id];
+          return rest;
+        });
+        setProgressToken((n) => n + 1);
+      } catch {
+        setSync((x) => ({ ...x, [id]: "error" }));
+      }
+    },
+    [draftKey, getAuth, judgeEmail, programSlug, session],
+  );
+
+  // Keep the change on this device first, then autosave it: rubric clicks go
+  // at once, typing in the note waits for a pause.
+  const updateDraft = (submissionId: string, track: JudgedTrack, next: Draft, delay = 0) => {
+    const id = draftId(submissionId, track);
+    setPending({ ...draftsRef.current, [id]: next });
+    window.clearTimeout(timers.current[id]);
+    timers.current[id] = window.setTimeout(() => flush(id), delay);
+  };
+
+  // Retry anything still pending: on load, when the connection returns, and
+  // every 15 s.
+  const flushAll = useCallback(() => {
+    for (const id of Object.keys(draftsRef.current)) flush(id);
+  }, [flush]);
+  useEffect(() => {
+    if (!judgeEmail) return;
+    const id = window.setInterval(flushAll, RETRY_MS);
+    window.addEventListener("online", flushAll);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("online", flushAll);
+    };
+  }, [judgeEmail, flushAll]);
+
+  // saved = fully scored on the server; draft = in progress (partial, or a
+  // change still being saved); unscored = not touched yet.
   const itemState = (submissionId: string, track: JudgedTrack): ScoringNavItem["state"] => {
-    if (drafts[draftId(submissionId, track)]) return "draft";
+    const rubric = trackById(profile, track).rubric;
+    const d = drafts[draftId(submissionId, track)];
+    if (d) return isFullyScored(rubric, d.criteria) && !sync[draftId(submissionId, track)] ? "saved" : "draft";
     const saved = savedFor(submissionId, track);
-    return saved && isFullyScored(trackById(profile, track).rubric, saved.criteria) ? "saved" : "unscored";
+    if (!saved) return "unscored";
+    if (isFullyScored(rubric, saved.criteria)) return "saved";
+    return Object.values(saved.criteria).some((v) => typeof v === "number") || saved.notes ? "draft" : "unscored";
+  };
+
+  const nextUnscored = (fromId: string | null) => {
+    const at = queue.findIndex((q) => draftId(q.s.id, q.track) === fromId);
+    const rotated = [...queue.slice(at + 1), ...queue.slice(0, Math.max(at, 0))];
+    const next = rotated.find((q) => itemState(q.s.id, q.track) !== "saved");
+    if (next) goTo(draftId(next.s.id, next.track));
+    else toast({ title: "Every project is scored", description: "You can still reopen any project from the bar." });
   };
 
   const goTo = (key: string) => {
@@ -194,38 +292,6 @@ export function RubricJudgingSection({
     const saved = savedFor(s.id, track);
     return saved && isFullyScored(trackById(profile, track).rubric, saved.criteria);
   }).length;
-
-  const save = async (submissionId: string, track: JudgedTrack, advance = false) => {
-    const d = draftFor(submissionId, track);
-    const rubric = trackById(profile, track).rubric;
-    if (!isFullyScored(rubric, d.criteria)) {
-      toast({ title: "Score every criterion first", description: "Unscored criteria are left blank, not counted as 0.", variant: "destructive" });
-      return;
-    }
-    setBusy(draftId(submissionId, track));
-    try {
-      const auth = await getAuth();
-      const r = await api.saveRubricScore(programSlug, { submissionId, judgeEmail: judgeEmail ?? "", track, criteria: d.criteria, notes: d.notes, session }, auth);
-      setMyScores((prev) => [...prev.filter((x) => !(x.submissionId === submissionId && x.track === track)), r.data]);
-      const rest = { ...drafts };
-      delete rest[draftId(submissionId, track)];
-      setDrafts(rest);
-      writeDrafts(draftKey, rest);
-      setProgressToken((n) => n + 1);
-      toast({ title: "Score saved" });
-      if (advance) {
-        const at = queue.findIndex((q) => draftId(q.s.id, q.track) === draftId(submissionId, track));
-        const rotated = [...queue.slice(at + 1), ...queue.slice(0, at)];
-        const next = rotated.find((q) => !savedFor(q.s.id, q.track) && !(q.s.id === submissionId && q.track === track));
-        if (next) goTo(draftId(next.s.id, next.track));
-        else toast({ title: "Every project is scored", description: "You can still reopen any project from the bar." });
-      }
-    } catch (e) {
-      toast({ title: "Couldn't save score", description: (e as Error).message, variant: "destructive" });
-    } finally {
-      setBusy(null);
-    }
-  };
 
   const recheck = async (submissionId: string) => {
     setBusy(`tx:${submissionId}`);
@@ -405,7 +471,7 @@ export function RubricJudgingSection({
           </ScoringNav>
 
           <p className="label-hw-dim normal-case">
-            Unsaved scores are kept on this device, so you can stop after the evening session and carry on in the morning.
+            Every change saves to your judge record automatically. You can close the tab and carry on later, on any device.
           </p>
 
           {currentItem &&
@@ -415,7 +481,8 @@ export function RubricJudgingSection({
               const rubric = trackById(profile, track).rubric;
               const d = draftFor(s.id, track);
               const saved = savedFor(s.id, track);
-              const dirty = !!drafts[id];
+              const pending = !!drafts[id];
+              const state = itemState(s.id, track);
               const total = weightedTotal(rubric, d.criteria);
               const prev = queue[(currentIdx - 1 + queue.length) % queue.length];
               const next = queue[(currentIdx + 1) % queue.length];
@@ -428,8 +495,20 @@ export function RubricJudgingSection({
                     <span className="font-display text-lg uppercase tracking-tight text-display flex-1 min-w-[160px]">{s.projectTitle}</span>
                     <span className="label-hw-dim">{trackById(profile, track).shortLabel}</span>
                     {track === "privacy" && <TxCheckBadge check={s.details.txCheck} />}
-                    <span className={cn("label-hw", saved && !dirty ? "text-display" : "text-label-mid")}>
-                      {dirty ? "DRAFT" : saved ? `SAVED · ${saved.session.toUpperCase()}` : "UNSCORED"}
+<span
+                      className={cn("label-hw", sync[id] === "error" ? "text-destructive" : state === "saved" ? "text-led" : "text-label-mid")}
+                      data-testid="save-status"
+                      aria-live="polite"
+                    >
+                      {sync[id] === "error"
+                        ? "NOT SAVED YET · RETRYING"
+                        : pending
+                          ? "SAVING…"
+                          : state === "saved"
+                            ? `SAVED${saved?.session ? ` · ${saved.session.toUpperCase()}` : ""}`
+                            : state === "draft"
+                              ? "IN PROGRESS · SAVED"
+                              : "UNSCORED"}
                     </span>
                     <span className="font-mono text-[12px] text-display">
                       {fmt(total)}/{maxScore(rubric)}
@@ -499,7 +578,7 @@ export function RubricJudgingSection({
                       <textarea
                         rows={2}
                         value={d.notes}
-                        onChange={(e) => updateDraft(s.id, track, { ...d, notes: e.target.value })}
+                        onChange={(e) => updateDraft(s.id, track, { ...d, notes: e.target.value }, NOTE_DEBOUNCE_MS)}
                         className="w-full bg-panel-deep border border-hairline text-display font-mono text-[12px] px-2 py-1.5"
                       />
                     </label>
@@ -507,26 +586,9 @@ export function RubricJudgingSection({
                       <button type="button" onClick={() => goTo(draftId(prev.s.id, prev.track))} className={btnGhost} disabled={queue.length < 2}>
                         ◂ PREV
                       </button>
-                      <button type="button" onClick={() => save(s.id, track, true)} disabled={busy === id} className={btnSolid}>
-                        SAVE &amp; NEXT ({fmt(total)}/{maxScore(rubric)})
+                      <button type="button" onClick={() => nextUnscored(id)} className={btnSolid}>
+                        NEXT UNSCORED ▸
                       </button>
-                      <button type="button" onClick={() => save(s.id, track)} disabled={busy === id} className={btnGhost}>
-                        SAVE
-                      </button>
-                      {dirty && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const rest = { ...drafts };
-                            delete rest[id];
-                            setDrafts(rest);
-                            writeDrafts(draftKey, rest);
-                          }}
-                          className={btnGhost}
-                        >
-                          DISCARD DRAFT
-                        </button>
-                      )}
                       <div className="flex-1" />
                       <button type="button" onClick={() => goTo(draftId(next.s.id, next.track))} className={btnGhost} disabled={queue.length < 2}>
                         NEXT ▸
