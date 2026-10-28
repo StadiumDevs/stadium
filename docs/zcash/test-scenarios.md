@@ -30,7 +30,10 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] On /programs/bitrefill-2026, load → no tracked grid, Bitrefill content as on develop below the about panel
 
 ### Admin + judging (brief §4, §7.3–7.5, §7.7) — needs the test-wallet harness
-- [ ] On /admin/programs/free-society-hack-2026, connect the admin wallet and LOAD ADMIN DATA → the ·PLAYGROUND bar (with OPEN AS JUDGE links for all 7 judges), ·JUDGING, ·ECOSYSTEM PRIZE MILESTONES, ·CHECK-INS and ·FRICTION REPORT sections render
+- [ ] On /admin/programs/free-society-hack-2026, connect the admin wallet → exactly one wallet signature (the login), no LOAD ADMIN DATA step, and no request to /admin/session in mock mode
+- [ ] On /admin/programs/free-society-hack-2026 after logging in, stay 20 seconds (4+ judges' progress refreshes), reload, and change an Ecosystem Prize flag → no further signatures
+- [ ] On /admin/programs/free-society-hack-2026 with the admin session expired (clear stadium_admin_session_v1) → background refreshes never open the wallet; on reload ·ADMIN SESSION EXPIRED shows and SIGN IN AGAIN asks for one signature, then the sections load
+- [ ] On /admin/programs/free-society-hack-2026, connect the admin wallet → the ·PLAYGROUND bar (with OPEN AS JUDGE links for all 7 judges), ·JUDGING, ·ECOSYSTEM PRIZE MILESTONES, ·CHECK-INS and ·FRICTION REPORT sections render
 - [ ] On /admin/programs/free-society-hack-2026 as the wallet admin, look at ·JUDGING → there is no SCORE tab, no judge picker and no score cards; the ·JUDGES' PROGRESS table (7 judges, names only, no emails) and the leaderboard show
 - [ ] On /admin/programs/free-society-hack-2026?judge=bitrefill-judge-1@example.com (the judge's email link) → SCORING AS Bitrefill Judge 1 (mock) shows with no select on the page, and the scoring bar has exactly 10 boxes, all Agentic Commerce or both-track
 - [ ] On /admin/programs/free-society-hack-2026?judge=nobody@example.com → "nobody@example.com is not a judge for this program." shows and no score card renders

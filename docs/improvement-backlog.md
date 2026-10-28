@@ -241,3 +241,15 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `client/src/components/ui/dialog.tsx` (`DialogContent` base classes)
 - **Observed during**: zcash-testing, updates-review.md pass (project modal "bleeds into the frame")
 - **Suggestion**: The base is `w-full max-w-lg` with no viewport inset and `rounded-lg` only from `sm:`, so under 640px every dialog touches both screen edges and its border disappears. The Free Society Hack modal overrides this locally (`w-[calc(100%-2rem)]`); move that inset into the base and check the other dialogs at 375px.
+
+## [2026-10-28] Vercel preview builds call the production API
+- **Severity**: major
+- **File(s)**: `client/src/lib/api.ts:4` (`API_BASE_URL` falls back to `PRODUCTION_API` when `import.meta.env.PROD`)
+- **Observed during**: fixing repeated wallet prompts on the Free Society Hack admin page (PR #202)
+- **Suggestion**: Previews are prod builds, so without `VITE_API_BASE_URL` on the Preview env every call that has no mock branch (audit log, applications, stats) goes to production. Set `VITE_API_BASE_URL` for Preview (staging, or an unreachable host) and/or refuse the production fallback when `VITE_USE_MOCK_DATA` is true. Admin sign-in no longer contacts a server in mock mode.
+
+## [2026-10-28] Admin sign-in re-prompts on every call when `/admin/session` is down
+- **Severity**: minor
+- **File(s)**: `client/src/lib/auth/useWalletAuth.ts` (`getAdminBearerHeaders` SIWS fallback)
+- **Observed during**: fixing repeated wallet prompts on the Free Society Hack admin page (PR #202)
+- **Suggestion**: When the session exchange fails, the one-shot SIWS header can't be cached (single-use nonce), so every admin call signs again. Surface the failure ("couldn't open an admin session") and stop, instead of silently falling back once per call.
