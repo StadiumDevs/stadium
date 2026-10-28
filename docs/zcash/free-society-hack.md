@@ -133,6 +133,7 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
 - **About panel under the header, on every program.** ·ABOUT THIS HACKATHON (or PROGRAM) sits right under the header and is as wide as the sections below: the event thumbnail on the left; the description, date, location, schedule and the Luma link on the right. One column on phones. It replaces the old KEY INFO, DESCRIPTION and KEY DATES panels. Once results are published, the rest of the page content collapses into ·HACKATHON DETAILS below the projects.
 - **Judging rubric off the public page.** The "How Privacy projects are judged" section is gone; a Builder Pack section links to the [Free Society Hack Builder Pack](https://app.notion.com/p/Free-Society-Hack-Builder-Pack-3ff3e52aeb15807eace6f16f84a74c14) instead. The content migration was regenerated.
 - **One wallet signature per admin session.** Connecting the admin wallet is the only signature: it opens a 15-minute admin session that every section and every write reuses. Background refreshes (the judges' progress poll) never open the wallet. When the session has expired, the page shows ·ADMIN SESSION EXPIRED with SIGN IN AGAIN (one signature). In mock mode the signature never leaves the browser (no `/admin/session` call). Previously a failed session exchange made every call, including the 5-second poll, ask the wallet again.
+- **Register through Luma on the page.** While registration is open (status `draft` or `open`) and the program has a Luma event id, the about panel's REGISTER ON LUMA ▸ opens Luma's own registration and checkout in an overlay (Luma's embed script, `embed.lu.ma/checkout-button.js`, loaded only on that page). If the script is blocked, the button is a plain link to the Luma page. Once the program is `closed` or `completed`, it becomes EVENT PAGE ▸. In the playground, switch the status to DRAFT on the admin page's ·PLAYGROUND bar, then open the public page from within the app (status changes are in memory, so a full reload resets them).
 
 ## 4. Server build plan (after review)
 
@@ -174,7 +175,7 @@ The tx check, check-ins and friction report are each about a day or less, so non
    - Set the cover image URL to `/fsh-cover.webp` (a 1200px, 165 KB WebP in `client/public`, made from the 13.5 MB Luma PNG). Don't link the raw Luma upload: it is 4000×4000 and stalls halfway on slow connections.
    - Enter the 7 prize tiers exactly as in the brief, in USD (no Ecosystem tier: it is a flag).
 3. Run `supabase/migrations/20261026000000_free_society_hack_2026_content.sql` against prod to load the page content.
-4. In Luma guests, set the event id `evt-B6kmWqZYUUeTkIP` and click SYNC NOW. This needs `LUMA_API_KEY` on Railway.
+4. In Luma guests, set the event id `evt-B6kmWqZYUUeTkIP` and click SYNC NOW. This needs `LUMA_API_KEY` on Railway. The same id drives the page's REGISTER ON LUMA button.
 5. Admins: invite the 5 Privacy judges with track `privacy` and the 2 Bitrefill judges with track `agentic` (track scoping arrives with the server slice).
 6. Dry run on 3 Nov: set `SUBMIT_TEST_EMAILS` to your address, submit a test, check the page and judging, then delete the test submission and clear the variable.
 7. **Wed 4 Nov 11:00 IST:** set status `open` by hand.

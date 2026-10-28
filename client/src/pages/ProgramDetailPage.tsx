@@ -24,6 +24,7 @@ import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
 import { SubmitProjectModal } from "@/components/program/SubmitProjectModal";
 import { ProgramContent } from "@/components/program/ProgramContent";
+import { LumaCheckoutButton } from "@/components/program/LumaCheckoutButton";
 import { TrackedProjectsSection } from "@/components/program/tracked/TrackedProjectsSection";
 import { getProgramProfile } from "@/lib/programProfiles";
 import type { ApiPublicSubmissions } from "@/lib/api";
@@ -34,6 +35,9 @@ const formatDateRange = (from?: string | null, to?: string | null) => {
     iso ? new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—";
   return `${fmt(from)} → ${fmt(to)}`;
 };
+
+const CTA_CLASS =
+  "inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2";
 
 // One width for the header, the about panel and everything below it.
 const PAGE_WIDTH = "max-w-6xl";
@@ -276,7 +280,8 @@ const ProgramDetailPage = () => {
     ...(program?.location ? [{ label: "LOCATION", value: program.location }] : []),
     ...scheduleRows.map((r) => ({ label: r.time.toUpperCase(), value: r.label })),
   ];
-  const hasAbout = showCover || !!program?.description || infoRows.length > 0 || !!program?.eventUrl;
+  const registrationOpen = program?.status === "draft" || program?.status === "open";
+  const hasAbout = showCover || !!program?.description || infoRows.length > 0 || !!program?.eventUrl || !!program?.lumaEventId;
 
   // Once a hackathon's results are published, flip the page: searchable projects
   // on top, hackathon info collapsed at the bottom.
@@ -467,15 +472,28 @@ const ProgramDetailPage = () => {
                       ))}
                     </div>
                   )}
-                  {program.eventUrl && (
-                    <a
-                      href={program.eventUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="self-start inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
+                  {/* Registration still open with a Luma event: Luma's checkout
+                      opens over this page. Afterwards: a plain link to the event. */}
+                  {program.lumaEventId && registrationOpen ? (
+                    <LumaCheckoutButton
+                      eventId={program.lumaEventId}
+                      eventUrl={program.eventUrl}
+                      className={`self-start ${CTA_CLASS}`}
                     >
-                      {isHackathon ? "SIGN UP ON LUMA ▸" : "EVENT PAGE ▸"}
-                    </a>
+                      REGISTER ON LUMA ▸
+                    </LumaCheckoutButton>
+                  ) : (
+                    program.eventUrl && (
+                      <a
+                        href={program.eventUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`self-start ${CTA_CLASS}`}
+                        data-testid="event-page-link"
+                      >
+                        {isHackathon && registrationOpen ? "SIGN UP ON LUMA ▸" : "EVENT PAGE ▸"}
+                      </a>
+                    )
                   )}
                 </div>
               </div>
