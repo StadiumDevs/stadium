@@ -205,3 +205,39 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `.claude/skills/stadium-tester/flows/client-journey.spec.mjs`
 - **Observed during**: testing the must-sign payouts/results PR
 - **Suggestion**: The committed canonical wallet-gated suite (added in #171, labeled "validated green") targets a `LEADERBOARD` tab, an `ADD TO STADIUM`/promote button, and a score-view `MARK PAID` button that no longer exist in `client/src/components/admin/ProgramJudgingSection.tsx` — the component now has `SCORE`/`RESULTS` tabs, award-via-dropdown, `PUBLISH RESULTS`, and (as of this PR) a PAID toggle in the RESULTS table. The spec would fail if run verbatim, so it can't be trusted as a regression gate. Rewrite the judging portion to the current SCORE/RESULTS surface (claim → score → submit → RESULTS tab → award/PAID/publish).
+
+## [2026-10-25] `PATCH /m2-program/:id` has no field allowlist
+- **Severity**: major
+- **File(s)**: `server/api/controllers/project.controller.js:75-132`, `server/api/repositories/project.repository.js:510-530`
+- **Observed during**: Free Society Hack (Zcash) scrutiny — mapping the M2 milestone system
+- **Suggestion**: the route is behind `requireTeamMemberOrAdmin`, but the controller passes the whole body through, so a team member can set `m2Status`, `bountyPrize`, `finalSubmission` or `totalPaid` (which deletes and re-inserts `payments`). Restrict team-member writes to an allowlist and keep payout/status fields admin-only.
+
+## [2026-10-25] Submission promote likely fails on NOT NULL project columns and leaks the Luma email
+- **Severity**: minor
+- **File(s)**: `server/api/services/scoring.service.js:209-232`, `server/api/repositories/project.repository.js:246-256`
+- **Observed during**: Free Society Hack (Zcash) scrutiny
+- **Suggestion**: `promoteToProject` sets neither `project_state` nor `hackathon.endDate`, both NOT NULL with no default in the migrations (tests mock the DB, so they wouldn't catch it). It also writes the submitter's Luma email into the public project description. No UI calls `api.promoteSubmission` today.
+
+## [2026-10-25] `requestChanges` writes keys the project mapper ignores
+- **Severity**: minor
+- **File(s)**: `server/api/controllers/project.controller.js:371-373`, `server/api/repositories/project.repository.js` (`toSupabaseProject`)
+- **Observed during**: Free Society Hack (Zcash) scrutiny
+- **Suggestion**: the controller sends `changeRequestFeedback` / `changeRequestDate`, but the mapper only knows `changesRequested.{feedback,...}`, so the feedback is silently dropped and the client card never shows it.
+
+## [2026-10-25] M2 week calendar is hardcoded to Nov 2025
+- **Severity**: minor
+- **File(s)**: `client/src/lib/projectUtils.ts:42-50,113-135`, `client/src/components/M2AgreementSection.tsx:44-46`
+- **Observed during**: Free Society Hack (Zcash) scrutiny
+- **Suggestion**: `M2_WEEKS` is fixed to 17 Nov 2025 – 5 Jan 2026, so agreement editing is permanently locked and the submit button permanently open. Make the calendar relative to a program/cohort start date.
+
+## [2026-10-28] Client `npm run build` typecheck is a no-op
+- **Severity**: major
+- **File(s)**: `client/tsconfig.json` (`"files": []` + project references), `client/package.json` (`"build": "tsc && vite build"`)
+- **Observed during**: Free Society Hack 28 Oct corrections — a removed export still "typechecked"
+- **Suggestion**: plain `tsc` against a solution-style tsconfig with `"files": []` checks no source, so the build (and `/pre-pr-check`, and CLAUDE.md's "this is the typecheck") never catches type errors. `npx tsc -p tsconfig.app.json --noEmit` reports ~196 existing errors on develop (e.g. `src/lib/api.ts`, `src/pages/AdminProgramPage.tsx`). Switch the build to `tsc -b` or `tsc -p tsconfig.app.json --noEmit`, after a cleanup pass to get the existing errors to zero.
+
+## [2026-10-28] Shared dialog runs edge to edge on phones
+- **Severity**: minor
+- **File(s)**: `client/src/components/ui/dialog.tsx` (`DialogContent` base classes)
+- **Observed during**: zcash-testing, updates-review.md pass (project modal "bleeds into the frame")
+- **Suggestion**: The base is `w-full max-w-lg` with no viewport inset and `rounded-lg` only from `sm:`, so under 640px every dialog touches both screen edges and its border disappears. The Free Society Hack modal overrides this locally (`w-[calc(100%-2rem)]`); move that inset into the base and check the other dialogs at 375px.
