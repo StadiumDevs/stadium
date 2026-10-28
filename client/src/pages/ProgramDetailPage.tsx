@@ -435,8 +435,9 @@ const ProgramDetailPage = () => {
           {hasAbout && (
             <section className={`panel p-4 md:p-6 mb-4 mx-auto ${PAGE_WIDTH}`} data-testid="program-about">
               <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>
-              <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-2" : ""}`}>
+              <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start" : ""}`}>
                 {showCover && (
+                  // The whole image, never cropped (covers can be square or wide).
                   // Above the fold: fetch first. The panel colour shows while it loads.
                   // Keep covers small (about 1200px WebP in client/public, not a raw upload).
                   <img
@@ -448,7 +449,7 @@ const ProgramDetailPage = () => {
                     decoding="async"
                     width={1200}
                     height={1200}
-                    className="w-full h-auto aspect-video rounded-sm border border-hairline object-cover bg-panel-deep"
+                    className="w-full h-auto rounded-sm border border-hairline bg-panel-deep"
                     data-testid="program-cover"
                   />
                 )}
