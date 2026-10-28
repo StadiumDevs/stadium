@@ -209,6 +209,7 @@ export function validateScore(body = {}) {
 
 // Rubric scores (tracked programs). Partial is allowed: each criterion is an
 // integer 0..max or null (not scored yet), so a judge's work can autosave.
+// `revisit` is the judge's own "come back to this" mark.
 export function validateRubricScore(track, body = {}) {
   const rubric = RUBRICS[track];
   if (!rubric) return { ok: false, error: `Unknown track: ${track}` };
@@ -240,5 +241,8 @@ export function validateRubricScore(track, body = {}) {
     }
     session = body.session;
   }
-  return { ok: true, value: { criteria, notes, session } };
+  if (body.revisit !== undefined && typeof body.revisit !== 'boolean') {
+    return { ok: false, error: 'revisit must be true or false' };
+  }
+  return { ok: true, value: { criteria, notes, session, revisit: body.revisit === true } };
 }

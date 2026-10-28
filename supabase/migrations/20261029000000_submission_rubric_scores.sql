@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS submission_rubric_scores (
   notes TEXT,
   -- Judging session the score was last saved in (e.g. 'evening', 'morning').
   session TEXT,
+  -- The judge's own "unsure, come back to this" mark. Doesn't change whether
+  -- a fully scored row counts.
+  revisit BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT submission_rubric_scores_one_per_judge_track UNIQUE (submission_id, judge_email, track)

@@ -80,7 +80,15 @@ describe('SubmissionController.upsertRubricScore', () => {
       criteria: { works: 3, private: null },
       notes: '',
       session: 'evening',
+      revisit: false,
     });
+  });
+
+  it('stores the judge\'s revisit flag', async () => {
+    const res = mockRes();
+    await submissionController.upsertRubricScore(judgeReq({ body: { criteria: { works: 2 }, revisit: true } }), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(rubricRepo.upsert).toHaveBeenCalledWith(expect.objectContaining({ revisit: true }));
   });
 
   it('saves a full score too (same row, later)', async () => {

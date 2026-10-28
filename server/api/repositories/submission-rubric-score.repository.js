@@ -14,6 +14,7 @@ const transform = (row) => {
     criteria: row.criteria || {},
     notes: row.notes ?? '',
     session: row.session ?? '',
+    revisit: row.revisit === true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -35,7 +36,7 @@ class SubmissionRubricScoreRepository {
 
   // Upsert one judge's (possibly partial) score for one submission and track.
   // judge_email comes from the verified session, never the request body.
-  async upsert({ submissionId, programId, judgeEmail, track, criteria, notes, session }) {
+  async upsert({ submissionId, programId, judgeEmail, track, criteria, notes, session, revisit }) {
     const { data, error } = await supabase
       .from('submission_rubric_scores')
       .upsert(
@@ -47,6 +48,7 @@ class SubmissionRubricScoreRepository {
           criteria,
           notes: notes || null,
           session: session || null,
+          revisit: revisit === true,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'submission_id,judge_email,track' },

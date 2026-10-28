@@ -4,7 +4,7 @@ import { validateRubricScore } from '../submission.validator.js';
 describe('validateRubricScore', () => {
   it('accepts a partial privacy score (unscored criteria are null or absent)', () => {
     const v = validateRubricScore('privacy', { criteria: { works: 3, private: null }, notes: '  ok  ', session: 'evening' });
-    expect(v).toEqual({ ok: true, value: { criteria: { works: 3, private: null }, notes: 'ok', session: 'evening' } });
+    expect(v).toEqual({ ok: true, value: { criteria: { works: 3, private: null }, notes: 'ok', session: 'evening', revisit: false } });
   });
 
   it('accepts a full agentic score', () => {
@@ -37,5 +37,10 @@ describe('validateRubricScore', () => {
   it('rejects notes over 5000 characters and a malformed session', () => {
     expect(validateRubricScore('privacy', { criteria: {}, notes: 'x'.repeat(5001) }).ok).toBe(false);
     expect(validateRubricScore('privacy', { criteria: {}, session: 'Evening Session!' }).ok).toBe(false);
+  });
+
+  it('accepts a revisit flag and rejects a non-boolean one', () => {
+    expect(validateRubricScore('privacy', { criteria: {}, revisit: true }).value.revisit).toBe(true);
+    expect(validateRubricScore('privacy', { criteria: {}, revisit: 'yes' }).ok).toBe(false);
   });
 });
