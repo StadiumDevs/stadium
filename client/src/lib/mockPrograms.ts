@@ -11,6 +11,9 @@
 
 import type { ApiProgram, ApiProgramAdminEmail, ApiProgramSignup, ApiProgramSponsor } from "./api";
 import { BITREFILL_2026_CONTENT } from "./bitrefillContent";
+import { FREE_SOCIETY_HACK_2026_CONTENT } from "./freeSocietyHackContent";
+import { FREE_SOCIETY_HACK_PRIZE_TIERS } from "./programProfiles";
+import { FSH_GUEST_EMAILS, FSH_JUDGES } from "./mocks/freeSocietyHack.seed";
 
 export const mockPrograms: ApiProgram[] = [
   {
@@ -95,6 +98,33 @@ export const mockPrograms: ApiProgram[] = [
     galleryUrl: "https://drive.google.com/drive/folders/1FEwf_sYTRc9tRqMRuXIlqG7lviAJP5Nk?usp=drive_link",
     createdAt: "2026-05-20T00:00:00Z",
     updatedAt: "2026-06-18T00:00:00Z",
+  },
+  // Zcash Free Society Hack — playground program (mock data only). Seeded in the
+  // post-event state (results published) so every state is visible; the admin
+  // page's mock-only playground bar switches status and re-seeds.
+  {
+    id: "free-society-hack-2026",
+    name: "Free Society Hack",
+    slug: "free-society-hack-2026",
+    programType: "hackathon",
+    description:
+      "A Zcash hackathon with a Bitrefill track: 75 builders in person at Capital Social, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.",
+    status: "completed",
+    owner: "webzero",
+    applicationsOpenAt: "2026-10-12T00:00:00+05:30",
+    applicationsCloseAt: "2026-10-30T23:59:00+05:30",
+    eventStartsAt: "2026-11-04T10:00:00+05:30",
+    eventEndsAt: "2026-11-05T00:00:00+05:30",
+    location: "Capital Social, BKC, Mumbai",
+    maxApplicants: 75,
+    eventUrl: "https://luma.com/freesocietyhackathon",
+    coverImageUrl: "https://images.lumacdn.com/uploads/xy/6eeee5f4-1aca-436e-afe7-a8483e694ed7.png",
+    lumaEventId: "evt-B6kmWqZYUUeTkIP",
+    content: FREE_SOCIETY_HACK_2026_CONTENT,
+    prizeTiers: FREE_SOCIETY_HACK_PRIZE_TIERS,
+    resultsPublishedAt: "2026-11-05T13:15:00+05:30",
+    createdAt: "2026-10-26T00:00:00Z",
+    updatedAt: "2026-11-05T00:00:00Z",
   },
   {
     id: "m2-incubator",
@@ -414,6 +444,13 @@ const bitrefillGuest = (
 // Email-keyed program admins + judges (mutable in the harness so invite/remove
 // in the EDIT modal persists). Seeded so the read-only list isn't empty.
 export const mockProgramAdminEmails: Record<string, ApiProgramAdminEmail[]> = {
+  "free-society-hack-2026": FSH_JUDGES.map((j) => ({
+    programId: "free-society-hack-2026",
+    email: j.email,
+    role: "judge" as const,
+    invitedBy: null,
+    createdAt: "2026-11-01T12:00:00Z",
+  })),
   "bitrefill-2026": [
     { programId: "bitrefill-2026", email: "judge@bitrefill.com", role: "judge", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
     { programId: "bitrefill-2026", email: "ops@bitrefill.com", role: "admin", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
@@ -421,6 +458,16 @@ export const mockProgramAdminEmails: Record<string, ApiProgramAdminEmail[]> = {
 };
 
 export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
+  // Checked-in Luma guests: every seeded point person plus the demo builder.
+  "free-society-hack-2026": FSH_GUEST_EMAILS.map(([name, email], i) => ({
+    id: `fsh-guest-${i + 1}`,
+    programId: "free-society-hack-2026",
+    email,
+    name,
+    source: "luma_api",
+    registeredAt: "2026-10-20T12:00:00+05:30",
+    importedInBatchAt: "2026-11-04T10:30:00+05:30",
+  })),
   "bitrefill-2026": [
     bitrefillGuest(1, "Aurora Builders", "aurora@example.com"),
     bitrefillGuest(2, "Nimbus Labs", "nimbus@example.com"),

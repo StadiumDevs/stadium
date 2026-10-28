@@ -45,6 +45,57 @@ You agree that Bitrefill may contact you about your project. The details you pro
 
 Organizers may disqualify any submission that breaks the rules, infringes others' rights, or contains illegal or harmful content.`,
   },
+  // PLACEHOLDER: drafted from the event brief. Replace with the 14 Oct Luma
+  // sign-up doc text before the real program is created.
+  "free-society-hack-2026": {
+    title: "Free Society Hack: Submission Terms (PLACEHOLDER)",
+    body: `**Placeholder terms for review. The final text comes from the Luma sign-up doc (14 Oct version).**
+
+By submitting a project to the Free Society Hack, you confirm that you have read and agree to the following.
+
+### Eligibility
+
+- You checked in at the hackathon in person at Capital Social, BKC, Mumbai.
+- You submit through Stadium before submissions close at midnight IST on Wed 4 Nov (00:00 Thu 5 Nov).
+
+### Point person
+
+- Each project names one point person: the person submitting, using the email they registered with on Luma.
+- Prizes are paid to the point person, who is responsible for sharing them with the team.
+
+### Privacy (Zcash) track
+
+To be eligible for Privacy judging, your submission must:
+
+- Work on Zcash testnet with NU7, using shielded Orchard funds via unified addresses.
+- Include one testnet transaction id your project created.
+- Include a one-line pitch, a demo video of 2 minutes or less (for non-apps it must show it working with Zcash), a public repo with a README, every technology used, and a next milestone for the 30 days with links to anything already started.
+
+Out of scope: Zcash Shielded Assets, mainnet funds, Sprout, v4 transactions, and zcashd wallet RPC.
+
+### Agentic Commerce (by Bitrefill) track
+
+Agentic Commerce entries are judged and paid by Bitrefill under its own criteria. A project may enter and win in both tracks.
+
+### Ecosystem Prize and milestone
+
+- The judges pick two of the five Privacy podium projects (at any prize level) for the Ecosystem Prize. Each is paired with a partner and agrees a 30-day milestone.
+- Completing it (agreed by Fri 13 Nov, delivered with a public link and confirmed by the partner by Fri 4 Dec, and shared at a ZecHub Friday Lounge by Fri 4 Dec) releases a further $100 on Fri 11 Dec.
+- If the milestone is not completed, you keep your day prize and only the $100 is not released.
+- The organisers' decision on whether a milestone is complete is final.
+
+### Judging
+
+Five judges score Privacy projects in Stadium on the published rubric. A project whose average Works score is 0 can't win. All judging decisions are final.
+
+### Contact and follow-up
+
+You agree to receive two short check-in emails (Thu 19 Nov and Fri 4 Dec). Submitted projects are shown publicly on the program page as soon as they are submitted; emails are never shown publicly, and names are hidden if you choose to stay anonymous.
+
+### Conduct
+
+Organisers may disqualify any submission that breaks the rules, infringes others' rights, or contains illegal or harmful content.`,
+  },
 };
 
 export type SubmissionTerms = { title: string; body: string };
