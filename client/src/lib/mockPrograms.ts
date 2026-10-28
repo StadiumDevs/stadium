@@ -118,7 +118,7 @@ export const mockPrograms: ApiProgram[] = [
     location: "Capital Social, BKC, Mumbai",
     maxApplicants: 75,
     eventUrl: "https://luma.com/freesocietyhackathon",
-    coverImageUrl: "https://images.lumacdn.com/uploads/xy/6eeee5f4-1aca-436e-afe7-a8483e694ed7.png",
+    coverImageUrl: "/fsh-cover.webp",
     lumaEventId: "evt-B6kmWqZYUUeTkIP",
     content: FREE_SOCIETY_HACK_2026_CONTENT,
     prizeTiers: FREE_SOCIETY_HACK_PRIZE_TIERS,

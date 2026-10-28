@@ -437,11 +437,18 @@ const ProgramDetailPage = () => {
               <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>
               <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-2" : ""}`}>
                 {showCover && (
+                  // Above the fold: fetch first. The panel colour shows while it loads.
+                  // Keep covers small (about 1200px WebP in client/public, not a raw upload).
                   <img
                     src={program.coverImageUrl ?? undefined}
                     alt={`${program.name} event`}
                     onError={() => setCoverError(true)}
-                    className="w-full aspect-video rounded-sm border border-hairline object-cover"
+                    // Lowercase attribute: React 18 warns on the camelCase prop.
+                    {...{ fetchpriority: "high" }}
+                    decoding="async"
+                    width={1200}
+                    height={1200}
+                    className="w-full h-auto aspect-video rounded-sm border border-hairline object-cover bg-panel-deep"
                     data-testid="program-cover"
                   />
                 )}

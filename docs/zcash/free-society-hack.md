@@ -170,7 +170,7 @@ The tx check, check-ins and friction report are each about a day or less, so non
    - Event `2026-11-04 11:00` to `2026-11-05 00:00` IST. Applications `12–30 Oct`. Max applicants 75.
    - Event URL `https://luma.com/freesocietyhackathon`.
 2. Edit the program:
-   - Set the cover image URL to `https://images.lumacdn.com/uploads/xy/6eeee5f4-1aca-436e-afe7-a8483e694ed7.png`, or upload it.
+   - Set the cover image URL to `/fsh-cover.webp` (a 1200px, 165 KB WebP in `client/public`, made from the 13.5 MB Luma PNG). Don't link the raw Luma upload: it is 4000×4000 and stalls halfway on slow connections.
    - Enter the 7 prize tiers exactly as in the brief, in USD (no Ecosystem tier: it is a flag).
 3. Run `supabase/migrations/20261026000000_free_society_hack_2026_content.sql` against prod to load the page content.
 4. In Luma guests, set the event id `evt-B6kmWqZYUUeTkIP` and click SYNC NOW. This needs `LUMA_API_KEY` on Railway.
