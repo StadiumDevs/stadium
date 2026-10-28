@@ -167,7 +167,7 @@ The tx check, check-ins and friction report are each about a day or less, so non
 1. On `/admin`, connect a global admin wallet and click CREATE PROGRAM.
    - Name `Free Society Hack`, slug `free-society-hack-2026`, type `hackathon`, status `draft`.
    - Location `Capital Social, BKC, Mumbai`.
-   - Event `2026-11-04 10:00` to `2026-11-05 00:00` IST. Applications `12–30 Oct`. Max applicants 75.
+   - Event `2026-11-04 11:00` to `2026-11-05 00:00` IST. Applications `12–30 Oct`. Max applicants 75.
    - Event URL `https://luma.com/freesocietyhackathon`.
 2. Edit the program:
    - Set the cover image URL to `https://images.lumacdn.com/uploads/xy/6eeee5f4-1aca-436e-afe7-a8483e694ed7.png`, or upload it.
@@ -176,7 +176,7 @@ The tx check, check-ins and friction report are each about a day or less, so non
 4. In Luma guests, set the event id `evt-B6kmWqZYUUeTkIP` and click SYNC NOW. This needs `LUMA_API_KEY` on Railway.
 5. Admins: invite the 5 Privacy judges with track `privacy` and the 2 Bitrefill judges with track `agentic` (track scoping arrives with the server slice).
 6. Dry run on 3 Nov: set `SUBMIT_TEST_EMAILS` to your address, submit a test, check the page and judging, then delete the test submission and clear the variable.
-7. **Wed 4 Nov 10:00 IST:** set status `open` by hand.
+7. **Wed 4 Nov 11:00 IST:** set status `open` by hand.
 8. **Wed 4 Nov 20:00:** evening judging.
 9. **Thu 5 Nov 00:00:** set status `closed` by hand. Scoring still works when closed.
 10. **Thu 5 Nov 08:00:** morning judging.

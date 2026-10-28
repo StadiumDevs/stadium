@@ -113,7 +113,7 @@ export const mockPrograms: ApiProgram[] = [
     owner: "webzero",
     applicationsOpenAt: "2026-10-12T00:00:00+05:30",
     applicationsCloseAt: "2026-10-30T23:59:00+05:30",
-    eventStartsAt: "2026-11-04T10:00:00+05:30",
+    eventStartsAt: "2026-11-04T11:00:00+05:30",
     eventEndsAt: "2026-11-05T00:00:00+05:30",
     location: "Capital Social, BKC, Mumbai",
     maxApplicants: 75,

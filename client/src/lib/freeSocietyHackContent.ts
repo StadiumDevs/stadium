@@ -18,7 +18,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
     type: "schedule",
     title: "Schedule (IST)",
     rows: [
-      { time: "Wed 4 Nov 10:00", label: "Hack starts" },
+      { time: "Wed 4 Nov 11:00", label: "Hack starts" },
       { time: "Wed 4 Nov 20:00", label: "Evening judging (projects in by now)" },
       { time: "Thu 5 Nov 00:00", label: "Submissions close" },
       { time: "Thu 5 Nov 08:00", label: "Morning judging" },
