@@ -338,11 +338,14 @@ class SubmissionController {
     try {
       const tracked = trackedProgramFor(req.params.slug);
       if (!tracked) return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
-      const programId = await resolveProgramId(req);
-      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const rows = await programSubmissionRepository.listByProgramId(programId);
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const rows = await programSubmissionRepository.listByProgramId(program.id);
       const data = rows.map((s) => ({ ...s, batch: batchFor(tracked.judgingBatches, s.createdAt) }));
-      res.status(200).json({ status: 'success', data: { submissions: data, batches: tracked.judgingBatches } });
+      res.status(200).json({
+        status: 'success',
+        data: { submissions: data, batches: tracked.judgingBatches, resultsPublishedAt: program.resultsPublishedAt ?? null },
+      });
     } catch (error) {
       console.error('❌ Error listing tracked submissions:', error);
       res.status(500).json({ status: 'error', message: 'Failed to load submissions' });

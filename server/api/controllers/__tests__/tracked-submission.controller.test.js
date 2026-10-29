@@ -171,6 +171,7 @@ describe('SubmissionController.listJudges', () => {
 
 describe('SubmissionController.listTracked', () => {
   it('returns each submission with its judging batch', async () => {
+    programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: null });
     submissionRepo.listByProgramId.mockResolvedValue([
       { id: 'a', createdAt: '2026-11-04T14:00:00.000Z' }, // 19:30 IST
       { id: 'b', createdAt: '2026-11-04T15:00:00.000Z' }, // 20:30 IST
@@ -180,6 +181,8 @@ describe('SubmissionController.listTracked', () => {
     const data = res.json.mock.calls[0][0].data;
     expect(data.submissions.map((s) => [s.id, s.batch])).toEqual([['a', 'evening'], ['b', 'morning']]);
     expect(data.batches.map((b) => b.id)).toEqual(['evening', 'morning']);
+    expect(data.resultsPublishedAt).toBeNull();
+    expect(submissionRepo.listByProgramId).toHaveBeenCalledWith('fsh');
   });
   it('404s a program that is not tracked', async () => {
     const res = mockRes();
