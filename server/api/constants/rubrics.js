@@ -11,9 +11,9 @@ export const RUBRICS = {
     { id: 'continuing', max: 3 },
     { id: 'bonus', max: 1 },
   ],
-  // Agentic Commerce (Bitrefill's criteria).
+  // Agentic Commerce (Bitrefill's criteria, each out of 5).
   agentic: [
-    { id: 'requirements', max: 2 },
+    { id: 'requirements', max: 5 },
     { id: 'techStack', max: 5 },
     { id: 'innovation', max: 5 },
   ],

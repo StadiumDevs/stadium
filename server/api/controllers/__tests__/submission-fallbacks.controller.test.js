@@ -39,7 +39,7 @@ const FSH = {
   resultsPublishedAt: null,
 };
 const details = {
-  track: 'privacy',
+  privacyNote: 'Amounts and memos are shielded; our server stores order ids next to emails.', bitrefillFeedback: { worked: 'The MCP was quick to set up.', didnt: 'Test products were hard to find.' }, track: 'privacy',
   themes: ['1. Private payment rails'],
   pitch: 'Checkout.',
   team: [{ name: 'Arjun', email: 'arjun@x.com', role: 'fe' }],
@@ -131,6 +131,15 @@ describe('submit — fallbacks and email verification', () => {
     const ok = await run(body('priya@example.com'), 'tok:priya@example.com');
     expect(ok.status).toHaveBeenCalledWith(200);
     expect(submissionRepo.updateSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it('a Privacy entry may skip the demo video (stored empty); an Agentic one may not', async () => {
+    signupRepo.existsByEmail.mockResolvedValue(true);
+    const ok = await run({ ...body(), videoUrl: '' });
+    expect(ok.status).toHaveBeenCalledWith(201);
+    expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ videoUrl: '' }));
+    const agentic = await run({ ...body(), videoUrl: '', details: { ...details, track: 'agentic', themes: [], testnetTxid: null } });
+    expect(agentic.status).toHaveBeenCalledWith(400);
   });
 
   it('the confirmation email carries the tracked details', async () => {

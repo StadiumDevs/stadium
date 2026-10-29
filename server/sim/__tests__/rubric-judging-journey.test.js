@@ -75,7 +75,7 @@ async function asJudge(email, fn, { params = {}, body = {} } = {}) {
 const at = (iso) => vi.setSystemTime(new Date(iso));
 
 const details = (over = {}) => ({
-  track: 'privacy',
+  privacyNote: 'Amounts and memos are shielded; our server stores order ids next to emails.', bitrefillFeedback: { worked: 'The MCP was quick to set up.', didnt: 'Test products were hard to find.' }, track: 'privacy',
   themes: ['1. Private payment rails'],
   pitch: 'Shielded ZEC checkout.',
   team: [{ name: 'Arjun', role: 'frontend' }],

@@ -76,7 +76,7 @@ const base = {
   githubUrl: 'https://github.com/x/chai',
 };
 const details = {
-  track: 'privacy',
+  privacyNote: 'Amounts and memos are shielded; our server stores order ids next to emails.', bitrefillFeedback: { worked: 'The MCP was quick to set up.', didnt: 'Test products were hard to find.' }, track: 'privacy',
   themes: ['1. Private payment rails'],
   pitch: 'Shielded ZEC checkout.',
   team: [],

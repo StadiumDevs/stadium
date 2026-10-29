@@ -68,7 +68,7 @@ const mockRes = () => {
 
 const FSH = { id: 'fsh', slug: 'free-society-hack-2026', name: 'Free Society Hack', eventEndsAt: '2026-11-05T00:00:00+05:30' };
 const details = {
-  track: 'privacy', themes: ['1. Private payment rails'], pitch: 'Shielded checkout.', team: [], appType: 'CLI',
+  privacyNote: 'Amounts and memos are shielded; our server stores order ids next to emails.', bitrefillFeedback: { worked: 'The MCP was quick to set up.', didnt: 'Test products were hard to find.' }, track: 'privacy', themes: ['1. Private payment rails'], pitch: 'Shielded checkout.', team: [], appType: 'CLI',
   technologies: ['WebZjs'], testnetTxid: 'd'.repeat(64), nextStep: 'Pilot.', nextStepLinks: [], frictionAreas: [], anonymous: false,
 };
 const body = {

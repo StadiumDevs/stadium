@@ -109,7 +109,8 @@ export function validateFeedback(feedback) {
 
 // Returns { ok: true, value } with trimmed/normalized fields, or
 // { ok: false, error } with a human-readable message.
-export function validateSubmission(body = {}) {
+// `videoOptional`: a tracked track where the demo video is optional (stored as '').
+export function validateSubmission(body = {}, { videoOptional = false } = {}) {
   const submitterName = str(body.submitterName);
   const lumaEmail = str(body.lumaEmail);
   const projectTitle = str(body.projectTitle);
@@ -129,7 +130,7 @@ export function validateSubmission(body = {}) {
   if (!projectBrief || projectBrief.length > BRIEF_MAX) {
     return { ok: false, error: `A short brief of what your project does is required (max ${BRIEF_MAX} characters)` };
   }
-  if (!isHttpUrl(videoUrl)) {
+  if (videoUrl ? !isHttpUrl(videoUrl) : !videoOptional) {
     return { ok: false, error: 'A valid video demo link (http/https) is required' };
   }
   if (!isHttpUrl(githubUrl)) {
@@ -267,6 +268,13 @@ export const PITCH_MAX = 140;
 const TXID_RE = /^[0-9a-f]{64}$/i;
 const isApp = (appType) => /app/i.test(appType);
 const strList = (v) => (Array.isArray(v) ? v : []);
+export const PRIVACY_NOTE_MAX = 3000;
+export const BITREFILL_FEEDBACK_MAX = 2000;
+
+// Whether the demo video is optional for this submission (tracked programs
+// only: the Privacy track). Called before validateSubmission.
+export const videoOptionalFor = (config, details) =>
+  !!config && (config.videoOptionalTracks ?? []).includes(str(details?.track));
 
 export function validateSubmissionDetails(config, details) {
   if (!config) return { ok: false, error: 'This program does not take tracked submissions' };
@@ -335,6 +343,32 @@ export function validateSubmissionDetails(config, details) {
   const frictionNotes = str(d.frictionNotes) || null;
   if (frictionNotes && frictionNotes.length > 2000) return { ok: false, error: 'Friction notes are max 2000 characters' };
 
+  // Privacy and trust note: judges score Private from it.
+  const noteRequired = (config.privacyNoteTracks ?? []).includes(track);
+  const privacyNote = noteRequired ? str(d.privacyNote) || null : null;
+  if (noteRequired && !privacyNote) {
+    return { ok: false, error: 'Privacy entries need a privacy and trust note' };
+  }
+  if (privacyNote && privacyNote.length > PRIVACY_NOTE_MAX) {
+    return { ok: false, error: `The privacy and trust note is max ${PRIVACY_NOTE_MAX} characters` };
+  }
+
+  // Bitrefill feedback (Agentic Commerce): what worked, what didn't.
+  const feedbackRequired = (config.bitrefillFeedbackTracks ?? []).includes(track);
+  let bitrefillFeedback = null;
+  if (feedbackRequired) {
+    const raw = d.bitrefillFeedback && typeof d.bitrefillFeedback === 'object' ? d.bitrefillFeedback : {};
+    const worked = str(raw.worked);
+    const didnt = str(raw.didnt);
+    if (!worked || !didnt) {
+      return { ok: false, error: "Agentic Commerce entries need the Bitrefill feedback: what worked and what didn't" };
+    }
+    if (worked.length > BITREFILL_FEEDBACK_MAX || didnt.length > BITREFILL_FEEDBACK_MAX) {
+      return { ok: false, error: `Each Bitrefill feedback answer is max ${BITREFILL_FEEDBACK_MAX} characters` };
+    }
+    bitrefillFeedback = { worked, didnt };
+  }
+
   if (d.anonymous !== undefined && typeof d.anonymous !== 'boolean') {
     return { ok: false, error: 'anonymous must be true or false' };
   }
@@ -351,11 +385,13 @@ export function validateSubmissionDetails(config, details) {
       demoVideoLength,
       technologies,
       network: judgesPrivacy ? 'testnet (NU7)' : null,
-      pool: judgesPrivacy ? 'Orchard, unified addresses' : null,
+      pool: judgesPrivacy ? 'shielded (Ironwood), unified addresses' : null,
       testnetTxid,
       nextStep,
       nextStepLinks,
       frictionNotes,
+      privacyNote,
+      bitrefillFeedback,
       anonymous: d.anonymous === true,
     },
   };

@@ -14,6 +14,7 @@ import { toPublicSubmission } from '../utils/public-submission.js';
 import {
   validateSubmission,
   validateSubmissionDetails,
+  videoOptionalFor,
   validateScore,
   validateRubricScore,
   validatePrize,
@@ -146,13 +147,13 @@ class SubmissionController {
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
-      const v = validateSubmission(req.body);
-      if (!v.ok) {
-        return refuse(res, program, req.body, 'invalid', 400, v.error);
-      }
       // Tracked programs (e.g. Free Society Hack) also need their track
       // fields; validated against the program's config and stored as details.
       const tracked = trackedProgramFor(program.slug);
+      const v = validateSubmission(req.body, { videoOptional: videoOptionalFor(tracked, req.body?.details) });
+      if (!v.ok) {
+        return refuse(res, program, req.body, 'invalid', 400, v.error);
+      }
       if (tracked) {
         const dv = validateSubmissionDetails(tracked, req.body?.details);
         if (!dv.ok) {
@@ -472,11 +473,11 @@ class SubmissionController {
       if (refusal.status === 'accepted') {
         return res.status(409).json({ status: 'error', message: 'Already accepted' });
       }
-      const v = validateSubmission(refusal.payload);
+      const tracked = trackedProgramFor(program.slug);
+      const v = validateSubmission(refusal.payload, { videoOptional: videoOptionalFor(tracked, refusal.payload?.details) });
       if (!v.ok) {
         return res.status(422).json({ status: 'error', message: `Can't accept: ${v.error}. Ask the builder to resubmit.` });
       }
-      const tracked = trackedProgramFor(program.slug);
       if (tracked) {
         const dv = validateSubmissionDetails(tracked, refusal.payload.details);
         if (!dv.ok) {

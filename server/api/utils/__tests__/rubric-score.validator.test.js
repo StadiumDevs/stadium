@@ -7,6 +7,11 @@ describe('validateRubricScore', () => {
     expect(v).toEqual({ ok: true, value: { criteria: { works: 3, private: null }, notes: 'ok', session: 'evening', revisit: false, checks: {} } });
   });
 
+  it('agentic criteria are each out of 5 (Bitrefill)', () => {
+    expect(validateRubricScore('agentic', { criteria: { requirements: 5, techStack: 5, innovation: 5 } }).ok).toBe(true);
+    expect(validateRubricScore('agentic', { criteria: { requirements: 6 } }).error).toMatch(/between 0 and 5/);
+  });
+
   it('accepts a full agentic score', () => {
     const v = validateRubricScore('agentic', { criteria: { requirements: 2, techStack: 5, innovation: 0 } });
     expect(v.ok).toBe(true);

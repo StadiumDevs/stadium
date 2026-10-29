@@ -8,6 +8,13 @@ export const TRACKED_PROGRAMS = {
     judgedTracks: ['privacy', 'agentic'],
     // Tracks whose entries need a testnet transaction id.
     txidTracks: ['privacy', 'both'],
+    // Tracks whose entries need a privacy and trust note (judges score Private from it).
+    privacyNoteTracks: ['privacy', 'both'],
+    // Tracks whose entries need the Bitrefill feedback (what worked, what didn't).
+    bitrefillFeedbackTracks: ['agentic', 'both'],
+    // Tracks where the demo video is optional (strongly preferred). Agentic
+    // needs a video or a live link showing the agent make a purchase.
+    videoOptionalTracks: ['privacy'],
     themes: ['1. Private payment rails', '2. The first five minutes', '3. Privacy beyond the transaction'],
     appTypes: ['web app', 'mobile app', 'SDK or library', 'CLI', 'agent', 'other'],
     maxTeam: 5,

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { validateSubmissionDetails, PITCH_MAX } from '../submission.validator.js';
+import { validateSubmissionDetails, validateSubmission, videoOptionalFor, PITCH_MAX } from '../submission.validator.js';
 import { trackedProgramFor } from '../../constants/trackedPrograms.js';
 
 const cfg = trackedProgramFor('free-society-hack-2026');
 const TXID = 'a'.repeat(64);
 const good = (over = {}) => ({
-  track: 'privacy',
+  privacyNote: 'Amounts and memos are shielded; our server stores order ids next to emails.', bitrefillFeedback: { worked: 'The MCP was quick to set up.', didnt: 'Test products were hard to find.' }, track: 'privacy',
   themes: ['1. Private payment rails'],
   pitch: 'Shielded ZEC checkout for cafés.',
   team: [{ name: 'Arjun', email: 'Arjun@Example.com', role: 'frontend' }],
@@ -98,6 +98,40 @@ describe('validateSubmissionDetails', () => {
     expect(err(good({ frictionNotes: 'x'.repeat(2001) }))).toMatch(/2000/);
     expect(err(good({ anonymous: 'yes' }))).toMatch(/anonymous/);
     expect(validateSubmissionDetails(cfg, good({ anonymous: true })).value.anonymous).toBe(true);
+  });
+
+  it('requires a privacy and trust note for Privacy and Both, and drops it for Agentic', () => {
+    expect(err(good({ privacyNote: '' }))).toMatch(/privacy and trust note/);
+    expect(err(good({ track: 'both', privacyNote: '  ' }))).toMatch(/privacy and trust note/);
+    expect(err(good({ privacyNote: 'x'.repeat(3001) }))).toMatch(/3000/);
+    expect(validateSubmissionDetails(cfg, good()).value.privacyNote).toMatch(/^Amounts and memos/);
+    const agentic = validateSubmissionDetails(cfg, good({ track: 'agentic', themes: [], testnetTxid: null }));
+    expect(agentic.ok).toBe(true);
+    expect(agentic.value.privacyNote).toBeNull();
+  });
+
+  it('requires the Bitrefill feedback (worked and didnt) for Agentic and Both, and drops it for Privacy', () => {
+    const ag = (fb) => err(good({ track: 'agentic', themes: [], testnetTxid: null, bitrefillFeedback: fb }));
+    expect(ag(undefined)).toMatch(/Bitrefill feedback/);
+    expect(ag({ worked: 'MCP', didnt: '' })).toMatch(/Bitrefill feedback/);
+    expect(ag({ worked: 'x'.repeat(2001), didnt: 'y' })).toMatch(/2000/);
+    expect(err(good({ track: 'both', bitrefillFeedback: null }))).toMatch(/Bitrefill feedback/);
+    const both = validateSubmissionDetails(cfg, good({ track: 'both', bitrefillFeedback: { worked: ' MCP ', didnt: 'Docs', extra: 1 } }));
+    expect(both.value.bitrefillFeedback).toEqual({ worked: 'MCP', didnt: 'Docs' });
+    expect(validateSubmissionDetails(cfg, good()).value.bitrefillFeedback).toBeNull();
+  });
+
+  it('the demo video is optional for Privacy only (stored empty), still checked when given', () => {
+    const base = { submitterName: 'A', lumaEmail: 'a@x.com', projectTitle: 'T', projectBrief: 'b', githubUrl: 'https://github.com/x/y' };
+    expect(videoOptionalFor(cfg, { track: 'privacy' })).toBe(true);
+    expect(videoOptionalFor(cfg, { track: 'both' })).toBe(false);
+    expect(videoOptionalFor(cfg, { track: 'agentic' })).toBe(false);
+    expect(videoOptionalFor(null, { track: 'privacy' })).toBe(false);
+    const ok = validateSubmission(base, { videoOptional: true });
+    expect(ok.ok).toBe(true);
+    expect(ok.value.videoUrl).toBe('');
+    expect(validateSubmission(base).ok).toBe(false);
+    expect(validateSubmission({ ...base, videoUrl: 'javascript:alert(1)' }, { videoOptional: true }).ok).toBe(false);
   });
 
   it('refuses a program that is not tracked', () => {
