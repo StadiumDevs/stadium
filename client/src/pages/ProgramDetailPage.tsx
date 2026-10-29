@@ -548,9 +548,10 @@ const ProgramDetailPage = () => {
                       </a>
                     )
                   )}
-                  {hasLlms(program.slug) && <LlmsBrief slug={program.slug} />}
                 </div>
               </div>
+              {/* Full width under the image and the key info. */}
+              {hasLlms(program.slug) && <LlmsBrief slug={program.slug} className="mt-6" />}
             </section>
           )}
           {/* Tracked programs: the wide project grid sits above the event info once

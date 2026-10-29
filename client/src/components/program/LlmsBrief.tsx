@@ -8,7 +8,7 @@ const btn =
  * "For AI assistants": the program's generated llms.txt files, so a builder can
  * hand their assistant the whole brief (tracks, rules, judging, dev resources).
  */
-export function LlmsBrief({ slug }: { slug: string }) {
+export function LlmsBrief({ slug, className = "" }: { slug: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   const fullUrl = `${window.location.origin}${llmsFullPath(slug)}`;
 
@@ -28,13 +28,18 @@ export function LlmsBrief({ slug }: { slug: string }) {
   };
 
   return (
-    <div className="border border-hairline bg-panel-deep p-3 space-y-2" data-testid="program-llms">
-      <div className="label-hw text-display">·FOR AI ASSISTANTS</div>
-      <p className="text-body text-[13px] leading-relaxed">
-        Give your AI assistant the brief: tracks, themes, what to submit, how it's judged and the developer resources, in
-        one file.
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
+    <div
+      className={`w-full border border-hairline bg-panel-deep p-3 md:p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-6 ${className}`}
+      data-testid="program-llms"
+    >
+      <div className="space-y-1 min-w-0 md:flex-1">
+        <div className="label-hw text-display">·FOR AI ASSISTANTS</div>
+        <p className="text-body text-[13px] leading-relaxed">
+          Give your AI assistant the brief: tracks, themes, what to submit, how it's judged and the developer resources,
+          in one file.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 md:justify-end md:shrink-0">
         <a
           href={llmsFullPath(slug)}
           target="_blank"
