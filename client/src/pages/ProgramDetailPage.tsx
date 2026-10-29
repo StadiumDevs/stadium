@@ -26,6 +26,8 @@ import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
 import { SubmitProjectModal } from "@/components/program/SubmitProjectModal";
 import { ProgramContent } from "@/components/program/ProgramContent";
 import { LumaCheckoutButton } from "@/components/program/LumaCheckoutButton";
+import { LlmsBrief } from "@/components/program/LlmsBrief";
+import { hasLlms } from "@/lib/llms/llmsPrograms";
 import { TrackedProjectsSection } from "@/components/program/tracked/TrackedProjectsSection";
 import { getProgramProfile } from "@/lib/programProfiles";
 import type { ApiPublicSubmissions } from "@/lib/api";
@@ -546,6 +548,7 @@ const ProgramDetailPage = () => {
                       </a>
                     )
                   )}
+                  {hasLlms(program.slug) && <LlmsBrief slug={program.slug} />}
                 </div>
               </div>
             </section>

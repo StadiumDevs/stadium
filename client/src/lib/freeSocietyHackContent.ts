@@ -1,5 +1,6 @@
 import type { ProgramContentSection } from "./api";
 import { BITREFILL, mdLink, ZCASH } from "./llms/devResources";
+import { llmsFullPath, llmsPath } from "./llms/llmsPrograms";
 
 /**
  * Authored public-page content for the Zcash Free Society Hack (program slug
@@ -18,8 +19,8 @@ export const FREE_SOCIETY_HACK_BUILDER_PACK_URL =
   "https://app.notion.com/p/Free-Society-Hack-Builder-Pack-3ff3e52aeb15807eace6f16f84a74c14";
 
 /** The program's llms.txt (generated at build), for AI assistants. */
-export const FREE_SOCIETY_HACK_LLMS_PATH = "/programs/free-society-hack-2026/llms.txt";
-export const FREE_SOCIETY_HACK_LLMS_FULL_PATH = "/programs/free-society-hack-2026/llms-full.txt";
+export const FREE_SOCIETY_HACK_LLMS_PATH = llmsPath("free-society-hack-2026");
+export const FREE_SOCIETY_HACK_LLMS_FULL_PATH = llmsFullPath("free-society-hack-2026");
 
 const devResourcesBody =
   "**Zcash.** " + ZCASH.intro + "\n\n" +

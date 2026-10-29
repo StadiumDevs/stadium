@@ -15,6 +15,7 @@ import {
 } from "../freeSocietyHackContent";
 import { getProgramProfile, maxScore, type ProgramTrack } from "../programProfiles";
 import { BITREFILL, mdLink, ZCASH } from "./devResources";
+import { llmsFullPath, llmsPath } from "./llmsPrograms";
 
 export type LlmsProgram = {
   slug: string;
@@ -45,8 +46,7 @@ export const LLMS_PROGRAMS: LlmsProgram[] = [
   },
 ];
 
-export const llmsPath = (slug: string) => `/programs/${slug}/llms.txt`;
-export const llmsFullPath = (slug: string) => `/programs/${slug}/llms-full.txt`;
+export { llmsFullPath, llmsPath };
 
 // Page sections that llms-full.txt replaces with a fuller version.
 const SKIP_IN_FULL = new Set(["Developer resources", "Builder Pack"]);

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { api, type ApiProgram } from "@/lib/api";
+import { hasLlms, llmsFullPath } from "@/lib/llms/llmsPrograms";
 
 const ProgramsPage = () => {
   const [programs, setPrograms] = useState<ApiProgram[]>([]);
@@ -199,6 +200,20 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
               data-testid="program-card-luma"
             >
               {lumaLabel} ↗
+            </a>
+          </div>
+        )}
+        {hasLlms(program.slug) && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="label-hw-dim">AI BRIEF</span>
+            <a
+              href={llmsFullPath(program.slug)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative z-10 font-mono text-[11px] text-display hover:underline"
+              data-testid="program-card-llms"
+            >
+              llms.txt ↗
             </a>
           </div>
         )}
