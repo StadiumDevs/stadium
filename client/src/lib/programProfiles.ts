@@ -187,13 +187,13 @@ const PRIVACY_RUBRIC: Rubric = {
   guideUrl: PRIVACY_JUDGING_GUIDE_URL,
 };
 
-// Bitrefill's existing criteria (requirements 0-2, tech stack 0-5, innovation
-// 0-5), expressed in the rubric shape. Tie-breaks mirror scoring.service.js.
+// Bitrefill's criteria, each scored out of 5 (builder doc), in its order.
+// Tie-breaks mirror scoring.service.js.
 const AGENTIC_RUBRIC: Rubric = {
   criteria: [
-    { id: "requirements", label: "Followed the requirements", weight: 1, max: 2 },
     { id: "techStack", label: "Use of the Bitrefill tech stack", weight: 1, max: 5 },
-    { id: "innovation", label: "Innovation", weight: 1, max: 5 },
+    { id: "requirements", label: "Followed the requirements", weight: 1, max: 5 },
+    { id: "innovation", label: "How innovative the submission is", weight: 1, max: 5 },
   ],
   tieBreaks: [
     { kind: "criterion", id: "innovation", label: "Innovation" },

@@ -49,6 +49,9 @@ export function buildSubmissionsCsv(
     "nextMilestone",
     "nextMilestoneLinks",
     "builderFeedback",
+    "privacyNote",
+    "bitrefillWorked",
+    "bitrefillDidnt",
     "prizes",
     "ecosystemPrize",
     "anonymous",
@@ -89,6 +92,9 @@ export function buildSubmissionsCsv(
       d.nextStep,
       (d.nextStepLinks ?? []).join("; "),
       d.frictionNotes,
+      d.privacyNote ?? "",
+      d.bitrefillFeedback?.worked ?? "",
+      d.bitrefillFeedback?.didnt ?? "",
       Object.values(s.prizes).map((p) => (p ? `${p.label} (${p.amount} ${p.currency})` : "")).join("; "),
       s.ecosystemPrize ? "yes" : "no",
       d.anonymous ? "yes" : "no",
@@ -143,6 +149,9 @@ export function buildRankedCsv(
     "txCheck",
     "nextMilestone",
     "builderFeedback",
+    "privacyNote",
+    "bitrefillWorked",
+    "bitrefillDidnt",
   ];
   for (const email of board.judges) {
     const n = judgeName(judges, email);
@@ -169,6 +178,9 @@ export function buildRankedCsv(
       d?.txCheck?.status ?? "",
       d?.nextStep ?? "",
       d?.frictionNotes ?? "",
+      d?.privacyNote ?? "",
+      d?.bitrefillFeedback?.worked ?? "",
+      d?.bitrefillFeedback?.didnt ?? "",
     ];
     for (const email of board.judges) {
       const js = r.judgeScores.find((x) => x.judgeEmail === email);

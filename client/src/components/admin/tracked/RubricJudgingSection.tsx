@@ -81,6 +81,20 @@ const btn = "font-mono text-[10px] tracking-[0.14em] border px-3 py-1.5 disabled
 const btnGhost = `${btn} border-hairline text-display hover:bg-panel-deep`;
 const btnSolid = `${btn} border-display bg-display text-shell hover:bg-display-dim`;
 
+/** The builder's privacy and trust note, shown on the Private question: judges score Private from it. */
+function PrivacyNote({ note }: { note?: string | null }) {
+  return (
+    <div className="border border-hairline bg-panel-light rounded-sm p-3.5 space-y-1.5" data-testid="judge-privacy-note">
+      <div className="label-hw-dim">THEIR PRIVACY AND TRUST NOTE</div>
+      {note ? (
+        <p className="text-[14px] text-body leading-relaxed whitespace-pre-line">{note}</p>
+      ) : (
+        <p className="text-[14px] text-label-mid">No note given: Private can't score full marks.</p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Judging for tracked programs. A judge (signed in by their email link) scores
  * only as themselves, one project at a time, with a progress bar and a jump
@@ -292,15 +306,28 @@ export function RubricJudgingSection({
   // track, with a txid) the transaction.
   const checkStepsFor = (sub: ApiTrackedSubmission, track: JudgedTrack, onWatched: () => void): CheckStep[] => {
     const steps: CheckStep[] = [
-      {
-        id: "video",
-        chip: "VIDEO",
-        title: "Watch the demo",
-        prompt: "2 minutes max. Watch it here; does it show the core flow actually working?",
-        href: sub.videoUrl,
-        linkLabel: "OPEN VIDEO IN A NEW TAB",
-        media: <DemoVideo url={sub.videoUrl} title={sub.projectTitle} onPlay={onWatched} />,
-      },
+      sub.videoUrl
+        ? {
+            id: "video",
+            chip: "VIDEO",
+            title: "Watch the demo",
+            prompt:
+              track === "agentic"
+                ? "3 minutes max, or a live link. Does the agent make a real purchase, not mocked?"
+                : "Watch the first 2 minutes here; does it show the core flow actually working?",
+            href: sub.videoUrl,
+            linkLabel: "OPEN VIDEO IN A NEW TAB",
+            media: <DemoVideo url={sub.videoUrl} title={sub.projectTitle} onPlay={onWatched} />,
+          }
+        : {
+            // The video is optional for Privacy entries.
+            id: "video",
+            chip: "NO VIDEO",
+            title: "No demo video",
+            prompt: "The video is optional for Privacy. Check Works in the README or the explorer link instead.",
+            href: sub.githubUrl,
+            linkLabel: "OPEN THE README",
+          },
       {
         id: "repo",
         chip: "REPO",
@@ -639,6 +666,13 @@ export function RubricJudgingSection({
                         <p className="normal-case text-label-mid">Next milestone: {s.details.nextStep}</p>
                       </div>
                     </div>
+                    {track === "agentic" && s.details.bitrefillFeedback && (
+                      <div className="text-[12px] space-y-0.5" data-testid="judge-bitrefill-feedback">
+                        <div className="label-hw-dim">BITREFILL FEEDBACK (BEST-FEEDBACK PRIZE, NOT SCORED HERE)</div>
+                        <p className="text-body"><span className="text-label-mid">Worked: </span>{s.details.bitrefillFeedback.worked}</p>
+                        <p className="text-body"><span className="text-label-mid">Didn't: </span>{s.details.bitrefillFeedback.didnt}</p>
+                      </div>
+                    )}
                     {s.details.frictionNotes && (
                       <div className="text-[12px]">
                         <span className="label-hw-dim">BUILDER FEEDBACK (NOT SCORED): </span>
@@ -658,6 +692,7 @@ export function RubricJudgingSection({
                       onPick={(cid, v) => updateDraft(s.id, track, { ...d, criteria: { ...d.criteria, [cid]: v } })}
                       onNotes={(notes) => updateDraft(s.id, track, { ...d, notes }, NOTE_DEBOUNCE_MS)}
                       onCheck={(cid, v) => updateDraft(s.id, track, { ...d, checks: { ...d.checks, [cid]: v } })}
+                      criterionContext={track === "privacy" ? { private: <PrivacyNote note={s.details.privacyNote} /> } : undefined}
                     />
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="button" onClick={() => goTo(draftId(prev.s.id, prev.track))} className={btnGhost} disabled={queue.length < 2}>

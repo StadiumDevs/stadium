@@ -30,10 +30,21 @@ import {
   emptyTrackedForm,
   trackedFormToDetails,
   validateTrackedForm,
+  videoOptional,
   type TrackedFormState,
 } from "@/components/program/tracked/trackedForm";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// The demo video ask differs by track (Free Society Hack builder doc).
+const videoLabel = (track: TrackedFormState["track"]) =>
+  track === "privacy"
+    ? "DEMO VIDEO LINK (2 MINUTES MAX, OPTIONAL)"
+    : track === "agentic"
+      ? "DEMO VIDEO (3 MINUTES MAX) OR A LIVE LINK SHOWING THE AGENT MAKE A PURCHASE"
+      : track === "both"
+        ? "DEMO VIDEO (SHOW THE ZCASH FLOW AND THE AGENT'S PURCHASE)"
+        : "DEMO VIDEO LINK";
 const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
 const BRIEF_MAX = 500;
 
@@ -261,7 +272,9 @@ export function SubmitProjectModal({
     if (!projectTitle.trim()) return "A project title is required.";
     if (!projectBrief.trim()) return "A short brief of what your project does is required.";
     if (projectBrief.trim().length > BRIEF_MAX) return `The brief must be ${BRIEF_MAX} characters or fewer.`;
-    if (!isHttpUrl(videoUrl)) return "A valid video demo link (http/https) is required.";
+    // Privacy-only entries may skip the video (strongly preferred); a given link must still be valid.
+    const noVideoOk = !!profile && videoOptional(tracked.track) && !videoUrl.trim();
+    if (!noVideoOk && !isHttpUrl(videoUrl)) return "A valid video demo link (http/https) is required.";
     if (!isHttpUrl(githubUrl)) return "A valid GitHub URL (http/https) is required.";
 
     if (feedbackConfig) {
@@ -476,8 +489,11 @@ export function SubmitProjectModal({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-video" className="label-hw-dim">{profile ? "DEMO VIDEO LINK (2 MINUTES MAX)" : "VIDEO DEMO LINK"}</Label>
+                  <Label htmlFor="sub-video" className="label-hw-dim">{profile ? videoLabel(tracked.track) : "VIDEO DEMO LINK"}</Label>
                   <Input id="sub-video" placeholder="https://…" value={videoUrl} onChange={(e) => setVideo(e.target.value)} className="font-mono text-sm" />
+                  {profile && videoOptional(tracked.track) && (
+                    <p className="label-hw-dim normal-case">Optional, but strongly preferred: it's the easiest way to prove Works. Judges watch only the first 2 minutes.</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="sub-github" className="label-hw-dim">{profile ? "PUBLIC REPO WITH A README" : "GITHUB URL"}</Label>

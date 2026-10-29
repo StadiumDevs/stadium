@@ -18,6 +18,11 @@ export type TrackedFormState = {
   nextStepLinks: string;
   /** Builder feedback for the ecosystem teams (free text, optional, not scored). */
   frictionNotes: string;
+  /** Privacy and trust note (Privacy and Both). */
+  privacyNote: string;
+  /** Bitrefill feedback (Agentic and Both). */
+  bitrefillWorked: string;
+  bitrefillDidnt: string;
   anonymous: boolean;
 };
 
@@ -34,10 +39,21 @@ export const emptyTrackedForm = (): TrackedFormState => ({
   nextStep: "",
   nextStepLinks: "",
   frictionNotes: "",
+  privacyNote: "",
+  bitrefillWorked: "",
+  bitrefillDidnt: "",
   anonymous: false,
 });
 
 export const PITCH_MAX = 140;
+export const PRIVACY_NOTE_MAX = 3000;
+export const BITREFILL_FEEDBACK_MAX = 2000;
+/** Privacy and Both entries: the privacy and trust note and a testnet txid. */
+export const judgesPrivacy = (track: TrackedFormState["track"]) => !!track && track !== "agentic";
+/** Agentic and Both entries: the Bitrefill feedback, and a demo video or live link. */
+export const judgesAgentic = (track: TrackedFormState["track"]) => track === "agentic" || track === "both";
+/** The demo video is optional (strongly preferred) for Privacy-only entries. */
+export const videoOptional = (track: TrackedFormState["track"]) => track === "privacy";
 const splitLinks = (v: string) => v.split(/[\s,]+/).map((l) => l.trim()).filter(Boolean);
 const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
 export const isApp = (appType: string) => /app/i.test(appType);
@@ -57,6 +73,11 @@ export function validateTrackedForm(profile: ProgramProfile, f: TrackedFormState
   // Same rule as the server (validateSubmissionDetails): a Zcash txid is 64 hex characters.
   if (needsTxid(profile, f.track) && !/^[0-9a-f]{64}$/i.test(f.testnetTxid.trim())) {
     return "A testnet transaction id is 64 hex characters (copy it from your wallet or the explorer).";
+  }
+  if (judgesPrivacy(f.track) && !f.privacyNote.trim()) return "Write your privacy and trust note (judges score Private from it).";
+  if (f.privacyNote.trim().length > PRIVACY_NOTE_MAX) return `The privacy and trust note is max ${PRIVACY_NOTE_MAX} characters.`;
+  if (judgesAgentic(f.track) && (!f.bitrefillWorked.trim() || !f.bitrefillDidnt.trim())) {
+    return "Agentic Commerce entries need the Bitrefill feedback: what worked and what didn't.";
   }
   if (!f.nextStep.trim()) return "A next milestone for the 30 days is required.";
   if (splitLinks(f.nextStepLinks).some((l) => !isHttpUrl(l))) return "Each next-milestone link must start with http:// or https://";
@@ -83,11 +104,13 @@ export function trackedFormToDetails(
     demoVideoLength: f.demoVideoLength.trim() || null,
     technologies: f.technologies.split(",").map((t) => t.trim()).filter(Boolean),
     network: privacy ? "testnet (NU7)" : null,
-    pool: privacy ? "Orchard, unified addresses" : null,
+    pool: privacy ? "shielded (Ironwood), unified addresses" : null,
     testnetTxid: privacy ? f.testnetTxid.trim() || null : null,
     nextStep: f.nextStep.trim(),
     nextStepLinks: splitLinks(f.nextStepLinks),
     frictionNotes: f.frictionNotes.trim() || null,
+    privacyNote: privacy ? f.privacyNote.trim() || null : null,
+    bitrefillFeedback: judgesAgentic(track) ? { worked: f.bitrefillWorked.trim(), didnt: f.bitrefillDidnt.trim() } : null,
     anonymous: f.anonymous,
   };
 }
@@ -108,6 +131,9 @@ export function detailsToTrackedForm(d: Partial<ApiSubmissionDetails> | null | u
     nextStep: d.nextStep ?? "",
     nextStepLinks: (d.nextStepLinks ?? []).join("\n"),
     frictionNotes: d.frictionNotes ?? "",
+    privacyNote: d.privacyNote ?? "",
+    bitrefillWorked: d.bitrefillFeedback?.worked ?? "",
+    bitrefillDidnt: d.bitrefillFeedback?.didnt ?? "",
     anonymous: !!d.anonymous,
   };
 }

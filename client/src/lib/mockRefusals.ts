@@ -22,11 +22,13 @@ const seed = (slug: string): ApiSubmissionRefusal[] => {
     demoVideoLength: "1:40",
     technologies: ["WebZjs", "Next.js"],
     network: "testnet (NU7)",
-    pool: "Orchard, unified addresses",
+    pool: "shielded (Ironwood), unified addresses",
     testnetTxid: "e".repeat(64),
     nextStep: "User tests with 10 first-time users by 4 Dec.",
     nextStepLinks: [],
     frictionNotes: null,
+    privacyNote: "Amounts and memos are shielded. Our server sees the user's email at sign-up; the light-wallet server sees their IP.",
+    bitrefillFeedback: null,
     anonymous: false,
   };
   return [

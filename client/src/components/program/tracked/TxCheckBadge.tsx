@@ -12,9 +12,9 @@ const LABEL: Record<ApiTxCheck["status"] | "pending", string> = {
 };
 
 const DETAIL: Record<ApiTxCheck["status"] | "pending", string> = {
-  verified: "The transaction exists on testnet and has Orchard actions.",
+  verified: "The transaction exists on testnet and is shielded.",
   not_found: "No transaction with this id was found on testnet.",
-  not_shielded: "The transaction exists but has no Orchard actions.",
+  not_shielded: "The transaction exists but is not shielded.",
   could_not_check: "Testnet servers didn't answer after several tries. This is not a failure; an admin can re-check.",
   pending: "The check runs after submission and never blocks it.",
 };

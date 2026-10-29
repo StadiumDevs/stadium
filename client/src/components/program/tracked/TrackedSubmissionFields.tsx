@@ -5,7 +5,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { SubmissionTrack } from "@/lib/api";
 import type { ProgramProfile } from "@/lib/programProfiles";
-import { isApp, PITCH_MAX, type TrackedFormState } from "./trackedForm";
+import {
+  BITREFILL_FEEDBACK_MAX,
+  isApp,
+  judgesAgentic,
+  PITCH_MAX,
+  PRIVACY_NOTE_MAX,
+  type TrackedFormState,
+} from "./trackedForm";
 
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -21,6 +28,7 @@ export function TrackedSubmissionFields({
 }) {
   const set = <K extends keyof TrackedFormState>(k: K, v: TrackedFormState[K]) => onChange({ ...f, [k]: v });
   const privacy = !!f.track && f.track !== "agentic";
+  const agentic = judgesAgentic(f.track);
 
   return (
     <div className="space-y-4 border-t border-hairline-subtle pt-4">
@@ -103,7 +111,7 @@ export function TrackedSubmissionFields({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="trk-len" className="label-hw-dim">DEMO VIDEO LENGTH (2:00 MAX)</Label>
+        <Label htmlFor="trk-len" className="label-hw-dim">DEMO VIDEO LENGTH ({agentic ? "3:00" : "2:00"} MAX)</Label>
         <Input id="trk-len" placeholder="1:54" value={f.demoVideoLength} onChange={(e) => set("demoVideoLength", e.target.value)} className="font-mono text-sm" />
         {privacy && !isApp(f.appType) && f.appType && (
           <p className="label-hw-dim normal-case">For non-apps the video must show it working with Zcash.</p>
@@ -118,10 +126,37 @@ export function TrackedSubmissionFields({
       {privacy && (
         <div className="space-y-1.5">
           <Label htmlFor="trk-txid" className="label-hw-dim">TESTNET TRANSACTION ID</Label>
-          <Input id="trk-txid" placeholder="One shielded (Orchard) testnet txid your project created" value={f.testnetTxid} onChange={(e) => set("testnetTxid", e.target.value)} className="font-mono text-sm" />
+          <Input id="trk-txid" placeholder="One shielded testnet txid your project created" value={f.testnetTxid} onChange={(e) => set("testnetTxid", e.target.value)} className="font-mono text-sm" />
           <p className="label-hw-dim normal-case">
             Stadium checks it exists and is shielded. A failed check never blocks your submission; amounts and memos stay private.
           </p>
+        </div>
+      )}
+
+      {privacy && (
+        <div className="space-y-1.5" data-testid="privacy-note-field">
+          <div className="flex items-baseline justify-between">
+            <Label htmlFor="trk-privacy-note" className="label-hw-dim">PRIVACY AND TRUST NOTE (JUDGES SCORE PRIVATE FROM THIS)</Label>
+            <span className="label-hw-dim">{f.privacyNote.trim().length}/{PRIVACY_NOTE_MAX}</span>
+          </div>
+          <div className="label-hw-dim normal-case space-y-0.5">
+            <p>A few honest lines beat a vague claim. Answer four questions:</p>
+            <ol className="list-decimal pl-5">
+              <li>What stays private? (e.g. amounts, sender and receiver are shielded on-chain)</li>
+              <li>What does your app reveal, and to whom? (e.g. your server stores emails next to order ids; the light-wallet server sees the user's IP)</li>
+              <li>What do users have to trust? Name each party: your server, a hosted light-wallet server, a payment processor, an AI model provider, you as the operator.</li>
+              <li>What would you fix next?</li>
+            </ol>
+            <p>Self-custody alone isn't a privacy design. Naming a gap doesn't cost points; leaving one out does.</p>
+          </div>
+          <Textarea
+            id="trk-privacy-note"
+            rows={5}
+            maxLength={PRIVACY_NOTE_MAX}
+            value={f.privacyNote}
+            onChange={(e) => set("privacyNote", e.target.value)}
+            className="font-mono text-sm"
+          />
         </div>
       )}
 
@@ -141,6 +176,21 @@ export function TrackedSubmissionFields({
           className="font-mono text-sm"
         />
       </div>
+
+      {agentic && (
+        <fieldset className="space-y-2 border-t border-hairline-subtle pt-4" data-testid="bitrefill-feedback-field">
+          <legend className="label-hw-dim">BITREFILL FEEDBACK (REQUIRED FOR AGENTIC COMMERCE)</legend>
+          <p className="label-hw-dim normal-case">Goes to Bitrefill, not the public page. The most useful feedback wins $100.</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="trk-bf-worked" className="label-hw-dim">WHAT WORKED WITH BITREFILL?</Label>
+            <Textarea id="trk-bf-worked" rows={2} maxLength={BITREFILL_FEEDBACK_MAX} value={f.bitrefillWorked} onChange={(e) => set("bitrefillWorked", e.target.value)} className="font-mono text-sm" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="trk-bf-didnt" className="label-hw-dim">WHAT DIDN'T?</Label>
+            <Textarea id="trk-bf-didnt" rows={2} maxLength={BITREFILL_FEEDBACK_MAX} value={f.bitrefillDidnt} onChange={(e) => set("bitrefillDidnt", e.target.value)} className="font-mono text-sm" />
+          </div>
+        </fieldset>
+      )}
 
       <div className="space-y-1.5 border-t border-hairline-subtle pt-4">
         <Label htmlFor="trk-feedback" className="label-hw-dim">FEEDBACK FOR THE ZCASH TEAMS (OPTIONAL, NOT SCORED)</Label>

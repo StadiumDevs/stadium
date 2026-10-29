@@ -50,6 +50,7 @@ export function CriteriaCarousel({
   onPick,
   onNotes,
   onCheck,
+  criterionContext,
 }: {
   rubric: Rubric;
   criteria: Record<string, number | null>;
@@ -60,6 +61,8 @@ export function CriteriaCarousel({
   onPick: (criterionId: string, value: number | null) => void;
   onNotes: (notes: string) => void;
   onCheck: (id: CheckStep["id"], value: boolean) => void;
+  /** What the judge reads on a question's slide, by criterion id (e.g. the privacy note on Private). */
+  criterionContext?: Record<string, ReactNode>;
 }) {
   const [api, setApi] = useState<CarouselApi>();
   // Slide order: checks, then questions, then the note.
@@ -252,6 +255,7 @@ export function CriteriaCarousel({
                   </div>
                   {question(c) && <p className="text-[14px] text-body leading-relaxed mt-1">{question(c)}</p>}
                 </div>
+                {criterionContext?.[c.id]}
                 <div className={cn("grid gap-2", c.levels ? "grid-cols-1" : "grid-cols-3 sm:grid-cols-6")}>
                   {Array.from({ length: c.max + 1 }, (_, v) => v).map((v) => {
                     const selected = criteria[c.id] === v;

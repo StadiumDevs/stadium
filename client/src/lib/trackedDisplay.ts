@@ -12,7 +12,8 @@ export const toPublicSubmission = (
   s: ApiTrackedSubmission,
   { showPrizes, showNames = false }: { showPrizes: boolean; showNames?: boolean },
 ): ApiPublicSubmission => {
-  const { team, ...rest } = s.details;
+  // The Bitrefill feedback stays in admin views (showNames) and the judge card.
+  const { team, bitrefillFeedback, ...rest } = s.details;
   const anon = !!s.details.anonymous && !showNames;
   return {
     id: s.id,
@@ -23,7 +24,11 @@ export const toPublicSubmission = (
     githubUrl: s.githubUrl,
     late: !!s.late,
     createdAt: s.createdAt,
-    details: { ...rest, team: team.map((m) => ({ name: anon ? "Teammate" : m.name, role: m.role ?? null })) },
+    details: {
+      ...rest,
+      ...(showNames ? { bitrefillFeedback } : {}),
+      team: team.map((m) => ({ name: anon ? "Teammate" : m.name, role: m.role ?? null })),
+    },
     prizes: showPrizes ? s.prizes : {},
     ecosystemPrize: showPrizes && s.ecosystemPrize,
   };

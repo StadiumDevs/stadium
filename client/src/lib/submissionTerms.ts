@@ -67,9 +67,10 @@ By submitting a project to the Free Society Hack, you confirm that you have read
 
 To be eligible for Privacy judging, your submission must:
 
-- Work on Zcash testnet with NU7, using shielded Orchard funds via unified addresses.
+- Work on Zcash testnet with NU7, using shielded funds via unified addresses.
 - Include one testnet transaction id your project created.
-- Include a one-line pitch, a demo video of 2 minutes or less (for non-apps it must show it working with Zcash), a public repo with a README, every technology used, and a next milestone for the 30 days with links to anything already started.
+- Include a one-line pitch, a public repo with a README listing every technology used and your design decisions, a privacy and trust note, and a next step for the 30 days with links to anything already started.
+- Include a public URL if it is an app people use. A demo video (2 minutes or less) is optional but strongly preferred.
 
 Out of scope: Zcash Shielded Assets, mainnet funds, Sprout, v4 transactions, and zcashd wallet RPC.
 

@@ -731,12 +731,12 @@ const PRIVACY_SCORES: Record<string, PrivRow[]> = {
   ],
 };
 
-// [requirements 0-2, techStack 0-5, innovation 0-5] per Bitrefill judge.
+// [requirements, techStack, innovation], each 0-5, per Bitrefill judge.
 type AgRow = [number, number, number];
 const AGENTIC_SCORES: Record<string, AgRow[]> = {
-  "tab-settler": [[2, 5, 5], [2, 5, 4]],
-  "ticket-veil": [[2, 4, 5], [2, 4, 4]],
-  "roam-topup": [[2, 4, 3], [2, 4, 4]],
+  "tab-settler": [[5, 5, 5], [5, 5, 4]],
+  "ticket-veil": [[5, 4, 5], [4, 4, 4]],
+  "roam-topup": [[4, 4, 3], [5, 4, 4]],
 };
 
 // Small deterministic hash for the rest of the field (keeps totals below the winners).
@@ -751,9 +751,23 @@ const genPrivacy = (key: string, judge: number, txFailed: boolean): PrivRow => {
   return [txFailed ? 1 : r(0), r(1), r(2), r(3), r(4), 0];
 };
 const genAgentic = (key: string, judge: number): AgRow => [
-  1 + (h(key, judge * 10) % 2),
+  1 + (h(key, judge * 10) % 3),
   1 + (h(key, judge * 10 + 1) % 3),
   1 + (h(key, judge * 10 + 2) % 3),
+];
+
+// Sample privacy and trust notes (the four questions from the builder doc).
+const PRIVACY_NOTES = [
+  "Private: amounts, sender and receiver are shielded on-chain. Revealed: our server stores the order id next to the buyer's email. Trust: our server and the hosted light-wallet server (testnet.zec.rocks), which sees the user's IP. Next: drop emails and show a one-time order code instead.",
+  "Private: the payment and its memo. Revealed: the light-wallet server sees the IP and when the wallet syncs. Trust: the light-wallet server and us as the operator of the web app. Next: route sync through Nym.",
+  "Private: balances and payments; the viewing key only reads incoming funds. Revealed: whoever holds the exported viewing key sees every incoming payment. Trust: the accountant receiving the export. Next: limit the export to a date range.",
+  "Private: amounts and recipients. Revealed: the AI model provider sees the user's spending request text. Trust: the model provider and our relay server. Next: run the model locally for the spending cap check.",
+];
+// Sample Bitrefill feedback (what worked, what didn't).
+const BITREFILL_FEEDBACK = [
+  { worked: "The hosted MCP worked first try with Claude.", didnt: "The OAuth step was hard to do from a headless agent." },
+  { worked: "Test products made the pending state easy to handle.", didnt: "Finding India-relevant products by search was slow." },
+  { worked: "The CLI was quick for a scheduled job.", didnt: "The x402 payment URL docs lack a full example." },
 ];
 
 const NOTE_POOL = [
@@ -881,13 +895,15 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
         demoVideoLength: p.video ?? null,
         technologies: p.techs,
         network: isPrivacy ? "testnet (NU7)" : null,
-        pool: isPrivacy ? "Orchard, unified addresses" : null,
+        pool: isPrivacy ? "shielded (Ironwood), unified addresses" : null,
         testnetTxid: txid,
         txCheck: txCheckFor(txid),
         nextStep: p.nextStep,
         nextStepLinks: p.links ?? [],
         anonymous: !!p.anonymous,
         frictionNotes: p.friction,
+        privacyNote: isPrivacy ? PRIVACY_NOTES[h(p.key, 3) % PRIVACY_NOTES.length] : null,
+        bitrefillFeedback: p.track !== "privacy" ? BITREFILL_FEEDBACK[h(p.key, 5) % BITREFILL_FEEDBACK.length] : null,
         milestone,
       },
       prizes,

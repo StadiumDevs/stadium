@@ -57,8 +57,14 @@ export function SubmissionDetails({ profile, submission: s }: { profile: Program
       <Row label="TYPE">{d.appType}</Row>
       <Row label="PUBLIC URL">{d.publicUrl ? <ExtLink href={d.publicUrl} /> : <span className="text-label-mid">None (not an app)</span>}</Row>
       <Row label="DEMO VIDEO">
-        <ExtLink href={s.videoUrl} />
-        {d.demoVideoLength ? <span className="text-label-mid"> · {d.demoVideoLength}</span> : null}
+        {s.videoUrl ? (
+          <>
+            <ExtLink href={s.videoUrl} />
+            {d.demoVideoLength ? <span className="text-label-mid"> · {d.demoVideoLength}</span> : null}
+          </>
+        ) : (
+          <span className="text-label-mid">None (optional for Privacy)</span>
+        )}
       </Row>
       <Row label="REPO">
         <ExtLink href={s.githubUrl} />
@@ -81,6 +87,11 @@ export function SubmissionDetails({ profile, submission: s }: { profile: Program
           </div>
         </Row>
       )}
+      {d.track !== "agentic" && (
+        <Row label="PRIVACY AND TRUST NOTE">
+          {d.privacyNote ? <p className="whitespace-pre-line">{d.privacyNote}</p> : <span className="text-label-mid">None given</span>}
+        </Row>
+      )}
       <Row label="NEXT MILESTONE">
         <div className="space-y-1">
           <p>{d.nextStep}</p>
@@ -98,6 +109,12 @@ export function SubmissionDetails({ profile, submission: s }: { profile: Program
           <span className="text-label-mid">None given</span>
         )}
       </Row>
+      {d.bitrefillFeedback && (
+        <Row label="BITREFILL FEEDBACK">
+          <p><span className="text-label-mid">Worked: </span>{d.bitrefillFeedback.worked}</p>
+          <p><span className="text-label-mid">Didn't: </span>{d.bitrefillFeedback.didnt}</p>
+        </Row>
+      )}
     </dl>
   );
 }

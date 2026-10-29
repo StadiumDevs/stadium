@@ -5,14 +5,14 @@ import { MOCK_TX_RESULTS } from "./mocks/freeSocietyHack.seed";
  * Zcash testnet transaction check (mock-mode stand-in for the planned server
  * lookup against a public lightwalletd such as testnet.zec.rocks).
  *
- * Only two things are checkable: the transaction exists, and it has Orchard
- * actions (it is shielded). Amounts and memos stay private. A lookup that keeps
+ * Only two things are checkable: the transaction exists, and it has shielded
+ * actions. Amounts and memos stay private. A lookup that keeps
  * failing returns `could_not_check` instead of a false "not found", because
  * public testnet servers are unreliable. Results are cached per txid.
  */
 
 export const TX_CHECK_TOOLTIP =
-  "Stadium looks the transaction up on a Zcash testnet lightwalletd server and checks two things: it exists, and it has Orchard actions (it is shielded). Amounts and memos stay private and are never checked. Use the explorer link to verify it yourself.";
+  "Stadium looks the transaction up on a Zcash testnet lightwalletd server and checks two things: it exists, and it is shielded. Amounts and memos stay private and are never checked. Use the explorer link to verify it yourself.";
 
 const MAX_ATTEMPTS = 3;
 const cache = new Map<string, ApiTxCheck>();

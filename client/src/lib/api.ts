@@ -609,6 +609,10 @@ export type ApiSubmissionDetails = {
   /** Hide the point person's and teammates' names publicly (admins still see them). */
   anonymous?: boolean;
   frictionNotes: string | null;
+  /** Privacy and trust note (Privacy and Both): judges score Private from it. */
+  privacyNote?: string | null;
+  /** Bitrefill feedback (Agentic and Both): never shown publicly. */
+  bitrefillFeedback?: { worked: string; didnt: string } | null;
   /** No longer collected (feedback is free text); kept optional for older records. */
   frictionAreas?: string[];
   milestone: ApiSubmissionMilestone | null;
