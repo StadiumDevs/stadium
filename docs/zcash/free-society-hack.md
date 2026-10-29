@@ -140,6 +140,10 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
   - **Questions as a carousel.** One question per slide with its title and number (WORKS · 1 / 6), then a NOTE slide with the note and a summary. Swipe, ◂ BACK / NEXT QUESTION ▸, ←/→ keys, or tap a question chip. Picking a level autosaves and stays on the question (you can change it); NEXT QUESTION ▸ (solid once answered), a swipe or ← → moves on. A project opens on its first unanswered question (or the note when all are answered).
   - **Check first.** Before the questions, the carousel walks the judge through VIDEO (watch the demo), REPO (README, code matches the demo, plus the app link) and, for Privacy projects with a txid, TX (the explorer link plus Stadium's own check). Their chips sit to the left of WORKS and turn green with ✓ when checked; opening the link marks a step checked, and a toggle sets or unsets it. START SCORING ▸ moves on to WORKS. Checks are saved with the judge's score (`checks` JSONB) and don't affect scoring. A project opens on its first unchecked step until it's fully scored, then on its note.
   - **Watch the video on the screen.** The VIDEO step plays the demo inline: direct video files in a player (playing it ticks VIDEO), YouTube (incl. Shorts and youtu.be), Vimeo, Loom and Google Drive in their embed player (`client/src/lib/demoUtils.ts`; tick VIDEO with the toggle). Any other host isn't framed; the judge gets "can't play here" and the new-tab link. The player loads only while the VIDEO step is open, so moving on stops it. Playground projects use MDN's public CC0 sample clip (store key bumped to `_v4`).
+- **Builder feedback and the ranked CSV (29 Oct).**
+  - **Feedback is free text.** The submission form ends with one optional question, FEEDBACK FOR THE ZCASH TEAMS (OPTIONAL, NOT SCORED), with light guidance ("Say which tool, e.g. the faucet, a wallet, an SDK, a node, the docs, and what happened") and an example. The six area checkboxes are gone, so there is no tagging to explain. Stored as `details.frictionNotes`; `frictionAreas` is no longer collected (ignored if an old client sends it).
+  - **·BUILDER FEEDBACK** on the admin page (was ·FRICTION REPORT): every note, newest first, with project and track; a search box (e.g. "faucet"); EXPORT CSV.
+  - **EXPORT RANKED CSV** on the leaderboard (admins), one file per track: projects in leaderboard order with rank, tie-break, average and per-criterion averages, prize, Ecosystem flag, point person and links, txid check, next milestone, the builder's feedback, then every judge **by name**: total, each criterion, their note and session. The all-fields EXPORT CSV (SCORES + NOTES) stays (submission order).
 - **No check-in emails (29 Oct).** Stadium doesn't email builders. The 14- and 30-day check-ins (send buttons, the answer page, still-building counts) are removed, along with that server-plan row. The Ecosystem Prize milestone's "Check in" step (Thu 19 Nov) is now a date an admin records under ·ECOSYSTEM PRIZE MILESTONES → CHECKED IN ON. The page content and placeholder terms no longer promise check-in emails (content migration regenerated).
 - **Submissions end to end, with fallbacks (29 Oct).** The builder's path:
   1. **The form is saved as a draft on the device** as they type (DRAFT SAVED ON THIS DEVICE · START OVER). Closing it, a refresh or an error loses nothing; a successful submit clears it.
@@ -169,10 +173,10 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
 | Ecosystem Prize flag: `program_submissions.ecosystem_prize BOOLEAN`, global-admin PATCH capped at two podium projects in the Privacy track, in the public results and CSV | 0.25 day |
 | Milestone columns on the submission (or a `submission_milestones` table, incl. `checked_in_at` set by the admin), with the admin PATCH under `requireProgramAdmin` and the builder PATCH under an email magic-link session matched to `luma_email` | 1 day |
 | **Testnet tx check:** service calling a public lightwalletd (`testnet.zec.rocks`) `GetTransaction`, parsing the Orchard action count, with retry/backoff, `tx_check JSONB` cache, `could_not_check` on timeouts, run fire-and-forget after submit, plus an admin re-check endpoint and tests | 1 day |
-| **Friction report:** server CSV plus the grouped view's data (mostly done once `details` exists) | 0.5 day |
+| **Builder feedback:** server CSV of the free-text feedback (mostly done once `details` exists) | 0.25 day |
 | Server CSV with per-judge scores, notes and track | 0.5 day |
 
-The tx check and friction report are each about a day or less, so none needs a separate go-ahead under the brief's rule. What's left on the server is about 5 days (tx check, awards and leaderboard, milestones, CSVs). See §5.
+The tx check and builder-feedback CSV are each about a day or less, so none needs a separate go-ahead under the brief's rule. What's left on the server is about 5 days (tx check, awards and leaderboard, milestones, CSVs). See §5.
 
 ## 5. Decisions you need to make
 
@@ -210,4 +214,4 @@ The tx check and friction report are each about a day or less, so none needs a s
 13. Set status `completed` after demo day.
 14. **Thu 19 Nov:** check in with the two Ecosystem Prize projects (outside Stadium) and record the date under ·ECOSYSTEM PRIZE MILESTONES → CHECKED IN ON.
 15. **By Fri 11 Dec:** record the milestone outcomes and release the payouts.
-16. **Fri 20 Nov:** export the friction CSV for the grant committee.
+16. **Fri 20 Nov:** export the builder feedback CSV (·BUILDER FEEDBACK → EXPORT CSV) for the grant committee.
