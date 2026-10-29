@@ -194,6 +194,8 @@ router.put(
 // Tracked programs (Free Society Hack): per-judge rubric scores per track.
 // Email judges only (the controller refuses wallet admins); partial scores
 // autosave, and a judge's tracks (program_admin_emails.tracks) are enforced.
+router.get('/:slug/judges', requireProgramJudge('slug'), submissionController.listJudges);
+router.get('/:slug/tracked-submissions', requireProgramJudge('slug'), submissionController.listTracked);
 router.get('/:slug/rubric-scores/mine', requireProgramJudge('slug'), submissionController.listMyRubricScores);
 router.put(
   '/:slug/submissions/:submissionId/rubric-scores/:track',

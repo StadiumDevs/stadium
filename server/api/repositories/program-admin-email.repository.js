@@ -16,6 +16,8 @@ const transform = (row) => {
     role: row.role || 'admin',
     // Tracks this grant may score (tracked programs). null = every track.
     tracks: Array.isArray(row.tracks) ? row.tracks : null,
+    // Display name (judges): shown to other judges instead of the email.
+    name: row.name ?? null,
     invitedBy: row.invited_by,
     createdAt: row.created_at,
   };
@@ -32,18 +34,23 @@ class ProgramAdminEmailRepository {
     return (data || []).map(transform);
   }
 
-  async add(programId, email, invitedBy, role = 'admin') {
+  // `profile` (optional): { name, tracks } for a judge. Only the keys given are
+  // written, so re-inviting without them keeps what's stored.
+  async add(programId, email, invitedBy, role = 'admin', profile = {}) {
     const normalized = normalizeEmail(email);
     if (!normalized) return null;
+    const row = {
+      program_id: programId,
+      email: normalized,
+      invited_by: invitedBy ?? null,
+      role: normalizeRole(role),
+    };
+    if (profile.name !== undefined) row.name = profile.name || null;
+    if (profile.tracks !== undefined) row.tracks = profile.tracks ?? null;
     const { data, error } = await supabase
       .from('program_admin_emails')
       .upsert(
-        {
-          program_id: programId,
-          email: normalized,
-          invited_by: invitedBy ?? null,
-          role: normalizeRole(role),
-        },
+        row,
         { onConflict: 'program_id,email' },
       )
       .select('*')

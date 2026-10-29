@@ -258,3 +258,107 @@ export function validateRubricScore(track, body = {}) {
   }
   return { ok: true, value: { criteria, notes, session, revisit: body.revisit === true, checks } };
 }
+
+// Tracked-program submission fields (`details`), mirroring the client form
+// (client/src/components/program/tracked/trackedForm.ts). Unknown keys are
+// dropped, and server-set fields (txCheck, milestone, checkIns) are never
+// taken from the client.
+export const PITCH_MAX = 140;
+const TXID_RE = /^[0-9a-f]{64}$/i;
+const isApp = (appType) => /app/i.test(appType);
+const strList = (v) => (Array.isArray(v) ? v : []);
+
+export function validateSubmissionDetails(config, details) {
+  if (!config) return { ok: false, error: 'This program does not take tracked submissions' };
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
+    return { ok: false, error: 'Submission details are required for this program' };
+  }
+  const d = details;
+  const track = str(d.track);
+  if (!config.submissionTracks.includes(track)) return { ok: false, error: 'Choose a track' };
+  const judgesPrivacy = track !== 'agentic';
+
+  const themes = strList(d.themes).map(str).filter(Boolean);
+  if (themes.some((t) => !config.themes.includes(t))) return { ok: false, error: 'Unknown theme' };
+  if (judgesPrivacy && themes.length === 0) return { ok: false, error: 'Pick at least one theme' };
+
+  const pitch = str(d.pitch);
+  if (!pitch) return { ok: false, error: 'A one-line pitch is required' };
+  if (pitch.length > PITCH_MAX) return { ok: false, error: `The pitch must be ${PITCH_MAX} characters or fewer` };
+
+  if (!Array.isArray(d.team ?? [])) return { ok: false, error: 'team must be a list' };
+  const rawTeam = d.team ?? [];
+  if (rawTeam.length > config.maxTeam) return { ok: false, error: `At most ${config.maxTeam} teammates` };
+  const team = [];
+  for (const m of rawTeam) {
+    const name = str(m?.name);
+    const email = str(m?.email);
+    const role = str(m?.role);
+    if (!name || name.length > 100) return { ok: false, error: 'Each teammate needs a name (max 100 characters)' };
+    if (email && !EMAIL_RE.test(email)) return { ok: false, error: `Teammate ${name} has an invalid email` };
+    if (role.length > 60) return { ok: false, error: 'A teammate role is max 60 characters' };
+    team.push({ name, email: email ? email.toLowerCase() : null, role: role || null });
+  }
+
+  const appType = str(d.appType);
+  if (!config.appTypes.includes(appType)) return { ok: false, error: 'Say what kind of project it is' };
+  const publicUrl = str(d.publicUrl) || null;
+  if (publicUrl && !isHttpUrl(publicUrl)) return { ok: false, error: 'The public URL must start with http:// or https://' };
+  if (isApp(appType) && !publicUrl) return { ok: false, error: 'Apps need a public URL (http/https)' };
+
+  const demoVideoLength = str(d.demoVideoLength) || null;
+  if (demoVideoLength && demoVideoLength.length > 10) return { ok: false, error: 'Video length is max 10 characters (e.g. 1:54)' };
+
+  const technologies = strList(d.technologies).map(str).filter(Boolean);
+  if (technologies.length === 0) return { ok: false, error: 'List every technology you used' };
+  if (technologies.length > 20 || technologies.some((t) => t.length > 60)) {
+    return { ok: false, error: 'Technologies: at most 20, each max 60 characters' };
+  }
+
+  const txidRequired = config.txidTracks.includes(track);
+  const testnetTxid = txidRequired ? str(d.testnetTxid) || null : null;
+  if (txidRequired && !testnetTxid) return { ok: false, error: 'Privacy entries need one testnet transaction id' };
+  if (testnetTxid && !TXID_RE.test(testnetTxid)) {
+    return { ok: false, error: 'A testnet transaction id is 64 hex characters' };
+  }
+
+  const nextStep = str(d.nextStep);
+  if (!nextStep) return { ok: false, error: 'A next milestone for the 30 days is required' };
+  if (nextStep.length > 1000) return { ok: false, error: 'The next milestone is max 1000 characters' };
+  const nextStepLinks = strList(d.nextStepLinks).map(str).filter(Boolean);
+  if (nextStepLinks.length > 10) return { ok: false, error: 'At most 10 next-milestone links' };
+  if (nextStepLinks.some((l) => !isHttpUrl(l))) {
+    return { ok: false, error: 'Each next-milestone link must start with http:// or https://' };
+  }
+
+  const frictionAreas = strList(d.frictionAreas).map(str).filter(Boolean);
+  if (frictionAreas.some((a) => !config.frictionAreas.includes(a))) return { ok: false, error: 'Unknown friction area' };
+  const frictionNotes = str(d.frictionNotes) || null;
+  if (frictionNotes && frictionNotes.length > 2000) return { ok: false, error: 'Friction notes are max 2000 characters' };
+
+  if (d.anonymous !== undefined && typeof d.anonymous !== 'boolean') {
+    return { ok: false, error: 'anonymous must be true or false' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      track,
+      themes: judgesPrivacy ? themes : [],
+      pitch,
+      team,
+      appType,
+      publicUrl,
+      demoVideoLength,
+      technologies,
+      network: judgesPrivacy ? 'testnet (NU7)' : null,
+      pool: judgesPrivacy ? 'Orchard, unified addresses' : null,
+      testnetTxid,
+      nextStep,
+      nextStepLinks,
+      frictionNotes,
+      frictionAreas,
+      anonymous: d.anonymous === true,
+    },
+  };
+}

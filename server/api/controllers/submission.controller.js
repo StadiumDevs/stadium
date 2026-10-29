@@ -5,9 +5,12 @@ import programSubmissionRepository from '../repositories/program-submission.repo
 import programSignupRepository from '../repositories/program-signup.repository.js';
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
+import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
+import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
 import {
   validateSubmission,
+  validateSubmissionDetails,
   validateScore,
   validateRubricScore,
   validatePrize,
@@ -102,6 +105,16 @@ class SubmissionController {
       const v = validateSubmission(req.body);
       if (!v.ok) {
         return res.status(400).json({ status: 'error', message: v.error });
+      }
+      // Tracked programs (e.g. Free Society Hack) also need their track
+      // fields; validated against the program's config and stored as details.
+      const tracked = trackedProgramFor(program.slug);
+      if (tracked) {
+        const dv = validateSubmissionDetails(tracked, req.body?.details);
+        if (!dv.ok) {
+          return res.status(400).json({ status: 'error', message: dv.error });
+        }
+        v.value.details = dv.value;
       }
       // Only checked-in attendees may submit: the email must be on the program's
       // imported Luma (checked-in / approved guest) list. SUBMIT_TEST_EMAILS is a
@@ -293,6 +306,46 @@ class SubmissionController {
     } catch (error) {
       console.error('❌ Error saving score:', error);
       res.status(500).json({ status: 'error', message: 'Failed to save score' });
+    }
+  }
+
+  // Judge/admin: the program's judges with their profile (name, tracks). Emails
+  // go to admins and to each judge for their own row only, so judges see
+  // each other by name, as in the progress table.
+  async listJudges(req, res) {
+    try {
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const judges = await programAdminEmailRepository.listJudges(programId);
+      const me = (req.user?.email || '').toLowerCase();
+      const isAdminCaller = !req.user?.email || req.user?.role === 'admin';
+      const data = judges.map((j) => ({
+        name: j.name || j.email.split('@')[0],
+        tracks: j.tracks,
+        email: isAdminCaller || j.email === me ? j.email : null,
+      }));
+      res.status(200).json({ status: 'success', data });
+    } catch (error) {
+      console.error('❌ Error listing judges:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load judges' });
+    }
+  }
+
+  // Judge/admin: a tracked program's submissions with their details, track and
+  // judging batch (from the first submission time; see trackedPrograms.js).
+  // Every Luma-gated submission lands in its batch with no manual step.
+  async listTracked(req, res) {
+    try {
+      const tracked = trackedProgramFor(req.params.slug);
+      if (!tracked) return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const rows = await programSubmissionRepository.listByProgramId(programId);
+      const data = rows.map((s) => ({ ...s, batch: batchFor(tracked.judgingBatches, s.createdAt) }));
+      res.status(200).json({ status: 'success', data: { submissions: data, batches: tracked.judgingBatches } });
+    } catch (error) {
+      console.error('❌ Error listing tracked submissions:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load submissions' });
     }
   }
 

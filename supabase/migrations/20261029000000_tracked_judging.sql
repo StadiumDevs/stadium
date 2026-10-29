@@ -1,10 +1,25 @@
--- Per-judge rubric scores for tracked programs (Free Society Hack): one row per
--- (submission, judge, track), with the criteria as JSONB so each track keeps
--- its own rubric. Partial scores are allowed: judges' work autosaves as they
--- go, and only fully scored rows count towards the leaderboard and progress.
--- Sits beside the Bitrefill `submission_scores` table, which is unchanged.
--- Rubric definitions: server/api/constants/rubrics.js (mirrors
--- client/src/lib/programProfiles.ts).
+-- Tracked programs (Free Society Hack): what the server needs to take real
+-- submissions and judging. Additive only; the Bitrefill flow is unchanged.
+--
+-- 1. program_submissions.details / track: the tracked submission fields
+--    (track, themes, pitch, team, txid, next milestone, friction, anonymous),
+--    validated in the API (validateSubmissionDetails) and stored as JSONB, with
+--    the track as a column for filtering.
+-- 2. submission_rubric_scores: per-judge rubric scores, one row per
+--    (submission, judge, track), criteria as JSONB so each track keeps its own
+--    rubric. Partial scores are allowed (judges' work autosaves); only fully
+--    scored rows count. Plus the judge's revisit flag and pre-scoring checks.
+-- 3. program_admin_emails.name / tracks: a judge's display name and the
+--    tracks they may score (NULL = every track).
+--
+-- Config mirrored in server/api/constants/{rubrics,trackedPrograms}.js and
+-- client/src/lib/programProfiles.ts.
+
+ALTER TABLE program_submissions ADD COLUMN IF NOT EXISTS details JSONB;
+ALTER TABLE program_submissions ADD COLUMN IF NOT EXISTS track TEXT
+  CHECK (track IS NULL OR track IN ('privacy', 'agentic', 'both'));
+CREATE INDEX IF NOT EXISTS program_submissions_program_track_idx
+  ON program_submissions (program_id, track);
 
 CREATE TABLE IF NOT EXISTS submission_rubric_scores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,3 +54,5 @@ ALTER TABLE submission_rubric_scores ENABLE ROW LEVEL SECURITY;
 -- Which tracks an invited judge may score. NULL = every track (existing
 -- grants, and the Bitrefill flow, are unaffected).
 ALTER TABLE program_admin_emails ADD COLUMN IF NOT EXISTS tracks TEXT[];
+-- A judge's display name (shown to other judges instead of their email).
+ALTER TABLE program_admin_emails ADD COLUMN IF NOT EXISTS name TEXT;
