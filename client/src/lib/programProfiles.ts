@@ -65,6 +65,8 @@ export type ProgramProfile = {
   appTypes: string[];
   /** Show submitted projects on the public page immediately, not only after results. */
   showSubmissionsLive: boolean;
+  /** The event's own time zone: dates and times on the page show in it, not the viewer's. */
+  timeZone?: { id: string; label: string };
   /**
    * Judging batches, in order (also the session a score is saved in). A
    * submission joins the first batch whose `until` is at or after its first
@@ -235,6 +237,7 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
   themes: ["1. Private payment rails", "2. The first five minutes", "3. Privacy beyond the transaction"],
   appTypes: ["web app", "mobile app", "SDK or library", "CLI", "agent", "other"],
   showSubmissionsLive: true,
+  timeZone: { id: "Asia/Kolkata", label: "IST" },
   judgingSessions: [
     { id: "evening", label: "Evening · Wed 4 Nov 20:00–22:00", until: "2026-11-04T20:00:00+05:30", short: "EVENING · IN BY 20:00" },
     { id: "morning", label: "Morning · Thu 5 Nov 08:00–10:00", until: null, short: "MORNING · AFTER 20:00" },

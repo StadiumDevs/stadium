@@ -32,7 +32,7 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] On /programs/free-society-hack-2026/projects/fsh-06-orchard-receipts (a non-winner), load → the 404 page shows
 - [ ] On /programs/bitrefill-2026, load → no tracked grid, Bitrefill content as on develop below the about panel
 
-- [ ] On /programs/free-society-hack-2026?preview=before (playground only), the page shows how it looks before the hack: a PLAYGROUND PREVIEW · BEFORE THE HACK banner, DRAFT status, the about panel with REGISTER ON LUMA ▸, the details (Two tracks … FAQ) inline, no project grid, and a disabled SUBMIT A PROJECT with "Submissions open when the hack starts (Wed 4 Nov, 11:00 IST)"; without ?preview the page is the usual seeded end-of-event view; the admin ·PLAYGROUND bar links to it (PREVIEW: BEFORE THE HACK ↗)
+- [ ] On /programs/free-society-hack-2026?preview=before (playground only), the page shows how it looks before the hack: a PLAYGROUND PREVIEW · BEFORE THE HACK banner, DRAFT status, the about panel with REGISTER ON LUMA ▸, the details (Two tracks … FAQ) inline, no project grid, and a disabled SUBMIT A PROJECT with "Submissions open when the hack starts (Wed 4 Nov, 11:00 AM IST)" (in IST whatever the viewer's time zone); without ?preview the page is the usual seeded end-of-event view; the admin ·PLAYGROUND bar links to it (PREVIEW: BEFORE THE HACK ↗)
 
 ### Admin + judging (brief §4, §7.3–7.5, §7.7) — needs the test-wallet harness
 - [ ] On /admin/programs/free-society-hack-2026, connect the admin wallet → exactly one wallet signature (the login), no LOAD ADMIN DATA step, and no request to /admin/session in mock mode

@@ -30,11 +30,26 @@ import { TrackedProjectsSection } from "@/components/program/tracked/TrackedProj
 import { getProgramProfile } from "@/lib/programProfiles";
 import type { ApiPublicSubmissions } from "@/lib/api";
 
-const formatDateRange = (from?: string | null, to?: string | null) => {
+// `timeZone`: the event's own zone (programProfiles), so a Mumbai event reads
+// in IST wherever the viewer is; otherwise the viewer's zone.
+const formatDateRange = (from?: string | null, to?: string | null, timeZone?: string) => {
   if (!from && !to) return null;
   const fmt = (iso?: string | null) =>
-    iso ? new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—";
+    iso ? new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone }) : "—";
   return `${fmt(from)} → ${fmt(to)}`;
+};
+
+// e.g. "Wed 4 Nov, 11:00 AM IST" in the event's zone (or the viewer's).
+const formatStart = (iso: string, tz?: { id: string; label: string }) => {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz?.id });
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: tz?.id,
+    ...(tz ? {} : { timeZoneName: "short" as const }),
+  });
+  return `${day.replace(",", "")}, ${time}${tz ? ` ${tz.label}` : ""}`;
 };
 
 const CTA_CLASS =
@@ -281,19 +296,10 @@ const ProgramDetailPage = () => {
     }
   };
 
-  const applicationsRange = formatDateRange(program?.applicationsOpenAt, program?.applicationsCloseAt);
-  const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt);
-  // e.g. "Wed 4 Nov, 11:00 IST" (in the viewer's time zone).
-  const startsLabel = program?.eventStartsAt
-    ? new Date(program.eventStartsAt).toLocaleString("en-GB", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZoneName: "short",
-      })
-    : null;
+  const eventTz = profile?.timeZone;
+  const applicationsRange = formatDateRange(program?.applicationsOpenAt, program?.applicationsCloseAt, eventTz?.id);
+  const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt, eventTz?.id);
+  const startsLabel = program?.eventStartsAt ? formatStart(program.eventStartsAt, eventTz) : null;
 
   // Hackathons get a single consolidated key-info panel (cover image + date +
   // Luma sign-up + schedule) instead of the sponsors / how-to-apply / key-dates
