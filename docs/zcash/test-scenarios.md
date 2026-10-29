@@ -92,3 +92,11 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] On /admin/programs/free-society-hack-2026, leaderboard PRIVACY → EXPORT RANKED CSV downloads free-society-hack-2026-privacy-ranked.csv: rows in leaderboard order (Chai Ledger rank 1, avg 13, then Proof of Reserves Lite), per-criterion averages, builder feedback, and each judge by name (no emails) with total, criteria, note and session; on AGENTIC COMMERCE it uses the Bitrefill criteria
 - [ ] On /admin/programs/free-society-hack-2026?judge=judge-a@example.com, open Memo Mailbox → RE-CHECK → after retries the badge stays COULD NOT CHECK (not a failure)
 - [ ] On /admin/programs/free-society-hack-2026, click RESET PLAYGROUND → after reload every seeded state above is restored
+
+### Site design (29 Oct design review)
+- [ ] On any page, the top bar shows a single brightness row (label, slider with the time-of-day ticks, %, AUTO) with no expand/collapse button and no audio player; no SoundCloud requests are made
+- [ ] Drag the brightness slider → the % and the page brightness change; AUTO returns to following the time of day
+- [ ] On /programs at 390px wide, the brightness row fits and the page has no horizontal scroll
+- [ ] On /programs, ·PAST PROGRAMS runs newest first: Free Society Hack, Prompt × Purchase, PitchOff! Denver (PromptOff), Dogfooding Denver, Symbiosis 2025, Synergy 2025, Symmetry 2024
+- [ ] Each past program card shows TYPE (e.g. HACKATHON), EVENT (date · city, e.g. "Aug 19, 2024 · Berlin") and LUMA (e.g. luma.com/blockspace-symmetry ↗), and no APPS row
+- [ ] Clicking a card opens its program page; clicking its Luma link opens Luma in a new tab and leaves the programs page where it was
