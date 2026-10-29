@@ -1,7 +1,14 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export type ScoringNavItem = { key: string; number: number; title: string; state: "saved" | "draft" | "unscored" | "revisit" };
+export type ScoringNavItem = {
+  key: string;
+  number: number;
+  title: string;
+  state: "saved" | "draft" | "unscored" | "revisit";
+  /** Batch label (e.g. "EVENING · IN BY 20:00"); a heading shows where it changes. */
+  group?: string;
+};
 
 /**
  * Sticky bar at the top of the scoring view: overall progress, then one box
@@ -42,13 +49,18 @@ export function ScoringNav({
         <div className="h-full bg-led transition-[width] duration-300" style={{ width: `${pct}%` }} />
       </div>
       <div className="flex flex-wrap gap-1" role="list" aria-label="Projects to score">
-        {items.map((it) => (
+        {items.map((it, i) => (
+          <Fragment key={it.key}>
+          {it.group && it.group !== items[i - 1]?.group && (
+            <span className="w-full label-hw-dim pt-1 first:pt-0" aria-hidden="true" data-testid="scoring-nav-group">
+              {it.group}
+            </span>
+          )}
           <button
-            key={it.key}
             type="button"
             role="listitem"
             title={`${it.number}. ${it.title} (${it.state})`}
-            aria-label={`Project ${it.number}: ${it.title}, ${it.state}`}
+            aria-label={`Project ${it.number}: ${it.title}, ${it.state}${it.group ? `, ${it.group.toLowerCase()}` : ""}`}
             aria-current={it.key === currentKey ? "true" : undefined}
             data-state={it.state}
             onClick={() => onJump(it.key)}
@@ -63,6 +75,7 @@ export function ScoringNav({
           >
             {it.number}
           </button>
+          </Fragment>
         ))}
       </div>
     </div>

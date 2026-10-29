@@ -10,6 +10,7 @@ import {
   type JudgedTrack,
 } from "@/lib/api";
 import {
+  batchFor,
   isFullyScored,
   judgedTracksOf,
   maxScore,
@@ -110,7 +111,10 @@ export function RubricJudgingSection({
   const isJudge = !!judgeEmail;
   const [tab, setTab] = useState<"score" | "leaderboard">(isJudge ? "score" : "leaderboard");
   const [judges, setJudges] = useState<ProgramJudge[]>([]);
-  const [session, setSession] = useState(profile.judgingSessions[0]?.id ?? "");
+  // Scores are saved under the batch being judged now (evening until 20:00 on
+  // the day, morning after); the judge can change it.
+  const [session, setSession] = useState(batchFor(profile, new Date().toISOString()) ?? "");
+  const [batchFilter, setBatchFilter] = useState<string>("all");
   const [submissions, setSubmissions] = useState<ApiTrackedSubmission[]>([]);
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [myScores, setMyScores] = useState<ApiRubricScore[]>([]);
@@ -183,8 +187,13 @@ export function RubricJudgingSection({
     for (const s of submissions) {
       for (const t of judgedTracksOf(s.details.track)) if (judge.tracks.includes(t)) items.push({ s, track: t });
     }
-    return items;
-  }, [judge, submissions]);
+    // Batches in order (evening first), keeping submission order within each.
+    const rank = (b: string | null | undefined) => {
+      const i = profile.judgingSessions.findIndex((x) => x.id === b);
+      return i === -1 ? profile.judgingSessions.length : i;
+    };
+    return items.map((it, i) => ({ it, i })).sort((a, b) => rank(a.it.s.batch) - rank(b.it.s.batch) || a.i - b.i).map((x) => x.it);
+  }, [judge, submissions, profile]);
 
   const savedFor = (submissionId: string, track: JudgedTrack) =>
     myScores.find((x) => x.submissionId === submissionId && x.track === track) ?? null;
@@ -424,7 +433,11 @@ export function RubricJudgingSection({
   }
 
   const ecosystemCount = board?.rows.filter((r) => r.ecosystemPrize).length ?? 0;
-  const visibleQueue = unscoredOnly ? queue.filter(({ s, track }) => itemState(s.id, track) !== "saved") : queue;
+  const batchLabel = (b: string | null | undefined) => profile.judgingSessions.find((x) => x.id === b)?.short ?? null;
+  const visibleQueue = queue.filter(
+    ({ s, track }) =>
+      (!unscoredOnly || itemState(s.id, track) !== "saved") && (batchFilter === "all" || s.batch === batchFilter),
+  );
   const draftCount = queue.filter(({ s, track }) => itemState(s.id, track) === "draft").length;
   const revisitCount = queue.filter(({ s, track }) => itemState(s.id, track) === "revisit").length;
   const navItems: ScoringNavItem[] = visibleQueue.map(({ s, track }) => ({
@@ -432,6 +445,7 @@ export function RubricJudgingSection({
     number: queue.findIndex((q) => q.s.id === s.id && q.track === track) + 1,
     title: s.projectTitle,
     state: itemState(s.id, track),
+    group: batchLabel(s.batch) ?? undefined,
   }));
   const currentIdx = Math.max(0, queue.findIndex((q) => draftId(q.s.id, q.track) === current));
   const currentItem = queue[currentIdx] ?? null;
@@ -508,6 +522,23 @@ export function RubricJudgingSection({
               <input type="checkbox" checked={unscoredOnly} onChange={(e) => setUnscoredOnly(e.target.checked)} />
               TO DO ONLY
             </label>
+            <div className="flex items-center gap-1" role="group" aria-label="Batch">
+              {[{ id: "all", label: "ALL" }, ...profile.judgingSessions.map((b) => ({ id: b.id, label: b.id.toUpperCase() }))].map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  aria-pressed={batchFilter === b.id}
+                  onClick={() => setBatchFilter(b.id)}
+                  data-testid="batch-filter"
+                  className={cn(
+                    "font-mono text-[10px] tracking-[0.12em] border rounded-sm px-2 py-1",
+                    batchFilter === b.id ? "border-display bg-display text-shell" : "border-hairline text-display hover:bg-panel-deep",
+                  )}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
             {guideTrack && (
               <a
                 href={trackById(profile, guideTrack).rubric.guideUrl}
@@ -545,6 +576,11 @@ export function RubricJudgingSection({
                     </span>
                     <span className="font-display text-lg uppercase tracking-tight text-display flex-1 min-w-[160px]">{s.projectTitle}</span>
                     <span className="label-hw-dim">{trackById(profile, track).shortLabel}</span>
+                    {batchLabel(s.batch) && (
+                      <span className="label-hw-dim border border-hairline rounded-sm px-1.5 py-0.5" data-testid="card-batch">
+                        {batchLabel(s.batch)}
+                      </span>
+                    )}
                     {track === "privacy" && <TxCheckBadge check={s.details.txCheck} />}
 <span
                       className={cn("label-hw", sync[id] === "error" ? "text-destructive" : complete && !pending ? "text-led" : "text-label-mid")}

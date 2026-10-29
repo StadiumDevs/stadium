@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Trash2, Loader2, Mail, Wallet } from "lucide-react";
-import { api, type ApiProgramAdmin, type ApiProgramAdminEmail, ApiError } from "@/lib/api";
+import { api, type ApiProgramAdmin, type ApiProgramAdminEmail, type JudgedTrack, ApiError } from "@/lib/api";
+import { getProgramProfile } from "@/lib/programProfiles";
 import { useToast } from "@/hooks/use-toast";
 
 type ChainOption = ApiProgramAdmin["walletChain"];
@@ -36,6 +37,10 @@ export function ProgramAdminsSection({
   const [chain, setChain] = useState<ChainOption>("substrate");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "judge">("admin");
+  // Judge profile: a display name, and on tracked programs the tracks they score.
+  const [inviteName, setInviteName] = useState("");
+  const profile = getProgramProfile(programSlug);
+  const [inviteTracks, setInviteTracks] = useState<JudgedTrack[]>([]);
   const [inviting, setInviting] = useState(false);
 
   const load = useCallback(async () => {
@@ -73,11 +78,25 @@ export function ProgramAdminsSection({
     setInviting(true);
     try {
       const authHeader = await signAuthHeader();
-      const res = await api.inviteProgramAdminEmail(programSlug, email, authHeader, inviteRole);
+      const res = await api.inviteProgramAdminEmail(
+        programSlug,
+        email,
+        authHeader,
+        inviteRole,
+        inviteRole === "judge"
+          ? {
+              name: inviteName.trim() || undefined,
+              // None ticked = every track.
+              ...(profile ? { tracks: inviteTracks.length ? inviteTracks : null } : {}),
+            }
+          : {},
+      );
       setEmailAdmins((prev) =>
         prev.some((a) => a.email === res.data.email) ? prev.map((a) => (a.email === res.data.email ? res.data : a)) : [...prev, res.data],
       );
       setInviteEmail("");
+      setInviteName("");
+      setInviteTracks([]);
       toast({
         title: inviteRole === "judge" ? "Judge invited" : "Admin invited",
         description: res.emailSent
@@ -178,10 +197,16 @@ export function ProgramAdminsSection({
             <li key={`email:${a.email}`} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0 flex items-center gap-2">
                 <Mail className="h-3.5 w-3.5 text-label-mid shrink-0" aria-hidden="true" />
-                <span className="truncate font-mono text-[12px] text-display">{a.email}</span>
+                {a.name && <span className="text-[12px] text-display shrink-0">{a.name}</span>}
+                <span className="truncate font-mono text-[12px] text-label-mid">{a.email}</span>
                 <span className="label-hw-dim border border-hairline px-1.5 py-0.5 shrink-0">
                   {a.role === "judge" ? "JUDGE" : "ADMIN"}
                 </span>
+                {a.role === "judge" && profile && (
+                  <span className="label-hw-dim shrink-0" data-testid="judge-tracks">
+                    {a.tracks?.length ? a.tracks.map((t) => profile.tracks.find((x) => x.id === t)?.shortLabel ?? t).join(" + ") : "ALL TRACKS"}
+                  </span>
+                )}
               </div>
               {editable && (
                 <button
@@ -240,6 +265,17 @@ export function ProgramAdminsSection({
               <option value="admin">ADMIN</option>
               <option value="judge">JUDGE</option>
             </select>
+            {inviteRole === "judge" && (
+              <input
+                type="text"
+                placeholder="Judge's name"
+                aria-label="Judge's name"
+                value={inviteName}
+                maxLength={100}
+                onChange={(e) => setInviteName(e.target.value)}
+                className="md:w-[180px] font-mono text-[12px] bg-panel-deep border border-hairline text-display px-2 py-1.5 focus:outline-none focus:border-display"
+              />
+            )}
             <button
               type="button"
               onClick={handleInvite}
@@ -250,7 +286,26 @@ export function ProgramAdminsSection({
             </button>
           </div>
 
-          {/* Add a per-program admin by wallet address. */}
+          {inviteRole === "judge" && profile && (
+            <div className="mt-2 flex flex-wrap items-center gap-3" role="group" aria-label="Tracks this judge scores">
+              <span className="label-hw-dim">SCORES</span>
+              {profile.tracks.map((t) => (
+                <label key={t.id} className="flex items-center gap-1.5 label-hw-dim cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={inviteTracks.includes(t.id)}
+                    onChange={() =>
+                      setInviteTracks((prev) => (prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id]))
+                    }
+                  />
+                  {t.shortLabel}
+                </label>
+              ))}
+              <span className="label-hw-dim normal-case">None ticked = every track.</span>
+            </div>
+          )}
+
+                    {/* Add a per-program admin by wallet address. */}
           <div className="mt-2 flex flex-col gap-2 md:flex-row">
             <input
               placeholder="Wallet address"

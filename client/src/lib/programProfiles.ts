@@ -43,7 +43,17 @@ export type ProgramTrack = {
   requiresTxid: boolean;
 };
 
-export type ProgramJudge = { email: string; name: string; tracks: JudgedTrack[] };
+/** A judge's profile. `email` is null for other judges (the server shows a judge only their own). */
+export type ProgramJudge = { email: string | null; name: string; tracks: JudgedTrack[] };
+
+/** The judging batch a submission belongs to, from its first submission time. */
+export const batchFor = (profile: ProgramProfile, createdAt: string): string | null => {
+  const batches = profile.judgingSessions;
+  if (!batches.length) return null;
+  const at = Date.parse(createdAt);
+  if (!Number.isFinite(at)) return batches[batches.length - 1].id;
+  return (batches.find((b) => b.until && at <= Date.parse(b.until)) ?? batches[batches.length - 1]).id;
+};
 
 export type MilestoneStep = { id: "agree" | "checkin" | "deliver" | "share" | "payout"; label: string; due: string };
 
@@ -56,7 +66,13 @@ export type ProgramProfile = {
   frictionAreas: string[];
   /** Show submitted projects on the public page immediately, not only after results. */
   showSubmissionsLive: boolean;
-  judgingSessions: { id: string; label: string }[];
+  /**
+   * Judging batches, in order (also the session a score is saved in). A
+   * submission joins the first batch whose `until` is at or after its first
+   * submission time; the last takes the rest. Mirrors
+   * server/api/constants/trackedPrograms.js (judgingBatches).
+   */
+  judgingSessions: { id: string; label: string; until: string | null; short: string }[];
   milestone: {
     /** The award flag (not a prize tier) that carries a tracked milestone. */
     flagLabel: string;
@@ -223,8 +239,8 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
   frictionAreas: ["Faucet", "Node or indexer", "WebZjs or SDK", "Wallet", "Docs", "Other"],
   showSubmissionsLive: true,
   judgingSessions: [
-    { id: "evening", label: "Evening · Wed 4 Nov 20:00–22:00" },
-    { id: "morning", label: "Morning · Thu 5 Nov 08:00–10:00" },
+    { id: "evening", label: "Evening · Wed 4 Nov 20:00–22:00", until: "2026-11-04T20:00:00+05:30", short: "EVENING · IN BY 20:00" },
+    { id: "morning", label: "Morning · Thu 5 Nov 08:00–10:00", until: null, short: "MORNING · AFTER 20:00" },
   ],
   milestone: {
     flagLabel: "Ecosystem Prize",

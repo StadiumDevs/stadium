@@ -216,6 +216,9 @@ export type ApiProgramAdminEmail = {
   role: "admin" | "judge";
   invitedBy: string | null;
   createdAt: string;
+  /** Judges: display name, and (tracked programs) the tracks they score; null = all. */
+  name?: string | null;
+  tracks?: JudgedTrack[] | null;
 };
 
 /** A public project submission (Bitrefill intake). */
@@ -567,6 +570,8 @@ export type ApiJudgingProgressRow = { name: string; tracks: JudgedTrack[]; score
 /** Admin/judge view of a tracked submission (includes emails). */
 export type ApiTrackedSubmission = ApiSubmission & {
   details: ApiSubmissionDetails;
+  /** Judging batch (e.g. evening / morning), from the first submission time. */
+  batch?: string | null;
   /** Prizes keyed by judged track — a project can win in both. */
   prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
   /** Ecosystem Prize flag: a second award on top of a podium prize (not a tier). */
@@ -2074,6 +2079,8 @@ export const api = {
     email: string,
     authHeader: AdminAuthArg,
     role: "admin" | "judge" = "admin",
+    /** Judge profile: display name and (tracked programs) the tracks they score; null = all. */
+    profile: { name?: string; tracks?: JudgedTrack[] | null } = {},
   ): Promise<{ status: string; data: ApiProgramAdminEmail; emailSent: boolean; emailReason: string | null }> => {
     if (USE_MOCK_DATA) {
       const { mockProgramAdminEmails } = await import("./mockPrograms");
@@ -2083,6 +2090,8 @@ export const api = {
         role,
         invitedBy: null,
         createdAt: new Date().toISOString(),
+        name: profile.name?.trim() || null,
+        tracks: role === "judge" ? profile.tracks ?? null : null,
       };
       const list = mockProgramAdminEmails[slug] || [];
       mockProgramAdminEmails[slug] = list.some((a) => a.email === record.email)
@@ -2093,7 +2102,7 @@ export const api = {
     return request(`/programs/${encodeURIComponent(slug)}/admins/invite`, {
       method: "POST",
       headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email, role, ...profile }),
     });
   },
 
@@ -2483,19 +2492,31 @@ export const api = {
         },
       };
     }
-    throw trackedNotOnServer();
+    const r = (await request(`/programs/${encodeURIComponent(slug)}/tracked-submissions`, {
+      headers: adminAuthHeaders(_authHeader),
+    })) as { status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt?: string | null } };
+    // Prizes by track and the Ecosystem flag aren't on the server yet (§4).
+    return {
+      status: r.status,
+      data: {
+        submissions: r.data.submissions.map((x) => ({ ...x, prizes: x.prizes ?? {}, ecosystemPrize: x.ecosystemPrize ?? false })),
+        resultsPublishedAt: r.data.resultsPublishedAt ?? null,
+        checkInsSent: {},
+      },
+    };
   },
 
   /** Admin: the program's judges and the tracks each may score. */
   listTrackJudges: async (
     slug: string,
-    _authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { email: string; name: string; tracks: JudgedTrack[] }[] }> => {
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { email: string | null; name: string; tracks: JudgedTrack[] }[] }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return { status: "success", data: mockTracked.judges(slug) };
     }
-    throw trackedNotOnServer();
+    // Names and tracks; the server gives a judge only their own email.
+    return request(`/programs/${encodeURIComponent(slug)}/judges`, { headers: adminAuthHeaders(authHeader) });
   },
 
   /** Judge: this judge's saved rubric scores. */

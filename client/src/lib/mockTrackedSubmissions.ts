@@ -17,6 +17,7 @@ import type {
   JudgedTrack,
 } from "./api";
 import {
+  batchFor,
   getProgramProfile,
   isFullyScored,
   judgedTracksOf,
@@ -116,7 +117,9 @@ export const mockTracked = {
   },
 
   list(slug: string): ApiTrackedSubmission[] {
-    return load(slug).submissions;
+    const profile = getProgramProfile(slug);
+    // Every submission lands in its judging batch by when it first came in.
+    return load(slug).submissions.map((s) => ({ ...s, batch: profile ? batchFor(profile, s.createdAt) : null }));
   },
 
   scores(slug: string): ApiRubricScore[] {

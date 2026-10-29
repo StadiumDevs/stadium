@@ -448,6 +448,8 @@ export const mockProgramAdminEmails: Record<string, ApiProgramAdminEmail[]> = {
     programId: "free-society-hack-2026",
     email: j.email,
     role: "judge" as const,
+    name: j.name,
+    tracks: j.tracks,
     invitedBy: null,
     createdAt: "2026-11-01T12:00:00Z",
   })),

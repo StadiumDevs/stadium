@@ -115,6 +115,9 @@ const AdminProgramPage = () => {
   // Only when that session has expired (a later visit) does the unlock panel
   // ask for one more signature. Viewing the program itself needs none.
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  // True while the login signature is being approved in the wallet, so the
+  // page says "signing in" rather than "session expired".
+  const [signingIn, setSigningIn] = useState(false);
   useEffect(() => {
     const acct = auth.account;
     if (acct && readAdminToken(acct.chain, acct.address)) setAdminUnlocked(true);
@@ -225,6 +228,7 @@ const AdminProgramPage = () => {
   const connectWallet = async () => {
     if (!slug) return;
     setErrorData(null);
+    setSigningIn(true);
     try {
       const found = await auth.connect();
       const globalAdmin = found.find((a) => checkIsAdmin(a.address, a.chain));
@@ -275,6 +279,8 @@ const AdminProgramPage = () => {
         description: (e as Error)?.message || "Unknown error",
         variant: "destructive",
       });
+    } finally {
+      setSigningIn(false);
     }
   };
 
@@ -379,7 +385,14 @@ const AdminProgramPage = () => {
                 />
               </>
             ) : isAdminWallet ? (
-              !adminUnlocked ? (
+              !adminUnlocked && signingIn ? (
+                <div className="panel px-4 py-10 text-center mb-3" data-testid="admin-signing-in">
+                  <div className="label-hw text-display mb-2 inline-flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> ·SIGNING IN
+                  </div>
+                  <p className="label-hw-dim max-w-prose mx-auto">Approve the sign-in request in your wallet. This is the only signature for this session.</p>
+                </div>
+              ) : !adminUnlocked ? (
                 <div className="panel px-4 py-10 text-center mb-3">
                   <div className="label-hw text-display mb-2">·ADMIN SESSION EXPIRED</div>
                   <p className="label-hw-dim mb-4 max-w-prose mx-auto">

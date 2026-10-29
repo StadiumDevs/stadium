@@ -55,6 +55,10 @@ export function validateTrackedForm(profile: ProgramProfile, f: TrackedFormState
   if (f.publicUrl.trim() && !isHttpUrl(f.publicUrl)) return "The public URL must start with http:// or https://";
   if (!f.technologies.trim()) return "List every technology you used.";
   if (needsTxid(profile, f.track) && !f.testnetTxid.trim()) return "Privacy entries need one testnet transaction id.";
+  // Same rule as the server (validateSubmissionDetails): a Zcash txid is 64 hex characters.
+  if (needsTxid(profile, f.track) && !/^[0-9a-f]{64}$/i.test(f.testnetTxid.trim())) {
+    return "A testnet transaction id is 64 hex characters (copy it from your wallet or the explorer).";
+  }
   if (!f.nextStep.trim()) return "A next milestone for the 30 days is required.";
   if (splitLinks(f.nextStepLinks).some((l) => !isHttpUrl(l))) return "Each next-milestone link must start with http:// or https://";
   for (const m of f.team) {

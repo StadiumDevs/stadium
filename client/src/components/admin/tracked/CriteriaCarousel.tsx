@@ -38,7 +38,8 @@ const chipCurrent = "ring-1 ring-display ring-offset-1 ring-offset-panel-dark";
  * look at the repo, check the transaction), then one rubric question per
  * slide, then a NOTE slide. Swipe, use the buttons (or ←/→), or tap a chip
  * to move. Picking a level or ticking a check autosaves (via the callbacks)
- * and stays put; the judge moves on when ready.
+ * and stays put; the judge moves on when ready. Clicking the chosen level
+ * again clears it.
  */
 export function CriteriaCarousel({
   rubric,
@@ -55,7 +56,8 @@ export function CriteriaCarousel({
   notes: string;
   checkSteps: CheckStep[];
   checks: Partial<Record<CheckStep["id"], boolean>>;
-  onPick: (criterionId: string, value: number) => void;
+  /** A level, or null to clear the answer (click the chosen level again). */
+  onPick: (criterionId: string, value: number | null) => void;
   onNotes: (notes: string) => void;
   onCheck: (id: CheckStep["id"], value: boolean) => void;
 }) {
@@ -258,7 +260,8 @@ export function CriteriaCarousel({
                         key={v}
                         type="button"
                         aria-pressed={selected}
-                        onClick={() => onPick(c.id, v)}
+                        title={selected ? "Click again to clear" : undefined}
+                        onClick={() => onPick(c.id, selected ? null : v)}
                         className={cn(
                           "text-left border rounded-sm px-3.5 py-3 flex items-start gap-3 transition-colors",
                           selected
