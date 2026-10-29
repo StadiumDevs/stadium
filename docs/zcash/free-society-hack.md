@@ -163,6 +163,29 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
   - **Login flash.** While the admin approves the login signature, the page now says SIGNING IN instead of briefly showing "session expired".
   - **Tests:** server 509 (44 new), including an end-to-end sim (`server/sim/__tests__/rubric-judging-journey.test.js`): invite judges with names and tracks → Luma-checked-in builders submit at 19:30 and 20:30 IST (evening / morning) → a non-guest is refused → judges autosave partial, full and cleared scores, checks and revisit → wrong track, spoofed identity and uninvited access are refused.
 
+### Builder doc alignment and llms.txt (29 Oct, `tracks-and-ressources.md`)
+
+The builder doc (tracks and resources) is the source of truth; the site now matches it:
+
+- **Privacy and trust note** (`details.privacyNote`): required for Privacy and Both, max 3000 characters. Judges score Private from it; it shows on the judge's Private question, in the details view and in both CSVs.
+- **Demo video:** optional (strongly preferred) for Privacy only, stored as `''` (no schema change). Agentic and Both need a video (3 min max) or a live link. Judges without a video get a NO VIDEO step pointing to the README.
+- **Bitrefill feedback** (`details.bitrefillFeedback { worked, didnt }`): required for Agentic and Both; never public (stripped from the public projection); shown to admins, on the Agentic judge card and in the CSVs. The $100 best-feedback prize is judged from it.
+- **Agentic rubric:** each criterion out of 5 (requirements was 0-2). Server `RUBRICS.agentic.requirements.max` is 5.
+- **Ironwood:** copy no longer says Orchard (the tx check says "shielded"); the stored pool label is "shielded (Ironwood), unified addresses".
+- **"Both":** still one entry with both tracks' items, not one submission per track.
+- **After the hack:** "we'll be in touch with teams"; no emails are promised.
+- **Page content** rewritten from the doc (themes with For/Build, the submit tables, the privacy note, Agentic Commerce, How to submit, Developer resources, Help on the day). Regenerated `20261026000000_free_society_hack_2026_content.sql`.
+
+**llms.txt** (for AI assistants, https://llmstxt.org): generated at build by the `stadium-llms-txt` plugin in `client/vite.config.ts` from the page content, the program profile (rubrics) and `client/src/lib/llms/devResources.ts`, via `client/src/lib/llms/renderLlms.ts`. Served in dev too.
+
+- `/llms.txt`: Stadium and the programs that have one.
+- `/programs/free-society-hack-2026/llms.txt`: the short index.
+- `/programs/free-society-hack-2026/llms-full.txt`: everything inline: event, schedule, tracks, themes, rules, a valid-idea checklist, the form field by field, the privacy note, rubrics with every level, prizes, and the Zcash and Bitrefill developer resources.
+
+Links use the deployment's origin (`VITE_SITE_URL`, else the Vercel preview URL, else production). Add a program by adding it to `LLMS_PROGRAMS`.
+
+**Links not confirmed (shown by name, no link), please send the URLs:** the Valar and Jino Labs faucets; `@zcash/sdk` (not on npm); zcli (which repo has the `--testnet` flag); the x402 page in Bitrefill's docs; the "What are you building on Zcash?" thread; the NU7 mainnet tracker; the ZecHub quick start for Zebra (linked the Zebra book instead). `@chainsafe/webzjs-wallet` is not on npm either, so WebZjs links to its repo. The Zcash forum and the Ledger signer docs refuse automated checks; their URLs come from search results.
+
 ## 4. Server build plan (after review)
 
 | Work | Size |
@@ -172,7 +195,7 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
 | Judges' progress: `GET /:slug/judging-progress` (judge or admin; names, tracks, scored / total), polled by the panel | 0.25 day |
 | Ecosystem Prize flag: `program_submissions.ecosystem_prize BOOLEAN`, global-admin PATCH capped at two podium projects in the Privacy track, in the public results and CSV | 0.25 day |
 | Milestone columns on the submission (or a `submission_milestones` table, incl. `checked_in_at` set by the admin), with the admin PATCH under `requireProgramAdmin` and the builder PATCH under an email magic-link session matched to `luma_email` | 1 day |
-| **Testnet tx check:** service calling a public lightwalletd (`testnet.zec.rocks`) `GetTransaction`, parsing the Orchard action count, with retry/backoff, `tx_check JSONB` cache, `could_not_check` on timeouts, run fire-and-forget after submit, plus an admin re-check endpoint and tests | 1 day |
+| **Testnet tx check:** service calling a public lightwalletd (`testnet.zec.rocks`) `GetTransaction`, parsing the shielded action count (Ironwood since NU6.3; Orchard is sealed), with retry/backoff, `tx_check JSONB` cache, `could_not_check` on timeouts, run fire-and-forget after submit, plus an admin re-check endpoint and tests | 1 day |
 | **Builder feedback:** server CSV of the free-text feedback (mostly done once `details` exists) | 0.25 day |
 | Server CSV with per-judge scores, notes and track | 0.5 day |
 

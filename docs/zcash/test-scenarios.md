@@ -34,6 +34,11 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 
 - [ ] On /programs/free-society-hack-2026?preview=before (playground only), the page shows how it looks before the hack: a PLAYGROUND PREVIEW · BEFORE THE HACK banner, DRAFT status, the about panel with REGISTER ON LUMA ▸, the details (Two tracks … FAQ) inline, no project grid, and a disabled SUBMIT A PROJECT with "Submissions open when the hack starts (Wed 4 Nov, 11:00 AM IST)" (in IST whatever the viewer's time zone); without ?preview the page is the usual seeded end-of-event view; the admin ·PLAYGROUND bar links to it (PREVIEW: BEFORE THE HACK ↗)
 
+- [ ] On /programs/free-society-hack-2026/llms.txt and /programs/free-society-hack-2026/llms-full.txt, the files are served as plain text: the index links to llms-full.txt, the program page, the Builder Pack and Luma; the full file has the event, the three themes, a valid-idea checklist, the form field by field, the Privacy rubric (max 16, every level) and the Agentic rubric (each 0 to 5), and the Zcash and Bitrefill developer resources; /llms.txt lists the program; the page's Builder Pack section links to both files
+- [ ] On /programs/free-society-hack-2026, submit as Privacy with no demo video → accepted (the video is optional for Privacy) but the privacy and trust note is required; as Agentic Commerce → a demo video and both Bitrefill feedback answers are required; as Both → all of them
+- [ ] On the judge view, a Privacy entry's Private question shows the builder's privacy and trust note; an Agentic entry's card shows the Bitrefill feedback; Agentic criteria are scored 0 to 5; an entry without a video shows a NO VIDEO step pointing to the README
+- [ ] On /programs/free-society-hack-2026 and the submit form, nothing tells builders to use Orchard (only the developer resources' "Orchard is sealed" warning mentions it)
+
 ### Admin + judging (brief §4, §7.3–7.5, §7.7) — needs the test-wallet harness
 - [ ] On /admin/programs/free-society-hack-2026, connect the admin wallet → exactly one wallet signature (the login), no LOAD ADMIN DATA step, and no request to /admin/session in mock mode
 - [ ] On /admin/programs/free-society-hack-2026 after logging in, stay 20 seconds (4+ judges' progress refreshes), reload, and change an Ecosystem Prize flag → no further signatures

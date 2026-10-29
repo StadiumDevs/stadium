@@ -253,3 +253,9 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `client/src/lib/auth/useWalletAuth.ts` (`getAdminBearerHeaders` SIWS fallback)
 - **Observed during**: fixing repeated wallet prompts on the Free Society Hack admin page (PR #202)
 - **Suggestion**: When the session exchange fails, the one-shot SIWS header can't be cached (single-use nonce), so every admin call signs again. Surface the failure ("couldn't open an admin session") and stop, instead of silently falling back once per call.
+
+## [2026-10-29] Canonical tester flow is stale against the Bitrefill mock program
+- **Severity**: minor
+- **File(s)**: `.claude/skills/stadium-tester/flows/client-journey.spec.mjs` ("public submit form accepts a project", "judging: score all…"), `client/src/lib/mockPrograms.ts` (`bitrefill-2026` is `completed` with results published)
+- **Observed during**: llms.txt / builder-doc alignment regression run (PR #202)
+- **Suggestion**: The flow expects `bitrefill-2026` to be open, but the mock program is completed, so SUBMIT A PROJECT is disabled and the judging steps can't find their controls. Either open the program inside the flow (patch `mockPrograms` via the dev module, as the tracked-program specs do) or point the flow at a mock program that stays open. Also: `scripts/run-playwright.mjs` rewrites the spec's `@playwright/test` import in place and writes a `*.config.mjs` beside it, which dirties the committed flow when it is run directly; copy it to `/tmp` first, or make the runner work on a temp copy.
