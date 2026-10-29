@@ -16,6 +16,7 @@ import {
   type ApiPublicResults,
   type ProgramContentSection,
   ApiError,
+  USE_MOCK_DATA,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
@@ -77,6 +78,9 @@ const ProgramDetailPage = () => {
   // Back from the email sign-in link (?submit=1 / ?submit=update): reopen the
   // form, which restores its draft, with the email now verified.
   const [searchParams, setSearchParams] = useSearchParams();
+  // Playground only: ?preview=before shows a tracked program as it looks before
+  // the hack (registration open, no projects yet). Nothing stored changes.
+  const previewBefore = USE_MOCK_DATA && !!profile && searchParams.get("preview") === "before";
   useEffect(() => {
     const want = searchParams.get("submit");
     if (!want) return;
@@ -108,7 +112,10 @@ const ProgramDetailPage = () => {
     setError(null);
     api
       .getProgramBySlug(slug)
-      .then((r) => { if (active) setProgram(r.data); })
+      .then((r) => {
+        if (!active) return;
+        setProgram(previewBefore ? { ...r.data, status: "draft", resultsPublishedAt: null } : r.data);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
@@ -116,7 +123,7 @@ const ProgramDetailPage = () => {
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [slug]);
+  }, [slug, previewBefore]);
 
   useEffect(() => {
     if (!connectedAddress) { setMyProjects([]); return; }
@@ -186,7 +193,8 @@ const ProgramDetailPage = () => {
   }, [slug, program, profile]);
 
   useEffect(() => {
-    if (!slug || !program || !profile?.showSubmissionsLive) { setTracked(null); return; }
+    // Before the hack there are no projects yet (preview), so no grid.
+    if (!slug || !program || !profile?.showSubmissionsLive || previewBefore) { setTracked(null); return; }
     let active = true;
     const load = () =>
       api
@@ -197,7 +205,7 @@ const ProgramDetailPage = () => {
     // Pick up a project submitted from the modal (or another tab) without a reload.
     window.addEventListener("focus", load);
     return () => { active = false; window.removeEventListener("focus", load); };
-  }, [slug, program, profile, submitOpen]);
+  }, [slug, program, profile, submitOpen, previewBefore]);
 
   // Stadium project entries belonging to this program (hackathons etc.).
   // Server filters on hackathon_id, backfilled to match program slugs.
@@ -275,6 +283,17 @@ const ProgramDetailPage = () => {
 
   const applicationsRange = formatDateRange(program?.applicationsOpenAt, program?.applicationsCloseAt);
   const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt);
+  // e.g. "Wed 4 Nov, 11:00 IST" (in the viewer's time zone).
+  const startsLabel = program?.eventStartsAt
+    ? new Date(program.eventStartsAt).toLocaleString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      })
+    : null;
 
   // Hackathons get a single consolidated key-info panel (cover image + date +
   // Luma sign-up + schedule) instead of the sponsors / how-to-apply / key-dates
@@ -433,6 +452,19 @@ const ProgramDetailPage = () => {
           </div>
         ) : program ? (
           <>
+          {previewBefore && (
+            <div
+              className={`mx-auto ${PAGE_WIDTH} mb-4 panel border-dashed px-3 py-2 flex flex-wrap items-center gap-2`}
+              data-testid="preview-banner"
+            >
+              <span className="label-hw text-display">PLAYGROUND PREVIEW · BEFORE THE HACK</span>
+              <span className="label-hw-dim">REGISTRATION OPEN, NO PROJECTS YET</span>
+              <div className="flex-1" />
+              <Link to={`/programs/${program.slug}`} className="label-hw-dim hover:text-display">
+                SEE THE LIVE PLAYGROUND ▸
+              </Link>
+            </div>
+          )}
           {/* Program header first on every program, then the about panel, both
               the same width as the sections below. */}
           <header className={`mb-6 mx-auto ${PAGE_WIDTH}`} data-testid="program-header">
@@ -734,10 +766,12 @@ const ProgramDetailPage = () => {
                   >
                     SUBMIT A PROJECT ▸
                   </RackButton>
-                  <p className="label-hw-dim sm:ml-2">
+                  <p className="label-hw-dim sm:ml-2" data-testid="submit-panel-note">
                     {program.status === "open"
                       ? "Only people who checked in at the door can submit, using the email they used on Luma."
-                      : "Submissions are closed for this program."}
+                      : program.status === "draft"
+                        ? `Submissions open when the hack starts${startsLabel ? ` (${startsLabel})` : ""}.`
+                        : "Submissions are closed for this program."}
                   </p>
                 </div>
                 {profile && program.status === "open" && (

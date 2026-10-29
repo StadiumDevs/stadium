@@ -54,6 +54,15 @@ export function MockPlaygroundBar({
           {s.toUpperCase()}
         </button>
       ))}
+      <a
+        href={`/programs/${program.slug}?preview=before`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+        data-testid="preview-before-link"
+      >
+        PREVIEW: BEFORE THE HACK ↗
+      </a>
       <div className="flex-1" />
       <button type="button" onClick={reset} className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5">
         RESET PLAYGROUND

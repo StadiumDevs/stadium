@@ -18,7 +18,7 @@ The program is `free-society-hack-2026` in `client/src/lib/mockPrograms.ts`. All
 - Two milestones.
 - Tx check results.
 
-State lives in `localStorage`, managed by `client/src/lib/mockTrackedSubmissions.ts`. The mock-only **RESET PLAYGROUND** button on `/admin/programs/free-society-hack-2026` re-seeds it.
+State lives in `localStorage`, managed by `client/src/lib/mockTrackedSubmissions.ts`. To see the page **before the hack** (registration open, no projects yet), open `/programs/free-society-hack-2026?preview=before` (or PREVIEW: BEFORE THE HACK ↗ on the admin ·PLAYGROUND bar); it changes nothing stored. The mock-only **RESET PLAYGROUND** button on `/admin/programs/free-society-hack-2026` re-seeds it.
 
 **Playground limits:**
 - **Status changes don't survive a reload.** The status buttons change program status in memory only.
