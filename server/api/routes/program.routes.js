@@ -177,6 +177,10 @@ router.get('/:slug/audit-log', requireProgramViewer('slug'), programController.l
 // requireProgramJudge: a judge/admin email session (scoped write) OR a wallet
 // admin. requireProgramJudge NEVER unlocks the payment/approval routes above.
 router.post('/:slug/submissions', submissionLimiter, submissionController.submit);
+// Tracked programs: the public live list (no emails), and a builder's own
+// submission (email sign-in) so they can edit it.
+router.get('/:slug/submissions/public', submissionController.publicSubmissions);
+router.get('/:slug/submissions/mine', submissionController.mySubmission);
 router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
 // Download all submissions + their feedback survey as CSV (judge/admin).
 router.get('/:slug/submissions.csv', requireProgramJudge('slug'), submissionController.exportCsv);

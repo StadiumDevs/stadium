@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../auth/supabaseUser.js', () => ({
+  getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
+  extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
+}));
 vi.mock('../../repositories/submission-refusal.repository.js', () => ({
   default: { create: vi.fn(async () => ({ id: 'ref-1' })), listByProgram: vi.fn(), findById: vi.fn(), setReviewed: vi.fn() },
 }));
@@ -128,7 +132,10 @@ describe('SubmissionController.submit — tracked programs', () => {
     submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh' });
     submissionRepo.updateSubmission.mockImplementation(async (id, x) => ({ id, ...x }));
     const res = mockRes();
-    await submissionController.submit({ params: { slug: FSH.slug }, body: { ...base, details: { ...details, track: 'both' } } }, res);
+    await submissionController.submit(
+      { params: { slug: FSH.slug }, headers: { 'x-supabase-token': 'tok:priya@example.com' }, body: { ...base, details: { ...details, track: 'both' } } },
+      res,
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(submissionRepo.updateSubmission.mock.calls[0][1].details.track).toBe('both');
   });

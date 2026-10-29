@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../auth/supabaseUser.js', () => ({
+  getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
+  extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
+}));
 vi.mock('../../repositories/submission-refusal.repository.js', () => ({
   default: { create: vi.fn(async () => ({ id: 'ref-1' })), listByProgram: vi.fn(), findById: vi.fn(), setReviewed: vi.fn() },
 }));
@@ -98,7 +102,9 @@ describe('submit records every refusal with its reason, answering as before', ()
     expect(refusalRepo.create).toHaveBeenCalledWith({
       programId: 'fsh', body, reasonCode: 'not_checked_in',
       reason: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
+      emailVerified: false,
     });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', code: 'not_checked_in' }));
     expect(auditLog.logSafe).toHaveBeenCalledWith(expect.objectContaining({ action: 'submission.refused', metadata: expect.objectContaining({ reasonCode: 'not_checked_in', email: 'sam@example.com' }) }));
   });
 

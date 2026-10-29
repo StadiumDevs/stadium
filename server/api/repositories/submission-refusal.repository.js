@@ -35,6 +35,7 @@ const transform = (row) => {
     payload: row.payload || {},
     reasonCode: row.reason_code,
     reason: row.reason,
+    emailVerified: row.email_verified === true,
     status: row.status || 'refused',
     reviewedBy: row.reviewed_by ?? null,
     reviewedAt: row.reviewed_at ?? null,
@@ -45,7 +46,7 @@ const transform = (row) => {
 
 // Refused project submissions, kept with the reason (submission_refusals).
 class SubmissionRefusalRepository {
-  async create({ programId, body, reasonCode, reason }) {
+  async create({ programId, body, reasonCode, reason, emailVerified = false }) {
     const { data, error } = await supabase
       .from('submission_refusals')
       .insert({
@@ -57,6 +58,7 @@ class SubmissionRefusalRepository {
         reason_code: reasonCode,
         reason,
         status: 'refused',
+        email_verified: emailVerified === true,
       })
       .select('*')
       .single();

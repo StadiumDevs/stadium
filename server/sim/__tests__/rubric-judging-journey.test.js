@@ -90,8 +90,9 @@ const details = (over = {}) => ({
   anonymous: false,
   ...over,
 });
-const submit = (email, title, d) =>
+const submit = (email, title, d, token = null) =>
   call(submissionController.submit, {
+    headers: token ? { 'x-supabase-token': token } : {},
     body: {
       submitterName: title + ' builder',
       lumaEmail: email,
@@ -169,9 +170,15 @@ describe('Free Society Hack judging — data that lands in the database', () => 
     expect(byTitle).toEqual({ 'Chai Ledger': 'evening', 'Tab Settler': 'morning' });
   });
 
-  it('a resubmit after 20:00 keeps the evening batch (first submission time)', async () => {
+  it('updating needs the email verified; a verified resubmit after 20:00 keeps the evening batch', async () => {
     at('2026-11-04T21:15:00+05:30');
-    const r = await submit('priya@example.com', 'Chai Ledger', details({ pitch: 'Updated pitch.' }));
+    // Someone who only knows Priya's email can't overwrite her entry.
+    const impostor = await submit('priya@example.com', 'Chai Ledger', details({ pitch: 'Hijacked.' }));
+    expect(impostor.status).toBe(401);
+    expect(impostor.body.code).toBe('verify_to_update');
+    // Priya verifies her email (magic link) and updates.
+    authRegistry.set(tokenFor('priya@example.com'), { id: 'u:priya', email: 'priya@example.com' });
+    const r = await submit('priya@example.com', 'Chai Ledger', details({ pitch: 'Updated pitch.' }), tokenFor('priya@example.com'));
     expect(r.status).toBe(200);
     const list = await asJudge('judge-a@example.com', submissionController.listTracked);
     const chaiNow = list.body.data.submissions.find((s) => s.projectTitle === 'Chai Ledger');
@@ -246,8 +253,9 @@ describe('Free Society Hack judging — data that lands in the database', () => 
     expect(reasons).toEqual([
       ['stranger@example.com', 'not_checked_in', 'Only checked-in attendees can submit. Use the email you checked in with on Luma.'],
       ['priya@example.com', 'invalid', 'A testnet transaction id is 64 hex characters'],
+      ['priya@example.com', 'update_unverified', 'Verify your email to update your submission.'],
     ]);
-    expect(store.program_audit_log.filter((a) => a.action === 'submission.refused')).toHaveLength(2);
+    expect(store.program_audit_log.filter((a) => a.action === 'submission.refused')).toHaveLength(3);
 
     // 19:50 IST: a builder who checked in under another email is refused.
     at('2026-11-04T19:50:00+05:30');
@@ -289,6 +297,34 @@ describe('Free Society Hack judging — data that lands in the database', () => 
       user: { address: '5Master', isGlobalAdmin: true, programSlug: SLUG },
     });
     expect(again.status).toBe(409);
+  });
+
+  it('a walk-in verifies their email but is not on Luma: held for approval, then accepted', async () => {
+    at('2026-11-04T19:40:00+05:30');
+    authRegistry.set(tokenFor('walkin@example.com'), { id: 'u:walkin', email: 'walkin@example.com' });
+    const held = await submit('walkin@example.com', 'Walk-in Wallet', details({ testnetTxid: 'c3'.repeat(32) }), tokenFor('walkin@example.com'));
+    expect(held.status).toBe(202);
+    expect(held.body).toMatchObject({ status: 'pending', code: 'pending_review' });
+    const row = store.submission_refusals.find((r) => r.luma_email === 'walkin@example.com');
+    expect(row).toMatchObject({ email_verified: true, reason_code: 'not_checked_in', status: 'refused' });
+    expect(store.program_submissions.some((s) => s.luma_email === 'walkin@example.com')).toBe(false);
+
+    at('2026-11-04T22:00:00+05:30');
+    const ok = await call(submissionController.acceptRefusal, {
+      params: { refusalId: row.id },
+      user: { address: '5Master', isGlobalAdmin: true, programSlug: SLUG },
+    });
+    expect(ok.status).toBe(200);
+    const list = await asJudge('judge-a@example.com', submissionController.listTracked);
+    expect(list.body.data.submissions.find((s) => s.projectTitle === 'Walk-in Wallet').batch).toBe('evening');
+  });
+
+  it('the public live list shows every entry with no emails', async () => {
+    const r = await call(submissionController.publicSubmissions, {});
+    expect(r.status).toBe(200);
+    const titles = r.body.data.submissions.map((s) => s.projectTitle).sort();
+    expect(titles).toEqual(['Chai Ledger', 'Memo Mailbox', 'Tab Settler', 'Walk-in Wallet']);
+    expect(JSON.stringify(r.body)).not.toMatch(/@example\.com/);
   });
 
   it('someone not invited cannot read or score', async () => {

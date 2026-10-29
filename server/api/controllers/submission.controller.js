@@ -1,4 +1,5 @@
 import programService from '../services/program.service.js';
+import { extractSupabaseToken, getSupabaseUser } from '../auth/supabaseUser.js';
 import scoringService from '../services/scoring.service.js';
 import programRepository from '../repositories/program.repository.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
@@ -9,6 +10,7 @@ import programAdminEmailRepository from '../repositories/program-admin-email.rep
 import submissionRefusalRepository from '../repositories/submission-refusal.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
+import { toPublicSubmission } from '../utils/public-submission.js';
 import {
   validateSubmission,
   validateSubmissionDetails,
@@ -95,25 +97,40 @@ const resolveProgramId = async (req) => {
 // Recording is best-effort: it never changes the response. Attempts with no
 // usable email or title aren't recorded (nothing to attribute or accept).
 const ATTEMPT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-async function refuse(res, program, body, reasonCode, status, message) {
+// Best-effort "waiting for approval" email to a verified builder.
+function sendPendingEmail(program, value) {
+  submissionConfirmationService
+    .send({
+      email: value.lumaEmail,
+      submitterName: value.submitterName,
+      programName: program.name,
+      slug: program.slug,
+      projectTitle: value.projectTitle,
+      pendingReview: true,
+    })
+    .catch((err) => console.error('❌ Pending-review email failed:', err));
+}
+
+async function refuse(res, program, body, reasonCode, status, message, { emailVerified = false, code = null, pending = false } = {}) {
   const email = typeof body?.lumaEmail === 'string' ? body.lumaEmail.trim() : '';
   const title = typeof body?.projectTitle === 'string' ? body.projectTitle.trim() : '';
   if (ATTEMPT_EMAIL_RE.test(email) && title) {
     try {
-      const r = await submissionRefusalRepository.create({ programId: program.id, body, reasonCode, reason: message });
+      const r = await submissionRefusalRepository.create({ programId: program.id, body, reasonCode, reason: message, emailVerified });
       auditLog.logSafe({
         programId: program.id,
         actor: {},
-        action: 'submission.refused',
+        action: pending ? 'submission.held_for_approval' : 'submission.refused',
         targetType: 'submission_refusal',
         targetId: r?.id ?? null,
-        metadata: { reasonCode, email: email.toLowerCase(), title: title.slice(0, 200) },
+        metadata: { reasonCode, emailVerified, email: email.toLowerCase(), title: title.slice(0, 200) },
       });
     } catch (err) {
       console.error('❌ Could not record a refused submission:', err);
     }
   }
-  return res.status(status).json({ status: 'error', message });
+  if (pending) return res.status(status).json({ status: 'pending', code, message });
+  return res.status(status).json({ status: 'error', message, ...(code ? { code } : {}) });
 }
 
 class SubmissionController {
@@ -143,6 +160,25 @@ class SubmissionController {
         }
         v.value.details = dv.value;
       }
+      const submitterEmail = String(v.value.lumaEmail || '').trim().toLowerCase();
+      // A builder can prove they own the email with the sign-in link (Supabase
+      // magic link): the token's email must be the submission's email.
+      let emailVerified = false;
+      const token = extractSupabaseToken(req);
+      if (token) {
+        const user = await getSupabaseUser(token);
+        emailVerified = !!user?.email && user.email.trim().toLowerCase() === submitterEmail;
+      }
+      // Tracked programs: updating an existing entry needs the email verified, so
+      // nobody can overwrite another team's submission by typing their email.
+      if (tracked && !emailVerified) {
+        const current = await programSubmissionRepository.findByEmail(program.id, submitterEmail);
+        if (current) {
+          return refuse(res, program, req.body, 'update_unverified', 401, 'Verify your email to update your submission.', {
+            code: 'verify_to_update',
+          });
+        }
+      }
       // Only checked-in attendees may submit: the email must be on the program's
       // imported Luma (checked-in / approved guest) list. SUBMIT_TEST_EMAILS is a
       // comma-separated allowlist that bypasses this gate for testing (off by
@@ -154,7 +190,6 @@ class SubmissionController {
           .map((e) => e.trim().toLowerCase())
           .filter(Boolean),
       );
-      const submitterEmail = String(v.value.lumaEmail || '').trim().toLowerCase();
       if (!testEmails.has(submitterEmail)) {
         let present = await programSignupRepository.existsByEmail(program.id, submitterEmail);
         // Luma-gated programs: on a miss, lazily re-sync the checked-in list
@@ -165,7 +200,8 @@ class SubmissionController {
         let transient = false;
         if (!present && lumaSyncService.isActive(program)) {
           const lastSync = program.lastGuestSyncAt ? Date.parse(program.lastGuestSyncAt) : 0;
-          const stale = !lastSync || Date.now() - lastSync > JIT_SYNC_FLOOR_MS;
+          // A verified email always gets a fresh check against the Luma feed.
+          const stale = emailVerified || !lastSync || Date.now() - lastSync > JIT_SYNC_FLOOR_MS;
           if (stale) {
             const sync = await lumaSyncService.syncProgram(program);
             transient = sync.status === 'truncated' || String(sync.status).startsWith('error');
@@ -182,6 +218,18 @@ class SubmissionController {
           if (transient) {
             return refuse(res, program, req.body, 'unverified', 503, "Couldn't verify your check-in right now. Please try again in a moment.");
           }
+          if (emailVerified) {
+            // Verified, but still not on Luma's checked-in list: held for a
+            // master admin to approve (it keeps this time if accepted).
+            const message =
+              "Received. Your email isn't on Luma's checked-in list yet, so an organiser will confirm it. You don't need to submit again.";
+            sendPendingEmail(program, v.value);
+            return refuse(res, program, req.body, 'not_checked_in', 202, message, {
+              emailVerified: true,
+              code: 'pending_review',
+              pending: true,
+            });
+          }
           return refuse(
             res,
             program,
@@ -189,6 +237,7 @@ class SubmissionController {
             'not_checked_in',
             403,
             'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
+            { code: 'not_checked_in' },
           );
         }
       }
@@ -222,6 +271,7 @@ class SubmissionController {
           projectTitle: submission.projectTitle,
           deadline: program.eventEndsAt ?? null,
           resubmitted,
+          details: submission.details ?? null,
         });
         emailSent = result.ok;
         emailReason = result.ok ? null : result.reason;
@@ -334,6 +384,59 @@ class SubmissionController {
     } catch (error) {
       console.error('❌ Error saving score:', error);
       res.status(500).json({ status: 'error', message: 'Failed to save score' });
+    }
+  }
+
+  // Builder (email sign-in): their own submission, to edit it. The token's
+  // email is the key; nothing else is exposed.
+  async mySubmission(req, res) {
+    try {
+      const token = extractSupabaseToken(req);
+      const user = token ? await getSupabaseUser(token) : null;
+      if (!user?.email) {
+        return res.status(401).json({ status: 'error', code: 'verify_email', message: 'Verify your email to load your submission.' });
+      }
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const s = await programSubmissionRepository.findByEmail(program.id, user.email);
+      if (!s) return res.status(404).json({ status: 'error', message: 'No submission for this email yet' });
+      res.status(200).json({
+        status: 'success',
+        data: {
+          submitterName: s.submitterName,
+          lumaEmail: s.lumaEmail,
+          projectTitle: s.projectTitle,
+          projectBrief: s.projectBrief,
+          videoUrl: s.videoUrl,
+          githubUrl: s.githubUrl,
+          details: s.details,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error loading own submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load your submission' });
+    }
+  }
+
+  // Public: a tracked program's submissions as they come in (no emails; names
+  // hidden for anonymous entries). Prizes appear with the awards slice.
+  async publicSubmissions(req, res) {
+    try {
+      if (!trackedProgramFor(req.params.slug)) {
+        return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
+      }
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const rows = await programSubmissionRepository.listByProgramId(program.id);
+      res.status(200).json({
+        status: 'success',
+        data: { published: !!program.resultsPublishedAt, submissions: rows.map(toPublicSubmission) },
+      });
+    } catch (error) {
+      console.error('❌ Error listing public submissions:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load submissions' });
     }
   }
 
