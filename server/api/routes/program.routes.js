@@ -194,6 +194,19 @@ router.put(
 // Tracked programs (Free Society Hack): per-judge rubric scores per track.
 // Email judges only (the controller refuses wallet admins); partial scores
 // autosave, and a judge's tracks (program_admin_emails.tracks) are enforced.
+// Refused submissions are kept with their reason; program admins can see them,
+// and only a master (global) admin can accept or dismiss (checked in the controller).
+router.get('/:slug/submission-refusals', requireProgramAdmin('slug'), submissionController.listRefusals);
+router.post(
+  '/:slug/submission-refusals/:refusalId/accept',
+  requireProgramAdmin('slug'),
+  submissionController.acceptRefusal,
+);
+router.post(
+  '/:slug/submission-refusals/:refusalId/dismiss',
+  requireProgramAdmin('slug'),
+  submissionController.dismissRefusal,
+);
 router.get('/:slug/judges', requireProgramJudge('slug'), submissionController.listJudges);
 router.get('/:slug/tracked-submissions', requireProgramJudge('slug'), submissionController.listTracked);
 router.get('/:slug/rubric-scores/mine', requireProgramJudge('slug'), submissionController.listMyRubricScores);

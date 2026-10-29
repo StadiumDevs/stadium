@@ -33,6 +33,7 @@ const transform = (row) => {
     // Tracked programs only: the validated submission fields and the track.
     details: row.details ?? null,
     track: row.track ?? null,
+    acceptedFromRefusalId: row.accepted_from_refusal_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -75,7 +76,9 @@ class ProgramSubmissionRepository {
   // Returns { submission, duplicate }. Duplicate is decided up front (one
   // submission per Luma email per program) so the controller can answer 409
   // without leaning on the DB error text.
-  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, agreedToTerms = false, details = null }) {
+  // `createdAt` / `acceptedFromRefusalId`: set when a master admin accepts a
+  // refused attempt, so the entry keeps the attempt's time (and judging batch).
+  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, agreedToTerms = false, details = null, createdAt = null, acceptedFromRefusalId = null }) {
     const normalized = normalizeEmail(lumaEmail);
     const existing = await this.findByEmail(programId, normalized);
     if (existing) return { submission: existing, duplicate: true };
@@ -96,6 +99,8 @@ class ProgramSubmissionRepository {
         agreed_to_terms_at: agreedToTerms ? new Date().toISOString() : null,
         details: details ?? null,
         track: details?.track ?? null,
+        ...(createdAt ? { created_at: createdAt } : {}),
+        ...(acceptedFromRefusalId ? { accepted_from_refusal_id: acceptedFromRefusalId } : {}),
       })
       .select('*')
       .single();

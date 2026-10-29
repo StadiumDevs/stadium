@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../repositories/submission-refusal.repository.js', () => ({
+  default: { create: vi.fn(async () => ({ id: 'ref-1' })), listByProgram: vi.fn(), findById: vi.fn(), setReviewed: vi.fn() },
+}));
 vi.mock('../../services/program.service.js', () => ({ default: { findBySlug: vi.fn() } }));
 vi.mock('../../services/scoring.service.js', () => ({
   default: {

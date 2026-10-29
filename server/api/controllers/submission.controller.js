@@ -6,6 +6,7 @@ import programSignupRepository from '../repositories/program-signup.repository.j
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
+import submissionRefusalRepository from '../repositories/submission-refusal.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
 import {
@@ -89,6 +90,32 @@ const resolveProgramId = async (req) => {
   return program?.id ?? null;
 };
 
+// A refused submission is kept with the reason the builder was shown (so a
+// master admin can review and accept it), then answered exactly as before.
+// Recording is best-effort: it never changes the response. Attempts with no
+// usable email or title aren't recorded (nothing to attribute or accept).
+const ATTEMPT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+async function refuse(res, program, body, reasonCode, status, message) {
+  const email = typeof body?.lumaEmail === 'string' ? body.lumaEmail.trim() : '';
+  const title = typeof body?.projectTitle === 'string' ? body.projectTitle.trim() : '';
+  if (ATTEMPT_EMAIL_RE.test(email) && title) {
+    try {
+      const r = await submissionRefusalRepository.create({ programId: program.id, body, reasonCode, reason: message });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: {},
+        action: 'submission.refused',
+        targetType: 'submission_refusal',
+        targetId: r?.id ?? null,
+        metadata: { reasonCode, email: email.toLowerCase(), title: title.slice(0, 200) },
+      });
+    } catch (err) {
+      console.error('❌ Could not record a refused submission:', err);
+    }
+  }
+  return res.status(status).json({ status: 'error', message });
+}
+
 class SubmissionController {
   // Public: anyone can submit a project to a program by filling the form.
   async submit(req, res) {
@@ -104,7 +131,7 @@ class SubmissionController {
       }
       const v = validateSubmission(req.body);
       if (!v.ok) {
-        return res.status(400).json({ status: 'error', message: v.error });
+        return refuse(res, program, req.body, 'invalid', 400, v.error);
       }
       // Tracked programs (e.g. Free Society Hack) also need their track
       // fields; validated against the program's config and stored as details.
@@ -112,7 +139,7 @@ class SubmissionController {
       if (tracked) {
         const dv = validateSubmissionDetails(tracked, req.body?.details);
         if (!dv.ok) {
-          return res.status(400).json({ status: 'error', message: dv.error });
+          return refuse(res, program, req.body, 'invalid', 400, dv.error);
         }
         v.value.details = dv.value;
       }
@@ -153,15 +180,16 @@ class SubmissionController {
         }
         if (!present) {
           if (transient) {
-            return res.status(503).json({
-              status: 'error',
-              message: "Couldn't verify your check-in right now. Please try again in a moment.",
-            });
+            return refuse(res, program, req.body, 'unverified', 503, "Couldn't verify your check-in right now. Please try again in a moment.");
           }
-          return res.status(403).json({
-            status: 'error',
-            message: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
-          });
+          return refuse(
+            res,
+            program,
+            req.body,
+            'not_checked_in',
+            403,
+            'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
+          );
         }
       }
       // Deadline is informational: a submit after event end is flagged late, not blocked.
@@ -306,6 +334,113 @@ class SubmissionController {
     } catch (error) {
       console.error('❌ Error saving score:', error);
       res.status(500).json({ status: 'error', message: 'Failed to save score' });
+    }
+  }
+
+  // Program admin: refused submissions, newest first, with the reason the
+  // builder was shown and what they tried to submit.
+  async listRefusals(req, res) {
+    try {
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const data = await submissionRefusalRepository.listByProgram(programId);
+      res.status(200).json({ status: 'success', data });
+    } catch (error) {
+      console.error('❌ Error listing refused submissions:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load refused submissions' });
+    }
+  }
+
+  // Master (global) admin only: let a refused project in. Skips only the Luma
+  // check-in gate: the stored attempt must still pass the same validation. The
+  // entry keeps the attempt's time, so it lands in the judging batch of when
+  // the builder really submitted.
+  async acceptRefusal(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) {
+        return res.status(403).json({ status: 'error', message: 'Only a master admin can accept a refused submission' });
+      }
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const refusal = await submissionRefusalRepository.findById(req.params.refusalId);
+      if (!refusal || refusal.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Refused submission not found' });
+      }
+      if (refusal.status === 'accepted') {
+        return res.status(409).json({ status: 'error', message: 'Already accepted' });
+      }
+      const v = validateSubmission(refusal.payload);
+      if (!v.ok) {
+        return res.status(422).json({ status: 'error', message: `Can't accept: ${v.error}. Ask the builder to resubmit.` });
+      }
+      const tracked = trackedProgramFor(program.slug);
+      if (tracked) {
+        const dv = validateSubmissionDetails(tracked, refusal.payload.details);
+        if (!dv.ok) {
+          return res.status(422).json({ status: 'error', message: `Can't accept: ${dv.error}. Ask the builder to resubmit.` });
+        }
+        v.value.details = dv.value;
+      }
+      const existing = await programSubmissionRepository.findByEmail(program.id, v.value.lumaEmail);
+      if (existing) {
+        return res.status(409).json({ status: 'error', message: 'That email already has a submission for this program' });
+      }
+      const late = !!(program.eventEndsAt && Date.parse(refusal.createdAt) > Date.parse(program.eventEndsAt));
+      const { submission } = await programSubmissionRepository.create({
+        programId: program.id,
+        ...v.value,
+        late,
+        createdAt: refusal.createdAt,
+        acceptedFromRefusalId: refusal.id,
+      });
+      const reviewedBy = req.user?.address ?? null;
+      const updated = await submissionRefusalRepository.setReviewed(refusal.id, {
+        status: 'accepted',
+        reviewedBy,
+        acceptedSubmissionId: submission.id,
+      });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'submission.refusal_accepted',
+        targetType: 'submission',
+        targetId: submission.id,
+        metadata: { refusalId: refusal.id, reasonCode: refusal.reasonCode, email: refusal.lumaEmail },
+      });
+      res.status(200).json({ status: 'success', data: { refusal: updated, submission } });
+    } catch (error) {
+      console.error('❌ Error accepting a refused submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to accept the submission' });
+    }
+  }
+
+  // Master (global) admin only: mark a refusal reviewed and not accepted. Kept.
+  async dismissRefusal(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) {
+        return res.status(403).json({ status: 'error', message: 'Only a master admin can dismiss a refused submission' });
+      }
+      const programId = await resolveProgramId(req);
+      const refusal = await submissionRefusalRepository.findById(req.params.refusalId);
+      if (!refusal || refusal.programId !== programId) {
+        return res.status(404).json({ status: 'error', message: 'Refused submission not found' });
+      }
+      if (refusal.status === 'accepted') {
+        return res.status(409).json({ status: 'error', message: 'Already accepted' });
+      }
+      const updated = await submissionRefusalRepository.setReviewed(refusal.id, { status: 'dismissed', reviewedBy: req.user?.address ?? null });
+      auditLog.logSafe({
+        programId,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'submission.refusal_dismissed',
+        targetType: 'submission_refusal',
+        targetId: refusal.id,
+        metadata: { email: refusal.lumaEmail },
+      });
+      res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+      console.error('❌ Error dismissing a refused submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to dismiss' });
     }
   }
 

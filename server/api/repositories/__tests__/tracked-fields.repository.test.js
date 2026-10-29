@@ -76,3 +76,38 @@ describe('ProgramAdminEmailRepository — judge profile', () => {
     expect(row).not.toHaveProperty('tracks');
   });
 });
+
+describe('SubmissionRefusalRepository', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('keeps known fields only, capped, never the honeypot; lowercases the email', async () => {
+    const refusalRepo = (await import('../submission-refusal.repository.js')).default;
+    const row = { id: 'r1', program_id: 'fsh', luma_email: 'sam@example.com', payload: {}, reason_code: 'not_checked_in', reason: 'x', status: 'refused', created_at: 't0' };
+    const chain = makeChain(row);
+    supabase.from.mockReturnValue(chain);
+    const r = await refusalRepo.create({
+      programId: 'fsh',
+      body: { lumaEmail: ' Sam@Example.com ', projectTitle: 'T', projectBrief: 'b'.repeat(9000), company: 'spam', evil: 1, details: { track: 'privacy' } },
+      reasonCode: 'not_checked_in',
+      reason: 'x',
+    });
+    const ins = chain.insert.mock.calls[0][0];
+    expect(ins.luma_email).toBe('sam@example.com');
+    expect(ins.payload).not.toHaveProperty('company');
+    expect(ins.payload).not.toHaveProperty('evil');
+    expect(ins.payload.projectBrief).toHaveLength(5000);
+    expect(ins.payload.details).toEqual({ track: 'privacy' });
+    expect(r).toMatchObject({ id: 'r1', lumaEmail: 'sam@example.com', reasonCode: 'not_checked_in', status: 'refused', createdAt: 't0' });
+  });
+
+  it('create on program_submissions keeps an accepted attempt\'s time and source', async () => {
+    const chain = makeChain({ id: 'x', created_at: '2026-11-04T14:20:00.000Z', accepted_from_refusal_id: 'r1' });
+    supabase.from.mockReturnValue(chain);
+    const { submission } = await submissionRepo.create({
+      programId: 'fsh', submitterName: 'S', lumaEmail: 's@x.com', projectTitle: 'T', projectBrief: 'b', videoUrl: 'https://v', githubUrl: 'https://g',
+      createdAt: '2026-11-04T14:20:00.000Z', acceptedFromRefusalId: 'r1',
+    });
+    expect(chain.insert.mock.calls[0][0]).toMatchObject({ created_at: '2026-11-04T14:20:00.000Z', accepted_from_refusal_id: 'r1' });
+    expect(submission).toMatchObject({ createdAt: '2026-11-04T14:20:00.000Z', acceptedFromRefusalId: 'r1' });
+  });
+});

@@ -240,6 +240,57 @@ describe('Free Society Hack judging — data that lands in the database', () => 
     expect(agentic.status).toBe(200);
   });
 
+  it('refused submissions are kept with the reason; a master admin accepts one into its original batch', async () => {
+    // The two refusals from earlier were recorded with the reason shown.
+    const reasons = store.submission_refusals.map((r) => [r.luma_email, r.reason_code, r.reason]);
+    expect(reasons).toEqual([
+      ['stranger@example.com', 'not_checked_in', 'Only checked-in attendees can submit. Use the email you checked in with on Luma.'],
+      ['priya@example.com', 'invalid', 'A testnet transaction id is 64 hex characters'],
+    ]);
+    expect(store.program_audit_log.filter((a) => a.action === 'submission.refused')).toHaveLength(2);
+
+    // 19:50 IST: a builder who checked in under another email is refused.
+    at('2026-11-04T19:50:00+05:30');
+    const refused = await submit('sid.other@example.com', 'Memo Mailbox', details());
+    expect(refused.status).toBe(403);
+    const row = store.submission_refusals.find((r) => r.luma_email === 'sid.other@example.com');
+    expect(row).toMatchObject({ status: 'refused', reason_code: 'not_checked_in' });
+
+    // A program (non-master) admin can't accept it.
+    const asProgramAdmin = await call(submissionController.acceptRefusal, {
+      params: { refusalId: row.id },
+      user: { address: '5ProgAdmin', isGlobalAdmin: false, programId: PROGRAM_ID },
+    });
+    expect(asProgramAdmin.status).toBe(403);
+
+    // 21:30 IST: the master admin accepts it.
+    at('2026-11-04T21:30:00+05:30');
+    const ok = await call(submissionController.acceptRefusal, {
+      params: { refusalId: row.id },
+      user: { address: '5Master', chain: 'substrate', isGlobalAdmin: true, programSlug: SLUG },
+    });
+    expect(ok.status).toBe(200);
+    expect(row).toMatchObject({ status: 'accepted', reviewed_by: '5Master', accepted_submission_id: ok.body.data.submission.id });
+    expect(store.program_audit_log.some((a) => a.action === 'submission.refusal_accepted')).toBe(true);
+
+    // It keeps the 19:50 time, so it's in the Evening batch, and judges can score it.
+    const list = await asJudge('judge-a@example.com', submissionController.listTracked);
+    const memo = list.body.data.submissions.find((s) => s.projectTitle === 'Memo Mailbox');
+    expect(memo).toMatchObject({ batch: 'evening', acceptedFromRefusalId: row.id, track: 'privacy' });
+    const scored = await asJudge('judge-a@example.com', submissionController.upsertRubricScore, {
+      params: { submissionId: memo.id, track: 'privacy' },
+      body: { criteria: { works: 2 } },
+    });
+    expect(scored.status).toBe(200);
+
+    // Accepting twice is refused; the record stays.
+    const again = await call(submissionController.acceptRefusal, {
+      params: { refusalId: row.id },
+      user: { address: '5Master', isGlobalAdmin: true, programSlug: SLUG },
+    });
+    expect(again.status).toBe(409);
+  });
+
   it('someone not invited cannot read or score', async () => {
     authRegistry.set(tokenFor('nobody@example.com'), { id: 'u:nobody', email: 'nobody@example.com' });
     const r = await asJudge('nobody@example.com', submissionController.upsertRubricScore, {
