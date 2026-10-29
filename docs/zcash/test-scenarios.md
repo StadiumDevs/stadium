@@ -97,6 +97,9 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] On any page, the top bar shows a single brightness row (label, slider with the time-of-day ticks, %, AUTO) with no expand/collapse button and no audio player; no SoundCloud requests are made
 - [ ] Drag the brightness slider → the % and the page brightness change; AUTO returns to following the time of day
 - [ ] On /programs at 390px wide, the brightness row fits and the page has no horizontal scroll
-- [ ] On /programs, ·PAST PROGRAMS runs newest first: Free Society Hack, Prompt × Purchase, PitchOff! Denver (PromptOff), Dogfooding Denver, Symbiosis 2025, Synergy 2025, Symmetry 2024
+- [ ] On /programs, ·PAST PROGRAMS runs newest first: Free Society Hack, PROMPT x PURCHASE, PromptOff! Denver 2026, Dogfooding Denver, Symbiosis 2025, Synergy 2025, Symmetry 2024
 - [ ] Each past program card shows TYPE (e.g. HACKATHON), EVENT (date · city, e.g. "Aug 19, 2024 · Berlin") and LUMA (e.g. luma.com/blockspace-symmetry ↗), and no APPS row
 - [ ] Clicking a card opens its program page; clicking its Luma link opens Luma in a new tab and leaves the programs page where it was
+- [ ] PromptOff! Denver 2026 (luma.com/vibecodingcomp) shows TYPE HACKATHON and "Feb 20, 2026 · Denver"; its page has the PromptOff! description from Luma ("2 hours. One prompt…") and the PromptOff! image in the about panel's left column; "PitchOff" appears nowhere
+- [ ] The Bitrefill program is named "PROMPT x PURCHASE" (no "— A Bitrefill Hackathon")
+- [ ] Symmetry 2024, Synergy 2025, Symbiosis 2025 and Dogfooding Denver pages each show their Luma event image (from /program-covers/, fully loaded) in the about panel's left column

@@ -30,6 +30,7 @@ export const mockPrograms: ApiProgram[] = [
     eventEndsAt: "2025-11-19T23:00:00Z",
     location: "Buenos Aires",
     eventUrl: "https://luma.com/Sub0Symbiosis",
+    coverImageUrl: "/program-covers/symbiosis-2025.webp",
     maxApplicants: null,
     createdAt: "2025-09-01T00:00:00Z",
     updatedAt: "2025-11-20T00:00:00Z",
@@ -48,6 +49,7 @@ export const mockPrograms: ApiProgram[] = [
     eventEndsAt: "2024-08-22T04:55:00Z",
     location: "Berlin",
     eventUrl: "https://luma.com/blockspace-symmetry",
+    coverImageUrl: "/program-covers/symmetry-2024.webp",
     maxApplicants: null,
     createdAt: "2024-06-01T00:00:00Z",
     updatedAt: "2024-08-23T00:00:00Z",
@@ -66,13 +68,14 @@ export const mockPrograms: ApiProgram[] = [
     eventEndsAt: "2025-07-18T23:00:00Z",
     location: "Berlin",
     eventUrl: "https://luma.com/blockspacesynergy",
+    coverImageUrl: "/program-covers/synergy-2025.webp",
     maxApplicants: null,
     createdAt: "2025-05-01T00:00:00Z",
     updatedAt: "2025-07-19T00:00:00Z",
   },
   {
     id: "bitrefill-2026",
-    name: "PROMPT x PURCHASE — A Bitrefill Hackathon",
+    name: "PROMPT x PURCHASE",
     slug: "bitrefill-2026",
     programType: "hackathon",
     description: "WebZero hackathon hosted with Bitrefill in Berlin.",
@@ -179,6 +182,7 @@ export const mockPrograms: ApiProgram[] = [
     eventStartsAt: "2026-02-19T13:00:00-07:00",
     eventEndsAt: null,
     location: "Denver",
+    coverImageUrl: "/program-covers/dogfooding-2026-denver.webp",
     maxApplicants: null,
     eventUrl: "https://luma.com/dogfooding",
     content: [
@@ -355,19 +359,20 @@ export const mockPrograms: ApiProgram[] = [
   },
   {
     id: "pitchoff-2026-denver",
-    name: "PitchOff! Denver 2026",
+    name: "PromptOff! Denver 2026",
     slug: "pitchoff-2026-denver",
-    programType: "pitch_off",
+    programType: "hackathon",
     description:
-      "A live pitch event in Denver where WebZero builders presented their projects to the room. Attendees signed up, chose the projects they were most excited about, and could opt into the bounty round.",
+      "Welcome to PromptOff! during ETHDenver at The Blockspace Church. 2 hours. One prompt. Prove you can vibe code something that works. A fast, fun vibe coding showdown: you get a surprise prompt, 2 hours on the clock, and one goal, to ship a working prototype with at least one successful user journey. Show up solo or with a partner (teams of 2 max); the prompt is revealed at the start; submit your project via GitHub when time's up; then demo and vote for winners. No coding experience required: just bring a laptop, your AI tool of choice, and the confidence to ship a working demo.",
     status: "completed",
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
     eventStartsAt: "2026-02-20T12:00:00-07:00",
-    eventEndsAt: "2026-02-21T23:59:59Z",
-    location: "Denver",
+    eventEndsAt: "2026-02-20T14:00:00-07:00",
+    location: "The Blockspace Church, Denver",
     eventUrl: "https://luma.com/vibecodingcomp",
+    coverImageUrl: "/program-covers/pitchoff-2026-denver.webp",
     maxApplicants: null,
     createdAt: "2026-02-01T00:00:00Z",
     updatedAt: "2026-02-21T00:00:00Z",
@@ -397,7 +402,7 @@ export const mockProgramSponsors: Record<string, ApiProgramSponsor[]> = {
   ],
 };
 
-// PitchOff! Denver builder submissions (preview/mock only — prod reads
+// PromptOff! Denver builder submissions (preview/mock only — prod reads
 // Supabase). Real data from the event's responses CSV, projected to the
 // public-safe fields only. Telegram/contact + dates are intentionally omitted.
 const BUILD_COL = "What did you build?";
