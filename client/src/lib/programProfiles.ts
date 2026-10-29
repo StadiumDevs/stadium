@@ -63,7 +63,6 @@ export type ProgramProfile = {
   allowBothTracks: boolean;
   themes: string[];
   appTypes: string[];
-  frictionAreas: string[];
   /** Show submitted projects on the public page immediately, not only after results. */
   showSubmissionsLive: boolean;
   /**
@@ -235,7 +234,6 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
   allowBothTracks: true,
   themes: ["1. Private payment rails", "2. The first five minutes", "3. Privacy beyond the transaction"],
   appTypes: ["web app", "mobile app", "SDK or library", "CLI", "agent", "other"],
-  frictionAreas: ["Faucet", "Node or indexer", "WebZjs or SDK", "Wallet", "Docs", "Other"],
   showSubmissionsLive: true,
   judgingSessions: [
     { id: "evening", label: "Evening · Wed 4 Nov 20:00–22:00", until: "2026-11-04T20:00:00+05:30", short: "EVENING · IN BY 20:00" },

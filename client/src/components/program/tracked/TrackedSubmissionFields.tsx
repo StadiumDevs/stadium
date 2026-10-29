@@ -9,7 +9,7 @@ import { isApp, PITCH_MAX, type TrackedFormState } from "./trackedForm";
 
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-/** Extra submission fields for a tracked program (tracks, themes, txid, next milestone, friction, anonymity). */
+/** Extra submission fields for a tracked program (tracks, themes, txid, next milestone, feedback, anonymity). */
 export function TrackedSubmissionFields({
   profile,
   value: f,
@@ -142,25 +142,22 @@ export function TrackedSubmissionFields({
         />
       </div>
 
-      <fieldset className="space-y-2">
-        <legend className="label-hw-dim">FRICTION NOTES (OPTIONAL, NOT SCORED)</legend>
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-          {profile.frictionAreas.map((a) => (
-            <div key={a} className="flex items-center gap-2">
-              <Checkbox id={`fr-${a}`} checked={f.frictionAreas.includes(a)} onCheckedChange={() => set("frictionAreas", toggle(f.frictionAreas, a))} />
-              <label htmlFor={`fr-${a}`} className="text-body text-sm cursor-pointer">{a}</label>
-            </div>
-          ))}
-        </div>
+      <div className="space-y-1.5 border-t border-hairline-subtle pt-4">
+        <Label htmlFor="trk-feedback" className="label-hw-dim">FEEDBACK FOR THE ZCASH TEAMS (OPTIONAL, NOT SCORED)</Label>
+        <p className="label-hw-dim normal-case">
+          What slowed you down or broke? Say which tool (for example the faucet, a wallet, an SDK, a node, the docs) and what
+          happened. It goes straight to the teams who can fix it.
+        </p>
         <Textarea
-          aria-label="Friction notes"
+          id="trk-feedback"
           rows={3}
-          placeholder="What slowed you down? It goes to the teams who can fix it."
+          maxLength={2000}
+          placeholder="The testnet faucet was down for 3 hours; the WebZjs docs don't say how to set the memo."
           value={f.frictionNotes}
           onChange={(e) => set("frictionNotes", e.target.value)}
           className="font-mono text-sm"
         />
-      </fieldset>
+      </div>
     </div>
   );
 }

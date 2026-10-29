@@ -10,7 +10,6 @@ export const TRACKED_PROGRAMS = {
     txidTracks: ['privacy', 'both'],
     themes: ['1. Private payment rails', '2. The first five minutes', '3. Privacy beyond the transaction'],
     appTypes: ['web app', 'mobile app', 'SDK or library', 'CLI', 'agent', 'other'],
-    frictionAreas: ['Faucet', 'Node or indexer', 'WebZjs or SDK', 'Wallet', 'Docs', 'Other'],
     maxTeam: 5,
     // Judging batches, in order. A submission joins the first batch whose
     // `until` is at or after its first submission time; the last batch takes

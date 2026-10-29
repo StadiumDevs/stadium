@@ -609,7 +609,8 @@ export type ApiSubmissionDetails = {
   /** Hide the point person's and teammates' names publicly (admins still see them). */
   anonymous?: boolean;
   frictionNotes: string | null;
-  frictionAreas: string[];
+  /** No longer collected (feedback is free text); kept optional for older records. */
+  frictionAreas?: string[];
   milestone: ApiSubmissionMilestone | null;
 };
 

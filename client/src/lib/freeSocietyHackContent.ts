@@ -55,7 +55,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
       "▢ **A public repo with a README.**\n\n" +
       "▢ **Every technology you used.**\n\n" +
       "▢ **A next milestone for the 30 days**, with links to anything already started.\n\n" +
-      "Friction notes are optional and not scored, but they go straight to the teams who can fix them.\n\n" +
+      "Feedback on what slowed you down is optional and not scored, but it goes straight to the teams who can fix it.\n\n" +
       "**Out of scope:** Zcash Shielded Assets, mainnet funds, Sprout, v4 transactions, zcashd wallet RPC.",
   },
   {

@@ -27,7 +27,6 @@ const seed = (slug: string): ApiSubmissionRefusal[] => {
     nextStep: "User tests with 10 first-time users by 4 Dec.",
     nextStepLinks: [],
     frictionNotes: null,
-    frictionAreas: [],
     anonymous: false,
   };
   return [

@@ -331,8 +331,7 @@ export function validateSubmissionDetails(config, details) {
     return { ok: false, error: 'Each next-milestone link must start with http:// or https://' };
   }
 
-  const frictionAreas = strList(d.frictionAreas).map(str).filter(Boolean);
-  if (frictionAreas.some((a) => !config.frictionAreas.includes(a))) return { ok: false, error: 'Unknown friction area' };
+  // Builder feedback is free text (no area tags; any old frictionAreas are ignored).
   const frictionNotes = str(d.frictionNotes) || null;
   if (frictionNotes && frictionNotes.length > 2000) return { ok: false, error: 'Friction notes are max 2000 characters' };
 
@@ -357,7 +356,6 @@ export function validateSubmissionDetails(config, details) {
       nextStep,
       nextStepLinks,
       frictionNotes,
-      frictionAreas,
       anonymous: d.anonymous === true,
     },
   };

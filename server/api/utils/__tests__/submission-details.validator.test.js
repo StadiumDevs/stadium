@@ -91,8 +91,10 @@ describe('validateSubmissionDetails', () => {
     expect(err(good({ nextStepLinks: ['not a link'] }))).toMatch(/must start with http/);
   });
 
-  it('checks friction and anonymity', () => {
-    expect(err(good({ frictionAreas: ['Weather'] }))).toBe('Unknown friction area');
+  it('checks feedback and anonymity; old area tags are ignored', () => {
+    const v = validateSubmissionDetails(cfg, good({ frictionAreas: ['Weather'] }));
+    expect(v.ok).toBe(true);
+    expect(v.value).not.toHaveProperty('frictionAreas');
     expect(err(good({ frictionNotes: 'x'.repeat(2001) }))).toMatch(/2000/);
     expect(err(good({ anonymous: 'yes' }))).toMatch(/anonymous/);
     expect(validateSubmissionDetails(cfg, good({ anonymous: true })).value.anonymous).toBe(true);

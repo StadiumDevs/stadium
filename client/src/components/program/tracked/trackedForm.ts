@@ -16,8 +16,8 @@ export type TrackedFormState = {
   nextStep: string;
   /** Comma- or newline-separated links to anything already started. */
   nextStepLinks: string;
+  /** Builder feedback for the ecosystem teams (free text, optional, not scored). */
   frictionNotes: string;
-  frictionAreas: string[];
   anonymous: boolean;
 };
 
@@ -34,7 +34,6 @@ export const emptyTrackedForm = (): TrackedFormState => ({
   nextStep: "",
   nextStepLinks: "",
   frictionNotes: "",
-  frictionAreas: [],
   anonymous: false,
 });
 
@@ -89,7 +88,6 @@ export function trackedFormToDetails(
     nextStep: f.nextStep.trim(),
     nextStepLinks: splitLinks(f.nextStepLinks),
     frictionNotes: f.frictionNotes.trim() || null,
-    frictionAreas: f.frictionAreas,
     anonymous: f.anonymous,
   };
 }
@@ -110,7 +108,6 @@ export function detailsToTrackedForm(d: Partial<ApiSubmissionDetails> | null | u
     nextStep: d.nextStep ?? "",
     nextStepLinks: (d.nextStepLinks ?? []).join("\n"),
     frictionNotes: d.frictionNotes ?? "",
-    frictionAreas: d.frictionAreas ?? [],
     anonymous: !!d.anonymous,
   };
 }

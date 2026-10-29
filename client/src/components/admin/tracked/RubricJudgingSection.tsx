@@ -22,7 +22,7 @@ import {
   type ProgramJudge,
   type ProgramProfile,
 } from "@/lib/programProfiles";
-import { buildSubmissionsCsv, downloadCsv } from "@/lib/trackedCsv";
+import { buildRankedCsv, buildSubmissionsCsv, downloadCsv } from "@/lib/trackedCsv";
 import { toPublicSubmission } from "@/lib/trackedDisplay";
 import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadge";
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
@@ -641,7 +641,7 @@ export function RubricJudgingSection({
                     </div>
                     {s.details.frictionNotes && (
                       <div className="text-[12px]">
-                        <span className="label-hw-dim">FRICTION (NOT SCORED): </span>
+                        <span className="label-hw-dim">BUILDER FEEDBACK (NOT SCORED): </span>
                         <span className="text-body">{s.details.frictionNotes}</span>
                       </div>
                     )}
@@ -687,11 +687,28 @@ export function RubricJudgingSection({
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap gap-1">
+            {!isJudge && board && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadCsv(
+                    `${programSlug}-${boardTrack}-ranked.csv`,
+                    buildRankedCsv(profile, boardTrack, board, submissions, judges),
+                  )
+                }
+                className={btnGhost}
+                data-testid="export-ranked-csv"
+              >
+                EXPORT RANKED CSV
+              </button>
+            )}
             {canSelectWinners && (
               <button type="button" onClick={togglePublished} disabled={busy === "publish"} className={publishedAt ? btnGhost : btnSolid}>
                 {publishedAt ? "UNPUBLISH RESULTS" : "PUBLISH RESULTS ▸"}
               </button>
             )}
+            </div>
           </div>
           {board && (
             <>

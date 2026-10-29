@@ -91,12 +91,9 @@ export function SubmissionDetails({ profile, submission: s }: { profile: Program
           ))}
         </div>
       </Row>
-      <Row label="FRICTION NOTES">
+      <Row label="FEEDBACK FOR THE ECOSYSTEM">
         {d.frictionNotes ? (
-          <div className="space-y-1.5">
-            <p>{d.frictionNotes}</p>
-            {d.frictionAreas.length > 0 && <Chips items={d.frictionAreas} />}
-          </div>
+          <p>{d.frictionNotes}</p>
         ) : (
           <span className="text-label-mid">None given</span>
         )}

@@ -1,5 +1,5 @@
 import type { ApiRubricLeaderboard, ApiTrackedSubmission, JudgedTrack } from "./api";
-import { trackById, trackLabel, type ProgramProfile } from "./programProfiles";
+import { trackById, trackLabel, type ProgramJudge, type ProgramProfile } from "./programProfiles";
 
 const cell = (v: string | number | null | undefined) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 const toCsv = (rows: (string | number | null | undefined)[][]) => rows.map((r) => r.map(cell).join(",")).join("\n");
@@ -17,9 +17,11 @@ export const downloadCsv = (filename: string, csv: string) => {
 const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
 
 /**
- * One row per submission with everything the grant committee needs: track,
- * point person, team, links, txid check, next milestone, anonymity, friction, and per track the
- * rank, average, and every judge's criterion scores, notes and session.
+ * One row per submission, in submission order, with everything the grant
+ * committee needs: track, point person, team, links, txid check, next
+ * milestone, anonymity, builder feedback, and per track the rank, average, and
+ * every judge's criterion scores, notes and session. For a ranked list use
+ * buildRankedCsv.
  */
 export function buildSubmissionsCsv(
   profile: ProgramProfile,
@@ -46,8 +48,7 @@ export function buildSubmissionsCsv(
     "txCheck",
     "nextMilestone",
     "nextMilestoneLinks",
-    "frictionAreas",
-    "frictionNotes",
+    "builderFeedback",
     "prizes",
     "ecosystemPrize",
     "anonymous",
@@ -87,7 +88,6 @@ export function buildSubmissionsCsv(
       d.txCheck?.status ?? "",
       d.nextStep,
       (d.nextStepLinks ?? []).join("; "),
-      d.frictionAreas.join("; "),
       d.frictionNotes,
       Object.values(s.prizes).map((p) => (p ? `${p.label} (${p.amount} ${p.currency})` : "")).join("; "),
       s.ecosystemPrize ? "yes" : "no",
@@ -108,34 +108,95 @@ export function buildSubmissionsCsv(
   return toCsv([header, ...rows]);
 }
 
-export type FrictionGroup = {
-  area: string;
-  items: { projectTitle: string; track: string; pointPerson: string; notes: string }[];
-};
+/** Judge name for a judge email (falls back to the email). */
+const judgeName = (judges: ProgramJudge[], email: string) => judges.find((j) => j.email === email)?.name ?? email;
 
-/** Friction notes grouped by area (a note tagged with two areas appears under both). */
-export function groupFriction(profile: ProgramProfile, submissions: ApiTrackedSubmission[]): FrictionGroup[] {
-  const groups = new Map<string, FrictionGroup>();
-  for (const area of [...profile.frictionAreas, "Untagged"]) groups.set(area, { area, items: [] });
-  for (const s of submissions) {
-    const notes = s.details.frictionNotes;
-    if (!notes) continue;
-    const areas = s.details.frictionAreas.length ? s.details.frictionAreas : ["Untagged"];
-    for (const area of areas) {
-      if (!groups.has(area)) groups.set(area, { area, items: [] });
-      groups.get(area)?.items.push({
-        projectTitle: s.projectTitle,
-        track: trackLabel(profile, s.details.track),
-        pointPerson: s.submitterName,
-        notes,
-      });
-    }
+/**
+ * One track's projects in leaderboard order, with the averages, prize, links,
+ * the builder's feedback, and then every judge (by name): total, each
+ * criterion, their note (feedback) and the session they scored in.
+ */
+export function buildRankedCsv(
+  profile: ProgramProfile,
+  track: JudgedTrack,
+  board: ApiRubricLeaderboard,
+  submissions: ApiTrackedSubmission[],
+  judges: ProgramJudge[],
+): string {
+  const rubric = trackById(profile, track).rubric;
+  const criteria = rubric.criteria;
+  const header: string[] = [
+    "rank",
+    "tieBrokenBy",
+    "projectTitle",
+    "avgTotal",
+    ...criteria.map((c) => (c.isBonus ? `${c.id}.judgesGiving` : `${c.id}.avg`)),
+    "prize",
+    "ecosystemPrize",
+    "judgesScored",
+    "pointPersonName",
+    "pointPersonEmail",
+    "publicUrl",
+    "demoVideoUrl",
+    "repoUrl",
+    "testnetTxid",
+    "txCheck",
+    "nextMilestone",
+    "builderFeedback",
+  ];
+  for (const email of board.judges) {
+    const n = judgeName(judges, email);
+    header.push(`${n} · total`, ...criteria.map((c) => `${n} · ${c.id}`), `${n} · note`, `${n} · session`);
   }
-  return [...groups.values()].filter((g) => g.items.length > 0);
+  const rows = board.rows.map((r) => {
+    const s = submissions.find((x) => x.id === r.submissionId);
+    const d = s?.details;
+    const row: (string | number | null)[] = [
+      r.rank,
+      r.tieBrokenBy ?? "",
+      r.projectTitle,
+      fmt(r.avgTotal),
+      ...criteria.map((c) => (c.isBonus ? r.bonusCount : fmt(r.avgByCriterion[c.id] ?? 0))),
+      r.prize ? `${r.prize.label} (${r.prize.amount} ${r.prize.currency})` : "",
+      r.ecosystemPrize ? "yes" : "no",
+      `${r.judgeCount}/${board.judges.length}`,
+      s?.submitterName ?? r.submitterName,
+      s?.lumaEmail ?? "",
+      d?.publicUrl ?? "",
+      s?.videoUrl ?? "",
+      s?.githubUrl ?? "",
+      d?.testnetTxid ?? "",
+      d?.txCheck?.status ?? "",
+      d?.nextStep ?? "",
+      d?.frictionNotes ?? "",
+    ];
+    for (const email of board.judges) {
+      const js = r.judgeScores.find((x) => x.judgeEmail === email);
+      row.push(js ? js.total : "", ...criteria.map((c) => (js ? js.criteria[c.id] ?? "" : "")), js?.notes ?? "", js?.session ?? "");
+    }
+    return row;
+  });
+  return toCsv([header, ...rows]);
 }
 
-export const buildFrictionCsv = (groups: FrictionGroup[]) =>
+/** Builder feedback (free text), newest first, for the admin list and its CSV. */
+export type FeedbackItem = { projectTitle: string; track: string; pointPerson: string; note: string; submittedAt: string };
+
+export function builderFeedback(profile: ProgramProfile, submissions: ApiTrackedSubmission[]): FeedbackItem[] {
+  return submissions
+    .filter((s) => (s.details.frictionNotes ?? "").trim())
+    .map((s) => ({
+      projectTitle: s.projectTitle,
+      track: trackLabel(profile, s.details.track),
+      pointPerson: s.submitterName,
+      note: s.details.frictionNotes ?? "",
+      submittedAt: s.createdAt,
+    }))
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+}
+
+export const buildFeedbackCsv = (items: FeedbackItem[]) =>
   toCsv([
-    ["area", "projectTitle", "track", "pointPerson", "notes"],
-    ...groups.flatMap((g) => g.items.map((i) => [g.area, i.projectTitle, i.track, i.pointPerson, i.notes])),
+    ["submittedAt", "projectTitle", "track", "pointPerson", "feedback"],
+    ...items.map((i) => [i.submittedAt, i.projectTitle, i.track, i.pointPerson, i.note]),
   ]);
