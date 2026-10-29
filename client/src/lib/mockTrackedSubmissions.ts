@@ -89,6 +89,8 @@ export type TrackedSubmitPayload = {
   githubUrl: string;
   late?: boolean;
   details: Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns">;
+  /** Accepting a refused attempt keeps the attempt's time (and judging batch). */
+  createdAt?: string;
 };
 
 // Average of the rubric's winner-gate criterion across fully-scored judges, or
@@ -185,7 +187,7 @@ export const mockTracked = {
       sub = {
         id: `${slug}-added-${state.submissions.length + 1}-${Date.now()}`,
         programId: slug,
-        createdAt: at,
+        createdAt: payload.createdAt ?? at,
         ...base,
         details: { ...payload.details, txCheck: null, milestone: null, checkIns: [] },
         prizes: {},

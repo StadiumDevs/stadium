@@ -29,6 +29,7 @@ import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdm
 import { CheckInsSection } from "@/components/admin/tracked/CheckInsSection";
 import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
 import { MockPlaygroundBar } from "@/components/admin/tracked/MockPlaygroundBar";
+import { RefusedSubmissionsSection } from "@/components/admin/RefusedSubmissionsSection";
 import { getProgramProfile } from "@/lib/programProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -463,6 +464,16 @@ const AdminProgramPage = () => {
                     prizeTiers={program.prizeTiers}
                     resultsPublishedAt={program.resultsPublishedAt}
                     onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
+                  />
+                )}
+
+                {/* Refused submits are kept with their reason; master admins can let them in. */}
+                {program.programType === "hackathon" && (
+                  <RefusedSubmissionsSection
+                    programSlug={program.slug}
+                    getAuth={getAdminAuth}
+                    canReview={isGlobalAdmin}
+                    reviewer={connectedAddress}
                   />
                 )}
 

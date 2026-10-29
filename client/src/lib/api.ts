@@ -221,6 +221,47 @@ export type ApiProgramAdminEmail = {
   tracks?: JudgedTrack[] | null;
 };
 
+/** A project submission as sent to POST /programs/:slug/submissions. */
+export type SubmissionPayload = {
+  submitterName: string;
+  lumaEmail: string;
+  projectTitle: string;
+  projectBrief: string;
+  videoUrl: string;
+  githubUrl: string;
+  company?: string;
+  agreedToTerms?: boolean;
+  feedback?: {
+    surfaces: string[];
+    surfacesPrimary: string | null;
+    agentEnv: string;
+    deadlineStatus: string;
+    biggestBlocker: string;
+    couldntHandle: string;
+    wouldKeepBuilding: string;
+  };
+  /** Tracked-program fields (programProfiles.ts); validated server-side by validateSubmissionDetails. */
+  details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns">;
+};
+
+/** A refused submission, kept with the reason the builder was shown (admin only). */
+export type ApiSubmissionRefusal = {
+  id: string;
+  programId: string;
+  lumaEmail: string;
+  submitterName: string | null;
+  projectTitle: string | null;
+  /** What they tried to submit (known fields only). */
+  payload: SubmissionPayload;
+  reasonCode: "not_checked_in" | "invalid" | "unverified";
+  reason: string;
+  status: "refused" | "accepted" | "dismissed";
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  acceptedSubmissionId: string | null;
+  createdAt: string;
+};
+
 /** A public project submission (Bitrefill intake). */
 export type ApiSubmission = {
   id: string;
@@ -2131,27 +2172,7 @@ export const api = {
   /** Public: submit a project to a program. No auth. */
   submitProjectSubmission: async (
     slug: string,
-    payload: {
-      submitterName: string;
-      lumaEmail: string;
-      projectTitle: string;
-      projectBrief: string;
-      videoUrl: string;
-      githubUrl: string;
-      company?: string;
-      agreedToTerms?: boolean;
-      feedback?: {
-        surfaces: string[];
-        surfacesPrimary: string | null;
-        agentEnv: string;
-        deadlineStatus: string;
-        biggestBlocker: string;
-        couldntHandle: string;
-        wouldKeepBuilding: string;
-      };
-      /** Tracked-program fields (programProfiles.ts). Mock mode only for now. */
-      details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns">;
-    },
+    payload: SubmissionPayload,
   ): Promise<{ status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean }> => {
     if (USE_MOCK_DATA) {
       // Only checked-in attendees (on the imported Luma list) may submit.
@@ -2159,10 +2180,11 @@ export const api = {
       const guests = mockProgramSignups[slug] || [];
       const ok = guests.some((g) => g.email.trim().toLowerCase() === payload.lumaEmail.trim().toLowerCase());
       if (!ok) {
-        throw new ApiError(
-          "Only checked-in attendees can submit. Use the email you checked in with on Luma.",
-          403,
-        );
+        const reason = "Only checked-in attendees can submit. Use the email you checked in with on Luma.";
+        // Refusals are kept with the reason (a master admin can accept them).
+        const { mockRefusals } = await import("./mockRefusals");
+        mockRefusals.record(slug, payload, "not_checked_in", reason);
+        throw new ApiError(reason, 403);
       }
       // Deadline is informational: a submit after event end is flagged late, not blocked.
       const program = mockPrograms.find((p) => p.slug === slug);
@@ -2506,6 +2528,58 @@ export const api = {
     };
   },
 
+  /** Program admin: refused submissions, newest first, with the reason shown. */
+  listSubmissionRefusals: async (slug: string, authHeader: AdminAuthArg): Promise<{ status: string; data: ApiSubmissionRefusal[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockRefusals } = await import("./mockRefusals");
+      return { status: "success", data: mockRefusals.list(slug) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submission-refusals`, { headers: adminAuthHeaders(authHeader) });
+  },
+
+  /** Master admin: accept a refused project (it keeps its original submission time). */
+  acceptSubmissionRefusal: async (
+    slug: string,
+    id: string,
+    authHeader: AdminAuthArg,
+    reviewedBy = "admin",
+  ): Promise<{ status: string; data: { refusal: ApiSubmissionRefusal; submission?: { id: string } } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockRefusals } = await import("./mockRefusals");
+      try {
+        const refusal = await mockRefusals.accept(slug, id, reviewedBy);
+        return { status: "success", data: { refusal, submission: refusal.acceptedSubmissionId ? { id: refusal.acceptedSubmissionId } : undefined } };
+      } catch (e) {
+        throw new ApiError((e as Error).message, (e as { status?: number }).status ?? 400);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submission-refusals/${encodeURIComponent(id)}/accept`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Master admin: mark a refused submission reviewed and not accepted (kept). */
+  dismissSubmissionRefusal: async (
+    slug: string,
+    id: string,
+    authHeader: AdminAuthArg,
+    reviewedBy = "admin",
+  ): Promise<{ status: string; data: ApiSubmissionRefusal }> => {
+    if (USE_MOCK_DATA) {
+      const { mockRefusals } = await import("./mockRefusals");
+      try {
+        return { status: "success", data: mockRefusals.dismiss(slug, id, reviewedBy) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, (e as { status?: number }).status ?? 400);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submission-refusals/${encodeURIComponent(id)}/dismiss`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
   /** Admin: the program's judges and the tracks each may score. */
   listTrackJudges: async (
     slug: string,
@@ -2552,6 +2626,8 @@ export const api = {
     if (!USE_MOCK_DATA) throw new ApiError("Only available in mock mode", 400);
     const { mockTracked } = await import("./mockTrackedSubmissions");
     mockTracked.reset(slug);
+    const { mockRefusals } = await import("./mockRefusals");
+    mockRefusals.reset(slug);
   },
 
   /** Judge: save (upsert) a rubric score for one submission in one track. */
