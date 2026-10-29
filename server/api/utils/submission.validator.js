@@ -261,7 +261,7 @@ export function validateRubricScore(track, body = {}) {
 
 // Tracked-program submission fields (`details`), mirroring the client form
 // (client/src/components/program/tracked/trackedForm.ts). Unknown keys are
-// dropped, and server-set fields (txCheck, milestone, checkIns) are never
+// dropped, and server-set fields (txCheck, milestone) are never
 // taken from the client.
 export const PITCH_MAX = 140;
 const TXID_RE = /^[0-9a-f]{64}$/i;

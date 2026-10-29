@@ -37,7 +37,7 @@ describe('validateSubmissionDetails', () => {
   });
 
   it('drops unknown keys and never takes server-set fields from the client', () => {
-    const v = validateSubmissionDetails(cfg, good({ txCheck: { status: 'verified' }, milestone: { x: 1 }, checkIns: [1], evil: true }));
+    const v = validateSubmissionDetails(cfg, good({ txCheck: { status: 'verified' }, milestone: { x: 1 }, checkIns: [1], evil: true })); // checkIns: an old/unknown key
     expect(v.ok).toBe(true);
     expect(v.value).not.toHaveProperty('txCheck');
     expect(v.value).not.toHaveProperty('milestone');

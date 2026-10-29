@@ -848,38 +848,10 @@ const txCheckFor = (txid: string | null): ApiTxCheck | null => {
   return { status, checkedAt: "2026-11-04T23:59:00+05:30", attempts: status === "could_not_check" ? 3 : 1 };
 };
 
-const checkInsFor = (key: string, i: number) => {
-  const out = [];
-  if (ECOSYSTEM.has(key)) {
-    out.push({ day: 14, stillBuilding: true, link: `https://${key}.example.com/changelog`, answeredAt: "2026-11-19T18:00:00+05:30" });
-    out.push({ day: 30, stillBuilding: true, link: `https://${key}.example.com/release`, answeredAt: "2026-12-04T18:00:00+05:30" });
-    return out;
-  }
-  // Roughly 2 in 3 answer at 14 days, 1 in 2 at 30 days; fewer still building later.
-  if (i % 3 !== 2) {
-    out.push({
-      day: 14,
-      stillBuilding: i % 4 !== 3,
-      link: i % 4 !== 3 ? `https://github.com/example/${key}/commits` : null,
-      answeredAt: "2026-11-20T10:00:00+05:30",
-    });
-  }
-  if (i % 2 === 0) {
-    out.push({
-      day: 30,
-      stillBuilding: i % 6 === 0,
-      link: i % 6 === 0 ? `https://github.com/example/${key}/releases` : null,
-      answeredAt: "2026-12-05T10:00:00+05:30",
-    });
-  }
-  return out;
-};
-
 export type TrackedSeed = {
   submissions: ApiTrackedSubmission[];
   scores: ApiRubricScore[];
   resultsPublishedAt: string | null;
-  checkInsSent: Record<string, string>;
 };
 
 export function buildFreeSocietyHackSeed(): TrackedSeed {
@@ -895,6 +867,7 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
         partnerName: "Meera Pillai (mock)",
         partnerProject: "ZecHub (mock partner)",
         agreedAt: "2026-11-12T12:00:00+05:30",
+        checkedInAt: "2026-11-19T18:00:00+05:30",
         deliveryLink: null,
         partnerConfirmed: null,
         partnerConfirmedAt: null,
@@ -908,6 +881,7 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
         partnerName: "Arvind Shetty (mock)",
         partnerProject: "Creator Collective (mock partner)",
         agreedAt: "2026-11-11T12:00:00+05:30",
+        checkedInAt: "2026-11-19T18:00:00+05:30",
         deliveryLink: "https://github.com/example/tip-jar-sdk/releases/v0.1.0",
         partnerConfirmed: true,
         partnerConfirmedAt: "2026-12-02T12:00:00+05:30",
@@ -949,7 +923,6 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
         frictionNotes: p.friction,
         frictionAreas: p.frictionAreas,
         milestone,
-        checkIns: checkInsFor(p.key, i),
       },
       prizes,
       ecosystemPrize: ECOSYSTEM.has(p.key),
@@ -997,7 +970,6 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
     submissions,
     scores,
     resultsPublishedAt: "2026-11-05T13:15:00+05:30",
-    checkInsSent: { "14": "2026-11-19T09:00:00+05:30", "30": "2026-12-04T09:00:00+05:30" },
   };
 }
 

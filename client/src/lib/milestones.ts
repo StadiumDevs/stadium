@@ -1,4 +1,4 @@
-import type { ApiCheckIn, ApiSubmissionMilestone } from "./api";
+import type { ApiSubmissionMilestone } from "./api";
 import type { MilestoneStep, ProgramProfile } from "./programProfiles";
 
 export type MilestoneStepState = MilestoneStep & { done: boolean; current: boolean; doneAt: string | null };
@@ -19,16 +19,12 @@ export type MilestoneProgressView = {
 export function milestoneProgress(
   profile: ProgramProfile,
   milestone: ApiSubmissionMilestone,
-  checkIns: ApiCheckIn[] = [],
 ): MilestoneProgressView {
-  const firstCheckIn = profile.checkIns[0]?.day;
-  const checkIn = checkIns.find((c) => c.day === firstCheckIn && c.answeredAt);
   const delivered = milestone.deliveryLink && milestone.partnerConfirmed ? milestone.partnerConfirmedAt ?? "done" : null;
   const doneAt: Record<MilestoneStep["id"], string | null> = {
     agree: milestone.agreedAt,
-    // Check-in answers are private (not in the public projection); a confirmed
-    // delivery implies the check-in point was passed.
-    checkin: checkIn?.answeredAt ?? (delivered ? "done" : null),
+    // Recorded by an admin; a confirmed delivery implies the check-in point passed.
+    checkin: milestone.checkedInAt ?? (delivered ? "done" : null),
     deliver: delivered,
     share: milestone.loungeDate,
     payout: milestone.payoutStatus === "released" ? milestone.payoutReleasedAt ?? "done" : null,

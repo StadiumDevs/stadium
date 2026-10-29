@@ -3,7 +3,6 @@
 // program's fixture, so the playground can be reset and re-seeded at any time.
 // The Bitrefill flow keeps using mockJudging.ts unchanged.
 import type {
-  ApiCheckIn,
   ApiJudgingProgressRow,
   ApiPrizeTier,
   ApiPublicSubmission,
@@ -34,7 +33,7 @@ const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }
   "free-society-hack-2026": { build: buildFreeSocietyHackSeed, judges: FSH_JUDGES },
 };
 
-const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v4`;
+const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v5`;
 
 const read = <T,>(key: string, fallback: T): T => {
   try {
@@ -60,7 +59,7 @@ const load = (slug: string): TrackedSeed => {
   const stored = read<TrackedSeed | null>(stateKey(slug), null);
   if (stored) return stored;
   if (memory[slug]) return memory[slug];
-  const fresh = seed ? seed.build() : { submissions: [], scores: [], resultsPublishedAt: null, checkInsSent: {} };
+  const fresh = seed ? seed.build() : { submissions: [], scores: [], resultsPublishedAt: null };
   memory[slug] = fresh;
   write(stateKey(slug), fresh);
   return fresh;
@@ -88,7 +87,7 @@ export type TrackedSubmitPayload = {
   videoUrl: string;
   githubUrl: string;
   late?: boolean;
-  details: Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns">;
+  details: Omit<ApiSubmissionDetails, "txCheck" | "milestone">;
   /** Accepting a refused attempt keeps the attempt's time (and judging batch). */
   createdAt?: string;
 };
@@ -132,9 +131,6 @@ export const mockTracked = {
     return load(slug).resultsPublishedAt;
   },
 
-  checkInsSent(slug: string): Record<string, string> {
-    return load(slug).checkInsSent;
-  },
 
   /** Public: every submitted project, live. Winners first once published. */
   publicList(slug: string): ApiPublicSubmissions {
@@ -189,7 +185,7 @@ export const mockTracked = {
         programId: slug,
         createdAt: payload.createdAt ?? at,
         ...base,
-        details: { ...payload.details, txCheck: null, milestone: null, checkIns: [] },
+        details: { ...payload.details, txCheck: null, milestone: null },
         prizes: {},
         ecosystemPrize: false,
       };
@@ -379,6 +375,7 @@ export const mockTracked = {
             partnerName: null,
             partnerProject: null,
             agreedAt: null,
+            checkedInAt: null,
             deliveryLink: null,
             partnerConfirmed: null,
             partnerConfirmedAt: null,
@@ -413,30 +410,6 @@ export const mockTracked = {
   },
 
   /** Mock "send": records the send time and returns how many point people it would email. */
-  sendCheckIns(slug: string, day: number): { sentAt: string; recipients: number } {
-    const state = load(slug);
-    const sentAt = now();
-    state.checkInsSent = { ...state.checkInsSent, [String(day)]: sentAt };
-    save(slug, state);
-    return { sentAt, recipients: state.submissions.length };
-  },
-
-  answerCheckIn(slug: string, id: string, answer: Omit<ApiCheckIn, "answeredAt">): ApiTrackedSubmission | null {
-    const state = load(slug);
-    let next: ApiTrackedSubmission | null = null;
-    state.submissions = state.submissions.map((s) => {
-      if (s.id !== id) return s;
-      const checkIns = [
-        ...s.details.checkIns.filter((c) => c.day !== answer.day),
-        { ...answer, answeredAt: now() },
-      ].sort((a, b) => a.day - b.day);
-      next = { ...s, details: { ...s.details, checkIns } };
-      return next;
-    });
-    save(slug, state);
-    return next;
-  },
-
   stats(slug: string) {
     return { submissionsCount: load(slug).submissions.length };
   },

@@ -1,5 +1,5 @@
 import { MilestoneTrack } from "@/components/milestone-track";
-import type { ApiCheckIn, ApiSubmissionMilestone } from "@/lib/api";
+import type { ApiSubmissionMilestone } from "@/lib/api";
 import { formatDay, milestoneProgress } from "@/lib/milestones";
 import type { ProgramProfile } from "@/lib/programProfiles";
 import { cn } from "@/lib/utils";
@@ -14,15 +14,13 @@ const COMPACT_STEPS = new Set(["agree", "deliver", "share"]);
 export function MilestoneProgress({
   profile,
   milestone,
-  checkIns,
   compact = false,
 }: {
   profile: ProgramProfile;
   milestone: ApiSubmissionMilestone;
-  checkIns?: ApiCheckIn[];
   compact?: boolean;
 }) {
-  const view = milestoneProgress(profile, milestone, checkIns);
+  const view = milestoneProgress(profile, milestone);
   const steps = compact ? view.steps.filter((s) => COMPACT_STEPS.has(s.id)) : view.steps;
   const outcomeLabel =
     view.outcome === "completed" ? "COMPLETED" : view.outcome === "not_completed" ? "NOT COMPLETED" : "IN PROGRESS";

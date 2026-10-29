@@ -64,7 +64,7 @@ export function MilestonesAdminSection({
           return (
             <div key={s.id} className="lcd p-3 space-y-3" data-testid="milestone-admin-card">
               <div className="font-display text-lg uppercase tracking-tight text-display">{s.projectTitle}</div>
-              <MilestoneProgress profile={profile} milestone={m} checkIns={s.details.checkIns} />
+              <MilestoneProgress profile={profile} milestone={m} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <label className="space-y-1">
                   <span className="label-hw-dim block">PARTNER NAME</span>
@@ -77,6 +77,17 @@ export function MilestonesAdminSection({
                 <label className="space-y-1">
                   <span className="label-hw-dim block">AGREED ON</span>
                   <input type="date" className={input} defaultValue={toDate(m.agreedAt)} onChange={(e) => patch(s.id, { agreedAt: fromDate(e.target.value) })} />
+                </label>
+                <label className="space-y-1">
+                  {/* Stadium sends no check-in emails; record the 19 Nov check-in here. */}
+                  <span className="label-hw-dim block">CHECKED IN ON</span>
+                  <input
+                    type="date"
+                    aria-label="Checked in on"
+                    className={input}
+                    defaultValue={toDate(m.checkedInAt)}
+                    onChange={(e) => patch(s.id, { checkedInAt: fromDate(e.target.value) })}
+                  />
                 </label>
                 <label className="space-y-1">
                   <span className="label-hw-dim block">PARTNER CONFIRMED DELIVERY</span>

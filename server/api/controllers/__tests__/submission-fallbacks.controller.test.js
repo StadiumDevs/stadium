@@ -161,7 +161,7 @@ describe('GET submissions/mine', () => {
 describe('GET submissions/public', () => {
   it('no emails anywhere; anonymous entries hide names; untracked programs 404', async () => {
     submissionRepo.listByProgramId.mockResolvedValue([
-      { id: 'a', submitterName: 'Priya', lumaEmail: 'priya@example.com', projectTitle: 'Chai', details: { ...details, checkIns: [{ day: 14 }] } },
+      { id: 'a', submitterName: 'Priya', lumaEmail: 'priya@example.com', projectTitle: 'Chai', details },
       { id: 'b', submitterName: 'Sid', lumaEmail: 'sid@example.com', projectTitle: 'Memo', details: { ...details, anonymous: true } },
     ]);
     const res = mockRes();
@@ -169,7 +169,6 @@ describe('GET submissions/public', () => {
     const data = res.json.mock.calls[0][0].data;
     const text = JSON.stringify(data);
     expect(text).not.toMatch(/@/);
-    expect(text).not.toContain('checkIns');
     expect(data.published).toBe(false);
     expect(data.submissions[0].details.team).toEqual([{ name: 'Arjun', role: 'fe' }]);
     expect(data.submissions[1].submitterName).toBe('Anonymous');

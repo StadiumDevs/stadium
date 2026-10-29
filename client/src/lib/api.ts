@@ -244,7 +244,7 @@ export type SubmissionPayload = {
     wouldKeepBuilding: string;
   };
   /** Tracked-program fields (programProfiles.ts); validated server-side by validateSubmissionDetails. */
-  details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns">;
+  details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone">;
 };
 
 /** What happened to a submit: created, updated (resubmit), or held for an organiser. */
@@ -577,6 +577,8 @@ export type ApiSubmissionMilestone = {
   partnerName: string | null;
   partnerProject: string | null;
   agreedAt: string | null;
+  /** The 19 Nov check-in point, recorded by an admin (Stadium sends no check-in emails). */
+  checkedInAt: string | null;
   /** Builder-written public link to the delivered milestone. */
   deliveryLink: string | null;
   partnerConfirmed: boolean | null;
@@ -585,13 +587,6 @@ export type ApiSubmissionMilestone = {
   loungeDate: string | null;
   payoutStatus: MilestonePayoutStatus;
   payoutReleasedAt: string | null;
-};
-
-export type ApiCheckIn = {
-  day: number;
-  stillBuilding: boolean | null;
-  link: string | null;
-  answeredAt: string | null;
 };
 
 export type ApiSubmissionDetails = {
@@ -616,7 +611,6 @@ export type ApiSubmissionDetails = {
   frictionNotes: string | null;
   frictionAreas: string[];
   milestone: ApiSubmissionMilestone | null;
-  checkIns: ApiCheckIn[];
 };
 
 /** One judge's scoring progress; names only, so every judge can see the table. */
@@ -644,7 +638,7 @@ export type ApiPublicSubmission = {
   githubUrl: string;
   late: boolean;
   createdAt: string;
-  details: Omit<ApiSubmissionDetails, "team" | "checkIns"> & {
+  details: Omit<ApiSubmissionDetails, "team"> & {
     team: { name: string; role?: string | null }[];
   };
   /** Only populated once results are published. */
@@ -2261,7 +2255,7 @@ export const api = {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       const s = mockTracked.list(slug).find((x) => x.lumaEmail.trim().toLowerCase() === email);
       if (!s) throw new ApiError("No submission for this email yet", 404);
-      const { txCheck: _t, milestone: _m, checkIns: _c, ...details } = s.details;
+      const { txCheck: _t, milestone: _m, ...details } = s.details;
       return {
         status: "success",
         data: {
@@ -2583,7 +2577,7 @@ export const api = {
   listTrackedSubmissions: async (
     slug: string,
     _authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null; checkInsSent: Record<string, string> } }> => {
+  ): Promise<{ status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null } }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return {
@@ -2591,7 +2585,6 @@ export const api = {
         data: {
           submissions: mockTracked.list(slug),
           resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
-          checkInsSent: mockTracked.checkInsSent(slug),
         },
       };
     }
@@ -2604,7 +2597,6 @@ export const api = {
       data: {
         submissions: r.data.submissions.map((x) => ({ ...x, prizes: x.prizes ?? {}, ecosystemPrize: x.ecosystemPrize ?? false })),
         resultsPublishedAt: r.data.resultsPublishedAt ?? null,
-        checkInsSent: {},
       },
     };
   },
@@ -2832,34 +2824,6 @@ export const api = {
       const data = mockTracked.updateMilestone(slug, submissionId, patch);
       if (!data) throw new ApiError("Milestone not found", 404);
       return { status: "success", data };
-    }
-    throw trackedNotOnServer();
-  },
-
-  /** Admin: send the 14- or 30-day check-in email to every point person. */
-  sendCheckIns: async (
-    slug: string,
-    day: number,
-    _authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { sentAt: string; recipients: number } }> => {
-    if (USE_MOCK_DATA) {
-      const { mockTracked } = await import("./mockTrackedSubmissions");
-      return { status: "success", data: mockTracked.sendCheckIns(slug, day) };
-    }
-    throw trackedNotOnServer();
-  },
-
-  /** Builder (via the emailed link): answer a check-in. */
-  answerCheckIn: async (
-    slug: string,
-    submissionId: string,
-    answer: { day: number; stillBuilding: boolean; link: string | null },
-  ): Promise<{ status: string; data: { day: number } }> => {
-    if (USE_MOCK_DATA) {
-      const { mockTracked } = await import("./mockTrackedSubmissions");
-      const data = mockTracked.answerCheckIn(slug, submissionId, answer);
-      if (!data) throw new ApiError("Check-in link not recognised", 404);
-      return { status: "success", data: { day: answer.day } };
     }
     throw trackedNotOnServer();
   },

@@ -26,7 +26,6 @@ import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSectio
 import { ProgramResultsSummarySection } from "@/components/admin/ProgramResultsSummarySection";
 import { RubricJudgingSection } from "@/components/admin/tracked/RubricJudgingSection";
 import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdminSection";
-import { CheckInsSection } from "@/components/admin/tracked/CheckInsSection";
 import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
 import { MockPlaygroundBar } from "@/components/admin/tracked/MockPlaygroundBar";
 import { RefusedSubmissionsSection } from "@/components/admin/RefusedSubmissionsSection";
@@ -452,7 +451,6 @@ const AdminProgramPage = () => {
                       judgeEmail={null}
                     />
                     <MilestonesAdminSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
-                    <CheckInsSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
                     <FrictionReportSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
                   </>
                 ) : (

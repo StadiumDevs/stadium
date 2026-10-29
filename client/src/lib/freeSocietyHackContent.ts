@@ -83,10 +83,9 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
     type: "markdown",
     title: "The 30 days after",
     body:
-      "Every builder gets two short check-ins by email: **Thu 19 Nov** and **Fri 4 Dec**. Two questions: still building, and one link to what you did since the hack.\n\n" +
-      "The two Ecosystem Prize projects also track their milestone here:\n\n" +
+      "The two Ecosystem Prize projects track their 30-day milestone here:\n\n" +
       "1. Agree the milestone with your partner by **Fri 13 Nov**\n" +
-      "2. Check in **Thu 19 Nov**\n" +
+      "2. Check in with the organisers **Thu 19 Nov**\n" +
       "3. Deliver it with a public link by **Fri 4 Dec** (partner confirms)\n" +
       "4. Share it at a ZecHub Friday Lounge by **Fri 4 Dec**\n" +
       "5. $100 released **Fri 11 Dec**",

@@ -90,7 +90,7 @@ Five judges score Privacy projects in Stadium on the published rubric. A project
 
 ### Contact and follow-up
 
-You agree to receive two short check-in emails (Thu 19 Nov and Fri 4 Dec). Submitted projects are shown publicly on the program page as soon as they are submitted; emails are never shown publicly, and names are hidden if you choose to stay anonymous.
+Submitted projects are shown publicly on the program page as soon as they are submitted; emails are never shown publicly, and names are hidden if you choose to stay anonymous.
 
 ### Conduct
 

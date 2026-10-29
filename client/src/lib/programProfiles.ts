@@ -83,7 +83,6 @@ export type ProgramProfile = {
     payoutCurrency: string;
     steps: MilestoneStep[];
   };
-  checkIns: { day: number; date: string }[];
   /** Public block-explorer page for a testnet transaction, so anyone can verify it. */
   txExplorerUrl?: (txid: string) => string;
 };
@@ -256,10 +255,6 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
       { id: "payout", label: "$100 released", due: "2026-12-11" },
     ],
   },
-  checkIns: [
-    { day: 14, date: "2026-11-19" },
-    { day: 30, date: "2026-12-04" },
-  ],
   txExplorerUrl: (txid) => `https://testnet.zcashexplorer.app/transactions/${encodeURIComponent(txid)}`,
 };
 

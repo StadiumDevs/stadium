@@ -3,7 +3,7 @@ import type { ApiPublicSubmission, ApiTrackedSubmission, JudgedTrack } from "./a
 export const ANONYMOUS = "Anonymous";
 
 /**
- * The public view of a submission: no emails or private check-in answers, and
+ * The public view of a submission: no emails, and
  * anonymous entries hide every name. Used by the public page and by judges
  * (only admins read the full record). Prizes show only when `showPrizes`;
  * `showNames` keeps anonymous builders' names (admin views only).
@@ -12,7 +12,7 @@ export const toPublicSubmission = (
   s: ApiTrackedSubmission,
   { showPrizes, showNames = false }: { showPrizes: boolean; showNames?: boolean },
 ): ApiPublicSubmission => {
-  const { team, checkIns, ...rest } = s.details;
+  const { team, ...rest } = s.details;
   const anon = !!s.details.anonymous && !showNames;
   return {
     id: s.id,

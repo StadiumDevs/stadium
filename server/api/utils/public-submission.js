@@ -1,14 +1,13 @@
 // The public, email-free view of a tracked submission (mirrors
-// client/src/lib/trackedDisplay.ts toPublicSubmission). No emails or check-in
-// answers; an anonymous entry hides the point person's and teammates' names.
+// client/src/lib/trackedDisplay.ts toPublicSubmission). No emails; an
+// anonymous entry hides the point person's and teammates' names.
 // Prizes by track arrive with the awards slice; until then none are shown.
 export const ANONYMOUS = 'Anonymous';
 
 export function toPublicSubmission(s) {
   const d = s.details || {};
   const anon = d.anonymous === true;
-  // Check-in answers are private; drop them from the public view.
-  const { team = [], checkIns: _checkIns, ...rest } = d;
+  const { team = [], ...rest } = d;
   return {
     id: s.id,
     projectTitle: s.projectTitle,

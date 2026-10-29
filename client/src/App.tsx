@@ -18,7 +18,6 @@ import ProgramDetailPage from "./pages/ProgramDetailPage";
 import AdminProgramPage from "./pages/AdminProgramPage";
 import AppAdminsPage from "./pages/AppAdminsPage";
 import ProgramWinnerPage from "./pages/ProgramWinnerPage";
-import ProgramCheckInPage from "./pages/ProgramCheckInPage";
 
 // Redirect component for old project routes
 const ProjectRedirect = () => {
@@ -54,7 +53,6 @@ const App = () => {
               <Route path="m2-program/:id" element={<ProjectDetailsPage />} />
               <Route path="programs/:slug" element={<ProgramDetailPage />} />
               <Route path="programs/:slug/projects/:submissionId" element={<ProgramWinnerPage />} />
-              <Route path="programs/:slug/check-in/:day" element={<ProgramCheckInPage />} />
               <Route path="admin/programs/:slug" element={<AdminProgramPage />} />
               <Route path="admin/app-admins" element={<AppAdminsPage />} />
               <Route path="winners/:hackathon" element={<WinnersPage />} />

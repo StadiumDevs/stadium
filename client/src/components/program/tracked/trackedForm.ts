@@ -69,7 +69,7 @@ export function validateTrackedForm(profile: ProgramProfile, f: TrackedFormState
 
 export function trackedFormToDetails(
   f: TrackedFormState,
-): Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns"> {
+): Omit<ApiSubmissionDetails, "txCheck" | "milestone"> {
   const track = f.track as SubmissionTrack;
   const privacy = track !== "agentic";
   return {
