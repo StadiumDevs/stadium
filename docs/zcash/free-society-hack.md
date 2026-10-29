@@ -16,7 +16,6 @@ The program is `free-society-hack-2026` in `client/src/lib/mockPrograms.ts`. All
 - Scores from both judging sessions.
 - 9 prizes across 8 projects.
 - Two milestones.
-- Check-in answers.
 - Tx check results.
 
 State lives in `localStorage`, managed by `client/src/lib/mockTrackedSubmissions.ts`. The mock-only **RESET PLAYGROUND** button on `/admin/programs/free-society-hack-2026` re-seeds it.
@@ -141,6 +140,7 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
   - **Questions as a carousel.** One question per slide with its title and number (WORKS · 1 / 6), then a NOTE slide with the note and a summary. Swipe, ◂ BACK / NEXT QUESTION ▸, ←/→ keys, or tap a question chip. Picking a level autosaves and stays on the question (you can change it); NEXT QUESTION ▸ (solid once answered), a swipe or ← → moves on. A project opens on its first unanswered question (or the note when all are answered).
   - **Check first.** Before the questions, the carousel walks the judge through VIDEO (watch the demo), REPO (README, code matches the demo, plus the app link) and, for Privacy projects with a txid, TX (the explorer link plus Stadium's own check). Their chips sit to the left of WORKS and turn green with ✓ when checked; opening the link marks a step checked, and a toggle sets or unsets it. START SCORING ▸ moves on to WORKS. Checks are saved with the judge's score (`checks` JSONB) and don't affect scoring. A project opens on its first unchecked step until it's fully scored, then on its note.
   - **Watch the video on the screen.** The VIDEO step plays the demo inline: direct video files in a player (playing it ticks VIDEO), YouTube (incl. Shorts and youtu.be), Vimeo, Loom and Google Drive in their embed player (`client/src/lib/demoUtils.ts`; tick VIDEO with the toggle). Any other host isn't framed; the judge gets "can't play here" and the new-tab link. The player loads only while the VIDEO step is open, so moving on stops it. Playground projects use MDN's public CC0 sample clip (store key bumped to `_v4`).
+- **No check-in emails (29 Oct).** Stadium doesn't email builders. The 14- and 30-day check-ins (send buttons, the answer page, still-building counts) are removed, along with that server-plan row. The Ecosystem Prize milestone's "Check in" step (Thu 19 Nov) is now a date an admin records under ·ECOSYSTEM PRIZE MILESTONES → CHECKED IN ON. The page content and placeholder terms no longer promise check-in emails (content migration regenerated).
 - **Submissions end to end, with fallbacks (29 Oct).** The builder's path:
   1. **The form is saved as a draft on the device** as they type (DRAFT SAVED ON THIS DEVICE · START OVER). Closing it, a refresh or an error loses nothing; a successful submit clears it.
   2. **On Luma's checked-in list:** saved and confirmed by email (with what they submitted). No login.
@@ -163,22 +163,21 @@ The Bitrefill flip still works. Tracked programs (`showSubmissionsLive`) show ev
 
 | Work | Size |
 |---|---|
-| Submissions: **built (29 Oct).** `program_submissions.details JSONB` + `track`, validated by `validateSubmissionDetails` (mirrors the form; 64-hex txid; server-set fields never taken from the client), stored by the Luma-gated submit; `GET /:slug/tracked-submissions` (judge/admin) with each entry's batch. **Still to do:** the public projection without emails (and without names when `anonymous`), `GET /:slug/submissions/public` (live list) and `GET /:slug/submissions/:id/public` (winners only) | 0.5 day left |
+| Submissions: **built (29 Oct).** `program_submissions.details JSONB` + `track`, validated by `validateSubmissionDetails` (mirrors the form; 64-hex txid; server-set fields never taken from the client), stored by the Luma-gated submit; `GET /:slug/tracked-submissions` (judge/admin) with each entry's batch. Also built: the public live list `GET /:slug/submissions/public` (no emails; names hidden when `anonymous`), `GET /:slug/submissions/mine`, verified-email fallbacks and refusal review. **Still to do:** `GET /:slug/submissions/:id/public` (winners only, with the awards slice) | 0.25 day left |
 | Rubric: **built (29 Oct): per-judge score storage.** `submission_rubric_scores` (criteria JSONB per `(submission_id, judge_email, track)`, partial allowed, RLS on), `program_admin_emails.tracks TEXT[]` (NULL = all tracks) passed through `requireProgramJudge`, `GET /:slug/rubric-scores/mine` and `PUT /:slug/submissions/:id/rubric-scores/:track` (email judges only; identity from the session; tracks enforced), validator + rubric config in `server/api/constants/rubrics.js`, tests. Judges: **built**, `program_admin_emails.name` + `tracks` set on invite, `GET /:slug/judges` (names and tracks; emails only to admins or the judge themselves). **Still to do:** server leaderboard with tie-breaks and the Works-0 winner gate in `awardPrize`, awards keyed by track (`prize_by_track JSONB`), | 1 day left |
 | Judges' progress: `GET /:slug/judging-progress` (judge or admin; names, tracks, scored / total), polled by the panel | 0.25 day |
 | Ecosystem Prize flag: `program_submissions.ecosystem_prize BOOLEAN`, global-admin PATCH capped at two podium projects in the Privacy track, in the public results and CSV | 0.25 day |
-| Milestone columns on the submission (or a `submission_milestones` table), with the admin PATCH under `requireProgramAdmin` and the builder PATCH under an email magic-link session matched to `luma_email` | 1 day |
+| Milestone columns on the submission (or a `submission_milestones` table, incl. `checked_in_at` set by the admin), with the admin PATCH under `requireProgramAdmin` and the builder PATCH under an email magic-link session matched to `luma_email` | 1 day |
 | **Testnet tx check:** service calling a public lightwalletd (`testnet.zec.rocks`) `GetTransaction`, parsing the Orchard action count, with retry/backoff, `tx_check JSONB` cache, `could_not_check` on timeouts, run fire-and-forget after submit, plus an admin re-check endpoint and tests | 1 day |
-| **Check-ins:** email template, signed per-submission token link, `submission_check_ins` table, `POST /:slug/check-ins/:day/send` (admin, manual), public answer endpoint, counts | 1 day |
 | **Friction report:** server CSV plus the grouped view's data (mostly done once `details` exists) | 0.5 day |
 | Server CSV with per-judge scores, notes and track | 0.5 day |
 
-The tx check, check-ins and friction report are each about a day or less, so none needs a separate go-ahead under the brief's rule. The whole server build is about 7 days, which **does not fit before Wed 28 Oct**. See §5.
+The tx check and friction report are each about a day or less, so none needs a separate go-ahead under the brief's rule. What's left on the server is about 5 days (tx check, awards and leaderboard, milestones, CSVs). See §5.
 
 ## 5. Decisions you need to make
 
 1. **Scope for 4 Nov.** The mock UX is ready to review, but the server side is about 7 days. Options:
-   - **(a) Run the event on the existing Bitrefill flow plus a minimum server slice.** That slice is about 2.5 days: submission `details`, track, the public live list, rubric scores and track-limited judges. The tx check, check-ins and milestones follow in November, before the 13 Nov milestone deadline.
+   - **(a) Run the event on the existing Bitrefill flow plus a minimum server slice.** That slice is about 2.5 days: submission `details`, track, the public live list, rubric scores and track-limited judges. The tx check and milestones follow in November, before the 13 Nov milestone deadline.
    - **(b) Slip the merge-by date.**
 
    I recommend (a).
@@ -209,6 +208,6 @@ The tx check, check-ins and friction report are each about a day or less, so non
 11. **10:30:** export the CSV for the line-up.
 12. **13:00:** award the five Privacy podium prizes (a Works-0 project is blocked), flag two of them for the Ecosystem Prize, then PUBLISH RESULTS.
 13. Set status `completed` after demo day.
-14. **Thu 19 Nov and Fri 4 Dec:** send the check-ins from the admin page.
+14. **Thu 19 Nov:** check in with the two Ecosystem Prize projects (outside Stadium) and record the date under ·ECOSYSTEM PRIZE MILESTONES → CHECKED IN ON.
 15. **By Fri 11 Dec:** record the milestone outcomes and release the payouts.
 16. **Fri 20 Nov:** export the friction CSV for the grant committee.
