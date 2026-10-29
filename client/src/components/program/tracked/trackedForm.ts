@@ -93,3 +93,24 @@ export function trackedFormToDetails(
     anonymous: f.anonymous,
   };
 }
+
+/** The reverse of trackedFormToDetails: load a saved submission back into the form (to update it). */
+export function detailsToTrackedForm(d: Partial<ApiSubmissionDetails> | null | undefined): TrackedFormState {
+  if (!d) return emptyTrackedForm();
+  return {
+    track: d.track ?? "",
+    themes: d.themes ?? [],
+    pitch: d.pitch ?? "",
+    team: (d.team ?? []).map((m) => ({ name: m.name ?? "", email: m.email ?? "", role: m.role ?? "" })),
+    appType: d.appType ?? "",
+    publicUrl: d.publicUrl ?? "",
+    demoVideoLength: d.demoVideoLength ?? "",
+    technologies: (d.technologies ?? []).join(", "),
+    testnetTxid: d.testnetTxid ?? "",
+    nextStep: d.nextStep ?? "",
+    nextStepLinks: (d.nextStepLinks ?? []).join("\n"),
+    frictionNotes: d.frictionNotes ?? "",
+    frictionAreas: d.frictionAreas ?? [],
+    anonymous: !!d.anonymous,
+  };
+}

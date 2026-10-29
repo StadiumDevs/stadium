@@ -7,6 +7,7 @@ const REASON_LABEL: Record<ApiSubmissionRefusal["reasonCode"], string> = {
   not_checked_in: "Not on the Luma checked-in list",
   invalid: "Invalid or missing fields",
   unverified: "Check-in couldn't be verified",
+  update_unverified: "Tried to update without verifying the email",
 };
 
 type Filter = "refused" | "accepted" | "dismissed" | "all";
@@ -70,7 +71,12 @@ export function RefusedSubmissionsSection({
   if (!rows) return null;
   const counts = { refused: 0, accepted: 0, dismissed: 0, all: rows.length };
   for (const r of rows) counts[r.status] += 1;
-  const shown = filter === "all" ? rows : rows.filter((r) => r.status === filter);
+  // Verified builders who aren't on Luma's list wait for approval: list them first.
+  const waiting = (r: ApiSubmissionRefusal) => r.status === "refused" && !!r.emailVerified;
+  const shown = (filter === "all" ? rows : rows.filter((r) => r.status === filter))
+    .slice()
+    .sort((a, b) => Number(waiting(b)) - Number(waiting(a)));
+  const waitingCount = rows.filter(waiting).length;
 
   return (
     <section className="panel p-4 mb-3 space-y-3" aria-label="Refused submissions" data-testid="refused-submissions">
@@ -91,6 +97,11 @@ export function RefusedSubmissionsSection({
           ))}
         </div>
       </div>
+      {waitingCount > 0 && (
+        <p className="label-hw text-warn" data-testid="refusals-waiting">
+          ·{waitingCount} WAITING FOR APPROVAL: EMAIL VERIFIED, NOT ON LUMA'S CHECKED-IN LIST
+        </p>
+      )}
       <p className="label-hw-dim normal-case">
         Every refused submit is kept with the reason the builder was shown.{" "}
         {canReview
@@ -118,6 +129,11 @@ export function RefusedSubmissionsSection({
                 >
                   {REASON_LABEL[r.reasonCode]}
                 </span>
+                {r.emailVerified && (
+                  <span className="label-hw border border-led text-led rounded-sm px-1.5 py-0.5" data-testid="refusal-verified">
+                    ✓ EMAIL VERIFIED{waiting(r) ? " · WAITING FOR APPROVAL" : ""}
+                  </span>
+                )}
                 <div className="flex-1" />
                 {r.status === "refused" || (r.status === "dismissed" && canReview) ? (
                   canReview ? (

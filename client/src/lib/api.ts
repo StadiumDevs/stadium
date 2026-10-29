@@ -92,15 +92,18 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
 
   if (!response.ok) {
     let message = mapStatusToMessage(response.status);
+    let code: string | undefined;
     try {
       const body = await response.json();
       if (body && typeof body.message === "string" && body.message.trim()) {
         message = body.error ? `${body.message}: ${body.error}` : body.message;
       }
+      // Machine-readable reason (e.g. not_checked_in, verify_to_update).
+      if (body && typeof body.code === "string") code = body.code;
     } catch {
       // ignore non-JSON or empty body
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, code);
   }
 
   // Some endpoints may return 204 No Content
@@ -244,6 +247,15 @@ export type SubmissionPayload = {
   details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone" | "checkIns">;
 };
 
+/** What happened to a submit: created, updated (resubmit), or held for an organiser. */
+export type SubmitResult = {
+  status: string;
+  data?: { id: string; late?: boolean };
+  resubmitted?: boolean;
+  message?: string;
+  outcome: "created" | "updated" | "pending";
+};
+
 /** A refused submission, kept with the reason the builder was shown (admin only). */
 export type ApiSubmissionRefusal = {
   id: string;
@@ -253,7 +265,9 @@ export type ApiSubmissionRefusal = {
   projectTitle: string | null;
   /** What they tried to submit (known fields only). */
   payload: SubmissionPayload;
-  reasonCode: "not_checked_in" | "invalid" | "unverified";
+  reasonCode: "not_checked_in" | "invalid" | "unverified" | "update_unverified";
+  /** The builder proved they own the email; held for a master admin if not on Luma. */
+  emailVerified?: boolean;
   reason: string;
   status: "refused" | "accepted" | "dismissed";
   reviewedBy: string | null;
@@ -2173,38 +2187,105 @@ export const api = {
   submitProjectSubmission: async (
     slug: string,
     payload: SubmissionPayload,
-  ): Promise<{ status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean }> => {
+    /** A Supabase session token proving the builder owns `payload.lumaEmail`. */
+    opts: { verifiedToken?: string | null } = {},
+  ): Promise<SubmitResult> => {
     if (USE_MOCK_DATA) {
       // Only checked-in attendees (on the imported Luma list) may submit.
       const { mockProgramSignups, mockPrograms } = await import("./mockPrograms");
       const guests = mockProgramSignups[slug] || [];
-      const ok = guests.some((g) => g.email.trim().toLowerCase() === payload.lumaEmail.trim().toLowerCase());
+      const email = payload.lumaEmail.trim().toLowerCase();
+      const { mockVerifiedEmails } = await import("./mockVerifiedEmails");
+      const verified = mockVerifiedEmails.has(email);
+      const { mockRefusals } = await import("./mockRefusals");
+      // Tracked programs: updating an existing entry needs the email verified.
+      if (payload.details && !verified) {
+        const { mockTracked } = await import("./mockTrackedSubmissions");
+        if (mockTracked.list(slug).some((x) => x.lumaEmail.trim().toLowerCase() === email)) {
+          const reason = "Verify your email to update your submission.";
+          mockRefusals.record(slug, payload, "update_unverified", reason);
+          throw new ApiError(reason, 401, "verify_to_update");
+        }
+      }
+      const ok = guests.some((g) => g.email.trim().toLowerCase() === email);
       if (!ok) {
-        const reason = "Only checked-in attendees can submit. Use the email you checked in with on Luma.";
         // Refusals are kept with the reason (a master admin can accept them).
-        const { mockRefusals } = await import("./mockRefusals");
+        if (verified) {
+          const message =
+            "Received. Your email isn't on Luma's checked-in list yet, so an organiser will confirm it. You don't need to submit again.";
+          mockRefusals.record(slug, payload, "not_checked_in", message, true);
+          return { status: "pending", outcome: "pending", message };
+        }
+        const reason = "Only checked-in attendees can submit. Use the email you checked in with on Luma.";
         mockRefusals.record(slug, payload, "not_checked_in", reason);
-        throw new ApiError(reason, 403);
+        throw new ApiError(reason, 403, "not_checked_in");
       }
       // Deadline is informational: a submit after event end is flagged late, not blocked.
       const program = mockPrograms.find((p) => p.slug === slug);
       const late = !!(program?.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
       if (payload.details) {
         const { mockTracked } = await import("./mockTrackedSubmissions");
+        const existed = mockTracked.list(slug).some((x) => x.lumaEmail.trim().toLowerCase() === email);
         const sub = mockTracked.add(slug, { ...payload, details: payload.details, late });
         // Never blocks the submission: the check runs after it is stored.
         void mockTracked.recheckTx(slug, sub.id);
-        return { status: "success", data: { id: sub.id, late } };
+        return { status: "success", data: { id: sub.id, late }, outcome: existed ? "updated" : "created" };
       }
       const { mockJudging } = await import("./mockJudging");
       const sub = mockJudging.addSubmission({ ...payload, late });
-      return { status: "success", data: { id: sub.id, late } };
+      return { status: "success", data: { id: sub.id, late }, outcome: "created" };
     }
-    return request(`/programs/${encodeURIComponent(slug)}/submissions`, {
+    const r = (await request(`/programs/${encodeURIComponent(slug)}/submissions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {}),
+      },
       body: JSON.stringify(payload),
+    })) as { status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean; message?: string };
+    return {
+      ...r,
+      outcome: r.status === "pending" ? "pending" : r.resubmitted ? "updated" : "created",
+    };
+  },
+
+  /** Builder (email sign-in): their own submission, to edit it. */
+  getMySubmission: async (
+    slug: string,
+    opts: { email: string; verifiedToken?: string | null },
+  ): Promise<{ status: string; data: SubmissionPayload & { createdAt?: string } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockVerifiedEmails } = await import("./mockVerifiedEmails");
+      const email = opts.email.trim().toLowerCase();
+      if (!mockVerifiedEmails.has(email)) throw new ApiError("Verify your email to load your submission.", 401, "verify_email");
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const s = mockTracked.list(slug).find((x) => x.lumaEmail.trim().toLowerCase() === email);
+      if (!s) throw new ApiError("No submission for this email yet", 404);
+      const { txCheck: _t, milestone: _m, checkIns: _c, ...details } = s.details;
+      return {
+        status: "success",
+        data: {
+          submitterName: s.submitterName,
+          lumaEmail: s.lumaEmail,
+          projectTitle: s.projectTitle,
+          projectBrief: s.projectBrief ?? "",
+          videoUrl: s.videoUrl,
+          githubUrl: s.githubUrl,
+          details,
+          createdAt: s.createdAt,
+        },
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/mine`, {
+      headers: opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {},
     });
+  },
+
+  /** Playground only: mark an email verified (stands in for the sign-in link). */
+  mockVerifyEmail: async (email: string): Promise<void> => {
+    if (!USE_MOCK_DATA) throw new ApiError("Only available in mock mode", 400);
+    const { mockVerifiedEmails } = await import("./mockVerifiedEmails");
+    mockVerifiedEmails.add(email);
   },
 
   /** Judge/admin: list submissions with eligibility flag + this judge's scores. */
@@ -2484,7 +2565,7 @@ export const api = {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return { status: "success", data: mockTracked.publicList(slug) };
     }
-    throw trackedNotOnServer();
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/public`);
   },
 
   /** Public: a winning project's page. 404 for non-winners. */

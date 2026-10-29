@@ -107,7 +107,13 @@ export const mockRefusals = {
     return [...load(slug)].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
-  record(slug: string, payload: SubmissionPayload, reasonCode: ApiSubmissionRefusal["reasonCode"], reason: string) {
+  record(
+    slug: string,
+    payload: SubmissionPayload,
+    reasonCode: ApiSubmissionRefusal["reasonCode"],
+    reason: string,
+    emailVerified = false,
+  ) {
     const email = payload.lumaEmail.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !payload.projectTitle.trim()) return;
     const { company: _honeypot, ...kept } = payload;
@@ -120,6 +126,7 @@ export const mockRefusals = {
       payload: kept,
       reasonCode,
       reason,
+      emailVerified,
       status: "refused",
       reviewedBy: null,
       reviewedAt: null,

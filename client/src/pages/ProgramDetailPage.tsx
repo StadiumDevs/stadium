@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { ProjectExplorer } from "@/components/ProjectExplorer";
 import { UnitCard } from "@/components/unit-card";
@@ -73,6 +73,19 @@ const ProgramDetailPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [submitMode, setSubmitMode] = useState<"new" | "update">("new");
+  // Back from the email sign-in link (?submit=1 / ?submit=update): reopen the
+  // form, which restores its draft, with the email now verified.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const want = searchParams.get("submit");
+    if (!want) return;
+    setSubmitMode(want === "update" ? "update" : "new");
+    setSubmitOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("submit");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   // Public results: search box over published submissions, and the collapsible
   // "about" panel (hackathon info) that sits below the projects once published.
   const [resultsQuery, setResultsQuery] = useState("");
@@ -713,7 +726,10 @@ const ProgramDetailPage = () => {
                 <div className="label-hw mb-3">·SUBMIT YOUR PROJECT</div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <RackButton
-                    onClick={() => setSubmitOpen(true)}
+                    onClick={() => {
+                      setSubmitMode("new");
+                      setSubmitOpen(true);
+                    }}
                     disabled={program.status !== "open"}
                   >
                     SUBMIT A PROJECT ▸
@@ -724,6 +740,19 @@ const ProgramDetailPage = () => {
                       : "Submissions are closed for this program."}
                   </p>
                 </div>
+                {profile && program.status === "open" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubmitMode("update");
+                      setSubmitOpen(true);
+                    }}
+                    className="mt-3 font-mono text-[11px] tracking-[0.08em] text-display hover:underline"
+                    data-testid="update-my-submission"
+                  >
+                    Already submitted? Update my submission ▸
+                  </button>
+                )}
               </div>
             )}
 
@@ -777,6 +806,7 @@ const ProgramDetailPage = () => {
               open={submitOpen}
               onOpenChange={setSubmitOpen}
               program={program}
+              mode={submitMode}
             />
           </article>
           {profile && tracked && !isPublished && (
