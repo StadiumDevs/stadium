@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
+import trackedResultsController from '../controllers/tracked-results.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
@@ -219,6 +220,34 @@ router.put(
   requireProgramJudge('slug'),
   submissionController.upsertRubricScore,
 );
+// Tracked programs: leaderboard, progress, awards by track (platform admin,
+// checked in the controller), the Ecosystem Prize, milestones, the tx re-check
+// and the public winner page. Publishing uses /results/publish below.
+router.get('/:slug/rubric-leaderboard/:track', requireProgramJudge('slug'), trackedResultsController.leaderboard);
+router.get('/:slug/judging-progress', requireProgramJudge('slug'), trackedResultsController.judgingProgress);
+router.put(
+  '/:slug/submissions/:submissionId/prizes/:track',
+  requireProgramAdmin('slug'),
+  trackedResultsController.awardPrize,
+);
+router.put(
+  '/:slug/submissions/:submissionId/ecosystem-prize',
+  requireProgramAdmin('slug'),
+  trackedResultsController.setEcosystemPrize,
+);
+router.patch(
+  '/:slug/submissions/:submissionId/milestone',
+  requireProgramAdmin('slug'),
+  trackedResultsController.updateMilestoneAdmin,
+);
+// Builder edit: authenticated in the controller by the verified-email session.
+router.patch(
+  '/:slug/submissions/:submissionId/milestone/builder',
+  submissionLimiter,
+  trackedResultsController.updateMilestoneBuilder,
+);
+router.post('/:slug/submissions/:submissionId/tx-check', requireProgramAdmin('slug'), trackedResultsController.recheckTx);
+router.get('/:slug/submissions/:submissionId/public', trackedResultsController.publicWinner);
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
 // At-a-glance counts for the program header (judge + admin; no PII).

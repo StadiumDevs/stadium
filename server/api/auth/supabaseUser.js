@@ -8,14 +8,15 @@ import { supabase } from '../../db.js';
  * the authorization principal; this only establishes WHO signed in socially.
  *
  * @param {string|null|undefined} token
- * @returns {Promise<{ id: string, email: string|null } | null>}
+ * @returns {Promise<{ id: string, email: string|null, emailConfirmed: boolean } | null>}
  */
 export async function getSupabaseUser(token) {
   if (!token || typeof token !== 'string') return null;
   try {
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data?.user) return null;
-    return { id: data.user.id, email: data.user.email ?? null };
+    // emailConfirmed: the user proved they own the inbox (a magic link does).
+    return { id: data.user.id, email: data.user.email ?? null, emailConfirmed: !!data.user.email_confirmed_at };
   } catch {
     return null;
   }

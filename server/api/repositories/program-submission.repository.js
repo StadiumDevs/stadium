@@ -30,9 +30,14 @@ const transform = (row) => {
     prizeNotifiedAt: row.prize_notified_at ?? null,
     agreedToTermsAt: row.agreed_to_terms_at ?? null,
     feedback: row.feedback ?? null,
-    // Tracked programs only: the validated submission fields and the track.
-    details: row.details ?? null,
+    // Tracked programs only: the validated submission fields and the track,
+    // plus the server-set tx check and milestone (their own columns) folded
+    // into details, as the client reads them.
+    details: row.details ? { ...row.details, txCheck: row.tx_check ?? null, milestone: row.milestone ?? null } : null,
     track: row.track ?? null,
+    // Tracked programs: the prize won in each judged track, and the Ecosystem Prize flag.
+    prizes: row.prizes ?? {},
+    ecosystemPrize: row.ecosystem_prize === true,
     acceptedFromRefusalId: row.accepted_from_refusal_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -182,6 +187,24 @@ class ProgramSubmissionRepository {
         awarded_by: prize ? actor ?? null : null,
         updated_at: new Date().toISOString(),
       })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
+  }
+
+  // Tracked programs: write the server-set award and check columns. Only these
+  // keys are accepted; anything else is ignored.
+  async updateTracked(id, { prizes, ecosystemPrize, txCheck, milestone }) {
+    const patch = { updated_at: new Date().toISOString() };
+    if (prizes !== undefined) patch.prizes = prizes;
+    if (ecosystemPrize !== undefined) patch.ecosystem_prize = !!ecosystemPrize;
+    if (txCheck !== undefined) patch.tx_check = txCheck;
+    if (milestone !== undefined) patch.milestone = milestone;
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update(patch)
       .eq('id', id)
       .select('*')
       .single();

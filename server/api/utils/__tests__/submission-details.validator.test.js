@@ -138,3 +138,19 @@ describe('validateSubmissionDetails', () => {
     expect(validateSubmissionDetails(null, good()).ok).toBe(false);
   });
 });
+
+describe('validateMilestonePatch', async () => {
+  const { validateMilestonePatch } = await import('../submission.validator.js');
+  it('builders may change only the sentence and the delivery link', () => {
+    expect(validateMilestonePatch({ sentence: ' Ship v1. ', deliveryLink: 'https://x.dev' }, 'builder')).toEqual({ ok: true, value: { sentence: 'Ship v1.', deliveryLink: 'https://x.dev' } });
+    expect(validateMilestonePatch({ partnerName: 'ZecHub' }, 'builder').error).toMatch(/only change/);
+    expect(validateMilestonePatch({ deliveryLink: 'ftp://x' }, 'builder').error).toMatch(/http/);
+    expect(validateMilestonePatch({ sentence: '' }, 'builder').error).toMatch(/required/);
+  });
+  it('admins may change everything, with types checked', () => {
+    expect(validateMilestonePatch({ partnerName: 'ZecHub', agreedAt: '2026-11-12', partnerConfirmed: true, payoutStatus: 'released' }, 'admin').ok).toBe(true);
+    expect(validateMilestonePatch({ payoutStatus: 'paid' }, 'admin').error).toMatch(/payoutStatus/);
+    expect(validateMilestonePatch({ agreedAt: 'soon' }, 'admin').error).toMatch(/date/);
+    expect(validateMilestonePatch({ evil: 1 }, 'admin').error).toMatch(/Unknown/);
+  });
+});

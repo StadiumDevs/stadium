@@ -10,7 +10,7 @@ import programAdminEmailRepository from '../repositories/program-admin-email.rep
 import submissionRefusalRepository from '../repositories/submission-refusal.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
-import { toPublicSubmission } from '../utils/public-submission.js';
+import { toPublicList } from '../utils/public-submission.js';
 import {
   validateSubmission,
   validateSubmissionDetails,
@@ -25,6 +25,7 @@ import submissionConfirmationService from '../services/submission-confirmation.s
 import prizeAwardService from '../services/prize-award.service.js';
 import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
+import { checkAndStore as checkTxAndStore } from '../services/tx-check.service.js';
 
 // On a Luma-gated cache-miss we lazily re-sync, but only if the last sync is
 // older than this floor. Bounds Luma calls when not-on-list emails retry, while
@@ -34,6 +35,31 @@ const JIT_SYNC_FLOOR_MS = 25 * 1000;
 // Winner selection + publishing are platform-admin only. After requireProgramAdmin,
 // a global admin carries isGlobalAdmin === true; per-program admins do not.
 const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
+
+// Tracked programs: check the testnet txid after the response (never blocks
+// the submission). Re-checked only when the txid changed or was never checked.
+async function scheduleTxCheck(submission, previous = null) {
+  const txid = submission?.details?.testnetTxid ?? null;
+  const unchanged = previous?.details?.testnetTxid === txid && previous?.details?.txCheck;
+  if (unchanged) return;
+  // A changed (or removed) txid must not keep showing the old result.
+  if (previous?.details?.txCheck) {
+    await programSubmissionRepository.updateTracked(submission.id, { txCheck: null });
+  }
+  if (!txid || process.env.TX_CHECK_DISABLED === 'true') return;
+  checkTxAndStore(submission.id, txid);
+}
+
+// A resubmit can change the track: drop prizes (and the Ecosystem flag) for
+// tracks the entry no longer takes part in.
+async function dropPrizesOutsideTrack(submission, tracked) {
+  const entered = submission.details?.track === 'both' ? ['privacy', 'agentic'] : [submission.details?.track];
+  const prizes = submission.prizes || {};
+  const kept = Object.fromEntries(Object.entries(prizes).filter(([t]) => entered.includes(t)));
+  if (Object.keys(kept).length === Object.keys(prizes).length) return;
+  const keepsFlag = submission.ecosystemPrize && !!kept[tracked.ecosystem.track];
+  await programSubmissionRepository.updateTracked(submission.id, { prizes: kept, ecosystemPrize: keepsFlag });
+}
 
 // Shared by publish/unpublish. Standalone (not a method) so Express can bind the
 // route handlers without `this`.
@@ -259,6 +285,10 @@ class SubmissionController {
         resubmitted = false;
         statusCode = 201;
       }
+      if (tracked) {
+        await scheduleTxCheck(submission, existing);
+        if (existing) await dropPrizesOutsideTrack(submission, tracked);
+      }
 
       // Confirmation email is best-effort — a Resend failure never fails the submission.
       let emailSent = false;
@@ -433,7 +463,7 @@ class SubmissionController {
       const rows = await programSubmissionRepository.listByProgramId(program.id);
       res.status(200).json({
         status: 'success',
-        data: { published: !!program.resultsPublishedAt, submissions: rows.map(toPublicSubmission) },
+        data: { published: !!program.resultsPublishedAt, submissions: toPublicList(rows, !!program.resultsPublishedAt) },
       });
     } catch (error) {
       console.error('❌ Error listing public submissions:', error);
@@ -511,6 +541,7 @@ class SubmissionController {
         targetId: submission.id,
         metadata: { refusalId: refusal.id, reasonCode: refusal.reasonCode, email: refusal.lumaEmail },
       });
+      if (tracked) await scheduleTxCheck(submission);
       res.status(200).json({ status: 'success', data: { refusal: updated, submission } });
     } catch (error) {
       console.error('❌ Error accepting a refused submission:', error);

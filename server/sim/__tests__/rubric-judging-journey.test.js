@@ -40,6 +40,7 @@ vi.mock('../../api/services/submission-confirmation.service.js', () => ({ defaul
 vi.mock('../../api/services/program-admin-invite.service.js', () => ({ default: { send: vi.fn(async () => ({ ok: true })) } }));
 
 const submissionController = (await import('../../api/controllers/submission.controller.js')).default;
+const trackedResults = (await import('../../api/controllers/tracked-results.controller.js')).default;
 const programController = (await import('../../api/controllers/program.controller.js')).default;
 const { requireProgramJudge } = await import('../../api/middleware/auth.middleware.js');
 const { store, authRegistry } = await import('../simState.js');
@@ -111,6 +112,16 @@ beforeAll(() => {
     {
       id: PROGRAM_ID, slug: SLUG, name: 'Free Society Hack', program_type: 'hackathon', status: 'open', owner: 'webzero',
       event_ends_at: '2026-11-05T00:00:00+05:30', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      // The 7 USD tiers (client/src/lib/programProfiles.ts FREE_SOCIETY_HACK_PRIZE_TIERS).
+      prize_tiers: [
+        { amount: 1300, currency: 'USD', label: 'Privacy: top prize' },
+        { amount: 300, currency: 'USD', label: 'Privacy: second prize' },
+        { amount: 200, currency: 'USD', label: 'Privacy: third prize' },
+        { amount: 1000, currency: 'USD', label: 'Agentic Commerce: most innovative' },
+        { amount: 800, currency: 'USD', label: 'Agentic Commerce: second' },
+        { amount: 600, currency: 'USD', label: 'Agentic Commerce: third' },
+        { amount: 100, currency: 'USD', label: 'Agentic Commerce: best feedback' },
+      ],
     },
   ];
   // The imported Luma checked-in list: only these can submit.
@@ -334,5 +345,120 @@ describe('Free Society Hack judging — data that lands in the database', () => 
       body: { criteria: { works: 3 } },
     });
     expect(r.denied).toBe(true);
+  });
+});
+
+describe('Free Society Hack results — leaderboard, awards, Ecosystem Prize, publish, milestones', () => {
+  const MASTER = { address: '5Master', isGlobalAdmin: true, programSlug: SLUG };
+  const PROGRAM_ADMIN = { address: '5ProgAdmin', isGlobalAdmin: false, programSlug: SLUG };
+  const byTitle = (t) => store.program_submissions.find((s) => s.project_title === t);
+  const full = (over = {}) => ({ criteria: { works: 3, private: 2, easy: 2, needed: 2, continuing: 2, bonus: 0, ...over } });
+  const score = (judge, title, body) =>
+    asJudge(judge, submissionController.upsertRubricScore, { params: { submissionId: byTitle(title).id, track: 'privacy' }, body });
+  const award = (title, amount, user = MASTER, track = 'privacy') =>
+    call(trackedResults.awardPrize, { params: { submissionId: byTitle(title).id, track }, body: { amount }, user });
+
+  it('both Privacy judges score every Privacy entry (Walk-in Wallet gets Works 0)', async () => {
+    at('2026-11-05T08:30:00+05:30');
+    // Memo Mailbox only has a partial score so far: it can't be awarded yet.
+    expect((await award('Memo Mailbox', 300)).status).toBe(409);
+    for (const judge of ['judge-a@example.com', 'judge-b@example.com']) {
+      expect((await score(judge, 'Chai Ledger', full({ continuing: 3, bonus: 1 }))).status).toBe(200);
+      expect((await score(judge, 'Memo Mailbox', full())).status).toBe(200);
+      expect((await score(judge, 'Walk-in Wallet', full({ works: 0, needed: 3, continuing: 3 }))).status).toBe(200);
+    }
+  });
+
+  it('the leaderboard ranks by average, gates Works 0, and judges see other judges by name', async () => {
+    const asAdmin = await call(trackedResults.leaderboard, { params: { track: 'privacy' }, user: MASTER });
+    expect(asAdmin.status).toBe(200);
+    const rows = asAdmin.body.data.rows;
+    expect(rows.map((r) => r.projectTitle)).toEqual(['Chai Ledger', 'Memo Mailbox', 'Walk-in Wallet']);
+    expect(rows[0]).toMatchObject({ rank: 1, avgTotal: 13, judgeCount: 2, bonusCount: 2 });
+    // Memo (11) and Walk-in (11) tie on total; Continuing breaks it.
+    expect(rows[2].winnerBlocked).toMatch(/Works score is 0/);
+    expect(asAdmin.body.data.judges).toEqual(['judge-a@example.com', 'judge-b@example.com']);
+
+    const asJudgeA = await asJudge('judge-a@example.com', trackedResults.leaderboard, { params: { track: 'privacy' } });
+    expect(asJudgeA.body.data.judges).toEqual(['judge-a@example.com', 'Judge B']);
+    const wrongTrack = await asJudge('judge-a@example.com', trackedResults.leaderboard, { params: { track: 'agentic' } });
+    expect(wrongTrack.status).toBe(403);
+
+    const progress = await asJudge('judge-b@example.com', trackedResults.judgingProgress);
+    const b = progress.body.data.find((r) => r.name === 'Judge B');
+    expect(b).toMatchObject({ isYou: true, scored: 3, total: 3 });
+    expect(JSON.stringify(progress.body.data)).not.toMatch(/@example\.com/);
+  });
+
+  it('awards: platform admins only, the Works-0 gate, per-tier limits, track tiers only', async () => {
+    expect((await award('Chai Ledger', 1300, PROGRAM_ADMIN)).status).toBe(403);
+    expect((await award('Walk-in Wallet', 1300)).status).toBe(409);
+    expect((await award('Chai Ledger', 1000)).status).toBe(400); // an Agentic tier
+    expect((await award('Chai Ledger', 1300)).status).toBe(200);
+    expect((await award('Memo Mailbox', 1300)).status).toBe(409); // one top prize
+    expect((await award('Memo Mailbox', 300)).status).toBe(200);
+    expect(byTitle('Chai Ledger').prizes).toEqual({ privacy: { amount: 1300, currency: 'USD', label: 'Privacy: top prize' } });
+    expect((await award('Chai Ledger', 1000, MASTER, 'agentic')).status).toBe(409); // didn't enter Agentic
+  });
+
+  it('the Ecosystem Prize: podium only, opens the milestone from the next step', async () => {
+    const flag = (title, flagged) =>
+      call(trackedResults.setEcosystemPrize, { params: { submissionId: byTitle(title).id }, body: { flagged }, user: MASTER });
+    expect((await flag('Walk-in Wallet', true)).status).toBe(409);
+    const r = await flag('Chai Ledger', true);
+    expect(r.status).toBe(200);
+    expect(byTitle('Chai Ledger').ecosystem_prize).toBe(true);
+    expect(byTitle('Chai Ledger').milestone).toMatchObject({ sentence: 'Pilot by 4 Dec.', payoutStatus: 'pending' });
+  });
+
+  it('nothing shows publicly until results are published; then winners get a page', async () => {
+    const winner = (title) => call(trackedResults.publicWinner, { params: { submissionId: byTitle(title).id } });
+    const before = await call(submissionController.publicSubmissions, {});
+    expect(before.body.data.submissions.every((s) => Object.keys(s.prizes).length === 0 && !s.details.milestone)).toBe(true);
+    expect((await winner('Chai Ledger')).status).toBe(404);
+
+    expect((await call(submissionController.publishResults, { user: MASTER })).status).toBe(200);
+    const after = await call(submissionController.publicSubmissions, {});
+    expect(after.body.data.published).toBe(true);
+    expect(after.body.data.submissions[0]).toMatchObject({ projectTitle: 'Chai Ledger', ecosystemPrize: true });
+    const page = await winner('Chai Ledger');
+    expect(page.status).toBe(200);
+    expect(page.body.data.details.milestone.sentence).toBe('Pilot by 4 Dec.');
+    expect(JSON.stringify(page.body)).not.toMatch(/@example\.com/);
+    expect((await winner('Walk-in Wallet')).status).toBe(404);
+  });
+
+  it('milestones: the builder edits the sentence and link with their verified email; admins edit the rest', async () => {
+    const id = byTitle('Chai Ledger').id;
+    const builder = (token, body) =>
+      call(trackedResults.updateMilestoneBuilder, { params: { submissionId: id }, headers: token ? { 'x-supabase-token': token } : {}, body });
+    expect((await builder(null, { sentence: 'Ship v1.' })).status).toBe(401);
+    expect((await builder(tokenFor('karan@example.com'), { sentence: 'Ship v1.' })).status).toBe(401);
+    expect((await builder(tokenFor('priya@example.com'), { partnerName: 'ZecHub' })).status).toBe(400);
+    const ok = await builder(tokenFor('priya@example.com'), { sentence: 'Ship v1 to two cafés.', deliveryLink: 'https://chai.example.com/v1' });
+    expect(ok.status).toBe(200);
+    const admin = await call(trackedResults.updateMilestoneAdmin, {
+      params: { submissionId: id },
+      body: { partnerName: 'ZecHub', agreedAt: '2026-11-12', payoutStatus: 'released' },
+      user: PROGRAM_ADMIN,
+    });
+    expect(admin.status).toBe(200);
+    expect(byTitle('Chai Ledger').milestone).toMatchObject({
+      sentence: 'Ship v1 to two cafés.', deliveryLink: 'https://chai.example.com/v1', partnerName: 'ZecHub', payoutStatus: 'released',
+    });
+    // Paid out: the builder's part is locked, the admin can still correct it.
+    expect((await builder(tokenFor('priya@example.com'), { sentence: 'Changed after payout.' })).status).toBe(409);
+    // Only Ecosystem projects have a milestone.
+    const memo = await call(trackedResults.updateMilestoneAdmin, {
+      params: { submissionId: byTitle('Memo Mailbox').id }, body: { partnerName: 'X' }, user: PROGRAM_ADMIN,
+    });
+    expect(memo.status).toBe(404);
+  });
+
+  it('clearing the top prize also drops the Ecosystem flag, and the milestone stops being public', async () => {
+    expect((await award('Chai Ledger', null)).status).toBe(200);
+    expect(byTitle('Chai Ledger')).toMatchObject({ prizes: {}, ecosystem_prize: false });
+    const list = await call(submissionController.publicSubmissions, {});
+    expect(list.body.data.submissions.find((x) => x.projectTitle === 'Chai Ledger').details.milestone).toBeNull();
   });
 });

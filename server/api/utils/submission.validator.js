@@ -396,3 +396,58 @@ export function validateSubmissionDetails(config, details) {
     },
   };
 }
+
+// Ecosystem Prize milestone edits. Builders (verified email) may change only
+// the sentence and the delivery link; admins may change everything.
+const MILESTONE_BUILDER_KEYS = ['sentence', 'deliveryLink'];
+const MILESTONE_ADMIN_KEYS = [
+  ...MILESTONE_BUILDER_KEYS,
+  'partnerName',
+  'partnerProject',
+  'agreedAt',
+  'checkedInAt',
+  'partnerConfirmed',
+  'partnerConfirmedAt',
+  'loungeDate',
+  'payoutStatus',
+  'payoutReleasedAt',
+];
+const MILESTONE_DATE_KEYS = ['agreedAt', 'checkedInAt', 'partnerConfirmedAt', 'loungeDate', 'payoutReleasedAt'];
+const PAYOUT_STATUSES = ['pending', 'released', 'not_completed'];
+
+export function validateMilestonePatch(patch, role) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    return { ok: false, error: 'A milestone update is required' };
+  }
+  const allowed = role === 'admin' ? MILESTONE_ADMIN_KEYS : MILESTONE_BUILDER_KEYS;
+  const out = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (!allowed.includes(key)) {
+      return { ok: false, error: role === 'admin' ? `Unknown milestone field: ${key}` : `Builders can only change the sentence and the delivery link` };
+    }
+    if (key === 'sentence') {
+      const v = str(value);
+      if (!v || v.length > 500) return { ok: false, error: 'The milestone sentence is required (max 500 characters)' };
+      out.sentence = v;
+    } else if (key === 'deliveryLink') {
+      const v = str(value);
+      if (v && !isHttpUrl(v)) return { ok: false, error: 'The delivery link must start with http:// or https://' };
+      out.deliveryLink = v || null;
+    } else if (MILESTONE_DATE_KEYS.includes(key)) {
+      if (value === null || value === '') out[key] = null;
+      else if (typeof value === 'string' && Number.isFinite(Date.parse(value))) out[key] = value;
+      else return { ok: false, error: `${key} must be a date or null` };
+    } else if (key === 'partnerConfirmed') {
+      if (value !== null && typeof value !== 'boolean') return { ok: false, error: 'partnerConfirmed must be true, false or null' };
+      out.partnerConfirmed = value;
+    } else if (key === 'payoutStatus') {
+      if (!PAYOUT_STATUSES.includes(value)) return { ok: false, error: `payoutStatus must be one of ${PAYOUT_STATUSES.join(', ')}` };
+      out.payoutStatus = value;
+    } else {
+      const v = str(value);
+      if (v.length > 200) return { ok: false, error: `${key} is max 200 characters` };
+      out[key] = v || null;
+    }
+  }
+  return { ok: true, value: out };
+}

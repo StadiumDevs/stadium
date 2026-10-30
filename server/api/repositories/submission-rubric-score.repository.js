@@ -35,6 +35,16 @@ class SubmissionRubricScoreRepository {
     return (data || []).map(transform);
   }
 
+  // Every judge's scores for a program (leaderboard, judging progress).
+  async listByProgram(programId) {
+    const { data, error } = await supabase
+      .from('submission_rubric_scores')
+      .select('*')
+      .eq('program_id', programId);
+    if (error) throw error;
+    return (data || []).map(transform);
+  }
+
   // Upsert one judge's (possibly partial) score for one submission and track.
   // judge_email comes from the verified session, never the request body.
   async upsert({ submissionId, programId, judgeEmail, track, criteria, notes, session, revisit, checks }) {

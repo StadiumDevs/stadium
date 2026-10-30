@@ -6,7 +6,7 @@ vi.mock('../../auth/supabaseUser.js', () => ({
 }));
 vi.mock('../../services/program.service.js', () => ({ default: { findBySlug: vi.fn() } }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), listByProgramId: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), listByProgramId: vi.fn(), updateTracked: vi.fn(async (id, x) => ({ id, ...x })) },
 }));
 vi.mock('../../repositories/program-signup.repository.js', () => ({ default: { existsByEmail: vi.fn() } }));
 vi.mock('../../repositories/submission-refusal.repository.js', () => ({ default: { create: vi.fn(async () => ({ id: 'ref' })) } }));
@@ -140,6 +140,21 @@ describe('submit — fallbacks and email verification', () => {
     expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ videoUrl: '' }));
     const agentic = await run({ ...body(), videoUrl: '', details: { ...details, track: 'agentic', themes: [], testnetTxid: null } });
     expect(agentic.status).toHaveBeenCalledWith(400);
+  });
+
+  it('a resubmit that leaves a track drops that track\'s prize; a changed txid clears the old check', async () => {
+    signupRepo.existsByEmail.mockResolvedValue(true);
+    const prior = {
+      id: 'old', programId: 'fsh', ecosystemPrize: true,
+      prizes: { privacy: { amount: 1300 }, agentic: { amount: 1000 } },
+      details: { ...details, track: 'both', testnetTxid: 'b'.repeat(64), txCheck: { status: 'verified' } },
+    };
+    submissionRepo.findByEmail.mockResolvedValue(prior);
+    submissionRepo.updateSubmission.mockImplementation(async (id, x) => ({ ...prior, ...x, id }));
+    const r = await run(body('priya@example.com'), 'tok:priya@example.com'); // now Privacy only, txid a…a
+    expect(r.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.updateTracked).toHaveBeenCalledWith('old', { txCheck: null });
+    expect(submissionRepo.updateTracked).toHaveBeenCalledWith('old', { prizes: { privacy: { amount: 1300 } }, ecosystemPrize: true });
   });
 
   it('the confirmation email carries the tracked details', async () => {

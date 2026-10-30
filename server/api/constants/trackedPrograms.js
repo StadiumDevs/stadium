@@ -15,6 +15,16 @@ export const TRACKED_PROGRAMS = {
     // Tracks where the demo video is optional (strongly preferred). Agentic
     // needs a video or a live link showing the agent make a purchase.
     videoOptionalTracks: ['privacy'],
+    // Prize tiers belong to a track by their label prefix (programs.prize_tiers).
+    prizePrefixes: { privacy: 'Privacy:', agentic: 'Agentic Commerce:' },
+    // How many projects may win each tier, by amount (USD). Privacy: one top,
+    // two second, two third. Agentic: one of each.
+    tierLimits: {
+      privacy: { 1300: 1, 300: 2, 200: 2 },
+      agentic: { 1000: 1, 800: 1, 600: 1, 100: 1 },
+    },
+    // The Ecosystem Prize: a flag on up to two Privacy podium projects.
+    ecosystem: { track: 'privacy', maxFlags: 2, label: 'Ecosystem Prize' },
     themes: ['1. Private payment rails', '2. The first five minutes', '3. Privacy beyond the transaction'],
     appTypes: ['web app', 'mobile app', 'SDK or library', 'CLI', 'agent', 'other'],
     maxTeam: 5,
