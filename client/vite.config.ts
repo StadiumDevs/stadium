@@ -6,12 +6,11 @@ import { llmsFiles } from "./src/lib/llms/renderLlms";
 
 // The llms.txt files (for AI assistants) are generated from the same content,
 // profiles and developer resources the site uses: served in dev, emitted into
-// dist at build. Links use the deployment's own origin (a preview links to itself).
-const siteOrigin = () =>
-  process.env.VITE_SITE_URL ||
-  (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production" && process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "https://stadium.joinwebzero.com");
+// dist at build. Built files always link to the public site, never to a
+// per-commit Vercel host (those change on every push and get copied into
+// assistants' context); VITE_SITE_URL overrides it. The dev server links to
+// itself (the request host).
+const siteOrigin = () => process.env.VITE_SITE_URL || "https://stadium.joinwebzero.com";
 
 function llmsTxt(): Plugin {
   return {

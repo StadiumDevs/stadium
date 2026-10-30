@@ -182,7 +182,7 @@ The builder doc (tracks and resources) is the source of truth; the site now matc
 - `/programs/free-society-hack-2026/llms.txt`: the short index.
 - `/programs/free-society-hack-2026/llms-full.txt`: everything inline: event, schedule, tracks, themes, rules, a valid-idea checklist, the form field by field, the privacy note, rubrics with every level, prizes, and the Zcash and Bitrefill developer resources.
 
-Links use the deployment's origin (`VITE_SITE_URL`, else the Vercel preview URL, else production). Add a program by adding it to `LLMS_PROGRAMS`.
+Built files always link to `https://stadium.joinwebzero.com` (override with `VITE_SITE_URL`), previews included, so a shared file never points at a throwaway Vercel host; until the release those links show the app shell. The dev server links to itself. Add a program by adding it to `LLMS_PROGRAMS`.
 
 **Links not confirmed (shown by name, no link), please send the URLs:** the Valar and Jino Labs faucets; `@zcash/sdk` (not on npm); zcli (which repo has the `--testnet` flag); the x402 page in Bitrefill's docs; the "What are you building on Zcash?" thread; the NU7 mainnet tracker; the ZecHub quick start for Zebra (linked the Zebra book instead). `@chainsafe/webzjs-wallet` is not on npm either, so WebZjs links to its repo. The Zcash forum and the Ledger signer docs refuse automated checks; their URLs come from search results.
 
@@ -219,6 +219,35 @@ Everything the playground does now has a server endpoint; `trackedNotOnServer` i
 ## 6. Merge and production runbook
 
 The agent never merges, deploys or applies migrations. A CODEOWNER merges; the SQL is applied in the Supabase SQL editor (or `supabase db push`). All migrations below are additive or fill-only, so they can go in **before** the code deploys.
+
+### Pre-flight checklist (everything still open, 30 Oct)
+
+**Content (product owner)**
+1. Terms: replace the placeholder in `client/src/lib/submissionTerms.ts` (titled "(PLACEHOLDER)", shown on the submit form) with the 14 Oct Luma text.
+2. The 8 unconfirmed developer links (llms.txt section above).
+3. The judges: names and emails of the 5 Privacy and 2 Bitrefill judges (invited in the admin, not in git).
+
+**Merge (CODEOWNER):** PR #202 ready → `develop`; then the release PR `develop` → `main` (deploys Railway + Vercel).
+
+**Database (staging, then production after a backup):** the six migrations in order: 20261025, 20261026, 20261029, 20261030, 20261031, 20261101.
+
+**Railway (server) env, production**
+- `FRONTEND_URL=https://stadium.joinwebzero.com` (links in emails)
+- `CORS_ORIGIN` includes `https://stadium.joinwebzero.com`
+- `EXPECTED_DOMAIN=stadium.joinwebzero.com` (admin wallet sign-in)
+- `LUMA_API_KEY` (Luma Plus), `LUMA_GATE_MODE` (`checked_in` on the day; `approved` only for a dry run)
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (sender domain verified in Resend): confirmation, pending-review and judge-invite emails
+- optional: `SUBMIT_TEST_EMAILS` (dry run only, then clear), `TX_CHECK_LIGHTWALLETD` (default `testnet.zec.rocks:443`; Railway needs outbound gRPC/TLS to it: confirm on staging with a real txid)
+
+**Vercel env, production**
+- `VITE_USE_MOCK_DATA` and `VITE_USE_TEST_WALLET` unset; `VITE_ADMIN_ADDRESSES` without the test wallet (Alice, `5GrwvaEF…`)
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (email sign-in for builders and judges), `VITE_API_BASE_URL` (production API)
+
+**Supabase Auth:** Site URL `https://stadium.joinwebzero.com`; redirect allow-list includes `https://stadium.joinwebzero.com/programs/**` and the admin judge pages; magic-link email on.
+
+**After deploy:** `npm run verify:production`; `/programs/free-society-hack-2026` shows DRAFT, True Tramm Trunk, REGISTER ON LUMA and the AI block; `/llms.txt` returns text (not the app). Admin: Luma sync, invite the judges. Tue 3 Nov dry run, then the event days (D below).
+
+**Known and accepted (backlog):** two admins awarding the same project at the same instant could overwrite each other; tracked winners get no prize email; the canonical tester flow is stale for `bitrefill-2026`.
 
 ### A. Before merge (PR #202)
 1. Server `npm test`, client `npm run build` + `npm run lint` (tsc baseline 195), the stadium-tester scenarios on the harness.
