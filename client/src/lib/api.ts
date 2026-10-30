@@ -19,11 +19,6 @@ if (typeof window !== "undefined") {
   (window as unknown as { __STADIUM_MOCK__?: boolean }).__STADIUM_MOCK__ = USE_MOCK_DATA;
 }
 
-// Thrown by the tracked-submission API methods outside mock mode: the server
-// side is planned but not built yet (docs/zcash/free-society-hack.md).
-const trackedNotOnServer = () =>
-  new ApiError("This program feature is not available on the server yet.", 501);
-
 class ApiError extends Error {
   status: number;
   code?: string;
@@ -2575,7 +2570,7 @@ export const api = {
       if (!data) throw new ApiError("Project not found", 404);
       return { status: "success", data };
     }
-    throw trackedNotOnServer();
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/public`);
   },
 
   /** Admin/judge: all tracked submissions with emails, prizes, milestones and check-ins. */
@@ -2596,7 +2591,6 @@ export const api = {
     const r = (await request(`/programs/${encodeURIComponent(slug)}/tracked-submissions`, {
       headers: adminAuthHeaders(_authHeader),
     })) as { status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt?: string | null } };
-    // Prizes by track and the Ecosystem flag aren't on the server yet (§4).
     return {
       status: r.status,
       data: {
@@ -2696,7 +2690,7 @@ export const api = {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return { status: "success", data: mockTracked.judgingProgress(slug) };
     }
-    throw trackedNotOnServer();
+    return request(`/programs/${encodeURIComponent(slug)}/judging-progress`, { headers: adminAuthHeaders(_authHeader) });
   },
 
   /** Mock mode only: wipe the playground program and re-seed it from its fixture. */
@@ -2743,7 +2737,9 @@ export const api = {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return { status: "success", data: mockTracked.leaderboard(slug, track) };
     }
-    throw trackedNotOnServer();
+    return request(`/programs/${encodeURIComponent(slug)}/rubric-leaderboard/${encodeURIComponent(track)}`, {
+      headers: adminAuthHeaders(_authHeader),
+    });
   },
 
   /** Platform admin: award (or clear) a track prize. A project can win in both tracks. */
@@ -2765,7 +2761,14 @@ export const api = {
       if (!data) throw new ApiError("Submission not found", 404);
       return { status: "success", data };
     }
-    throw trackedNotOnServer();
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/prizes/${encodeURIComponent(track)}`,
+      {
+        method: "PUT",
+        headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: prize ? prize.amount : null }),
+      },
+    );
   },
 
   /** Platform admin: flag (or unflag) a podium project as an Ecosystem Prize winner. */
@@ -2783,7 +2786,11 @@ export const api = {
         throw new ApiError((e as Error).message, 409);
       }
     }
-    throw trackedNotOnServer();
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/ecosystem-prize`, {
+      method: "PUT",
+      headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ flagged }),
+    });
   },
 
   /** Platform admin: publish / unpublish tracked results. */
@@ -2796,7 +2803,10 @@ export const api = {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return { status: "success", data: { resultsPublishedAt: mockTracked.setPublished(slug, publish) } };
     }
-    throw trackedNotOnServer();
+    return request(`/programs/${encodeURIComponent(slug)}/results/${publish ? "publish" : "unpublish"}`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
+    });
   },
 
   /** Admin: re-run the testnet transaction check for one submission. */
@@ -2811,7 +2821,10 @@ export const api = {
       if (!data) throw new ApiError("Submission not found", 404);
       return { status: "success", data };
     }
-    throw trackedNotOnServer();
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/tx-check`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
+    });
   },
 
   /**
@@ -2822,7 +2835,9 @@ export const api = {
     slug: string,
     submissionId: string,
     patch: Partial<ApiSubmissionMilestone>,
+    // Admins pass their auth; builders pass null and their verified email token.
     _authHeader: AdminAuthArg | null,
+    opts: { verifiedToken?: string | null } = {},
   ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
@@ -2830,7 +2845,15 @@ export const api = {
       if (!data) throw new ApiError("Milestone not found", 404);
       return { status: "success", data };
     }
-    throw trackedNotOnServer();
+    const base = `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/milestone`;
+    return request(_authHeader ? base : `${base}/builder`, {
+      method: "PATCH",
+      headers: {
+        ...(_authHeader ? adminAuthHeaders(_authHeader) : opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(patch),
+    });
   },
 
   // --- Admin tiers (app_admins / global_admins) ---

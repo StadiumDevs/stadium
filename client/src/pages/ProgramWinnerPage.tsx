@@ -7,6 +7,7 @@ import { MilestoneProgress } from "@/components/program/tracked/MilestoneProgres
 import { SubmissionDetails } from "@/components/program/tracked/SubmissionDetails";
 import { formatPrize, prizeEntries } from "@/lib/trackedDisplay";
 import { useToast } from "@/hooks/use-toast";
+import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import NotFound from "./NotFound";
 
 /**
@@ -23,6 +24,12 @@ const ProgramWinnerPage = () => {
   const [editing, setEditing] = useState(false);
   const [sentence, setSentence] = useState("");
   const [deliveryLink, setDeliveryLink] = useState("");
+  // The point person edits with their email verified (sign-in link); the
+  // server checks it matches the submission's email.
+  const social = useSocialAuth();
+  const [verifyEmail, setVerifyEmail] = useState("");
+  const [linkSent, setLinkSent] = useState(false);
+  const canEdit = USE_MOCK_DATA || !!social.token;
 
   const load = () => {
     if (!slug || !submissionId || !profile) {
@@ -64,12 +71,18 @@ const ProgramWinnerPage = () => {
       toast({ title: "Delivery link must start with http:// or https://", variant: "destructive" });
       return;
     }
-    await api.updateSubmissionMilestone(
-      slug,
-      submissionId,
-      { sentence: sentence.trim(), deliveryLink: deliveryLink.trim() || null },
-      null,
-    );
+    try {
+      await api.updateSubmissionMilestone(
+        slug,
+        submissionId,
+        { sentence: sentence.trim(), deliveryLink: deliveryLink.trim() || null },
+        null,
+        { verifiedToken: social.token },
+      );
+    } catch (e) {
+      toast({ title: "Couldn't update the milestone", description: (e as Error).message, variant: "destructive" });
+      return;
+    }
     setEditing(false);
     toast({ title: "Milestone updated" });
     load();
@@ -117,9 +130,41 @@ const ProgramWinnerPage = () => {
           {milestone && (
             <section className="panel p-4 space-y-3">
               <MilestoneProgress profile={profile} milestone={milestone} />
-              {USE_MOCK_DATA && (
-                <div className="border-t border-hairline-subtle pt-3">
-                  {editing ? (
+              <div className="border-t border-hairline-subtle pt-3">
+                  {!canEdit ? (
+                    <div className="space-y-2" data-testid="milestone-verify">
+                      <div className="label-hw-dim">POINT PERSON: EDIT YOUR MILESTONE</div>
+                      {linkSent ? (
+                        <p className="label-hw-dim normal-case">Check your inbox: open the sign-in link to come back here and edit.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          <input
+                            type="email"
+                            aria-label="The email you submitted with"
+                            placeholder="The email you submitted with"
+                            value={verifyEmail}
+                            onChange={(e) => setVerifyEmail(e.target.value)}
+                            className="flex-1 min-w-[200px] bg-panel-deep border border-hairline text-display font-mono text-[12px] px-2 py-1.5"
+                          />
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await social.signInWithEmail(verifyEmail, window.location.href);
+                                setLinkSent(true);
+                              } catch (e) {
+                                toast({ title: "Couldn't send the sign-in link", description: (e as Error).message, variant: "destructive" });
+                              }
+                            }}
+                            disabled={!verifyEmail.trim()}
+                            className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell disabled:opacity-50 px-3 py-1.5"
+                          >
+                            SEND ME A SIGN-IN LINK ▸
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : editing ? (
                     <div className="space-y-2">
                       <div className="label-hw-dim">BUILDER: UPDATE MILESTONE</div>
                       <textarea
@@ -158,11 +203,12 @@ const ProgramWinnerPage = () => {
                       BUILDER: EDIT MILESTONE ▸
                     </button>
                   )}
-                  <p className="label-hw-dim normal-case mt-2">
-                    Playground only. In the real build the point person edits this from an emailed sign-in link.
-                  </p>
+                  {USE_MOCK_DATA && (
+                    <p className="label-hw-dim normal-case mt-2">
+                      Playground: no sign-in needed. On the live site the point person verifies their email first.
+                    </p>
+                  )}
                 </div>
-              )}
             </section>
           )}
 
