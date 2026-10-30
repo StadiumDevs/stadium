@@ -55,7 +55,7 @@ By submitting a project to the Free Society Hack, you confirm that you have read
 
 ### Eligibility
 
-- You checked in at the hackathon in person at Capital Social, BKC, Mumbai.
+- You checked in at the hackathon in person at True Tramm Trunk, BKC, Mumbai.
 - You submit through Stadium before submissions close at midnight IST on Wed 4 Nov (00:00 Thu 5 Nov).
 
 ### Point person

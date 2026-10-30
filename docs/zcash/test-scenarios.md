@@ -43,6 +43,8 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] (Server, staging) A Privacy submission with a real shielded testnet txid shows TX VERIFIED within a minute; a made-up txid shows NOT FOUND; the admin RE-CHECK updates it
 - [ ] (Server, staging) Awarding: a Works-0 project can't get a Privacy prize; a second top prize is refused; flagging the Ecosystem Prize needs a Privacy podium prize and stops at two; nothing (prizes, flag, milestone) is public until PUBLISH RESULTS; the winner page then loads, and the point person edits the milestone sentence and link only after the email sign-in link
 
+- [ ] On /programs/free-society-hack-2026, the venue reads True Tramm Trunk, BKC, Mumbai (header, about panel, FAQ, terms); LOCATION and the FAQ link open it on Google Maps in a new tab; the /programs card still says Mumbai; llms-full.txt's "Where" has the map link
+
 ### Admin + judging (brief §4, §7.3–7.5, §7.7) — needs the test-wallet harness
 - [ ] On /admin/programs/free-society-hack-2026, connect the admin wallet → exactly one wallet signature (the login), no LOAD ADMIN DATA step, and no request to /admin/session in mock mode
 - [ ] On /admin/programs/free-society-hack-2026 after logging in, stay 20 seconds (4+ judges' progress refreshes), reload, and change an Ecosystem Prize flag → no further signatures

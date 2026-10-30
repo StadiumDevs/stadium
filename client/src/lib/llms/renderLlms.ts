@@ -38,7 +38,7 @@ export const LLMS_PROGRAMS: LlmsProgram[] = [
     summary:
       "A one-day Zcash hackathon with a Bitrefill track, in person in Mumbai. Two tracks: Privacy (Zcash), build something people can use privately with shielded ZEC on testnet; and Agentic Commerce (by Bitrefill), an AI agent that finds, buys and pays for real products through Bitrefill on its own. A project can enter and win in both.",
     when: "Wed 4 Nov 2026, 11:00 IST (hack starts) to Thu 5 Nov 2026 (demo day 11:00, prizes 13:00 IST)",
-    where: "Capital Social, BKC, Mumbai (in person; about 75 builders)",
+    where: "True Tramm Trunk, BKC, Mumbai (in person; about 75 builders)",
     deadline: "Thu 5 Nov 2026, 00:00 IST",
     lumaUrl: "https://luma.com/freesocietyhackathon",
     builderPackUrl: FREE_SOCIETY_HACK_BUILDER_PACK_URL,
@@ -269,7 +269,7 @@ export function renderLlmsFullTxt(p: LlmsProgram, origin: string): string {
     "## Event",
     "",
     `- **When:** ${p.when}`,
-    `- **Where:** ${p.where}`,
+    `- **Where:** ${p.where}${profile?.venueMapUrl ? `. Map: ${profile.venueMapUrl}` : ""}`,
     `- **Submissions close:** ${p.deadline}, on Stadium: ${origin}/programs/${p.slug}`,
     `- **Who can submit:** builders checked in at the venue, using the email they registered with on Luma (${p.lumaUrl})`,
     `- **Builder Pack:** ${p.builderPackUrl}`,

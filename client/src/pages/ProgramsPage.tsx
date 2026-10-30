@@ -151,7 +151,7 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
         ? "CLOSED"
         : "DRAFT";
 
-  // The event's city (the last part of the location, e.g. "Capital Social, BKC, Mumbai" → Mumbai).
+  // The event's city (the last part of the location, e.g. "True Tramm Trunk, BKC, Mumbai" → Mumbai).
   const city = program.location ? program.location.split(",").pop()?.trim() || null : null;
   const lumaLabel = program.eventUrl ? program.eventUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") : null;
 

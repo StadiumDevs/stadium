@@ -65,6 +65,8 @@ export type ProgramProfile = {
   appTypes: string[];
   /** Show submitted projects on the public page immediately, not only after results. */
   showSubmissionsLive: boolean;
+  /** The venue on a map (Google Maps); the page links the location to it. */
+  venueMapUrl?: string;
   /** The event's own time zone: dates and times on the page show in it, not the viewer's. */
   timeZone?: { id: string; label: string };
   /**
@@ -238,6 +240,7 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
   appTypes: ["web app", "mobile app", "SDK or library", "CLI", "agent", "other"],
   showSubmissionsLive: true,
   timeZone: { id: "Asia/Kolkata", label: "IST" },
+  venueMapUrl: "https://www.google.com/maps/search/?api=1&query=19.0727556%2C72.8711671&query_place_id=ChIJWdw8iu3I5zsRk3p59YTdif8",
   judgingSessions: [
     { id: "evening", label: "Evening · Wed 4 Nov 20:00–22:00", until: "2026-11-04T20:00:00+05:30", short: "EVENING · IN BY 20:00" },
     { id: "morning", label: "Morning · Thu 5 Nov 08:00–10:00", until: null, short: "MORNING · AFTER 20:00" },

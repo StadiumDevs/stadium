@@ -15,6 +15,10 @@ import { llmsFullPath, llmsPath } from "./llms/llmsPrograms";
  * (lib/llms/renderLlms.ts), so an AI assistant reads exactly what builders do.
  * Relative imports only: vite.config.ts and the migration generator bundle it.
  */
+/** The venue on Google Maps. */
+export const FREE_SOCIETY_HACK_VENUE_MAP_URL =
+  "https://www.google.com/maps/search/?api=1&query=19.0727556%2C72.8711671&query_place_id=ChIJWdw8iu3I5zsRk3p59YTdif8";
+
 export const FREE_SOCIETY_HACK_BUILDER_PACK_URL =
   "https://app.notion.com/p/Free-Society-Hack-Builder-Pack-3ff3e52aeb15807eace6f16f84a74c14";
 
@@ -176,7 +180,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
     type: "markdown",
     title: "FAQ",
     body:
-      "**Who can submit?** Builders checked in at Capital Social, BKC, Mumbai. Use the email you registered with on Luma; that person is the project's point person.\n\n" +
+      "**Who can submit?** Builders checked in at [True Tramm Trunk, BKC, Mumbai](" + FREE_SOCIETY_HACK_VENUE_MAP_URL + "). Use the email you registered with on Luma; that person is the project's point person.\n\n" +
       "**Can I enter both tracks?** Yes. Pick \"Both\" on the form and fill in both tracks' items.\n\n" +
       "**Do I need real ZEC?** No. Testnet only. Mainnet funds are out of scope.\n\n" +
       "**Is the demo video required?** For Privacy it's optional but strongly preferred. For Agentic Commerce (and Both) it is required, or a live link showing the purchase.\n\n" +

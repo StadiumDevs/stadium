@@ -314,10 +314,10 @@ const ProgramDetailPage = () => {
   // The about panel: cover image on the left, description and the event's
   // basic details on the right. Same template for every program type.
   const showCover = !!program?.coverImageUrl && !coverError;
-  const infoRows: { label: string; value: string }[] = [
+  const infoRows: { label: string; value: string; href?: string }[] = [
     ...(!isHackathon && applicationsRange ? [{ label: "APPLICATIONS", value: applicationsRange }] : []),
     ...(eventRange ? [{ label: isHackathon ? "DATE" : "EVENT", value: eventRange }] : []),
-    ...(program?.location ? [{ label: "LOCATION", value: program.location }] : []),
+    ...(program?.location ? [{ label: "LOCATION", value: program.location, href: profile?.venueMapUrl }] : []),
     ...scheduleRows.map((r) => ({ label: r.time.toUpperCase(), value: r.label })),
   ];
   const registrationOpen = program?.status === "draft" || program?.status === "open";
@@ -520,7 +520,19 @@ const ProgramDetailPage = () => {
                       {infoRows.map((r, i) => (
                         <div key={i} className="flex items-baseline justify-between gap-3 border-b border-hairline-subtle pb-1.5 last:border-0">
                           <span className="label-hw-dim shrink-0">{r.label}</span>
-                          <span className="font-mono text-[12px] text-display text-right">{r.value}</span>
+                          {r.href ? (
+                            <a
+                              href={r.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[12px] text-display text-right underline underline-offset-2 hover:text-display-dim"
+                              data-testid="venue-map-link"
+                            >
+                              {r.value} ↗
+                            </a>
+                          ) : (
+                            <span className="font-mono text-[12px] text-display text-right">{r.value}</span>
+                          )}
                         </div>
                       ))}
                     </div>
