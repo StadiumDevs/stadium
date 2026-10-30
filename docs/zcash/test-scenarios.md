@@ -39,6 +39,10 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] On the judge view, a Privacy entry's Private question shows the builder's privacy and trust note; an Agentic entry's card shows the Bitrefill feedback; Agentic criteria are scored 0 to 5; an entry without a video shows a NO VIDEO step pointing to the README
 - [ ] On /programs/free-society-hack-2026 and the submit form, nothing tells builders to use Orchard (only the developer resources' "Orchard is sealed" warning mentions it)
 
+- [ ] On /programs/free-society-hack-2026, the ·FOR AI ASSISTANTS block spans the full width of the about panel (text left, buttons right on desktop; stacked on phones)
+- [ ] (Server, staging) A Privacy submission with a real shielded testnet txid shows TX VERIFIED within a minute; a made-up txid shows NOT FOUND; the admin RE-CHECK updates it
+- [ ] (Server, staging) Awarding: a Works-0 project can't get a Privacy prize; a second top prize is refused; flagging the Ecosystem Prize needs a Privacy podium prize and stops at two; nothing (prizes, flag, milestone) is public until PUBLISH RESULTS; the winner page then loads, and the point person edits the milestone sentence and link only after the email sign-in link
+
 ### Admin + judging (brief §4, §7.3–7.5, §7.7) — needs the test-wallet harness
 - [ ] On /admin/programs/free-society-hack-2026, connect the admin wallet → exactly one wallet signature (the login), no LOAD ADMIN DATA step, and no request to /admin/session in mock mode
 - [ ] On /admin/programs/free-society-hack-2026 after logging in, stay 20 seconds (4+ judges' progress refreshes), reload, and change an Ecosystem Prize flag → no further signatures

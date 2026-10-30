@@ -186,55 +186,76 @@ Links use the deployment's origin (`VITE_SITE_URL`, else the Vercel preview URL,
 
 **Links not confirmed (shown by name, no link), please send the URLs:** the Valar and Jino Labs faucets; `@zcash/sdk` (not on npm); zcli (which repo has the `--testnet` flag); the x402 page in Bitrefill's docs; the "What are you building on Zcash?" thread; the NU7 mainnet tracker; the ZecHub quick start for Zebra (linked the Zebra book instead). `@chainsafe/webzjs-wallet` is not on npm either, so WebZjs links to its repo. The Zcash forum and the Ledger signer docs refuse automated checks; their URLs come from search results.
 
-## 4. Server build plan (after review)
+## 4. Server: built (29 Oct)
 
-| Work | Size |
-|---|---|
-| Submissions: **built (29 Oct).** `program_submissions.details JSONB` + `track`, validated by `validateSubmissionDetails` (mirrors the form; 64-hex txid; server-set fields never taken from the client), stored by the Luma-gated submit; `GET /:slug/tracked-submissions` (judge/admin) with each entry's batch. Also built: the public live list `GET /:slug/submissions/public` (no emails; names hidden when `anonymous`), `GET /:slug/submissions/mine`, verified-email fallbacks and refusal review. **Still to do:** `GET /:slug/submissions/:id/public` (winners only, with the awards slice) | 0.25 day left |
-| Rubric: **built (29 Oct): per-judge score storage.** `submission_rubric_scores` (criteria JSONB per `(submission_id, judge_email, track)`, partial allowed, RLS on), `program_admin_emails.tracks TEXT[]` (NULL = all tracks) passed through `requireProgramJudge`, `GET /:slug/rubric-scores/mine` and `PUT /:slug/submissions/:id/rubric-scores/:track` (email judges only; identity from the session; tracks enforced), validator + rubric config in `server/api/constants/rubrics.js`, tests. Judges: **built**, `program_admin_emails.name` + `tracks` set on invite, `GET /:slug/judges` (names and tracks; emails only to admins or the judge themselves). **Still to do:** server leaderboard with tie-breaks and the Works-0 winner gate in `awardPrize`, awards keyed by track (`prize_by_track JSONB`), | 1 day left |
-| Judges' progress: `GET /:slug/judging-progress` (judge or admin; names, tracks, scored / total), polled by the panel | 0.25 day |
-| Ecosystem Prize flag: `program_submissions.ecosystem_prize BOOLEAN`, global-admin PATCH capped at two podium projects in the Privacy track, in the public results and CSV | 0.25 day |
-| Milestone columns on the submission (or a `submission_milestones` table, incl. `checked_in_at` set by the admin), with the admin PATCH under `requireProgramAdmin` and the builder PATCH under an email magic-link session matched to `luma_email` | 1 day |
-| **Testnet tx check:** service calling a public lightwalletd (`testnet.zec.rocks`) `GetTransaction`, parsing the shielded action count (Ironwood since NU6.3; Orchard is sealed), with retry/backoff, `tx_check JSONB` cache, `could_not_check` on timeouts, run fire-and-forget after submit, plus an admin re-check endpoint and tests | 1 day |
-| **Builder feedback:** server CSV of the free-text feedback (mostly done once `details` exists) | 0.25 day |
-| Server CSV with per-judge scores, notes and track | 0.5 day |
+Everything the playground does now has a server endpoint; `trackedNotOnServer` is gone from `client/src/lib/api.ts`.
 
-The tx check and builder-feedback CSV are each about a day or less, so none needs a separate go-ahead under the brief's rule. What's left on the server is about 5 days (tx check, awards and leaderboard, milestones, CSVs). See §5.
+| Feature | Endpoint (under `/api/programs/:slug`) | Guard |
+|---|---|---|
+| Submissions, details, refusals, live list, mine | (built earlier) `POST /submissions`, `GET /submissions/public`, `GET /submissions/mine`, `GET /tracked-submissions`, `/submission-refusals/*` | public (Luma-gated) / judge / program admin |
+| Rubric scores | `GET /rubric-scores/mine`, `PUT /submissions/:id/rubric-scores/:track` | email judge, own tracks |
+| Leaderboard (tie-breaks, Works-0 gate) | `GET /rubric-leaderboard/:track` | judge (own tracks; other judges by name) or admin |
+| Judging progress | `GET /judging-progress` | judge or admin (names only) |
+| Awards by track (track tiers only, Works-0 gate, per-tier limits 1/2/2 Privacy, 1 each Agentic) | `PUT /submissions/:id/prizes/:track` `{ amount \| null }` | platform admin |
+| Ecosystem Prize (Privacy podium only, max 2; opens the milestone) | `PUT /submissions/:id/ecosystem-prize` `{ flagged }` | platform admin |
+| Publish / unpublish (prizes, flag and milestone become public) | `POST /results/publish`, `/results/unpublish` (existing) | platform admin |
+| Winner page | `GET /submissions/:id/public` (winners only, after publishing) | public |
+| Milestone | `PATCH /submissions/:id/milestone` (all fields) and `PATCH /submissions/:id/milestone/builder` (sentence + delivery link; verified email must match) | program admin / point person |
+| Testnet tx check | runs after submit / accept (txid new or changed); `POST /submissions/:id/tx-check` re-check | program admin |
+
+- **Code:** `server/api/controllers/tracked-results.controller.js`, `server/api/services/rubric-leaderboard.service.js` (pure; mirrors the playground), `server/api/services/tx-check.service.js`.
+- **Data:** `supabase/migrations/20261101000000_tracked_awards_milestones.sql` adds `program_submissions.prizes`, `ecosystem_prize`, `tx_check` and `milestone`.
+- **Tx check:** the public lightwalletd `testnet.zec.rocks:443` (override with `TX_CHECK_LIGHTWALLETD`). `GetTransaction` proves the transaction exists and gives its height; the compact block at that height lists its Sapling spends/outputs and Orchard/Ironwood actions, so no raw transaction parsing. Statuses: `verified`, `not_found`, `not_shielded`, `could_not_check` (unreachable or not mined yet, after 3 tries). Checked live on 29 Oct: a real Ironwood testnet transaction came back `verified`, a made-up txid `not_found`. The protos are vendored in `server/api/services/proto/lightwalletd/`; tests never call the network (`TX_CHECK_DISABLED` in `vitest.config.js`).
+- **Review fixes (30 Oct):** an award needs at least one full score in that track; the builder can't edit a milestone once the payout is settled; an unflagged project's milestone stays private; a resubmit that leaves a track drops that track's prize (and the flag if needed); a changed txid clears the old check at once; the builder's sign-in must be a confirmed email.
+- **Tests:** unit tests for the leaderboard, the tx check (fake transport) and the milestone validator; the sim journey (`server/sim/__tests__/rubric-judging-journey.test.js`) now runs score → leaderboard → awards → Ecosystem flag → publish → winner page → milestone edits against the real controllers.
+- **Program creation:** `supabase/migrations/20261025000000_free_society_hack_2026_program.sql` creates the program as `draft` (runs before the content migration). Re-runnable; on a row an admin already created it only fills empty fields. (If the id `free-society-hack-2026` is already used by a program with another slug, the insert is skipped: check with `SELECT id, slug FROM programs WHERE id = 'free-society-hack-2026' OR slug = 'free-society-hack-2026';`.) Applied with every other migration, in order, on a fresh Postgres 16 on 29 Oct: all clean (except the Supabase-only storage bucket migration, as expected), re-runs clean, and the fill-only update left a hand-made row's values alone.
 
 ## 5. Decisions you need to make
 
-1. **Scope for 4 Nov.** The mock UX is ready to review, but the server side is about 7 days. Options:
-   - **(a) Run the event on the existing Bitrefill flow plus a minimum server slice.** That slice is about 2.5 days: submission `details`, track, the public live list, rubric scores and track-limited judges. The tx check and milestones follow in November, before the 13 Nov milestone deadline.
-   - **(b) Slip the merge-by date.**
+1. **Terms.** Paste the 14 Oct Luma text to replace the placeholder.
+2. **Denver slugs** in `20261031000000_past_programs_event_meta.sql`: confirm `dogfooding-2026-denver` and `pitchoff-2026-denver` match production before applying it.
+3. **Unconfirmed developer links** (see the llms.txt section above).
 
-   I recommend (a).
-2. **Terms.** Paste the 14 Oct Luma text to replace the placeholder.
-3. ~~Themes~~ Resolved 28 Oct: 1. Private payment rails · 2. The first five minutes · 3. Privacy beyond the transaction.
-4. **Default prize tiers.** Changing the neutral default needs a check of the prod Bitrefill row's `prize_tiers` first.
+## 6. Merge and production runbook
 
-## 6. Ready for the real event (once the server slice is merged)
+The agent never merges, deploys or applies migrations. A CODEOWNER merges; the SQL is applied in the Supabase SQL editor (or `supabase db push`). All migrations below are additive or fill-only, so they can go in **before** the code deploys.
 
-**Merge by Wed 28 Oct**, when the builder pack goes out.
+### A. Before merge (PR #202)
+1. Server `npm test`, client `npm run build` + `npm run lint` (tsc baseline 195), the stadium-tester scenarios on the harness.
+2. Review the PR, mark it ready, a CODEOWNER merges it into `develop`.
 
-1. On `/admin`, connect a global admin wallet and click CREATE PROGRAM.
-   - Name `Free Society Hack`, slug `free-society-hack-2026`, type `hackathon`, status `draft`.
-   - Location `Capital Social, BKC, Mumbai`.
-   - Event `2026-11-04 11:00` to `2026-11-05 00:00` IST. Applications `12–30 Oct`. Max applicants 75.
-   - Event URL `https://luma.com/freesocietyhackathon`.
-2. Edit the program:
-   - Set the cover image URL to `/fsh-cover.webp` (a 1200px, 165 KB WebP in `client/public`, made from the 13.5 MB Luma PNG). Don't link the raw Luma upload: it is 4000×4000 and stalls halfway on slow connections.
-   - Enter the 7 prize tiers exactly as in the brief, in USD (no Ecosystem tier: it is a flag).
-3. Apply `supabase/migrations/20261029000000_tracked_judging.sql` (submission details, judge profiles, rubric scores) and `20261030000000_submission_refusals.sql` (refused submissions), then run `supabase/migrations/20261026000000_free_society_hack_2026_content.sql` to load the page content.
-4. In Luma guests, set the event id `evt-B6kmWqZYUUeTkIP` and click SYNC NOW. This needs `LUMA_API_KEY` on Railway. The same id drives the page's REGISTER ON LUMA button.
-5. Judges: in the EDIT modal, invite the 5 Privacy judges with their **name** and track PRIVACY, and the 2 Bitrefill judges with track AGENTIC COMMERCE. Name and tracks are saved with the invite and enforced on every score.
-6. Dry run on 3 Nov: set `SUBMIT_TEST_EMAILS` to your address, submit a test, check the page and judging, then delete the test submission and clear the variable.
-7. **Wed 4 Nov 11:00 IST:** set status `open` by hand.
-8. **Wed 4 Nov 20:00:** evening judging.
-9. **Thu 5 Nov 00:00:** set status `closed` by hand. Scoring still works when closed.
-10. **Thu 5 Nov 08:00:** morning judging.
-11. **10:30:** export the CSV for the line-up.
-12. **13:00:** award the five Privacy podium prizes (a Works-0 project is blocked), flag two of them for the Ecosystem Prize, then PUBLISH RESULTS.
-13. Set status `completed` after demo day.
-14. **Thu 19 Nov:** check in with the two Ecosystem Prize projects (outside Stadium) and record the date under ·ECOSYSTEM PRIZE MILESTONES → CHECKED IN ON.
-15. **By Fri 11 Dec:** record the milestone outcomes and release the payouts.
-16. **Fri 20 Nov:** export the builder feedback CSV (·BUILDER FEEDBACK → EXPORT CSV) for the grant committee.
+### B. Staging (Railway staging + its Supabase)
+1. Apply, in this order:
+   1. `20261025000000_free_society_hack_2026_program.sql` (creates the program, draft)
+   2. `20261026000000_free_society_hack_2026_content.sql` (page content)
+   3. `20261029000000_tracked_judging.sql` (details, rubric scores, judge profiles)
+   4. `20261030000000_submission_refusals.sql`
+   5. `20261031000000_past_programs_event_meta.sql` (after confirming the Denver slugs)
+   6. `20261101000000_tracked_awards_milestones.sql` (prizes, Ecosystem flag, tx check, milestone)
+2. Staging env (Railway): `LUMA_API_KEY`, `RESEND_API_KEY` + `RESEND_FROM_EMAIL`, optionally `SUBMIT_TEST_EMAILS`, optionally `TX_CHECK_LIGHTWALLETD`. Supabase Auth: add the staging and production program URLs to the magic-link redirect allow-list (`/programs/free-society-hack-2026*`).
+3. Smoke test on staging:
+   - `/programs/free-society-hack-2026` shows DRAFT, REGISTER ON LUMA and the AI block; `/llms.txt` and `/programs/free-society-hack-2026/llms-full.txt` load.
+   - Admin: Luma guests → set event id, SYNC NOW. Invite one test judge per track (name + track).
+   - Set status `open`; submit a Privacy entry with a real testnet txid (from a `SUBMIT_TEST_EMAILS` address); the TX badge turns VERIFIED within a minute; update it with the email sign-in link.
+   - Score as the test judges; the leaderboard ranks it; award a prize; flag Ecosystem; PUBLISH; the winner page loads; edit the milestone as the point person (sign-in link) and as admin; UNPUBLISH.
+   - Delete the test submission; set status back to `draft`; clear `SUBMIT_TEST_EMAILS`.
+
+### C. Production
+1. Back up `programs` and `program_submissions` (Supabase backup, or CSV export of both tables).
+2. Apply the same six migrations in the same order.
+3. Open the release PR `develop` → `main`; a CODEOWNER merges; Railway (server) and Vercel (client) deploy automatically.
+4. Check env: Vercel Production has `VITE_USE_MOCK_DATA` and `VITE_USE_TEST_WALLET` unset and Alice (`5GrwvaEF…`) not in `VITE_ADMIN_ADDRESSES`; Railway as on staging.
+5. `npm run verify:production`, then open `/programs/free-society-hack-2026` (DRAFT, REGISTER ON LUMA, AI block) and `/llms.txt`.
+6. Admin: Luma guests → event id `evt-B6kmWqZYUUeTkIP` → SYNC NOW. Invite the 5 Privacy judges and the 2 Bitrefill judges with name and track.
+
+### D. Event days
+1. **Tue 3 Nov:** dry run (as staging step 3, with `SUBMIT_TEST_EMAILS`), then delete the test entry and clear the variable.
+2. **Wed 4 Nov 11:00 IST:** status `open`. **20:00:** evening judging.
+3. **Thu 5 Nov 00:00:** status `closed` (scoring still works). **08:00:** morning judging. **10:30:** export the CSV for the line-up.
+4. **13:00:** award the five Privacy podium prizes (Works-0 projects are blocked) and the Agentic prizes, flag two Privacy podium projects for the Ecosystem Prize, PUBLISH RESULTS. Status `completed` after demo day.
+5. **By Fri 13 Nov / Thu 19 Nov / Fri 4 Dec / Fri 11 Dec:** record the milestone steps in ·ECOSYSTEM PRIZE MILESTONES; release the payouts.
+6. **Fri 20 Nov:** export the builder feedback CSV.
+
+### Rollback
+- Code: revert the release merge on `main`; both platforms redeploy.
+- Data: the migrations only add columns and one program row, so they can stay. To remove the program: `DELETE FROM programs WHERE slug = 'free-society-hack-2026';` (its submissions and scores cascade).

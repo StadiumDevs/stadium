@@ -259,3 +259,9 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `.claude/skills/stadium-tester/flows/client-journey.spec.mjs` ("public submit form accepts a project", "judging: score all…"), `client/src/lib/mockPrograms.ts` (`bitrefill-2026` is `completed` with results published)
 - **Observed during**: llms.txt / builder-doc alignment regression run (PR #202)
 - **Suggestion**: The flow expects `bitrefill-2026` to be open, but the mock program is completed, so SUBMIT A PROJECT is disabled and the judging steps can't find their controls. Either open the program inside the flow (patch `mockPrograms` via the dev module, as the tracked-program specs do) or point the flow at a mock program that stays open. Also: `scripts/run-playwright.mjs` rewrites the spec's `@playwright/test` import in place and writes a `*.config.mjs` beside it, which dirties the committed flow when it is run directly; copy it to `/tmp` first, or make the runner work on a temp copy.
+
+## [2026-10-30] Tracked awards are read-modify-write
+- **Severity**: minor
+- **File(s)**: `server/api/controllers/tracked-results.controller.js` (awardPrize, setEcosystemPrize, updateMilestone)
+- **Observed during**: stadium-reviewer pass on the Free Society Hack server slice (PR #202)
+- **Suggestion**: `prizes`, the tier-limit and Ecosystem-cap counts and the milestone merge are read, changed and written back. Two admins acting on the same project at the same second could overwrite each other or both pass a limit. Low risk with one or two platform admins on prize day; move to a Postgres function (`jsonb_set` + a row lock) if more admins award at once. Also: `/results/publish` emails winners only from the Bitrefill `prize_*` columns, so tracked winners get no prize email (intended for now: Stadium promises no emails for Free Society Hack).
