@@ -213,8 +213,7 @@ Everything the playground does now has a server endpoint; `trackedNotOnServer` i
 ## 5. Decisions you need to make
 
 1. **Terms.** Paste the 14 Oct Luma text to replace the placeholder.
-2. **Denver slugs** in `20261031000000_past_programs_event_meta.sql`: confirm `dogfooding-2026-denver` and `pitchoff-2026-denver` match production before applying it.
-3. **Unconfirmed developer links** (see the llms.txt section above).
+2. **Unconfirmed developer links** (see the llms.txt section above).
 
 ## 6. Merge and production runbook
 
@@ -230,7 +229,7 @@ The agent never merges, deploys or applies migrations. A CODEOWNER merges; the S
    2. `20261026000000_free_society_hack_2026_content.sql` (page content)
    3. `20261029000000_tracked_judging.sql` (details, rubric scores, judge profiles)
    4. `20261030000000_submission_refusals.sql`
-   5. `20261031000000_past_programs_event_meta.sql` (after confirming the Denver slugs)
+   5. `20261031000000_past_programs_event_meta.sql`
    6. `20261101000000_tracked_awards_milestones.sql` (prizes, Ecosystem flag, tx check, milestone)
 2. Staging env (Railway): `LUMA_API_KEY`, `RESEND_API_KEY` + `RESEND_FROM_EMAIL`, optionally `SUBMIT_TEST_EMAILS`, optionally `TX_CHECK_LIGHTWALLETD`. Supabase Auth: add the staging and production program URLs to the magic-link redirect allow-list (`/programs/free-society-hack-2026*`).
 3. Smoke test on staging:

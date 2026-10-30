@@ -8,9 +8,8 @@
 -- recorded as a pitch-off ("PitchOff! Denver 2026") and the Bitrefill program
 -- is renamed "PROMPT x PURCHASE".
 --
--- Before applying: confirm the two Denver slugs (dogfooding-2026-denver,
--- pitchoff-2026-denver). They come from the playground data; the production
--- rows may have been created with different slugs through the admin.
+-- Slugs checked against production on 30 Oct 2026 (GET /api/programs):
+-- dogfooding-2026-denver and pitchoff-2026-denver exist as written.
 
 UPDATE programs SET
   event_url = COALESCE(event_url, 'https://luma.com/blockspace-symmetry'),
