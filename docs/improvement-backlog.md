@@ -265,3 +265,9 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/controllers/tracked-results.controller.js` (awardPrize, setEcosystemPrize, updateMilestone)
 - **Observed during**: stadium-reviewer pass on the Free Society Hack server slice (PR #202)
 - **Suggestion**: `prizes`, the tier-limit and Ecosystem-cap counts and the milestone merge are read, changed and written back. Two admins acting on the same project at the same second could overwrite each other or both pass a limit. Low risk with one or two platform admins on prize day; move to a Postgres function (`jsonb_set` + a row lock) if more admins award at once. Also: `/results/publish` emails winners only from the Bitrefill `prize_*` columns, so tracked winners get no prize email (intended for now: Stadium promises no emails for Free Society Hack).
+
+## [2026-10-31] Submission drafts don't follow the builder to another device
+- **Severity**: minor
+- **File(s)**: `client/src/components/program/SubmitProjectModal.tsx` (`readDraft` / `writeDraft`, localStorage)
+- **Observed during**: submit-form updates for Free Society Hack (PR #202)
+- **Suggestion**: Closing the form with ✕ keeps the draft and the verified email on that device only. On another device, verifying the email loads only an already submitted entry (the update flow). If builders need to start on a laptop and finish on a phone, save drafts on the server keyed by the verified email (a `submission_drafts` row, read by `GET /:slug/submissions/mine`).

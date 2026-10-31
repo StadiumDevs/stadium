@@ -116,3 +116,15 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] PromptOff! Denver 2026 (luma.com/vibecodingcomp) shows TYPE HACKATHON and "Feb 20, 2026 · Denver"; its page has the PromptOff! description from Luma ("2 hours. One prompt…") and the PromptOff! image in the about panel's left column; "PitchOff" appears nowhere
 - [ ] The Bitrefill program is named "PROMPT x PURCHASE" (no "— A Bitrefill Hackathon")
 - [ ] Symmetry 2024, Synergy 2025, Symbiosis 2025 and Dogfooding Denver pages each show their Luma event image (from /program-covers/, fully loaded) in the about panel's left column
+
+### Submit form and terms (31 Oct)
+- [ ] On /programs/free-society-hack-2026?submit=1 at 1440px wide, the form is about half the screen wide and centred; it starts with "Fields marked * are required." and each required label ends with *
+- [ ] The form has no DEMO VIDEO LENGTH field; the labels read TECHNOLOGIES USED (COMMA-SEPARATED) and WHAT IS YOUR NEXT 30-DAY MILESTONE FOR CONTINUING THIS PROJECT?
+- [ ] Click SUBMIT PROJECT with the form empty → every missing field's label and border turn red, the form scrolls to POINT PERSON NAME and focuses it, and the line above the button reads "·YOUR NAME IS REQUIRED. (+N MORE MARKED IN RED)"
+- [ ] Type a name → that field turns back to normal at once and the line moves on to the next missing field
+- [ ] Click outside the form, or press Escape → it stays open; click ✕ → it closes with the toast "Draft saved on this device"; reopen → the draft is back
+- [ ] Click "Read terms" → "Free Society Hack: Submission Terms & Prize Disbursement" with both tables; Privacy demo video 2 min max, Agentic demo video 3 min max
+- [ ] Fill a valid Privacy entry as builder@example.com and tick "I agree to the terms of the hack." → ·SUBMISSION RECEIVED
+- [ ] The page schedule on Thu 5 Nov reads 11:00 Top teams contacted, 12:00 Demos of top teams, 13:30 Prize announcements
+- [ ] On /programs/free-society-hack-2026, the about text reads "A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai." with no builder count
+- [ ] In the submit form (and the admin forms), the fields are lighter than the dialog behind them, with a visible edge, and typed text is near-white

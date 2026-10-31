@@ -34,7 +34,7 @@ State lives in `localStorage`, managed by `client/src/lib/mockTrackedSubmissions
 
 | Item | Before | Now | Files |
 |---|---|---|---|
-| `TERMS_BY_SLUG` | Only Bitrefill had terms | Fixed: FSH terms added, **marked PLACEHOLDER** (drafted from the brief; the 14 Oct Luma doc wasn't available) | `client/src/lib/submissionTerms.ts` |
+| `TERMS_BY_SLUG` | Only Bitrefill had terms | Fixed: the final FSH terms (Submission Terms & Prize Disbursement) | `client/src/lib/submissionTerms.ts`, `client/src/lib/terms/free-society-hack-2026.md` |
 | `FEEDBACK_BY_SLUG` / `FeedbackAnswers` / aggregate | Built around Bitrefill's question ids | **Not generalised.** FSH needs friction notes and areas, not a survey, so they are first-class submission fields instead. Making the Bitrefill survey work for a second slug with new question ids costs about 0.5 day across 5 places (see note below) | `client/src/lib/submissionFeedback.ts` |
 | Mock program | New slug 404'd in previews | Fixed: program, signups (every point person plus `builder@example.com`) and judges added | `client/src/lib/mockPrograms.ts` |
 | Content | None | Fixed: `freeSocietyHackContent.ts` plus a migration generated from it. The `UPDATE … WHERE slug=` is a no-op until the program exists, so re-run it after creating the program | `client/src/lib/freeSocietyHackContent.ts`, `supabase/migrations/20261026000000_free_society_hack_2026_content.sql` |
@@ -213,7 +213,7 @@ Everything the playground does now has a server endpoint; `trackedNotOnServer` i
 
 ## 5. Decisions you need to make
 
-1. **Terms.** Paste the 14 Oct Luma text to replace the placeholder.
+1. ~~**Terms.**~~ Done (31 Oct): `client/src/lib/terms/free-society-hack-2026.md`.
 2. **Unconfirmed developer links** (see the llms.txt section above).
 
 ## 6. Merge and production runbook
@@ -223,7 +223,7 @@ The agent never merges, deploys or applies migrations. A CODEOWNER merges; the S
 ### Pre-flight checklist (everything still open, 30 Oct)
 
 **Content (product owner)**
-1. Terms: replace the placeholder in `client/src/lib/submissionTerms.ts` (titled "(PLACEHOLDER)", shown on the submit form) with the 14 Oct Luma text.
+1. ~~Terms~~ Done: the final terms (Submission Terms & Prize Disbursement, also on Notion) are `client/src/lib/terms/free-society-hack-2026.md`, shown by `submissionTerms.ts` on the submit form.
 2. The 8 unconfirmed developer links (llms.txt section above).
 3. The judges: names and emails of the 5 Privacy and 2 Bitrefill judges (invited in the admin, not in git).
 
@@ -280,8 +280,8 @@ The agent never merges, deploys or applies migrations. A CODEOWNER merges; the S
 ### D. Event days
 1. **Tue 3 Nov:** dry run (as staging step 3, with `SUBMIT_TEST_EMAILS`), then delete the test entry and clear the variable.
 2. **Wed 4 Nov 11:00 IST:** status `open`. **20:00:** evening judging.
-3. **Thu 5 Nov 00:00:** status `closed` (scoring still works). **08:00:** morning judging. **10:30:** export the CSV for the line-up.
-4. **13:00:** award the five Privacy podium prizes (Works-0 projects are blocked) and the Agentic prizes, flag two Privacy podium projects for the Ecosystem Prize, PUBLISH RESULTS. Status `completed` after demo day.
+3. **Thu 5 Nov 00:00:** status `closed` (scoring still works). **08:00:** morning judging. **Before 11:00:** export the ranked CSV and contact the top teams. **12:00:** demos of top teams.
+4. **13:30:** award the five Privacy podium prizes (Works-0 projects are blocked) and the Agentic prizes, flag two Privacy podium projects for the Ecosystem Prize, PUBLISH RESULTS. Status `completed` after demo day.
 5. **By Fri 13 Nov / Thu 19 Nov / Fri 4 Dec / Fri 11 Dec:** record the milestone steps in ·ECOSYSTEM PRIZE MILESTONES; release the payouts.
 6. **Fri 20 Nov:** export the builder feedback CSV.
 
