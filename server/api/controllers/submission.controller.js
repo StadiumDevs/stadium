@@ -1,16 +1,31 @@
 import programService from '../services/program.service.js';
+import { extractSupabaseToken, getSupabaseUser } from '../auth/supabaseUser.js';
 import scoringService from '../services/scoring.service.js';
 import programRepository from '../repositories/program.repository.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import programSignupRepository from '../repositories/program-signup.repository.js';
 import submissionScoreRepository from '../repositories/submission-score.repository.js';
+import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
+import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
+import submissionRefusalRepository from '../repositories/submission-refusal.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
-import { validateSubmission, validateScore, validatePrize, prizeTiersFor } from '../utils/submission.validator.js';
+import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
+import { toPublicList } from '../utils/public-submission.js';
+import {
+  validateSubmission,
+  validateSubmissionDetails,
+  videoOptionalFor,
+  validateScore,
+  validateRubricScore,
+  validatePrize,
+  prizeTiersFor,
+} from '../utils/submission.validator.js';
 import { submissionsToCsv } from '../utils/submissions-csv.js';
 import submissionConfirmationService from '../services/submission-confirmation.service.js';
 import prizeAwardService from '../services/prize-award.service.js';
 import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
+import { checkAndStore as checkTxAndStore } from '../services/tx-check.service.js';
 
 // On a Luma-gated cache-miss we lazily re-sync, but only if the last sync is
 // older than this floor. Bounds Luma calls when not-on-list emails retry, while
@@ -20,6 +35,31 @@ const JIT_SYNC_FLOOR_MS = 25 * 1000;
 // Winner selection + publishing are platform-admin only. After requireProgramAdmin,
 // a global admin carries isGlobalAdmin === true; per-program admins do not.
 const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
+
+// Tracked programs: check the testnet txid after the response (never blocks
+// the submission). Re-checked only when the txid changed or was never checked.
+async function scheduleTxCheck(submission, previous = null) {
+  const txid = submission?.details?.testnetTxid ?? null;
+  const unchanged = previous?.details?.testnetTxid === txid && previous?.details?.txCheck;
+  if (unchanged) return;
+  // A changed (or removed) txid must not keep showing the old result.
+  if (previous?.details?.txCheck) {
+    await programSubmissionRepository.updateTracked(submission.id, { txCheck: null });
+  }
+  if (!txid || process.env.TX_CHECK_DISABLED === 'true') return;
+  checkTxAndStore(submission.id, txid);
+}
+
+// A resubmit can change the track: drop prizes (and the Ecosystem flag) for
+// tracks the entry no longer takes part in.
+async function dropPrizesOutsideTrack(submission, tracked) {
+  const entered = submission.details?.track === 'both' ? ['privacy', 'agentic'] : [submission.details?.track];
+  const prizes = submission.prizes || {};
+  const kept = Object.fromEntries(Object.entries(prizes).filter(([t]) => entered.includes(t)));
+  if (Object.keys(kept).length === Object.keys(prizes).length) return;
+  const keepsFlag = submission.ecosystemPrize && !!kept[tracked.ecosystem.track];
+  await programSubmissionRepository.updateTracked(submission.id, { prizes: kept, ecosystemPrize: keepsFlag });
+}
 
 // Shared by publish/unpublish. Standalone (not a method) so Express can bind the
 // route handlers without `this`.
@@ -64,6 +104,8 @@ async function setResultsPublished(req, res, publish) {
   }
 }
 
+const RUBRIC_JUDGES_ONLY = "Admins don't score; judges score from their email sign-in link.";
+
 // The judge identity is whatever the auth gate verified: an email for social
 // judges, a wallet address for the admin fallback. Never read from the body.
 const judgeIdentity = (req) => req.user?.email || req.user?.address || null;
@@ -76,6 +118,47 @@ const resolveProgramId = async (req) => {
   const program = await programService.findBySlug(req.params.slug);
   return program?.id ?? null;
 };
+
+// A refused submission is kept with the reason the builder was shown (so a
+// master admin can review and accept it), then answered exactly as before.
+// Recording is best-effort: it never changes the response. Attempts with no
+// usable email or title aren't recorded (nothing to attribute or accept).
+const ATTEMPT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Best-effort "waiting for approval" email to a verified builder.
+function sendPendingEmail(program, value) {
+  submissionConfirmationService
+    .send({
+      email: value.lumaEmail,
+      submitterName: value.submitterName,
+      programName: program.name,
+      slug: program.slug,
+      projectTitle: value.projectTitle,
+      pendingReview: true,
+    })
+    .catch((err) => console.error('❌ Pending-review email failed:', err));
+}
+
+async function refuse(res, program, body, reasonCode, status, message, { emailVerified = false, code = null, pending = false } = {}) {
+  const email = typeof body?.lumaEmail === 'string' ? body.lumaEmail.trim() : '';
+  const title = typeof body?.projectTitle === 'string' ? body.projectTitle.trim() : '';
+  if (ATTEMPT_EMAIL_RE.test(email) && title) {
+    try {
+      const r = await submissionRefusalRepository.create({ programId: program.id, body, reasonCode, reason: message, emailVerified });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: {},
+        action: pending ? 'submission.held_for_approval' : 'submission.refused',
+        targetType: 'submission_refusal',
+        targetId: r?.id ?? null,
+        metadata: { reasonCode, emailVerified, email: email.toLowerCase(), title: title.slice(0, 200) },
+      });
+    } catch (err) {
+      console.error('❌ Could not record a refused submission:', err);
+    }
+  }
+  if (pending) return res.status(status).json({ status: 'pending', code, message });
+  return res.status(status).json({ status: 'error', message, ...(code ? { code } : {}) });
+}
 
 class SubmissionController {
   // Public: anyone can submit a project to a program by filling the form.
@@ -90,9 +173,38 @@ class SubmissionController {
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
-      const v = validateSubmission(req.body);
+      // Tracked programs (e.g. Free Society Hack) also need their track
+      // fields; validated against the program's config and stored as details.
+      const tracked = trackedProgramFor(program.slug);
+      const v = validateSubmission(req.body, { videoOptional: videoOptionalFor(tracked, req.body?.details) });
       if (!v.ok) {
-        return res.status(400).json({ status: 'error', message: v.error });
+        return refuse(res, program, req.body, 'invalid', 400, v.error);
+      }
+      if (tracked) {
+        const dv = validateSubmissionDetails(tracked, req.body?.details);
+        if (!dv.ok) {
+          return refuse(res, program, req.body, 'invalid', 400, dv.error);
+        }
+        v.value.details = dv.value;
+      }
+      const submitterEmail = String(v.value.lumaEmail || '').trim().toLowerCase();
+      // A builder can prove they own the email with the sign-in link (Supabase
+      // magic link): the token's email must be the submission's email.
+      let emailVerified = false;
+      const token = extractSupabaseToken(req);
+      if (token) {
+        const user = await getSupabaseUser(token);
+        emailVerified = !!user?.email && user.email.trim().toLowerCase() === submitterEmail;
+      }
+      // Tracked programs: updating an existing entry needs the email verified, so
+      // nobody can overwrite another team's submission by typing their email.
+      if (tracked && !emailVerified) {
+        const current = await programSubmissionRepository.findByEmail(program.id, submitterEmail);
+        if (current) {
+          return refuse(res, program, req.body, 'update_unverified', 401, 'Verify your email to update your submission.', {
+            code: 'verify_to_update',
+          });
+        }
       }
       // Only checked-in attendees may submit: the email must be on the program's
       // imported Luma (checked-in / approved guest) list. SUBMIT_TEST_EMAILS is a
@@ -105,7 +217,6 @@ class SubmissionController {
           .map((e) => e.trim().toLowerCase())
           .filter(Boolean),
       );
-      const submitterEmail = String(v.value.lumaEmail || '').trim().toLowerCase();
       if (!testEmails.has(submitterEmail)) {
         let present = await programSignupRepository.existsByEmail(program.id, submitterEmail);
         // Luma-gated programs: on a miss, lazily re-sync the checked-in list
@@ -116,7 +227,8 @@ class SubmissionController {
         let transient = false;
         if (!present && lumaSyncService.isActive(program)) {
           const lastSync = program.lastGuestSyncAt ? Date.parse(program.lastGuestSyncAt) : 0;
-          const stale = !lastSync || Date.now() - lastSync > JIT_SYNC_FLOOR_MS;
+          // A verified email always gets a fresh check against the Luma feed.
+          const stale = emailVerified || !lastSync || Date.now() - lastSync > JIT_SYNC_FLOOR_MS;
           if (stale) {
             const sync = await lumaSyncService.syncProgram(program);
             transient = sync.status === 'truncated' || String(sync.status).startsWith('error');
@@ -131,15 +243,29 @@ class SubmissionController {
         }
         if (!present) {
           if (transient) {
-            return res.status(503).json({
-              status: 'error',
-              message: "Couldn't verify your check-in right now. Please try again in a moment.",
+            return refuse(res, program, req.body, 'unverified', 503, "Couldn't verify your check-in right now. Please try again in a moment.");
+          }
+          if (emailVerified) {
+            // Verified, but still not on Luma's checked-in list: held for a
+            // master admin to approve (it keeps this time if accepted).
+            const message =
+              "Received. Your email isn't on Luma's checked-in list yet, so an organiser will confirm it. You don't need to submit again.";
+            sendPendingEmail(program, v.value);
+            return refuse(res, program, req.body, 'not_checked_in', 202, message, {
+              emailVerified: true,
+              code: 'pending_review',
+              pending: true,
             });
           }
-          return res.status(403).json({
-            status: 'error',
-            message: 'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
-          });
+          return refuse(
+            res,
+            program,
+            req.body,
+            'not_checked_in',
+            403,
+            'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
+            { code: 'not_checked_in' },
+          );
         }
       }
       // Deadline is informational: a submit after event end is flagged late, not blocked.
@@ -159,6 +285,10 @@ class SubmissionController {
         resubmitted = false;
         statusCode = 201;
       }
+      if (tracked) {
+        await scheduleTxCheck(submission, existing);
+        if (existing) await dropPrizesOutsideTrack(submission, tracked);
+      }
 
       // Confirmation email is best-effort — a Resend failure never fails the submission.
       let emailSent = false;
@@ -172,6 +302,7 @@ class SubmissionController {
           projectTitle: submission.projectTitle,
           deadline: program.eventEndsAt ?? null,
           resubmitted,
+          details: submission.details ?? null,
         });
         emailSent = result.ok;
         emailReason = result.ok ? null : result.reason;
@@ -283,6 +414,264 @@ class SubmissionController {
       res.status(200).json({ status: 'success', data: score });
     } catch (error) {
       console.error('❌ Error saving score:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to save score' });
+    }
+  }
+
+  // Builder (email sign-in): their own submission, to edit it. The token's
+  // email is the key; nothing else is exposed.
+  async mySubmission(req, res) {
+    try {
+      const token = extractSupabaseToken(req);
+      const user = token ? await getSupabaseUser(token) : null;
+      if (!user?.email) {
+        return res.status(401).json({ status: 'error', code: 'verify_email', message: 'Verify your email to load your submission.' });
+      }
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const s = await programSubmissionRepository.findByEmail(program.id, user.email);
+      if (!s) return res.status(404).json({ status: 'error', message: 'No submission for this email yet' });
+      res.status(200).json({
+        status: 'success',
+        data: {
+          submitterName: s.submitterName,
+          lumaEmail: s.lumaEmail,
+          projectTitle: s.projectTitle,
+          projectBrief: s.projectBrief,
+          videoUrl: s.videoUrl,
+          githubUrl: s.githubUrl,
+          details: s.details,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error loading own submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load your submission' });
+    }
+  }
+
+  // Public: a tracked program's submissions as they come in (no emails; names
+  // hidden for anonymous entries). Prizes appear with the awards slice.
+  async publicSubmissions(req, res) {
+    try {
+      if (!trackedProgramFor(req.params.slug)) {
+        return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
+      }
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const rows = await programSubmissionRepository.listByProgramId(program.id);
+      res.status(200).json({
+        status: 'success',
+        data: { published: !!program.resultsPublishedAt, submissions: toPublicList(rows, !!program.resultsPublishedAt) },
+      });
+    } catch (error) {
+      console.error('❌ Error listing public submissions:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load submissions' });
+    }
+  }
+
+  // Program admin: refused submissions, newest first, with the reason the
+  // builder was shown and what they tried to submit.
+  async listRefusals(req, res) {
+    try {
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const data = await submissionRefusalRepository.listByProgram(programId);
+      res.status(200).json({ status: 'success', data });
+    } catch (error) {
+      console.error('❌ Error listing refused submissions:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load refused submissions' });
+    }
+  }
+
+  // Master (global) admin only: let a refused project in. Skips only the Luma
+  // check-in gate: the stored attempt must still pass the same validation. The
+  // entry keeps the attempt's time, so it lands in the judging batch of when
+  // the builder really submitted.
+  async acceptRefusal(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) {
+        return res.status(403).json({ status: 'error', message: 'Only a master admin can accept a refused submission' });
+      }
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const refusal = await submissionRefusalRepository.findById(req.params.refusalId);
+      if (!refusal || refusal.programId !== program.id) {
+        return res.status(404).json({ status: 'error', message: 'Refused submission not found' });
+      }
+      if (refusal.status === 'accepted') {
+        return res.status(409).json({ status: 'error', message: 'Already accepted' });
+      }
+      const tracked = trackedProgramFor(program.slug);
+      const v = validateSubmission(refusal.payload, { videoOptional: videoOptionalFor(tracked, refusal.payload?.details) });
+      if (!v.ok) {
+        return res.status(422).json({ status: 'error', message: `Can't accept: ${v.error}. Ask the builder to resubmit.` });
+      }
+      if (tracked) {
+        const dv = validateSubmissionDetails(tracked, refusal.payload.details);
+        if (!dv.ok) {
+          return res.status(422).json({ status: 'error', message: `Can't accept: ${dv.error}. Ask the builder to resubmit.` });
+        }
+        v.value.details = dv.value;
+      }
+      const existing = await programSubmissionRepository.findByEmail(program.id, v.value.lumaEmail);
+      if (existing) {
+        return res.status(409).json({ status: 'error', message: 'That email already has a submission for this program' });
+      }
+      const late = !!(program.eventEndsAt && Date.parse(refusal.createdAt) > Date.parse(program.eventEndsAt));
+      const { submission } = await programSubmissionRepository.create({
+        programId: program.id,
+        ...v.value,
+        late,
+        createdAt: refusal.createdAt,
+        acceptedFromRefusalId: refusal.id,
+      });
+      const reviewedBy = req.user?.address ?? null;
+      const updated = await submissionRefusalRepository.setReviewed(refusal.id, {
+        status: 'accepted',
+        reviewedBy,
+        acceptedSubmissionId: submission.id,
+      });
+      auditLog.logSafe({
+        programId: program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'submission.refusal_accepted',
+        targetType: 'submission',
+        targetId: submission.id,
+        metadata: { refusalId: refusal.id, reasonCode: refusal.reasonCode, email: refusal.lumaEmail },
+      });
+      if (tracked) await scheduleTxCheck(submission);
+      res.status(200).json({ status: 'success', data: { refusal: updated, submission } });
+    } catch (error) {
+      console.error('❌ Error accepting a refused submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to accept the submission' });
+    }
+  }
+
+  // Master (global) admin only: mark a refusal reviewed and not accepted. Kept.
+  async dismissRefusal(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) {
+        return res.status(403).json({ status: 'error', message: 'Only a master admin can dismiss a refused submission' });
+      }
+      const programId = await resolveProgramId(req);
+      const refusal = await submissionRefusalRepository.findById(req.params.refusalId);
+      if (!refusal || refusal.programId !== programId) {
+        return res.status(404).json({ status: 'error', message: 'Refused submission not found' });
+      }
+      if (refusal.status === 'accepted') {
+        return res.status(409).json({ status: 'error', message: 'Already accepted' });
+      }
+      const updated = await submissionRefusalRepository.setReviewed(refusal.id, { status: 'dismissed', reviewedBy: req.user?.address ?? null });
+      auditLog.logSafe({
+        programId,
+        actor: { chain: req.user?.chain, wallet: req.user?.address },
+        action: 'submission.refusal_dismissed',
+        targetType: 'submission_refusal',
+        targetId: refusal.id,
+        metadata: { email: refusal.lumaEmail },
+      });
+      res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+      console.error('❌ Error dismissing a refused submission:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to dismiss' });
+    }
+  }
+
+  // Judge/admin: the program's judges with their profile (name, tracks). Emails
+  // go to admins and to each judge for their own row only, so judges see
+  // each other by name, as in the progress table.
+  async listJudges(req, res) {
+    try {
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const judges = await programAdminEmailRepository.listJudges(programId);
+      const me = (req.user?.email || '').toLowerCase();
+      const isAdminCaller = !req.user?.email || req.user?.role === 'admin';
+      const data = judges.map((j) => ({
+        name: j.name || j.email.split('@')[0],
+        tracks: j.tracks,
+        email: isAdminCaller || j.email === me ? j.email : null,
+      }));
+      res.status(200).json({ status: 'success', data });
+    } catch (error) {
+      console.error('❌ Error listing judges:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load judges' });
+    }
+  }
+
+  // Judge/admin: a tracked program's submissions with their details, track and
+  // judging batch (from the first submission time; see trackedPrograms.js).
+  // Every Luma-gated submission lands in its batch with no manual step.
+  async listTracked(req, res) {
+    try {
+      const tracked = trackedProgramFor(req.params.slug);
+      if (!tracked) return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
+      const program = await programService.findBySlug(req.params.slug);
+      if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const rows = await programSubmissionRepository.listByProgramId(program.id);
+      const data = rows.map((s) => ({ ...s, batch: batchFor(tracked.judgingBatches, s.createdAt) }));
+      res.status(200).json({
+        status: 'success',
+        data: { submissions: data, batches: tracked.judgingBatches, resultsPublishedAt: program.resultsPublishedAt ?? null },
+      });
+    } catch (error) {
+      console.error('❌ Error listing tracked submissions:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load submissions' });
+    }
+  }
+
+  // Judge (email session) only: this judge's rubric scores for a tracked
+  // program, so their work restores after a refresh or on another device.
+  async listMyRubricScores(req, res) {
+    try {
+      if (!req.user?.email) {
+        return res.status(403).json({ status: 'error', message: RUBRIC_JUDGES_ONLY });
+      }
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const scores = await submissionRubricScoreRepository.listByJudge(programId, req.user.email);
+      res.status(200).json({ status: 'success', data: scores });
+    } catch (error) {
+      console.error('❌ Error listing rubric scores:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to load scores' });
+    }
+  }
+
+  // Judge (email session) only: autosave this judge's rubric score for one
+  // submission and track. Partial scores are allowed; the identity is the
+  // verified session email (any judgeEmail in the body is ignored).
+  async upsertRubricScore(req, res) {
+    try {
+      const judgeEmail = req.user?.email;
+      if (!judgeEmail) {
+        return res.status(403).json({ status: 'error', message: RUBRIC_JUDGES_ONLY });
+      }
+      const programId = await resolveProgramId(req);
+      if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const { submissionId, track } = req.params;
+      if (Array.isArray(req.user.tracks) && !req.user.tracks.includes(track)) {
+        return res.status(403).json({ status: 'error', message: `You are not a judge for the ${track} track.` });
+      }
+      const submission = await programSubmissionRepository.findById(submissionId);
+      if (!submission || submission.programId !== programId) {
+        return res.status(404).json({ status: 'error', message: 'Submission not found' });
+      }
+      const v = validateRubricScore(track, req.body);
+      if (!v.ok) {
+        return res.status(400).json({ status: 'error', message: v.error });
+      }
+      const score = await submissionRubricScoreRepository.upsert({
+        submissionId,
+        programId,
+        judgeEmail,
+        track,
+        ...v.value,
+      });
+      res.status(200).json({ status: 'success', data: score });
+    } catch (error) {
+      console.error('❌ Error saving rubric score:', error);
       res.status(500).json({ status: 'error', message: 'Failed to save score' });
     }
   }

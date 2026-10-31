@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { api, type ApiProgram } from "@/lib/api";
+import { hasLlms, llmsFullPath } from "@/lib/llms/llmsPrograms";
 
 const ProgramsPage = () => {
   const [programs, setPrograms] = useState<ApiProgram[]>([]);
@@ -34,9 +35,11 @@ const ProgramsPage = () => {
   const matchesType = (p: ApiProgram) => !typeFilter || p.programType === typeFilter;
 
   const openPrograms = programs.filter((p) => p.status === "open" && matchesType(p));
-  const pastPrograms = programs.filter(
-    (p) => (p.status === "completed" || p.status === "closed") && matchesType(p),
-  );
+  // Past programs: most recent first, by when the event happened.
+  const eventTime = (p: ApiProgram) => Date.parse(p.eventStartsAt ?? p.eventEndsAt ?? p.createdAt) || 0;
+  const pastPrograms = programs
+    .filter((p) => (p.status === "completed" || p.status === "closed") && matchesType(p))
+    .sort((a, b) => eventTime(b) - eventTime(a));
 
   return (
     <div className="min-h-screen scanlines">
@@ -135,7 +138,7 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
   };
   const opens = date(program.applicationsOpenAt);
   const closes = date(program.applicationsCloseAt);
-  const startsAt = date(program.eventStartsAt);
+  const startsAt = date(program.eventStartsAt ?? program.eventEndsAt);
 
   const href = customRouteForProgramType(program.programType) ?? `/programs/${program.slug}`;
 
@@ -148,10 +151,16 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
         ? "CLOSED"
         : "DRAFT";
 
+  // The event's city (the last part of the location, e.g. "True Tramm Trunk, BKC, Mumbai" → Mumbai).
+  const city = program.location ? program.location.split(",").pop()?.trim() || null : null;
+  const lumaLabel = program.eventUrl ? program.eventUrl.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") : null;
+
+  // The whole card opens the program (the title link is stretched over it);
+  // the Luma link sits above that overlay so it opens Luma instead.
   return (
-    <Link
-      to={href}
-      className="lcd block px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px] relative"
+    <div
+      className="lcd relative px-4 py-4 transition-transform duration-150 hover:-translate-y-[1px]"
+      data-testid="program-card"
     >
       <div className="absolute top-3 right-3 flex items-center gap-1">
         <span className={`led led-sm${isOpen ? " led-pulse" : ""}`} aria-hidden="true" />
@@ -159,24 +168,58 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
       </div>
 
       <div className="label-hw-dim mb-2">PROGRAM {number}</div>
-      <h3 className="font-display text-2xl uppercase tracking-tight text-display line-clamp-1 mb-1">
-        {program.name}
+      <h3 className="font-display text-2xl uppercase tracking-tight text-display line-clamp-1 mb-3">
+        <Link to={href} className="after:absolute after:inset-0 focus:outline-none focus-visible:underline">
+          {program.name}
+        </Link>
       </h3>
-      <div className="label-hw-dim mb-3">{PROGRAM_TYPE_LABEL[program.programType]}</div>
 
       {program.description && (
         <p className="text-[12px] text-body leading-[1.65] line-clamp-3 mb-3">{program.description}</p>
       )}
 
       <div className="pt-3 border-t border-hairline-subtle space-y-1">
-        {startsAt && (
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
+          <span className="label-hw-dim">TYPE</span>
+          <span className="font-mono text-[11px] text-display">{PROGRAM_TYPE_LABEL[program.programType]}</span>
+        </div>
+        {(startsAt || city) && (
+          <div className="flex items-center justify-between gap-3" data-testid="program-card-event">
             <span className="label-hw-dim">EVENT</span>
-            <span className="font-mono text-[11px] text-display">{startsAt}</span>
+            <span className="font-mono text-[11px] text-display text-right">{[startsAt, city].filter(Boolean).join(" · ")}</span>
           </div>
         )}
-        {(opens || closes) && (
-          <div className="flex items-center justify-between">
+        {program.eventUrl && lumaLabel && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="label-hw-dim">LUMA</span>
+            <a
+              href={program.eventUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative z-10 font-mono text-[11px] text-display hover:underline truncate"
+              data-testid="program-card-luma"
+            >
+              {lumaLabel} ↗
+            </a>
+          </div>
+        )}
+        {hasLlms(program.slug) && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="label-hw-dim">AI BRIEF</span>
+            <a
+              href={llmsFullPath(program.slug)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative z-10 font-mono text-[11px] text-display hover:underline"
+              data-testid="program-card-llms"
+            >
+              llms.txt ↗
+            </a>
+          </div>
+        )}
+        {/* The application window only matters while a program is open. */}
+        {isOpen && (opens || closes) && (
+          <div className="flex items-center justify-between gap-3">
             <span className="label-hw-dim">APPS</span>
             <span className="font-mono text-[11px] text-display">
               {opens && closes ? `${opens} → ${closes}` : opens || closes}
@@ -184,7 +227,7 @@ function ProgramRackCard({ program, number }: { program: ApiProgram; number: str
           </div>
         )}
       </div>
-    </Link>
+    </div>
   );
 }
 

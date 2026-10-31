@@ -1,3 +1,4 @@
+import { trackedProgramFor } from '../constants/trackedPrograms.js';
 import programService from '../services/program.service.js';
 import programApplicationService from '../services/program-application.service.js';
 import programSponsorService from '../services/program-sponsor.service.js';
@@ -485,11 +486,37 @@ class ProgramController {
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
+      // Judge profile: a display name, and on tracked programs the tracks
+      // they may score (omitted / null = every track).
+      const profile = {};
+      if (req.body?.name !== undefined) {
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        if (name.length > 100) {
+          return res.status(422).json({ status: 'error', message: 'Name is max 100 characters' });
+        }
+        profile.name = name || null;
+      }
+      if (role === 'judge' && req.body?.tracks === null) {
+        profile.tracks = null; // clear a restriction: every track
+      } else if (role === 'judge' && req.body?.tracks !== undefined) {
+        const allowed = trackedProgramFor(program.slug)?.judgedTracks ?? [];
+        const tracks = req.body.tracks;
+        if (!Array.isArray(tracks) || tracks.length === 0 || tracks.some((t) => !allowed.includes(t))) {
+          return res.status(422).json({
+            status: 'error',
+            message: allowed.length
+              ? `tracks must be a non-empty list of: ${allowed.join(', ')}`
+              : 'This program has no judging tracks',
+          });
+        }
+        profile.tracks = [...new Set(tracks)];
+      }
       const added = await programAdminEmailRepository.add(
         program.id,
         email,
         req.user?.address ?? null,
         role,
+        profile,
       );
 
       // The grant has landed; emailing the invite is best-effort so a missing

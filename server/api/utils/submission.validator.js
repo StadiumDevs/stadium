@@ -2,6 +2,8 @@
 // Pure functions — no DB, no I/O — so they're trivially unit-testable and
 // reusable from the controller.
 
+import { RUBRICS, RUBRIC_CHECKS } from '../constants/rubrics.js';
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Max length of the project brief; mirrored by BRIEF_MAX in the client form.
@@ -107,7 +109,8 @@ export function validateFeedback(feedback) {
 
 // Returns { ok: true, value } with trimmed/normalized fields, or
 // { ok: false, error } with a human-readable message.
-export function validateSubmission(body = {}) {
+// `videoOptional`: a tracked track where the demo video is optional (stored as '').
+export function validateSubmission(body = {}, { videoOptional = false } = {}) {
   const submitterName = str(body.submitterName);
   const lumaEmail = str(body.lumaEmail);
   const projectTitle = str(body.projectTitle);
@@ -127,7 +130,7 @@ export function validateSubmission(body = {}) {
   if (!projectBrief || projectBrief.length > BRIEF_MAX) {
     return { ok: false, error: `A short brief of what your project does is required (max ${BRIEF_MAX} characters)` };
   }
-  if (!isHttpUrl(videoUrl)) {
+  if (videoUrl ? !isHttpUrl(videoUrl) : !videoOptional) {
     return { ok: false, error: 'A valid video demo link (http/https) is required' };
   }
   if (!isHttpUrl(githubUrl)) {
@@ -203,4 +206,248 @@ export function validateScore(body = {}) {
     return { ok: false, error: 'Notes must be 5000 characters or fewer' };
   }
   return { ok: true, value: { ...out, notes } };
+}
+
+// Rubric scores (tracked programs). Partial is allowed: each criterion is an
+// integer 0..max or null (not scored yet), so a judge's work can autosave.
+// `revisit` is the judge's own "come back to this" mark; `checks` records
+// what they looked at before scoring (video, repo, tx).
+export function validateRubricScore(track, body = {}) {
+  const rubric = RUBRICS[track];
+  if (!rubric) return { ok: false, error: `Unknown track: ${track}` };
+  const input = body.criteria;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return { ok: false, error: 'criteria must be an object' };
+  }
+  const criteria = {};
+  for (const [key, value] of Object.entries(input)) {
+    const c = rubric.find((x) => x.id === key);
+    if (!c) return { ok: false, error: `Unknown criterion for ${track}: ${key}` };
+    if (value === null) {
+      criteria[key] = null;
+      continue;
+    }
+    if (!Number.isInteger(value) || value < 0 || value > c.max) {
+      return { ok: false, error: `${key} must be a whole number between 0 and ${c.max}` };
+    }
+    criteria[key] = value;
+  }
+  const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
+  if (notes.length > 5000) {
+    return { ok: false, error: 'Notes must be 5000 characters or fewer' };
+  }
+  let session = null;
+  if (body.session !== undefined && body.session !== null && body.session !== '') {
+    if (typeof body.session !== 'string' || !/^[a-z0-9-]{1,32}$/.test(body.session)) {
+      return { ok: false, error: 'session must be up to 32 lowercase letters, digits or dashes' };
+    }
+    session = body.session;
+  }
+  if (body.revisit !== undefined && typeof body.revisit !== 'boolean') {
+    return { ok: false, error: 'revisit must be true or false' };
+  }
+  const checks = {};
+  if (body.checks !== undefined && body.checks !== null) {
+    if (typeof body.checks !== 'object' || Array.isArray(body.checks)) {
+      return { ok: false, error: 'checks must be an object' };
+    }
+    for (const [key, value] of Object.entries(body.checks)) {
+      if (!RUBRIC_CHECKS.includes(key)) return { ok: false, error: `Unknown check: ${key}` };
+      if (typeof value !== 'boolean') return { ok: false, error: `${key} check must be true or false` };
+      checks[key] = value;
+    }
+  }
+  return { ok: true, value: { criteria, notes, session, revisit: body.revisit === true, checks } };
+}
+
+// Tracked-program submission fields (`details`), mirroring the client form
+// (client/src/components/program/tracked/trackedForm.ts). Unknown keys are
+// dropped, and server-set fields (txCheck, milestone) are never
+// taken from the client.
+export const PITCH_MAX = 140;
+const TXID_RE = /^[0-9a-f]{64}$/i;
+const isApp = (appType) => /app/i.test(appType);
+const strList = (v) => (Array.isArray(v) ? v : []);
+export const PRIVACY_NOTE_MAX = 3000;
+export const BITREFILL_FEEDBACK_MAX = 2000;
+
+// Whether the demo video is optional for this submission (tracked programs
+// only: the Privacy track). Called before validateSubmission.
+export const videoOptionalFor = (config, details) =>
+  !!config && (config.videoOptionalTracks ?? []).includes(str(details?.track));
+
+export function validateSubmissionDetails(config, details) {
+  if (!config) return { ok: false, error: 'This program does not take tracked submissions' };
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
+    return { ok: false, error: 'Submission details are required for this program' };
+  }
+  const d = details;
+  const track = str(d.track);
+  if (!config.submissionTracks.includes(track)) return { ok: false, error: 'Choose a track' };
+  const judgesPrivacy = track !== 'agentic';
+
+  const themes = strList(d.themes).map(str).filter(Boolean);
+  if (themes.some((t) => !config.themes.includes(t))) return { ok: false, error: 'Unknown theme' };
+  if (judgesPrivacy && themes.length === 0) return { ok: false, error: 'Pick at least one theme' };
+
+  const pitch = str(d.pitch);
+  if (!pitch) return { ok: false, error: 'A one-line pitch is required' };
+  if (pitch.length > PITCH_MAX) return { ok: false, error: `The pitch must be ${PITCH_MAX} characters or fewer` };
+
+  if (!Array.isArray(d.team ?? [])) return { ok: false, error: 'team must be a list' };
+  const rawTeam = d.team ?? [];
+  if (rawTeam.length > config.maxTeam) return { ok: false, error: `At most ${config.maxTeam} teammates` };
+  const team = [];
+  for (const m of rawTeam) {
+    const name = str(m?.name);
+    const email = str(m?.email);
+    const role = str(m?.role);
+    if (!name || name.length > 100) return { ok: false, error: 'Each teammate needs a name (max 100 characters)' };
+    if (email && !EMAIL_RE.test(email)) return { ok: false, error: `Teammate ${name} has an invalid email` };
+    if (role.length > 60) return { ok: false, error: 'A teammate role is max 60 characters' };
+    team.push({ name, email: email ? email.toLowerCase() : null, role: role || null });
+  }
+
+  const appType = str(d.appType);
+  if (!config.appTypes.includes(appType)) return { ok: false, error: 'Say what kind of project it is' };
+  const publicUrl = str(d.publicUrl) || null;
+  if (publicUrl && !isHttpUrl(publicUrl)) return { ok: false, error: 'The public URL must start with http:// or https://' };
+  if (isApp(appType) && !publicUrl) return { ok: false, error: 'Apps need a public URL (http/https)' };
+
+  const demoVideoLength = str(d.demoVideoLength) || null;
+  if (demoVideoLength && demoVideoLength.length > 10) return { ok: false, error: 'Video length is max 10 characters (e.g. 1:54)' };
+
+  const technologies = strList(d.technologies).map(str).filter(Boolean);
+  if (technologies.length === 0) return { ok: false, error: 'List every technology you used' };
+  if (technologies.length > 20 || technologies.some((t) => t.length > 60)) {
+    return { ok: false, error: 'Technologies: at most 20, each max 60 characters' };
+  }
+
+  const txidRequired = config.txidTracks.includes(track);
+  const testnetTxid = txidRequired ? str(d.testnetTxid) || null : null;
+  if (txidRequired && !testnetTxid) return { ok: false, error: 'Privacy entries need one testnet transaction id' };
+  if (testnetTxid && !TXID_RE.test(testnetTxid)) {
+    return { ok: false, error: 'A testnet transaction id is 64 hex characters' };
+  }
+
+  const nextStep = str(d.nextStep);
+  if (!nextStep) return { ok: false, error: 'A next milestone for the 30 days is required' };
+  if (nextStep.length > 1000) return { ok: false, error: 'The next milestone is max 1000 characters' };
+  const nextStepLinks = strList(d.nextStepLinks).map(str).filter(Boolean);
+  if (nextStepLinks.length > 10) return { ok: false, error: 'At most 10 next-milestone links' };
+  if (nextStepLinks.some((l) => !isHttpUrl(l))) {
+    return { ok: false, error: 'Each next-milestone link must start with http:// or https://' };
+  }
+
+  // Builder feedback is free text (no area tags; any old frictionAreas are ignored).
+  const frictionNotes = str(d.frictionNotes) || null;
+  if (frictionNotes && frictionNotes.length > 2000) return { ok: false, error: 'Friction notes are max 2000 characters' };
+
+  // Privacy and trust note: judges score Private from it.
+  const noteRequired = (config.privacyNoteTracks ?? []).includes(track);
+  const privacyNote = noteRequired ? str(d.privacyNote) || null : null;
+  if (noteRequired && !privacyNote) {
+    return { ok: false, error: 'Privacy entries need a privacy and trust note' };
+  }
+  if (privacyNote && privacyNote.length > PRIVACY_NOTE_MAX) {
+    return { ok: false, error: `The privacy and trust note is max ${PRIVACY_NOTE_MAX} characters` };
+  }
+
+  // Bitrefill feedback (Agentic Commerce): what worked, what didn't.
+  const feedbackRequired = (config.bitrefillFeedbackTracks ?? []).includes(track);
+  let bitrefillFeedback = null;
+  if (feedbackRequired) {
+    const raw = d.bitrefillFeedback && typeof d.bitrefillFeedback === 'object' ? d.bitrefillFeedback : {};
+    const worked = str(raw.worked);
+    const didnt = str(raw.didnt);
+    if (!worked || !didnt) {
+      return { ok: false, error: "Agentic Commerce entries need the Bitrefill feedback: what worked and what didn't" };
+    }
+    if (worked.length > BITREFILL_FEEDBACK_MAX || didnt.length > BITREFILL_FEEDBACK_MAX) {
+      return { ok: false, error: `Each Bitrefill feedback answer is max ${BITREFILL_FEEDBACK_MAX} characters` };
+    }
+    bitrefillFeedback = { worked, didnt };
+  }
+
+  if (d.anonymous !== undefined && typeof d.anonymous !== 'boolean') {
+    return { ok: false, error: 'anonymous must be true or false' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      track,
+      themes: judgesPrivacy ? themes : [],
+      pitch,
+      team,
+      appType,
+      publicUrl,
+      demoVideoLength,
+      technologies,
+      network: judgesPrivacy ? 'testnet (NU7)' : null,
+      pool: judgesPrivacy ? 'shielded (Ironwood), unified addresses' : null,
+      testnetTxid,
+      nextStep,
+      nextStepLinks,
+      frictionNotes,
+      privacyNote,
+      bitrefillFeedback,
+      anonymous: d.anonymous === true,
+    },
+  };
+}
+
+// Ecosystem Prize milestone edits. Builders (verified email) may change only
+// the sentence and the delivery link; admins may change everything.
+const MILESTONE_BUILDER_KEYS = ['sentence', 'deliveryLink'];
+const MILESTONE_ADMIN_KEYS = [
+  ...MILESTONE_BUILDER_KEYS,
+  'partnerName',
+  'partnerProject',
+  'agreedAt',
+  'checkedInAt',
+  'partnerConfirmed',
+  'partnerConfirmedAt',
+  'loungeDate',
+  'payoutStatus',
+  'payoutReleasedAt',
+];
+const MILESTONE_DATE_KEYS = ['agreedAt', 'checkedInAt', 'partnerConfirmedAt', 'loungeDate', 'payoutReleasedAt'];
+const PAYOUT_STATUSES = ['pending', 'released', 'not_completed'];
+
+export function validateMilestonePatch(patch, role) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    return { ok: false, error: 'A milestone update is required' };
+  }
+  const allowed = role === 'admin' ? MILESTONE_ADMIN_KEYS : MILESTONE_BUILDER_KEYS;
+  const out = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (!allowed.includes(key)) {
+      return { ok: false, error: role === 'admin' ? `Unknown milestone field: ${key}` : `Builders can only change the sentence and the delivery link` };
+    }
+    if (key === 'sentence') {
+      const v = str(value);
+      if (!v || v.length > 500) return { ok: false, error: 'The milestone sentence is required (max 500 characters)' };
+      out.sentence = v;
+    } else if (key === 'deliveryLink') {
+      const v = str(value);
+      if (v && !isHttpUrl(v)) return { ok: false, error: 'The delivery link must start with http:// or https://' };
+      out.deliveryLink = v || null;
+    } else if (MILESTONE_DATE_KEYS.includes(key)) {
+      if (value === null || value === '') out[key] = null;
+      else if (typeof value === 'string' && Number.isFinite(Date.parse(value))) out[key] = value;
+      else return { ok: false, error: `${key} must be a date or null` };
+    } else if (key === 'partnerConfirmed') {
+      if (value !== null && typeof value !== 'boolean') return { ok: false, error: 'partnerConfirmed must be true, false or null' };
+      out.partnerConfirmed = value;
+    } else if (key === 'payoutStatus') {
+      if (!PAYOUT_STATUSES.includes(value)) return { ok: false, error: `payoutStatus must be one of ${PAYOUT_STATUSES.join(', ')}` };
+      out.payoutStatus = value;
+    } else {
+      const v = str(value);
+      if (v.length > 200) return { ok: false, error: `${key} is max 200 characters` };
+      out[key] = v || null;
+    }
+  }
+  return { ok: true, value: out };
 }

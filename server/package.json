@@ -26,6 +26,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.6",
+    "@grpc/proto-loader": "^0.8.1",
     "@polkadot-api/descriptors": "file:.papi/descriptors",
     "@supabase/supabase-js": "^2.93.2",
     "@talismn/siws": "^1.0.0",

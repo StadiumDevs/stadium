@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 /**
  * Minimal in-memory fake of the Supabase client, covering the query surface the
  * repositories actually use: from().select/insert/upsert/delete, .eq, .order,
@@ -36,7 +37,11 @@ export function createFakeSupabase(initial = {}) {
       const t = getTable(table);
       const rows = Array.isArray(state.payload) ? state.payload : [state.payload];
       if (state.op === 'insert') {
-        const inserted = rows.map((r) => ({ ...r }));
+        // Like the real columns' DEFAULT NOW(): stamp created_at / updated_at
+        // and a UUID id when the insert doesn't set them (judging batches read
+        // created_at; refusals use a generated id).
+        const now = new Date().toISOString();
+        const inserted = rows.map((r) => ({ id: randomUUID(), created_at: now, updated_at: now, ...r }));
         t.push(...inserted);
         state._result = inserted;
       } else if (state.op === 'upsert') {

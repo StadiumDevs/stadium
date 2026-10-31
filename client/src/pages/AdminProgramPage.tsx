@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { HardwareToggle } from "@/components/hardware-toggle";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
+import { readAdminToken } from "@/lib/auth/adminSession";
 import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import { isAdmin as checkIsAdmin, ADMIN_ADDRESSES } from "@/lib/constants";
 import {
   api,
+  USE_MOCK_DATA,
   type ApiProgram,
   type ApiProgramApplication,
   ApiError,
@@ -22,6 +24,12 @@ import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection"
 import { LumaGuestsSection } from "@/components/admin/LumaGuestsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
 import { ProgramResultsSummarySection } from "@/components/admin/ProgramResultsSummarySection";
+import { RubricJudgingSection } from "@/components/admin/tracked/RubricJudgingSection";
+import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdminSection";
+import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
+import { MockPlaygroundBar } from "@/components/admin/tracked/MockPlaygroundBar";
+import { RefusedSubmissionsSection } from "@/components/admin/RefusedSubmissionsSection";
+import { getProgramProfile } from "@/lib/programProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +53,13 @@ const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
 const AdminProgramPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const { toast } = useToast();
+  // Tracked programs (programProfiles.ts) swap in rubric judging + milestones.
+  const profile = getProgramProfile(slug);
+  // Mock mode only: `?judge=<email>` stands in for a judge's emailed sign-in
+  // link (the playground has no Supabase). Ignored against a real API.
+  const [searchParams] = useSearchParams();
+  const mockJudgeEmail = USE_MOCK_DATA && profile ? searchParams.get("judge") : null;
+  const getMockJudgeAuth = useCallback(async () => undefined, []);
   const auth = useWalletAuth();
   const connectedAddress = auth.account?.address ?? null;
   // Phase 3 #95: a global admin matches `ADMIN_ADDRESSES`; a per-program
@@ -61,6 +76,9 @@ const AdminProgramPage = () => {
   // renders because `getAdminBearerHeaders` is memoized against `account`.
   const { getAdminBearerHeaders } = auth;
   const getAdminAuth = useCallback(() => getAdminBearerHeaders(), [getAdminBearerHeaders]);
+  // Background refreshes (the judges' progress poll) reuse the session and
+  // never open the wallet; without a session they skip silently.
+  const getAdminPollAuth = useCallback(() => getAdminBearerHeaders({ interactive: false }), [getAdminBearerHeaders]);
 
   // Social (email magic link) auth — a parallel, view-only path. An invited
   // email admin signs in here and reads their program; the server gates access
@@ -92,11 +110,18 @@ const AdminProgramPage = () => {
   const [filter, setFilter] = useState<Filter>("submitted");
   const [editOpen, setEditOpen] = useState(false);
   const [adminsReload, setAdminsReload] = useState(0);
-  // Viewing the program needs no signature. The wallet-admin sections each sign
-  // an admin-action message when they load their data, so we defer mounting them
-  // behind an explicit unlock — one click, one signature (the concurrent section
-  // loads dedup to a single wallet popup) — instead of prompting on page view.
+  // Logging in (connecting the admin wallet) is the one signature: it opens an
+  // admin session that every section reuses, so the page loads straight in.
+  // Only when that session has expired (a later visit) does the unlock panel
+  // ask for one more signature. Viewing the program itself needs none.
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  // True while the login signature is being approved in the wallet, so the
+  // page says "signing in" rather than "session expired".
+  const [signingIn, setSigningIn] = useState(false);
+  useEffect(() => {
+    const acct = auth.account;
+    if (acct && readAdminToken(acct.chain, acct.address)) setAdminUnlocked(true);
+  }, [auth.account]);
   const [errorData, setErrorData] = useState<{
     walletAddresses: string[];
     expectedAddresses: string[];
@@ -203,6 +228,7 @@ const AdminProgramPage = () => {
   const connectWallet = async () => {
     if (!slug) return;
     setErrorData(null);
+    setSigningIn(true);
     try {
       const found = await auth.connect();
       const globalAdmin = found.find((a) => checkIsAdmin(a.address, a.chain));
@@ -211,6 +237,9 @@ const AdminProgramPage = () => {
       if (globalAdmin) {
         auth.selectAccount(globalAdmin);
         setIsProgramAdmin(false);
+        // The login signature: opens the admin session the sections reuse.
+        await auth.getAdminBearerHeaders({ account: globalAdmin });
+        setAdminUnlocked(true);
         return;
       }
 
@@ -229,9 +258,10 @@ const AdminProgramPage = () => {
       try {
         // First call also primes the admin session cache: signs once,
         // exchanges via /api/admin/session, caches the bearer for later.
-        const authHeader = await auth.getAdminBearerHeaders();
+        const authHeader = await auth.getAdminBearerHeaders({ account: candidate });
         await api.listProgramAdmins(slug, authHeader);
         setIsProgramAdmin(true);
+        setAdminUnlocked(true);
       } catch (probeErr) {
         if (probeErr instanceof ApiError && probeErr.status === 403) {
           setErrorData({
@@ -249,6 +279,8 @@ const AdminProgramPage = () => {
         description: (e as Error)?.message || "Unknown error",
         variant: "destructive",
       });
+    } finally {
+      setSigningIn(false);
     }
   };
 
@@ -325,32 +357,76 @@ const AdminProgramPage = () => {
               />
             )}
 
-            {isAdminWallet ? (
-              !adminUnlocked ? (
+            {mockJudgeEmail && profile ? (
+              <>
+                <div className="panel px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2 border-dashed" data-testid="mock-judge-bar">
+                  <span className="lcd inline-flex items-center gap-2 px-3 py-1.5">
+                    <span className="led led-sm" aria-hidden="true" />
+                    <span className="label-hw text-display">JUDGE</span>
+                  </span>
+                  <span className="label-hw-dim truncate min-w-0">{mockJudgeEmail}</span>
+                  <span className="label-hw-dim">· PLAYGROUND EMAIL LINK</span>
+                  <div className="flex-1" />
+                  <Link
+                    to={`/admin/programs/${program.slug}`}
+                    className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-label-dim hover:text-display px-3 py-1.5"
+                  >
+                    SIGN OUT
+                  </Link>
+                </div>
+                <RubricJudgingSection
+                  key={mockJudgeEmail}
+                  profile={profile}
+                  programSlug={program.slug}
+                  prizeTiers={program.prizeTiers}
+                  getAuth={getMockJudgeAuth}
+                  canSelectWinners={false}
+                  judgeEmail={mockJudgeEmail}
+                />
+              </>
+            ) : isAdminWallet ? (
+              !adminUnlocked && signingIn ? (
+                <div className="panel px-4 py-10 text-center mb-3" data-testid="admin-signing-in">
+                  <div className="label-hw text-display mb-2 inline-flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> ·SIGNING IN
+                  </div>
+                  <p className="label-hw-dim max-w-prose mx-auto">Approve the sign-in request in your wallet. This is the only signature for this session.</p>
+                </div>
+              ) : !adminUnlocked ? (
                 <div className="panel px-4 py-10 text-center mb-3">
-                  <div className="label-hw text-display mb-2">·ADMIN DATA LOCKED</div>
+                  <div className="label-hw text-display mb-2">·ADMIN SESSION EXPIRED</div>
                   <p className="label-hw-dim mb-4 max-w-prose mx-auto">
-                    Viewing this program needs no signature. Load the admin data
-                    (guests, judging, stats) to manage it; this signs an admin-action
-                    message once.
+                    Your admin session has ended. Sign once to continue: it opens a
+                    new session for the guests, judging and stats, with no further
+                    prompts while it lasts.
                   </p>
                   <button
                     type="button"
-                    onClick={() => setAdminUnlocked(true)}
+                    onClick={() =>
+                      getAdminAuth()
+                        .then(() => setAdminUnlocked(true))
+                        .catch((e) =>
+                          toast({ title: "Couldn't sign in", description: (e as Error)?.message || "Unknown error", variant: "destructive" }),
+                        )
+                    }
                     className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-1.5"
                   >
-                    LOAD ADMIN DATA ▸
+                    SIGN IN AGAIN ▸
                   </button>
                 </div>
               ) : (
               <>
+                {profile && <MockPlaygroundBar program={program} onProgramChange={setProgram} />}
+
                 <ProgramStatsHeader
                   programSlug={program.slug}
                   getAuth={getAdminAuth}
                   eventEndsAt={program.eventEndsAt}
                 />
 
-                {program.status === "completed" && (
+                {/* Bitrefill-shaped feedback summary; tracked programs get the
+                    friction report below instead. */}
+                {program.status === "completed" && !profile && (
                   <ProgramResultsSummarySection
                     program={program}
                     getAuth={getAdminAuth}
@@ -363,15 +439,41 @@ const AdminProgramPage = () => {
                   reloadToken={adminsReload}
                 />
 
-                <ProgramJudgingSection
-                  programSlug={program.slug}
-                  getAuth={getAdminAuth}
-                  signPublishAction={() => auth.signAction("publish-results")}
-                  canSelectWinners={isGlobalAdmin}
-                  prizeTiers={program.prizeTiers}
-                  resultsPublishedAt={program.resultsPublishedAt}
-                  onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
-                />
+                {profile ? (
+                  <>
+                    <RubricJudgingSection
+                      profile={profile}
+                      programSlug={program.slug}
+                      prizeTiers={program.prizeTiers}
+                      getAuth={getAdminAuth}
+                      getPollAuth={getAdminPollAuth}
+                      canSelectWinners={isGlobalAdmin}
+                      judgeEmail={null}
+                    />
+                    <MilestonesAdminSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
+                    <FrictionReportSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
+                  </>
+                ) : (
+                  <ProgramJudgingSection
+                    programSlug={program.slug}
+                    getAuth={getAdminAuth}
+                    signPublishAction={() => auth.signAction("publish-results")}
+                    canSelectWinners={isGlobalAdmin}
+                    prizeTiers={program.prizeTiers}
+                    resultsPublishedAt={program.resultsPublishedAt}
+                    onPublishedChange={(at) => setProgram((p) => (p ? { ...p, resultsPublishedAt: at } : p))}
+                  />
+                )}
+
+                {/* Refused submits are kept with their reason; master admins can let them in. */}
+                {program.programType === "hackathon" && (
+                  <RefusedSubmissionsSection
+                    programSlug={program.slug}
+                    getAuth={getAdminAuth}
+                    canReview={isGlobalAdmin}
+                    reviewer={connectedAddress}
+                  />
+                )}
 
                 {program.programType !== "hackathon" && (
                   <ProgramSponsorsSection
@@ -513,7 +615,17 @@ const AdminProgramPage = () => {
 
                 {/* Judges + admins both score; judges see ONLY this. Email
                     sessions are never platform admins, so no winner selection. */}
-                {socialCanJudge && (
+                {socialCanJudge && profile && (
+                  <RubricJudgingSection
+                    profile={profile}
+                    programSlug={program.slug}
+                    prizeTiers={program.prizeTiers}
+                    getAuth={getJudgeAuth}
+                    canSelectWinners={false}
+                    judgeEmail={social.email}
+                  />
+                )}
+                {socialCanJudge && !profile && (
                   <ProgramJudgingSection
                     programSlug={program.slug}
                     getAuth={getJudgeAuth}

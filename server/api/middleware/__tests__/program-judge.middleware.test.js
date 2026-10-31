@@ -68,6 +68,21 @@ beforeEach(() => {
 });
 
 describe('requireProgramJudge — social (email) path', () => {
+  it('passes the grant\'s tracks through to req.user (null when unrestricted)', async () => {
+    getSupabaseUser.mockResolvedValue({ id: 'sb-1', email: 'judge@example.com' });
+    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'judge@example.com', role: 'judge', tracks: ['privacy'] });
+    const req = makeReq({ headers: { 'x-supabase-token': 'valid' } });
+    const next = vi.fn();
+    await requireProgramJudge('slug')(req, makeRes(), next);
+    expect(next).toHaveBeenCalled();
+    expect(req.user.tracks).toEqual(['privacy']);
+
+    programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'judge@example.com', role: 'judge' });
+    const req2 = makeReq({ headers: { 'x-supabase-token': 'valid' } });
+    await requireProgramJudge('slug')(req2, makeRes(), vi.fn());
+    expect(req2.user.tracks).toBeNull();
+  });
+
   it('passes a judge-role email with canJudge + verified email identity', async () => {
     getSupabaseUser.mockResolvedValue({ id: 'sb-1', email: 'Judge@Example.com' });
     programAdminEmailRepository.findGrant.mockResolvedValue({ email: 'judge@example.com', role: 'judge' });

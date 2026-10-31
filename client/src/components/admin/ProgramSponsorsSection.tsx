@@ -85,7 +85,7 @@ function SponsorForm({
           <Input
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            placeholder="Bitrefill"
+            placeholder="Sponsor name"
             disabled={busy}
             className="font-mono text-sm"
           />

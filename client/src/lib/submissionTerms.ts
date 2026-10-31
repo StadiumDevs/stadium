@@ -1,6 +1,9 @@
 // Submission terms shown in the "Read terms" modal on the project submission
 // form, keyed by program slug. A program with no entry shows no terms gate.
-// Authored as markdown and rendered with MarkdownBody. No em-dashes.
+// Authored as markdown and rendered with MarkdownBody. No em-dashes. Longer
+// terms live as .md files in ./terms, imported as raw text.
+
+import freeSocietyHackTerms from "./terms/free-society-hack-2026.md?raw";
 
 const TERMS_BY_SLUG: Record<string, { title: string; body: string }> = {
   "bitrefill-2026": {
@@ -44,6 +47,10 @@ You agree that Bitrefill may contact you about your project. The details you pro
 ### Conduct
 
 Organizers may disqualify any submission that breaks the rules, infringes others' rights, or contains illegal or harmful content.`,
+  },
+  "free-society-hack-2026": {
+    title: "Free Society Hack: Submission Terms & Prize Disbursement",
+    body: freeSocietyHackTerms,
   },
 };
 

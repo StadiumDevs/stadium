@@ -96,8 +96,7 @@ export function Navigation() {
           </div>
         </div>
 
-        {/* Brightness rack — second row. On mobile it defaults to its
-            collapsed strip so it doesn't dominate the viewport. */}
+        {/* Brightness slider — second row, a single line (no dropdown). */}
         <div className="pb-2">
           <BrightnessRack />
         </div>

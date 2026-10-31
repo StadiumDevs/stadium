@@ -69,6 +69,7 @@ export default {
         "label-mid": "hsl(var(--label-mid))",
         "label-dim": "hsl(var(--label-dim))",
         led: "hsl(var(--led))",
+        warn: "hsl(var(--warn))",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

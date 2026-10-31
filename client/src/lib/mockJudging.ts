@@ -265,6 +265,8 @@ export const mockJudging = {
     videoUrl: string;
     githubUrl: string;
     late?: boolean;
+    /** Accepting a refused attempt keeps the attempt's time. */
+    createdAt?: string;
   }): ApiSubmission {
     const now = new Date().toISOString();
     const added = readAdded();
@@ -296,7 +298,7 @@ export const mockJudging = {
       videoUrl: payload.videoUrl,
       githubUrl: payload.githubUrl,
       late: !!payload.late,
-      createdAt: now,
+      createdAt: payload.createdAt ?? now,
       updatedAt: now,
     };
     writeAdded([...added, sub]);

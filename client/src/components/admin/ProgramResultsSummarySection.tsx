@@ -344,7 +344,7 @@ export function ProgramResultsSummarySection({
             </div>
             {(feedback.couldntHandleSamples ?? []).length > 0 && (
               <div className="mb-2">
-                <div className="label-hw-dim mb-1">·WHAT BITREFILL COULDN'T HANDLE (OPEN TEXT)</div>
+                <div className="label-hw-dim mb-1">·WHAT THE TOOLS COULDN'T HANDLE (OPEN TEXT)</div>
                 <ul className="space-y-1">
                   {(feedback.couldntHandleSamples ?? []).slice(0, 10).map((s, i) => (
                     <li key={i} className="label-hw-dim text-[11px]">- {s}</li>

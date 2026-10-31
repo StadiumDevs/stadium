@@ -640,13 +640,13 @@ export function ProgramFormModal({
                 <Label className="label-hw-dim">·PRIZE TIERS (WINNER SELECTION)</Label>
                 <button
                   type="button"
-                  onClick={() => setPrizeTierRows((rows) => [...rows, { amount: "", currency: "EUR", label: "" }])}
+                  onClick={() => setPrizeTierRows((rows) => [...rows, { amount: "", currency: "USD", label: "" }])}
                   className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-2 py-1 inline-flex items-center gap-1"
                 >
                   <Plus className="h-3 w-3" aria-hidden="true" /> ADD TIER
                 </button>
               </div>
-              <p className="label-hw-dim">Prizes a platform admin can award to winners after judging. Default: Bitrefill EUR giftcards.</p>
+              <p className="label-hw-dim">Prizes a platform admin can award to winners after judging. Set these explicitly; an empty list falls back to the legacy default tiers.</p>
               {prizeTierRows.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Input
@@ -661,7 +661,7 @@ export function ProgramFormModal({
                     className="font-mono text-sm w-24"
                   />
                   <Input
-                    placeholder="EUR"
+                    placeholder="USD"
                     aria-label={`Prize ${i + 1} currency`}
                     value={row.currency}
                     onChange={(e) =>
@@ -670,7 +670,7 @@ export function ProgramFormModal({
                     className="font-mono text-sm w-20"
                   />
                   <Input
-                    placeholder="Bitrefill giftcard"
+                    placeholder="e.g. Top prize"
                     aria-label={`Prize ${i + 1} label`}
                     value={row.label}
                     onChange={(e) =>

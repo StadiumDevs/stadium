@@ -205,3 +205,69 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `.claude/skills/stadium-tester/flows/client-journey.spec.mjs`
 - **Observed during**: testing the must-sign payouts/results PR
 - **Suggestion**: The committed canonical wallet-gated suite (added in #171, labeled "validated green") targets a `LEADERBOARD` tab, an `ADD TO STADIUM`/promote button, and a score-view `MARK PAID` button that no longer exist in `client/src/components/admin/ProgramJudgingSection.tsx` — the component now has `SCORE`/`RESULTS` tabs, award-via-dropdown, `PUBLISH RESULTS`, and (as of this PR) a PAID toggle in the RESULTS table. The spec would fail if run verbatim, so it can't be trusted as a regression gate. Rewrite the judging portion to the current SCORE/RESULTS surface (claim → score → submit → RESULTS tab → award/PAID/publish).
+
+## [2026-10-25] `PATCH /m2-program/:id` has no field allowlist
+- **Severity**: major
+- **File(s)**: `server/api/controllers/project.controller.js:75-132`, `server/api/repositories/project.repository.js:510-530`
+- **Observed during**: Free Society Hack (Zcash) scrutiny — mapping the M2 milestone system
+- **Suggestion**: the route is behind `requireTeamMemberOrAdmin`, but the controller passes the whole body through, so a team member can set `m2Status`, `bountyPrize`, `finalSubmission` or `totalPaid` (which deletes and re-inserts `payments`). Restrict team-member writes to an allowlist and keep payout/status fields admin-only.
+
+## [2026-10-25] Submission promote likely fails on NOT NULL project columns and leaks the Luma email
+- **Severity**: minor
+- **File(s)**: `server/api/services/scoring.service.js:209-232`, `server/api/repositories/project.repository.js:246-256`
+- **Observed during**: Free Society Hack (Zcash) scrutiny
+- **Suggestion**: `promoteToProject` sets neither `project_state` nor `hackathon.endDate`, both NOT NULL with no default in the migrations (tests mock the DB, so they wouldn't catch it). It also writes the submitter's Luma email into the public project description. No UI calls `api.promoteSubmission` today.
+
+## [2026-10-25] `requestChanges` writes keys the project mapper ignores
+- **Severity**: minor
+- **File(s)**: `server/api/controllers/project.controller.js:371-373`, `server/api/repositories/project.repository.js` (`toSupabaseProject`)
+- **Observed during**: Free Society Hack (Zcash) scrutiny
+- **Suggestion**: the controller sends `changeRequestFeedback` / `changeRequestDate`, but the mapper only knows `changesRequested.{feedback,...}`, so the feedback is silently dropped and the client card never shows it.
+
+## [2026-10-25] M2 week calendar is hardcoded to Nov 2025
+- **Severity**: minor
+- **File(s)**: `client/src/lib/projectUtils.ts:42-50,113-135`, `client/src/components/M2AgreementSection.tsx:44-46`
+- **Observed during**: Free Society Hack (Zcash) scrutiny
+- **Suggestion**: `M2_WEEKS` is fixed to 17 Nov 2025 – 5 Jan 2026, so agreement editing is permanently locked and the submit button permanently open. Make the calendar relative to a program/cohort start date.
+
+## [2026-10-28] Client `npm run build` typecheck is a no-op
+- **Severity**: major
+- **File(s)**: `client/tsconfig.json` (`"files": []` + project references), `client/package.json` (`"build": "tsc && vite build"`)
+- **Observed during**: Free Society Hack 28 Oct corrections — a removed export still "typechecked"
+- **Suggestion**: plain `tsc` against a solution-style tsconfig with `"files": []` checks no source, so the build (and `/pre-pr-check`, and CLAUDE.md's "this is the typecheck") never catches type errors. `npx tsc -p tsconfig.app.json --noEmit` reports ~196 existing errors on develop (e.g. `src/lib/api.ts`, `src/pages/AdminProgramPage.tsx`). Switch the build to `tsc -b` or `tsc -p tsconfig.app.json --noEmit`, after a cleanup pass to get the existing errors to zero.
+
+## [2026-10-28] Shared dialog runs edge to edge on phones
+- **Severity**: minor
+- **File(s)**: `client/src/components/ui/dialog.tsx` (`DialogContent` base classes)
+- **Observed during**: zcash-testing, updates-review.md pass (project modal "bleeds into the frame")
+- **Suggestion**: The base is `w-full max-w-lg` with no viewport inset and `rounded-lg` only from `sm:`, so under 640px every dialog touches both screen edges and its border disappears. The Free Society Hack modal overrides this locally (`w-[calc(100%-2rem)]`); move that inset into the base and check the other dialogs at 375px.
+
+## [2026-10-28] Vercel preview builds call the production API
+- **Severity**: major
+- **File(s)**: `client/src/lib/api.ts:4` (`API_BASE_URL` falls back to `PRODUCTION_API` when `import.meta.env.PROD`)
+- **Observed during**: fixing repeated wallet prompts on the Free Society Hack admin page (PR #202)
+- **Suggestion**: Previews are prod builds, so without `VITE_API_BASE_URL` on the Preview env every call that has no mock branch (audit log, applications, stats) goes to production. Set `VITE_API_BASE_URL` for Preview (staging, or an unreachable host) and/or refuse the production fallback when `VITE_USE_MOCK_DATA` is true. Admin sign-in no longer contacts a server in mock mode.
+
+## [2026-10-28] Admin sign-in re-prompts on every call when `/admin/session` is down
+- **Severity**: minor
+- **File(s)**: `client/src/lib/auth/useWalletAuth.ts` (`getAdminBearerHeaders` SIWS fallback)
+- **Observed during**: fixing repeated wallet prompts on the Free Society Hack admin page (PR #202)
+- **Suggestion**: When the session exchange fails, the one-shot SIWS header can't be cached (single-use nonce), so every admin call signs again. Surface the failure ("couldn't open an admin session") and stop, instead of silently falling back once per call.
+
+## [2026-10-29] Canonical tester flow is stale against the Bitrefill mock program
+- **Severity**: minor
+- **File(s)**: `.claude/skills/stadium-tester/flows/client-journey.spec.mjs` ("public submit form accepts a project", "judging: score all…"), `client/src/lib/mockPrograms.ts` (`bitrefill-2026` is `completed` with results published)
+- **Observed during**: llms.txt / builder-doc alignment regression run (PR #202)
+- **Suggestion**: The flow expects `bitrefill-2026` to be open, but the mock program is completed, so SUBMIT A PROJECT is disabled and the judging steps can't find their controls. Either open the program inside the flow (patch `mockPrograms` via the dev module, as the tracked-program specs do) or point the flow at a mock program that stays open. Also: `scripts/run-playwright.mjs` rewrites the spec's `@playwright/test` import in place and writes a `*.config.mjs` beside it, which dirties the committed flow when it is run directly; copy it to `/tmp` first, or make the runner work on a temp copy.
+
+## [2026-10-30] Tracked awards are read-modify-write
+- **Severity**: minor
+- **File(s)**: `server/api/controllers/tracked-results.controller.js` (awardPrize, setEcosystemPrize, updateMilestone)
+- **Observed during**: stadium-reviewer pass on the Free Society Hack server slice (PR #202)
+- **Suggestion**: `prizes`, the tier-limit and Ecosystem-cap counts and the milestone merge are read, changed and written back. Two admins acting on the same project at the same second could overwrite each other or both pass a limit. Low risk with one or two platform admins on prize day; move to a Postgres function (`jsonb_set` + a row lock) if more admins award at once. Also: `/results/publish` emails winners only from the Bitrefill `prize_*` columns, so tracked winners get no prize email (intended for now: Stadium promises no emails for Free Society Hack).
+
+## [2026-10-31] Submission drafts don't follow the builder to another device
+- **Severity**: minor
+- **File(s)**: `client/src/components/program/SubmitProjectModal.tsx` (`readDraft` / `writeDraft`, localStorage)
+- **Observed during**: submit-form updates for Free Society Hack (PR #202)
+- **Suggestion**: Closing the form with ✕ keeps the draft and the verified email on that device only. On another device, verifying the email loads only an already submitted entry (the update flow). If builders need to start on a laptop and finish on a phone, save drafts on the server keyed by the verified email (a `submission_drafts` row, read by `GET /:slug/submissions/mine`).
