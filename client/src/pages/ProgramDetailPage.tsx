@@ -745,38 +745,8 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
-            {/* Hackathon builder reference + submission requirements. Authored as
-                ordered `content` sections so they render directly above the
-                submit panel. Non-hackathon programs render their content higher up. */}
-            {isHackathon && !isPublished && (
-              <ProgramContent
-                sections={program.content?.filter((s) => s.type !== "schedule")}
-              />
-            )}
-
-            {/* Published hackathon: the rest of the event info (tracks, prizes,
-                FAQ) collapsed below the projects. */}
-            {isPublished && (program.content ?? []).some((c) => c.type !== "schedule") && (
-              <section className="panel p-4 mb-4">
-                <button
-                  type="button"
-                  onClick={() => setAboutOpen((v) => !v)}
-                  aria-expanded={aboutOpen}
-                  className="w-full flex items-center justify-between gap-2 text-left"
-                >
-                  <span className="label-hw text-display">·HACKATHON DETAILS</span>
-                  <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
-                </button>
-                {aboutOpen && (
-                  <div className="mt-3">
-                    <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
-                  </div>
-                )}
-              </section>
-            )}
-
             {program.programType === "hackathon" && !isPublished && (
-              <div className="panel p-4">
+              <div className="panel p-4 mb-4">
                 <div className="label-hw mb-3">·SUBMIT YOUR PROJECT</div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <RackButton
@@ -810,6 +780,37 @@ const ProgramDetailPage = () => {
                   </button>
                 )}
               </div>
+            )}
+
+            {/* Hackathon builder reference + submission requirements. Authored as
+                ordered `content` sections, directly below the submit panel (so the
+                button stays near the top as projects come in). Non-hackathon
+                programs render their content higher up. */}
+            {isHackathon && !isPublished && (
+              <ProgramContent
+                sections={program.content?.filter((s) => s.type !== "schedule")}
+              />
+            )}
+
+            {/* Published hackathon: the rest of the event info (tracks, prizes,
+                FAQ) collapsed below the projects. */}
+            {isPublished && (program.content ?? []).some((c) => c.type !== "schedule") && (
+              <section className="panel p-4 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setAboutOpen((v) => !v)}
+                  aria-expanded={aboutOpen}
+                  className="w-full flex items-center justify-between gap-2 text-left"
+                >
+                  <span className="label-hw text-display">·HACKATHON DETAILS</span>
+                  <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
+                </button>
+                {aboutOpen && (
+                  <div className="mt-3">
+                    <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
+                  </div>
+                )}
+              </section>
             )}
 
             {/* The legacy apply flow (past-winner / Stadium-team) is kept for
