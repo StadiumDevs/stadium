@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { ProjectExplorer } from "@/components/ProjectExplorer";
 import { UnitCard } from "@/components/unit-card";
@@ -16,6 +16,7 @@ import {
   type ApiPublicResults,
   type ProgramContentSection,
   ApiError,
+  USE_MOCK_DATA,
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
@@ -24,13 +25,40 @@ import { ApplyToProgramModal } from "@/components/program/ApplyToProgramModal";
 import { NonMemberApplyModal } from "@/components/program/NonMemberApplyModal";
 import { SubmitProjectModal } from "@/components/program/SubmitProjectModal";
 import { ProgramContent } from "@/components/program/ProgramContent";
+import { LumaCheckoutButton } from "@/components/program/LumaCheckoutButton";
+import { LlmsBrief } from "@/components/program/LlmsBrief";
+import { hasLlms } from "@/lib/llms/llmsPrograms";
+import { TrackedProjectsSection } from "@/components/program/tracked/TrackedProjectsSection";
+import { getProgramProfile } from "@/lib/programProfiles";
+import type { ApiPublicSubmissions } from "@/lib/api";
 
-const formatDateRange = (from?: string | null, to?: string | null) => {
+// `timeZone`: the event's own zone (programProfiles), so a Mumbai event reads
+// in IST wherever the viewer is; otherwise the viewer's zone.
+const formatDateRange = (from?: string | null, to?: string | null, timeZone?: string) => {
   if (!from && !to) return null;
   const fmt = (iso?: string | null) =>
-    iso ? new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—";
+    iso ? new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone }) : "—";
   return `${fmt(from)} → ${fmt(to)}`;
 };
+
+// e.g. "Wed 4 Nov, 11:00 AM IST" in the event's zone (or the viewer's).
+const formatStart = (iso: string, tz?: { id: string; label: string }) => {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz?.id });
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: tz?.id,
+    ...(tz ? {} : { timeZoneName: "short" as const }),
+  });
+  return `${day.replace(",", "")}, ${time}${tz ? ` ${tz.label}` : ""}`;
+};
+
+const CTA_CLASS =
+  "inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2";
+
+// One width for the header, the about panel and everything below it.
+const PAGE_WIDTH = "max-w-6xl";
 
 const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
   dogfooding: "DOGFOODING",
@@ -56,10 +84,29 @@ const ProgramDetailPage = () => {
   const [projects, setProjects] = useState<ApiProgramProject[]>([]);
   const [entries, setEntries] = useState<ApiProject[]>([]);
   const [results, setResults] = useState<ApiPublicResults | null>(null);
+  // Tracked programs (programProfiles.ts) list every submission live.
+  const profile = getProgramProfile(slug);
+  const [tracked, setTracked] = useState<ApiPublicSubmissions | null>(null);
   const [coverError, setCoverError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [submitMode, setSubmitMode] = useState<"new" | "update">("new");
+  // Back from the email sign-in link (?submit=1 / ?submit=update): reopen the
+  // form, which restores its draft, with the email now verified.
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Playground only: ?preview=before shows a tracked program as it looks before
+  // the hack (registration open, no projects yet). Nothing stored changes.
+  const previewBefore = USE_MOCK_DATA && !!profile && searchParams.get("preview") === "before";
+  useEffect(() => {
+    const want = searchParams.get("submit");
+    if (!want) return;
+    setSubmitMode(want === "update" ? "update" : "new");
+    setSubmitOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("submit");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   // Public results: search box over published submissions, and the collapsible
   // "about" panel (hackathon info) that sits below the projects once published.
   const [resultsQuery, setResultsQuery] = useState("");
@@ -82,7 +129,10 @@ const ProgramDetailPage = () => {
     setError(null);
     api
       .getProgramBySlug(slug)
-      .then((r) => { if (active) setProgram(r.data); })
+      .then((r) => {
+        if (!active) return;
+        setProgram(previewBefore ? { ...r.data, status: "draft", resultsPublishedAt: null } : r.data);
+      })
       .catch((e: unknown) => {
         if (!active) return;
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
@@ -90,7 +140,7 @@ const ProgramDetailPage = () => {
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [slug]);
+  }, [slug, previewBefore]);
 
   useEffect(() => {
     if (!connectedAddress) { setMyProjects([]); return; }
@@ -150,14 +200,29 @@ const ProgramDetailPage = () => {
   // Public, PII-free submissions + winners. Returns published:false (and an
   // empty list) until a platform admin publishes the results.
   useEffect(() => {
-    if (!slug || !program) { setResults(null); return; }
+    if (!slug || !program || profile) { setResults(null); return; }
     let active = true;
     api
       .getProgramResults(slug)
       .then((r) => { if (active) setResults(r.data); })
       .catch(() => { if (active) setResults(null); });
     return () => { active = false; };
-  }, [slug, program]);
+  }, [slug, program, profile]);
+
+  useEffect(() => {
+    // Before the hack there are no projects yet (preview), so no grid.
+    if (!slug || !program || !profile?.showSubmissionsLive || previewBefore) { setTracked(null); return; }
+    let active = true;
+    const load = () =>
+      api
+        .listPublicSubmissions(slug)
+        .then((r) => { if (active) setTracked(r.data); })
+        .catch(() => { if (active) setTracked(null); });
+    load();
+    // Pick up a project submitted from the modal (or another tab) without a reload.
+    window.addEventListener("focus", load);
+    return () => { active = false; window.removeEventListener("focus", load); };
+  }, [slug, program, profile, submitOpen, previewBefore]);
 
   // Stadium project entries belonging to this program (hackathons etc.).
   // Server filters on hackathon_id, backfilled to match program slugs.
@@ -233,8 +298,10 @@ const ProgramDetailPage = () => {
     }
   };
 
-  const applicationsRange = formatDateRange(program?.applicationsOpenAt, program?.applicationsCloseAt);
-  const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt);
+  const eventTz = profile?.timeZone;
+  const applicationsRange = formatDateRange(program?.applicationsOpenAt, program?.applicationsCloseAt, eventTz?.id);
+  const eventRange = formatDateRange(program?.eventStartsAt, program?.eventEndsAt, eventTz?.id);
+  const startsLabel = program?.eventStartsAt ? formatStart(program.eventStartsAt, eventTz) : null;
 
   // Hackathons get a single consolidated key-info panel (cover image + date +
   // Luma sign-up + schedule) instead of the sponsors / how-to-apply / key-dates
@@ -244,9 +311,23 @@ const ProgramDetailPage = () => {
     .filter((s): s is Extract<ProgramContentSection, { type: "schedule" }> => s.type === "schedule")
     .flatMap((s) => s.rows);
 
+  // The about panel: cover image on the left, description and the event's
+  // basic details on the right. Same template for every program type.
+  const showCover = !!program?.coverImageUrl && !coverError;
+  const infoRows: { label: string; value: string; href?: string }[] = [
+    ...(!isHackathon && applicationsRange ? [{ label: "APPLICATIONS", value: applicationsRange }] : []),
+    ...(eventRange ? [{ label: isHackathon ? "DATE" : "EVENT", value: eventRange }] : []),
+    ...(program?.location ? [{ label: "LOCATION", value: program.location, href: profile?.venueMapUrl }] : []),
+    ...scheduleRows.map((r) => ({ label: r.time.toUpperCase(), value: r.label })),
+  ];
+  const registrationOpen = program?.status === "draft" || program?.status === "open";
+  const hasAbout = showCover || !!program?.description || infoRows.length > 0 || !!program?.eventUrl || !!program?.lumaEventId;
+
   // Once a hackathon's results are published, flip the page: searchable projects
   // on top, hackathon info collapsed at the bottom.
-  const isPublished = isHackathon && !!results?.published && results.submissions.length > 0;
+  const isPublished = profile
+    ? isHackathon && !!tracked?.published && tracked.submissions.length > 0
+    : isHackathon && !!results?.published && results.submissions.length > 0;
   const filteredResults = (results?.submissions ?? []).filter((s) => {
     const q = resultsQuery.trim().toLowerCase();
     if (!q) return true;
@@ -378,25 +459,129 @@ const ProgramDetailPage = () => {
             <p className="label-hw-dim">{error}</p>
           </div>
         ) : program ? (
-          <article className="max-w-3xl mx-auto">
-            <header className="mb-6">
-              <div className="label-hw-dim mb-2">·PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
-              <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-3">
-                {program.name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="lcd inline-flex items-center gap-2 px-3 py-1.5">
-                  <span className={`led led-sm ${program.status === "open" ? "led-pulse" : ""}`} aria-hidden="true" />
-                  <span className="label-hw text-display">{program.status.toUpperCase()}</span>
-                </div>
-                {program.location && (
-                  <span className="label-hw-dim">{program.location.toUpperCase()}</span>
-                )}
+          <>
+          {previewBefore && (
+            <div
+              className={`mx-auto ${PAGE_WIDTH} mb-4 panel border-dashed px-3 py-2 flex flex-wrap items-center gap-2`}
+              data-testid="preview-banner"
+            >
+              <span className="label-hw text-display">PLAYGROUND PREVIEW · BEFORE THE HACK</span>
+              <span className="label-hw-dim">REGISTRATION OPEN, NO PROJECTS YET</span>
+              <div className="flex-1" />
+              <Link to={`/programs/${program.slug}`} className="label-hw-dim hover:text-display">
+                SEE THE LIVE PLAYGROUND ▸
+              </Link>
+            </div>
+          )}
+          {/* Program header first on every program, then the about panel, both
+              the same width as the sections below. */}
+          <header className={`mb-6 mx-auto ${PAGE_WIDTH}`} data-testid="program-header">
+            <div className="label-hw-dim mb-2">·PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
+            <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-3">
+              {program.name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="lcd inline-flex items-center gap-2 px-3 py-1.5">
+                <span className={`led led-sm ${program.status === "open" ? "led-pulse" : ""}`} aria-hidden="true" />
+                <span className="label-hw text-display">{program.status.toUpperCase()}</span>
               </div>
-            </header>
+              {program.location && (
+                <span className="label-hw-dim">{program.location.toUpperCase()}</span>
+              )}
+            </div>
+          </header>
+          {hasAbout && (
+            <section className={`panel p-4 md:p-6 mb-4 mx-auto ${PAGE_WIDTH}`} data-testid="program-about">
+              <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>
+              <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start" : ""}`}>
+                {showCover && (
+                  // The whole image, never cropped (covers can be square or wide).
+                  // Above the fold: fetch first. The panel colour shows while it loads.
+                  // Keep covers small (about 1200px WebP in client/public, not a raw upload).
+                  <img
+                    src={program.coverImageUrl ?? undefined}
+                    alt={`${program.name} event`}
+                    onError={() => setCoverError(true)}
+                    // Lowercase attribute: React 18 warns on the camelCase prop.
+                    {...{ fetchpriority: "high" }}
+                    decoding="async"
+                    width={1200}
+                    height={1200}
+                    className="w-full h-auto rounded-sm border border-hairline bg-panel-deep"
+                    data-testid="program-cover"
+                  />
+                )}
+                <div className="flex flex-col gap-4 min-w-0" data-testid="program-key-info">
+                  {program.description && (
+                    <p className="text-body text-base leading-relaxed whitespace-pre-line">{program.description}</p>
+                  )}
+                  {infoRows.length > 0 && (
+                    <div className="space-y-2">
+                      {infoRows.map((r, i) => (
+                        <div key={i} className="flex items-baseline justify-between gap-3 border-b border-hairline-subtle pb-1.5 last:border-0">
+                          <span className="label-hw-dim shrink-0">{r.label}</span>
+                          {r.href ? (
+                            <a
+                              href={r.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[12px] text-display text-right underline underline-offset-2 hover:text-display-dim"
+                              data-testid="venue-map-link"
+                            >
+                              {r.value} ↗
+                            </a>
+                          ) : (
+                            <span className="font-mono text-[12px] text-display text-right">{r.value}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Registration still open with a Luma event: Luma's checkout
+                      opens over this page. Afterwards: a plain link to the event. */}
+                  {program.lumaEventId && registrationOpen ? (
+                    <LumaCheckoutButton
+                      eventId={program.lumaEventId}
+                      eventUrl={program.eventUrl}
+                      className={`self-start ${CTA_CLASS}`}
+                    >
+                      REGISTER ON LUMA ▸
+                    </LumaCheckoutButton>
+                  ) : (
+                    program.eventUrl && (
+                      <a
+                        href={program.eventUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`self-start ${CTA_CLASS}`}
+                        data-testid="event-page-link"
+                      >
+                        {isHackathon && registrationOpen ? "SIGN UP ON LUMA ▸" : "EVENT PAGE ▸"}
+                      </a>
+                    )
+                  )}
+                </div>
+              </div>
+              {/* Full width under the image and the key info. */}
+              {hasLlms(program.slug) && <LlmsBrief slug={program.slug} className="mt-6" />}
+            </section>
+          )}
+          {/* Tracked programs: the wide project grid sits above the event info once
+              results are published (the Bitrefill "flip"), below it until then. */}
+          {profile && tracked && isPublished && (
+            <div className={`${PAGE_WIDTH} mx-auto`}>
+              <TrackedProjectsSection
+                profile={profile}
+                programSlug={program.slug}
+                submissions={tracked.submissions}
+                published={tracked.published}
+              />
+            </div>
+          )}
+          <article className={`${PAGE_WIDTH} mx-auto`}>
 
             {/* Published hackathon: searchable projects up top. */}
-            {isPublished && (
+            {isPublished && !profile && (
               <section className="panel p-4 mb-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div className="label-hw text-display">·PROJECTS ({filteredResults.length})</div>
@@ -431,93 +616,7 @@ const ProgramDetailPage = () => {
               </section>
             )}
 
-            {!isPublished && program.description && (
-              <div className="panel p-4 mb-4">
-                <div className="label-hw mb-2">·DESCRIPTION</div>
-                <p className="text-body text-base leading-relaxed whitespace-pre-line">
-                  {program.description}
-                </p>
-              </div>
-            )}
-
             {!isHackathon && <ProgramContent sections={program.content} />}
-
-            {isHackathon && !isPublished && (
-              <div className="panel p-4 mb-4">
-                <div className="label-hw mb-3">·KEY INFO</div>
-                {program.coverImageUrl && !coverError && (
-                  <img
-                    src={program.coverImageUrl}
-                    alt={`${program.name} event`}
-                    onError={() => setCoverError(true)}
-                    className="w-full rounded-sm border border-hairline mb-3 object-cover"
-                  />
-                )}
-                <div className="space-y-2">
-                  {eventRange && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">DATE</span>
-                      <span className="font-mono text-[12px] text-display">{eventRange}</span>
-                    </div>
-                  )}
-                  {program.location && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">LOCATION</span>
-                      <span className="font-mono text-[12px] text-display">{program.location}</span>
-                    </div>
-                  )}
-                  {scheduleRows.map((r, i) => (
-                    <div key={i} className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">{r.time}</span>
-                      <span className="font-mono text-[12px] text-display text-right">{r.label}</span>
-                    </div>
-                  ))}
-                </div>
-                {program.eventUrl && (
-                  <a
-                    href={program.eventUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
-                  >
-                    SIGN UP ON LUMA ▸
-                  </a>
-                )}
-              </div>
-            )}
-
-            {!isHackathon && (applicationsRange || eventRange || program.eventUrl) && (
-              <div className="panel p-4 mb-4">
-                <div className="label-hw mb-3">·KEY DATES</div>
-                <div className="space-y-2">
-                  {applicationsRange && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">APPLICATIONS</span>
-                      <span className="font-mono text-[12px] text-display">{applicationsRange}</span>
-                    </div>
-                  )}
-                  {eventRange && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">EVENT</span>
-                      <span className="font-mono text-[12px] text-display">{eventRange}</span>
-                    </div>
-                  )}
-                  {program.eventUrl && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="label-hw-dim">SIGN UP</span>
-                      <a
-                        href={program.eventUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-[12px] text-display hover:underline break-all max-w-[60%] text-right"
-                      >
-                        {program.eventUrl}
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {!isHackathon && sponsors.length > 0 && (
               <div className="panel p-4 mb-4">
@@ -646,17 +745,56 @@ const ProgramDetailPage = () => {
               </div>
             )}
 
+            {program.programType === "hackathon" && !isPublished && (
+              <div className="panel p-4 mb-4">
+                <div className="label-hw mb-3">·SUBMIT YOUR PROJECT</div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <RackButton
+                    onClick={() => {
+                      setSubmitMode("new");
+                      setSubmitOpen(true);
+                    }}
+                    disabled={program.status !== "open"}
+                  >
+                    SUBMIT A PROJECT ▸
+                  </RackButton>
+                  <p className="label-hw-dim sm:ml-2" data-testid="submit-panel-note">
+                    {program.status === "open"
+                      ? "Only people who checked in at the door can submit, using the email they used on Luma."
+                      : program.status === "draft"
+                        ? `Submissions open when the hack starts${startsLabel ? ` (${startsLabel})` : ""}.`
+                        : "Submissions are closed for this program."}
+                  </p>
+                </div>
+                {profile && program.status === "open" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubmitMode("update");
+                      setSubmitOpen(true);
+                    }}
+                    className="mt-3 font-mono text-[11px] tracking-[0.08em] text-display hover:underline"
+                    data-testid="update-my-submission"
+                  >
+                    Already submitted? Update my submission ▸
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Hackathon builder reference + submission requirements. Authored as
-                ordered `content` sections so they render directly above the
-                submit panel. Non-hackathon programs render their content higher up. */}
+                ordered `content` sections, directly below the submit panel (so the
+                button stays near the top as projects come in). Non-hackathon
+                programs render their content higher up. */}
             {isHackathon && !isPublished && (
               <ProgramContent
                 sections={program.content?.filter((s) => s.type !== "schedule")}
               />
             )}
 
-            {/* Published hackathon: all the event info collapsed below the projects. */}
-            {isPublished && (
+            {/* Published hackathon: the rest of the event info (tracks, prizes,
+                FAQ) collapsed below the projects. */}
+            {isPublished && (program.content ?? []).some((c) => c.type !== "schedule") && (
               <section className="panel p-4 mb-4">
                 <button
                   type="button"
@@ -664,67 +802,15 @@ const ProgramDetailPage = () => {
                   aria-expanded={aboutOpen}
                   className="w-full flex items-center justify-between gap-2 text-left"
                 >
-                  <span className="label-hw text-display">·ABOUT THIS HACKATHON</span>
+                  <span className="label-hw text-display">·HACKATHON DETAILS</span>
                   <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
                 </button>
                 {aboutOpen && (
-                  <div className="mt-3 space-y-4">
-                    {program.description && (
-                      <p className="text-body text-base leading-relaxed whitespace-pre-line">
-                        {program.description}
-                      </p>
-                    )}
-                    {program.coverImageUrl && !coverError && (
-                      <img
-                        src={program.coverImageUrl}
-                        alt={`${program.name} event`}
-                        onError={() => setCoverError(true)}
-                        className="w-full rounded-sm border border-hairline object-cover"
-                      />
-                    )}
-                    <div className="space-y-2">
-                      {eventRange && (
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="label-hw-dim">DATE</span>
-                          <span className="font-mono text-[12px] text-display">{eventRange}</span>
-                        </div>
-                      )}
-                      {program.location && (
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="label-hw-dim">LOCATION</span>
-                          <span className="font-mono text-[12px] text-display">{program.location}</span>
-                        </div>
-                      )}
-                      {scheduleRows.map((r, i) => (
-                        <div key={i} className="flex items-center justify-between gap-3">
-                          <span className="label-hw-dim">{r.time}</span>
-                          <span className="font-mono text-[12px] text-display text-right">{r.label}</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="mt-3">
                     <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
                   </div>
                 )}
               </section>
-            )}
-
-            {program.programType === "hackathon" && !isPublished && (
-              <div className="panel p-4">
-                <div className="label-hw mb-3">·SUBMIT YOUR PROJECT</div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <RackButton
-                    onClick={() => setSubmitOpen(true)}
-                    disabled={program.status !== "open"}
-                  >
-                    SUBMIT A PROJECT ▸
-                  </RackButton>
-                  <p className="label-hw-dim sm:ml-2">
-                    {program.status === "open"
-                      ? "Only people who checked in at the door can submit, using the email they used on Luma."
-                      : "Submissions are closed for this program."}
-                  </p>
-                </div>
-              </div>
             )}
 
             {/* The legacy apply flow (past-winner / Stadium-team) is kept for
@@ -777,8 +863,20 @@ const ProgramDetailPage = () => {
               open={submitOpen}
               onOpenChange={setSubmitOpen}
               program={program}
+              mode={submitMode}
             />
           </article>
+          {profile && tracked && !isPublished && (
+            <div className={`${PAGE_WIDTH} mx-auto mt-4`}>
+              <TrackedProjectsSection
+                profile={profile}
+                programSlug={program.slug}
+                submissions={tracked.submissions}
+                published={tracked.published}
+              />
+            </div>
+          )}
+          </>
         ) : null}
       </main>
     </div>

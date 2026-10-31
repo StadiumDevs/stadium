@@ -71,6 +71,19 @@ export function MarkdownBody({ children }: { children: string }) {
             </blockquote>
           ),
           hr: () => <hr className="border-hairline-subtle" />,
+          // GFM tables (e.g. a judging rubric) scroll sideways on phones rather
+          // than widening the page.
+          table: ({ children }) => (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] border-collapse text-sm text-body">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="label-hw-dim text-left align-bottom border-b border-hairline px-2 py-1.5">{children}</th>
+          ),
+          td: ({ children }) => (
+            <td className="align-top border-b border-hairline-subtle px-2 py-1.5 leading-snug">{children}</td>
+          ),
         }}
       >
         {children}

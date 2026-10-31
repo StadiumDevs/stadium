@@ -11,6 +11,9 @@
 
 import type { ApiProgram, ApiProgramAdminEmail, ApiProgramSignup, ApiProgramSponsor } from "./api";
 import { BITREFILL_2026_CONTENT } from "./bitrefillContent";
+import { FREE_SOCIETY_HACK_2026_CONTENT } from "./freeSocietyHackContent";
+import { FREE_SOCIETY_HACK_PRIZE_TIERS } from "./programProfiles";
+import { FSH_GUEST_EMAILS, FSH_JUDGES } from "./mocks/freeSocietyHack.seed";
 
 export const mockPrograms: ApiProgram[] = [
   {
@@ -23,9 +26,11 @@ export const mockPrograms: ApiProgram[] = [
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
-    eventStartsAt: null,
+    eventStartsAt: "2025-11-14T10:00:00-03:00",
     eventEndsAt: "2025-11-19T23:00:00Z",
-    location: null,
+    location: "Buenos Aires",
+    eventUrl: "https://luma.com/Sub0Symbiosis",
+    coverImageUrl: "/program-covers/symbiosis-2025.webp",
     maxApplicants: null,
     createdAt: "2025-09-01T00:00:00Z",
     updatedAt: "2025-11-20T00:00:00Z",
@@ -40,9 +45,11 @@ export const mockPrograms: ApiProgram[] = [
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
-    eventStartsAt: null,
+    eventStartsAt: "2024-08-19T10:00:00+02:00",
     eventEndsAt: "2024-08-22T04:55:00Z",
-    location: null,
+    location: "Berlin",
+    eventUrl: "https://luma.com/blockspace-symmetry",
+    coverImageUrl: "/program-covers/symmetry-2024.webp",
     maxApplicants: null,
     createdAt: "2024-06-01T00:00:00Z",
     updatedAt: "2024-08-23T00:00:00Z",
@@ -57,16 +64,18 @@ export const mockPrograms: ApiProgram[] = [
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
-    eventStartsAt: null,
+    eventStartsAt: "2025-07-16T10:00:00+02:00",
     eventEndsAt: "2025-07-18T23:00:00Z",
-    location: null,
+    location: "Berlin",
+    eventUrl: "https://luma.com/blockspacesynergy",
+    coverImageUrl: "/program-covers/synergy-2025.webp",
     maxApplicants: null,
     createdAt: "2025-05-01T00:00:00Z",
     updatedAt: "2025-07-19T00:00:00Z",
   },
   {
     id: "bitrefill-2026",
-    name: "PROMPT x PURCHASE — A Bitrefill Hackathon",
+    name: "PROMPT x PURCHASE",
     slug: "bitrefill-2026",
     programType: "hackathon",
     description: "WebZero hackathon hosted with Bitrefill in Berlin.",
@@ -95,6 +104,33 @@ export const mockPrograms: ApiProgram[] = [
     galleryUrl: "https://drive.google.com/drive/folders/1FEwf_sYTRc9tRqMRuXIlqG7lviAJP5Nk?usp=drive_link",
     createdAt: "2026-05-20T00:00:00Z",
     updatedAt: "2026-06-18T00:00:00Z",
+  },
+  // Zcash Free Society Hack — playground program (mock data only). Seeded in the
+  // post-event state (results published) so every state is visible; the admin
+  // page's mock-only playground bar switches status and re-seeds.
+  {
+    id: "free-society-hack-2026",
+    name: "Free Society Hack",
+    slug: "free-society-hack-2026",
+    programType: "hackathon",
+    description:
+      "A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.",
+    status: "completed",
+    owner: "webzero",
+    applicationsOpenAt: "2026-10-12T00:00:00+05:30",
+    applicationsCloseAt: "2026-10-30T23:59:00+05:30",
+    eventStartsAt: "2026-11-04T11:00:00+05:30",
+    eventEndsAt: "2026-11-05T00:00:00+05:30",
+    location: "True Tramm Trunk, BKC, Mumbai",
+    maxApplicants: 75,
+    eventUrl: "https://luma.com/freesocietyhackathon",
+    coverImageUrl: "/fsh-cover.webp",
+    lumaEventId: "evt-B6kmWqZYUUeTkIP",
+    content: FREE_SOCIETY_HACK_2026_CONTENT,
+    prizeTiers: FREE_SOCIETY_HACK_PRIZE_TIERS,
+    resultsPublishedAt: "2026-11-05T13:15:00+05:30",
+    createdAt: "2026-10-26T00:00:00Z",
+    updatedAt: "2026-11-05T00:00:00Z",
   },
   {
     id: "m2-incubator",
@@ -143,9 +179,10 @@ export const mockPrograms: ApiProgram[] = [
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
-    eventStartsAt: null,
+    eventStartsAt: "2026-02-19T13:00:00-07:00",
     eventEndsAt: null,
     location: "Denver",
+    coverImageUrl: "/program-covers/dogfooding-2026-denver.webp",
     maxApplicants: null,
     eventUrl: "https://luma.com/dogfooding",
     content: [
@@ -322,18 +359,20 @@ export const mockPrograms: ApiProgram[] = [
   },
   {
     id: "pitchoff-2026-denver",
-    name: "PitchOff! Denver 2026",
+    name: "PromptOff! Denver 2026",
     slug: "pitchoff-2026-denver",
-    programType: "pitch_off",
+    programType: "hackathon",
     description:
-      "A live pitch event in Denver where WebZero builders presented their projects to the room. Attendees signed up, chose the projects they were most excited about, and could opt into the bounty round.",
+      "Welcome to PromptOff! during ETHDenver at The Blockspace Church. 2 hours. One prompt. Prove you can vibe code something that works. A fast, fun vibe coding showdown: you get a surprise prompt, 2 hours on the clock, and one goal, to ship a working prototype with at least one successful user journey. Show up solo or with a partner (teams of 2 max); the prompt is revealed at the start; submit your project via GitHub when time's up; then demo and vote for winners. No coding experience required: just bring a laptop, your AI tool of choice, and the confidence to ship a working demo.",
     status: "completed",
     owner: "webzero",
     applicationsOpenAt: null,
     applicationsCloseAt: null,
-    eventStartsAt: "2026-02-21T00:00:00Z",
-    eventEndsAt: "2026-02-21T23:59:59Z",
-    location: "Denver",
+    eventStartsAt: "2026-02-20T12:00:00-07:00",
+    eventEndsAt: "2026-02-20T14:00:00-07:00",
+    location: "The Blockspace Church, Denver",
+    eventUrl: "https://luma.com/vibecodingcomp",
+    coverImageUrl: "/program-covers/pitchoff-2026-denver.webp",
     maxApplicants: null,
     createdAt: "2026-02-01T00:00:00Z",
     updatedAt: "2026-02-21T00:00:00Z",
@@ -363,7 +402,7 @@ export const mockProgramSponsors: Record<string, ApiProgramSponsor[]> = {
   ],
 };
 
-// PitchOff! Denver builder submissions (preview/mock only — prod reads
+// PromptOff! Denver builder submissions (preview/mock only — prod reads
 // Supabase). Real data from the event's responses CSV, projected to the
 // public-safe fields only. Telegram/contact + dates are intentionally omitted.
 const BUILD_COL = "What did you build?";
@@ -414,6 +453,15 @@ const bitrefillGuest = (
 // Email-keyed program admins + judges (mutable in the harness so invite/remove
 // in the EDIT modal persists). Seeded so the read-only list isn't empty.
 export const mockProgramAdminEmails: Record<string, ApiProgramAdminEmail[]> = {
+  "free-society-hack-2026": FSH_JUDGES.map((j) => ({
+    programId: "free-society-hack-2026",
+    email: j.email,
+    role: "judge" as const,
+    name: j.name,
+    tracks: j.tracks,
+    invitedBy: null,
+    createdAt: "2026-11-01T12:00:00Z",
+  })),
   "bitrefill-2026": [
     { programId: "bitrefill-2026", email: "judge@bitrefill.com", role: "judge", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
     { programId: "bitrefill-2026", email: "ops@bitrefill.com", role: "admin", invitedBy: null, createdAt: "2026-06-16T12:00:00Z" },
@@ -421,6 +469,16 @@ export const mockProgramAdminEmails: Record<string, ApiProgramAdminEmail[]> = {
 };
 
 export const mockProgramSignups: Record<string, ApiProgramSignup[]> = {
+  // Checked-in Luma guests: every seeded point person plus the demo builder.
+  "free-society-hack-2026": FSH_GUEST_EMAILS.map(([name, email], i) => ({
+    id: `fsh-guest-${i + 1}`,
+    programId: "free-society-hack-2026",
+    email,
+    name,
+    source: "luma_api",
+    registeredAt: "2026-10-20T12:00:00+05:30",
+    importedInBatchAt: "2026-11-04T10:30:00+05:30",
+  })),
   "bitrefill-2026": [
     bitrefillGuest(1, "Aurora Builders", "aurora@example.com"),
     bitrefillGuest(2, "Nimbus Labs", "nimbus@example.com"),

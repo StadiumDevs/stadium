@@ -87,15 +87,18 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
 
   if (!response.ok) {
     let message = mapStatusToMessage(response.status);
+    let code: string | undefined;
     try {
       const body = await response.json();
       if (body && typeof body.message === "string" && body.message.trim()) {
         message = body.error ? `${body.message}: ${body.error}` : body.message;
       }
+      // Machine-readable reason (e.g. not_checked_in, verify_to_update).
+      if (body && typeof body.code === "string") code = body.code;
     } catch {
       // ignore non-JSON or empty body
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, code);
   }
 
   // Some endpoints may return 204 No Content
@@ -210,6 +213,61 @@ export type ApiProgramAdminEmail = {
   /** 'admin' = view access; 'judge' = scoped write access to scoring only. */
   role: "admin" | "judge";
   invitedBy: string | null;
+  createdAt: string;
+  /** Judges: display name, and (tracked programs) the tracks they score; null = all. */
+  name?: string | null;
+  tracks?: JudgedTrack[] | null;
+};
+
+/** A project submission as sent to POST /programs/:slug/submissions. */
+export type SubmissionPayload = {
+  submitterName: string;
+  lumaEmail: string;
+  projectTitle: string;
+  projectBrief: string;
+  videoUrl: string;
+  githubUrl: string;
+  company?: string;
+  agreedToTerms?: boolean;
+  feedback?: {
+    surfaces: string[];
+    surfacesPrimary: string | null;
+    agentEnv: string;
+    deadlineStatus: string;
+    biggestBlocker: string;
+    couldntHandle: string;
+    wouldKeepBuilding: string;
+  };
+  /** Tracked-program fields (programProfiles.ts); validated server-side by validateSubmissionDetails. */
+  details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone">;
+};
+
+/** What happened to a submit: created, updated (resubmit), or held for an organiser. */
+export type SubmitResult = {
+  status: string;
+  data?: { id: string; late?: boolean };
+  resubmitted?: boolean;
+  message?: string;
+  outcome: "created" | "updated" | "pending";
+};
+
+/** A refused submission, kept with the reason the builder was shown (admin only). */
+export type ApiSubmissionRefusal = {
+  id: string;
+  programId: string;
+  lumaEmail: string;
+  submitterName: string | null;
+  projectTitle: string | null;
+  /** What they tried to submit (known fields only). */
+  payload: SubmissionPayload;
+  reasonCode: "not_checked_in" | "invalid" | "unverified" | "update_unverified";
+  /** The builder proved they own the email; held for a master admin if not on Luma. */
+  emailVerified?: boolean;
+  reason: string;
+  status: "refused" | "accepted" | "dismissed";
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  acceptedSubmissionId: string | null;
   createdAt: string;
 };
 
@@ -494,6 +552,148 @@ export type ApiPublicResults = {
   published: boolean;
   prizeTiers?: ApiPrizeTier[] | null;
   submissions: ApiPublicResultEntry[];
+};
+
+// --- Tracked submissions (programs with a profile in programProfiles.ts) ---
+// Additive to the Bitrefill submission shape above. Mock-mode only for now: the
+// server does not store `details` yet (see docs/zcash/free-society-hack.md).
+
+export type SubmissionTrack = "privacy" | "agentic" | "both";
+/** A single judged track (a "both" entry is judged in each). */
+export type JudgedTrack = Exclude<SubmissionTrack, "both">;
+
+export type TxCheckStatus = "verified" | "not_found" | "not_shielded" | "could_not_check";
+export type ApiTxCheck = { status: TxCheckStatus; checkedAt: string | null; attempts?: number };
+
+export type ApiTeamMember = { name: string; email?: string | null; role?: string | null };
+
+export type MilestonePayoutStatus = "pending" | "released" | "not_completed";
+
+/** The tracked 30-day milestone (Ecosystem Prize-flagged projects only). */
+export type ApiSubmissionMilestone = {
+  /** Builder-written; also the submission's next milestone until agreed. */
+  sentence: string;
+  partnerName: string | null;
+  partnerProject: string | null;
+  agreedAt: string | null;
+  /** The 19 Nov check-in point, recorded by an admin (Stadium sends no check-in emails). */
+  checkedInAt: string | null;
+  /** Builder-written public link to the delivered milestone. */
+  deliveryLink: string | null;
+  partnerConfirmed: boolean | null;
+  partnerConfirmedAt: string | null;
+  /** ZecHub Friday Lounge date the milestone was shared. */
+  loungeDate: string | null;
+  payoutStatus: MilestonePayoutStatus;
+  payoutReleasedAt: string | null;
+};
+
+export type ApiSubmissionDetails = {
+  track: SubmissionTrack;
+  themes: string[];
+  /** One-line pitch. `projectBrief` keeps the longer description. */
+  pitch: string;
+  team: ApiTeamMember[];
+  appType: string;
+  publicUrl: string | null;
+  demoVideoLength?: string | null;
+  technologies: string[];
+  network?: string | null;
+  pool?: string | null;
+  testnetTxid: string | null;
+  txCheck: ApiTxCheck | null;
+  nextStep: string;
+  /** Links to anything already started toward the next milestone. */
+  nextStepLinks: string[];
+  /** Hide the point person's and teammates' names publicly (admins still see them). */
+  anonymous?: boolean;
+  frictionNotes: string | null;
+  /** Privacy and trust note (Privacy and Both): judges score Private from it. */
+  privacyNote?: string | null;
+  /** Bitrefill feedback (Agentic and Both): never shown publicly. */
+  bitrefillFeedback?: { worked: string; didnt: string } | null;
+  /** No longer collected (feedback is free text); kept optional for older records. */
+  frictionAreas?: string[];
+  milestone: ApiSubmissionMilestone | null;
+};
+
+/** One judge's scoring progress; names only, so every judge can see the table. */
+export type ApiJudgingProgressRow = { name: string; tracks: JudgedTrack[]; scored: number; total: number; isYou?: boolean };
+
+/** Admin/judge view of a tracked submission (includes emails). */
+export type ApiTrackedSubmission = ApiSubmission & {
+  details: ApiSubmissionDetails;
+  /** Judging batch (e.g. evening / morning), from the first submission time. */
+  batch?: string | null;
+  /** Prizes keyed by judged track — a project can win in both. */
+  prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
+  /** Ecosystem Prize flag: a second award on top of a podium prize (not a tier). */
+  ecosystemPrize: boolean;
+};
+
+/** Public, email-free projection of a tracked submission. */
+export type ApiPublicSubmission = {
+  id: string;
+  projectTitle: string;
+  projectBrief: string;
+  /** Point person's name (never their email). */
+  submitterName: string;
+  videoUrl: string;
+  githubUrl: string;
+  late: boolean;
+  createdAt: string;
+  details: Omit<ApiSubmissionDetails, "team"> & {
+    team: { name: string; role?: string | null }[];
+  };
+  /** Only populated once results are published. */
+  prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
+  /** Only true once results are published. */
+  ecosystemPrize: boolean;
+};
+
+export type ApiPublicSubmissions = { published: boolean; submissions: ApiPublicSubmission[] };
+
+/** One judge's rubric score for one submission in one track. Null = unscored. */
+export type ApiRubricScore = {
+  submissionId: string;
+  judgeEmail: string;
+  track: JudgedTrack;
+  criteria: Record<string, number | null>;
+  notes: string;
+  session: string;
+  /** The judge's own "unsure, come back to this" mark. Doesn't change scoring. */
+  revisit?: boolean;
+  /** What the judge checked before scoring. Doesn't change scoring. */
+  checks?: { video?: boolean; repo?: boolean; tx?: boolean };
+  updatedAt: string;
+};
+
+export type ApiRubricLeaderboardRow = {
+  rank: number;
+  submissionId: string;
+  projectTitle: string;
+  submitterName: string;
+  track: SubmissionTrack;
+  avgTotal: number;
+  avgByCriterion: Record<string, number>;
+  bonusCount: number;
+  judgeCount: number;
+  /** Set when this row's order against the row above was decided by a tie-break. */
+  tieBrokenBy: string | null;
+  judgeScores: { judgeEmail: string; total: number; criteria: Record<string, number | null>; notes: string; session: string }[];
+  txCheck: ApiTxCheck | null;
+  prize: ApiPrizeTier | null;
+  ecosystemPrize: boolean;
+  /** Set when the rubric's winner gate blocks this project from a prize. */
+  winnerBlocked: string | null;
+};
+
+export type ApiRubricLeaderboard = {
+  track: JudgedTrack;
+  judges: string[];
+  submissionsTotal: number;
+  submissionsFullyScored: number;
+  rows: ApiRubricLeaderboardRow[];
 };
 
 /** Per-program sponsor / partner with goals + follow-up tracking. */
@@ -1932,6 +2132,8 @@ export const api = {
     email: string,
     authHeader: AdminAuthArg,
     role: "admin" | "judge" = "admin",
+    /** Judge profile: display name and (tracked programs) the tracks they score; null = all. */
+    profile: { name?: string; tracks?: JudgedTrack[] | null } = {},
   ): Promise<{ status: string; data: ApiProgramAdminEmail; emailSent: boolean; emailReason: string | null }> => {
     if (USE_MOCK_DATA) {
       const { mockProgramAdminEmails } = await import("./mockPrograms");
@@ -1941,6 +2143,8 @@ export const api = {
         role,
         invitedBy: null,
         createdAt: new Date().toISOString(),
+        name: profile.name?.trim() || null,
+        tracks: role === "judge" ? profile.tracks ?? null : null,
       };
       const list = mockProgramAdminEmails[slug] || [];
       mockProgramAdminEmails[slug] = list.some((a) => a.email === record.email)
@@ -1951,7 +2155,7 @@ export const api = {
     return request(`/programs/${encodeURIComponent(slug)}/admins/invite`, {
       method: "POST",
       headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email, role, ...profile }),
     });
   },
 
@@ -1980,49 +2184,106 @@ export const api = {
   /** Public: submit a project to a program. No auth. */
   submitProjectSubmission: async (
     slug: string,
-    payload: {
-      submitterName: string;
-      lumaEmail: string;
-      projectTitle: string;
-      projectBrief: string;
-      videoUrl: string;
-      githubUrl: string;
-      company?: string;
-      agreedToTerms?: boolean;
-      feedback?: {
-        surfaces: string[];
-        surfacesPrimary: string | null;
-        agentEnv: string;
-        deadlineStatus: string;
-        biggestBlocker: string;
-        couldntHandle: string;
-        wouldKeepBuilding: string;
-      };
-    },
-  ): Promise<{ status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean }> => {
+    payload: SubmissionPayload,
+    /** A Supabase session token proving the builder owns `payload.lumaEmail`. */
+    opts: { verifiedToken?: string | null } = {},
+  ): Promise<SubmitResult> => {
     if (USE_MOCK_DATA) {
       // Only checked-in attendees (on the imported Luma list) may submit.
       const { mockProgramSignups, mockPrograms } = await import("./mockPrograms");
       const guests = mockProgramSignups[slug] || [];
-      const ok = guests.some((g) => g.email.trim().toLowerCase() === payload.lumaEmail.trim().toLowerCase());
+      const email = payload.lumaEmail.trim().toLowerCase();
+      const { mockVerifiedEmails } = await import("./mockVerifiedEmails");
+      const verified = mockVerifiedEmails.has(email);
+      const { mockRefusals } = await import("./mockRefusals");
+      // Tracked programs: updating an existing entry needs the email verified.
+      if (payload.details && !verified) {
+        const { mockTracked } = await import("./mockTrackedSubmissions");
+        if (mockTracked.list(slug).some((x) => x.lumaEmail.trim().toLowerCase() === email)) {
+          const reason = "Verify your email to update your submission.";
+          mockRefusals.record(slug, payload, "update_unverified", reason);
+          throw new ApiError(reason, 401, "verify_to_update");
+        }
+      }
+      const ok = guests.some((g) => g.email.trim().toLowerCase() === email);
       if (!ok) {
-        throw new ApiError(
-          "Only checked-in attendees can submit. Use the email you checked in with on Luma.",
-          403,
-        );
+        // Refusals are kept with the reason (a master admin can accept them).
+        if (verified) {
+          const message =
+            "Received. Your email isn't on Luma's checked-in list yet, so an organiser will confirm it. You don't need to submit again.";
+          mockRefusals.record(slug, payload, "not_checked_in", message, true);
+          return { status: "pending", outcome: "pending", message };
+        }
+        const reason = "Only checked-in attendees can submit. Use the email you checked in with on Luma.";
+        mockRefusals.record(slug, payload, "not_checked_in", reason);
+        throw new ApiError(reason, 403, "not_checked_in");
       }
       // Deadline is informational: a submit after event end is flagged late, not blocked.
       const program = mockPrograms.find((p) => p.slug === slug);
       const late = !!(program?.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
+      if (payload.details) {
+        const { mockTracked } = await import("./mockTrackedSubmissions");
+        const existed = mockTracked.list(slug).some((x) => x.lumaEmail.trim().toLowerCase() === email);
+        const sub = mockTracked.add(slug, { ...payload, details: payload.details, late });
+        // Never blocks the submission: the check runs after it is stored.
+        void mockTracked.recheckTx(slug, sub.id);
+        return { status: "success", data: { id: sub.id, late }, outcome: existed ? "updated" : "created" };
+      }
       const { mockJudging } = await import("./mockJudging");
       const sub = mockJudging.addSubmission({ ...payload, late });
-      return { status: "success", data: { id: sub.id, late } };
+      return { status: "success", data: { id: sub.id, late }, outcome: "created" };
     }
-    return request(`/programs/${encodeURIComponent(slug)}/submissions`, {
+    const r = (await request(`/programs/${encodeURIComponent(slug)}/submissions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {}),
+      },
       body: JSON.stringify(payload),
+    })) as { status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean; message?: string };
+    return {
+      ...r,
+      outcome: r.status === "pending" ? "pending" : r.resubmitted ? "updated" : "created",
+    };
+  },
+
+  /** Builder (email sign-in): their own submission, to edit it. */
+  getMySubmission: async (
+    slug: string,
+    opts: { email: string; verifiedToken?: string | null },
+  ): Promise<{ status: string; data: SubmissionPayload & { createdAt?: string } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockVerifiedEmails } = await import("./mockVerifiedEmails");
+      const email = opts.email.trim().toLowerCase();
+      if (!mockVerifiedEmails.has(email)) throw new ApiError("Verify your email to load your submission.", 401, "verify_email");
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const s = mockTracked.list(slug).find((x) => x.lumaEmail.trim().toLowerCase() === email);
+      if (!s) throw new ApiError("No submission for this email yet", 404);
+      const { txCheck: _t, milestone: _m, ...details } = s.details;
+      return {
+        status: "success",
+        data: {
+          submitterName: s.submitterName,
+          lumaEmail: s.lumaEmail,
+          projectTitle: s.projectTitle,
+          projectBrief: s.projectBrief ?? "",
+          videoUrl: s.videoUrl,
+          githubUrl: s.githubUrl,
+          details,
+          createdAt: s.createdAt,
+        },
+      };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/mine`, {
+      headers: opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {},
     });
+  },
+
+  /** Playground only: mark an email verified (stands in for the sign-in link). */
+  mockVerifyEmail: async (email: string): Promise<void> => {
+    if (!USE_MOCK_DATA) throw new ApiError("Only available in mock mode", 400);
+    const { mockVerifiedEmails } = await import("./mockVerifiedEmails");
+    mockVerifiedEmails.add(email);
   },
 
   /** Judge/admin: list submissions with eligibility flag + this judge's scores. */
@@ -2184,6 +2445,12 @@ export const api = {
   ): Promise<{ status: string; data: ApiProgramStats }> => {
     if (USE_MOCK_DATA) {
       const { mockJudging } = await import("./mockJudging");
+      const { getProgramProfile } = await import("./programProfiles");
+      if (getProgramProfile(slug)) {
+        const { mockTracked } = await import("./mockTrackedSubmissions");
+        const { confirmedParticipants } = mockJudging.stats(slug);
+        return { status: "success", data: { confirmedParticipants, ...mockTracked.stats(slug) } };
+      }
       return { status: "success", data: mockJudging.stats(slug) };
     }
     return request(`/programs/${encodeURIComponent(slug)}/stats`, {
@@ -2289,6 +2556,313 @@ export const api = {
       return { status: "success", data: mockJudging.publicResults() };
     }
     return request(`/programs/${encodeURIComponent(slug)}/results`);
+  },
+
+  // --- Tracked submissions (programs with a profile in programProfiles.ts) ---
+  // Mock mode only for now: the server endpoints are planned in
+  // docs/zcash/free-society-hack.md. Outside mock mode these throw 501.
+
+  /** Public: every submitted project (live), winners first once published. */
+  listPublicSubmissions: async (slug: string): Promise<{ status: string; data: ApiPublicSubmissions }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.publicList(slug) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/public`);
+  },
+
+  /** Public: a winning project's page. 404 for non-winners. */
+  getPublicWinner: async (slug: string, submissionId: string): Promise<{ status: string; data: ApiPublicSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const data = mockTracked.publicWinner(slug, submissionId);
+      if (!data) throw new ApiError("Project not found", 404);
+      return { status: "success", data };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/public`);
+  },
+
+  /** Admin/judge: all tracked submissions with emails, prizes, milestones and check-ins. */
+  listTrackedSubmissions: async (
+    slug: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return {
+        status: "success",
+        data: {
+          submissions: mockTracked.list(slug),
+          resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
+        },
+      };
+    }
+    const r = (await request(`/programs/${encodeURIComponent(slug)}/tracked-submissions`, {
+      headers: adminAuthHeaders(_authHeader),
+    })) as { status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt?: string | null } };
+    return {
+      status: r.status,
+      data: {
+        submissions: r.data.submissions.map((x) => ({ ...x, prizes: x.prizes ?? {}, ecosystemPrize: x.ecosystemPrize ?? false })),
+        resultsPublishedAt: r.data.resultsPublishedAt ?? null,
+      },
+    };
+  },
+
+  /** Program admin: refused submissions, newest first, with the reason shown. */
+  listSubmissionRefusals: async (slug: string, authHeader: AdminAuthArg): Promise<{ status: string; data: ApiSubmissionRefusal[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockRefusals } = await import("./mockRefusals");
+      return { status: "success", data: mockRefusals.list(slug) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submission-refusals`, { headers: adminAuthHeaders(authHeader) });
+  },
+
+  /** Master admin: accept a refused project (it keeps its original submission time). */
+  acceptSubmissionRefusal: async (
+    slug: string,
+    id: string,
+    authHeader: AdminAuthArg,
+    reviewedBy = "admin",
+  ): Promise<{ status: string; data: { refusal: ApiSubmissionRefusal; submission?: { id: string } } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockRefusals } = await import("./mockRefusals");
+      try {
+        const refusal = await mockRefusals.accept(slug, id, reviewedBy);
+        return { status: "success", data: { refusal, submission: refusal.acceptedSubmissionId ? { id: refusal.acceptedSubmissionId } : undefined } };
+      } catch (e) {
+        throw new ApiError((e as Error).message, (e as { status?: number }).status ?? 400);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submission-refusals/${encodeURIComponent(id)}/accept`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Master admin: mark a refused submission reviewed and not accepted (kept). */
+  dismissSubmissionRefusal: async (
+    slug: string,
+    id: string,
+    authHeader: AdminAuthArg,
+    reviewedBy = "admin",
+  ): Promise<{ status: string; data: ApiSubmissionRefusal }> => {
+    if (USE_MOCK_DATA) {
+      const { mockRefusals } = await import("./mockRefusals");
+      try {
+        return { status: "success", data: mockRefusals.dismiss(slug, id, reviewedBy) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, (e as { status?: number }).status ?? 400);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submission-refusals/${encodeURIComponent(id)}/dismiss`, {
+      method: "POST",
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Admin: the program's judges and the tracks each may score. */
+  listTrackJudges: async (
+    slug: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { email: string | null; name: string; tracks: JudgedTrack[] }[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.judges(slug) };
+    }
+    // Names and tracks; the server gives a judge only their own email.
+    return request(`/programs/${encodeURIComponent(slug)}/judges`, { headers: adminAuthHeaders(authHeader) });
+  },
+
+  /** Judge: this judge's saved rubric scores. */
+  listMyRubricScores: async (
+    slug: string,
+    judgeEmail: string,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiRubricScore[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.scores(slug).filter((s) => s.judgeEmail === judgeEmail) };
+    }
+    // The server knows the judge from their email session; judgeEmail is mock-only.
+    return request(`/programs/${encodeURIComponent(slug)}/rubric-scores/mine`, {
+      headers: adminAuthHeaders(authHeader),
+    });
+  },
+
+  /** Judge/admin: how many projects each judge has scored out of their tracks' total. */
+  getJudgingProgress: async (
+    slug: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiJudgingProgressRow[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.judgingProgress(slug) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/judging-progress`, { headers: adminAuthHeaders(_authHeader) });
+  },
+
+  /** Mock mode only: wipe the playground program and re-seed it from its fixture. */
+  resetMockPlayground: async (slug: string): Promise<void> => {
+    if (!USE_MOCK_DATA) throw new ApiError("Only available in mock mode", 400);
+    const { mockTracked } = await import("./mockTrackedSubmissions");
+    mockTracked.reset(slug);
+    const { mockRefusals } = await import("./mockRefusals");
+    mockRefusals.reset(slug);
+  },
+
+  /** Judge: save (upsert) a rubric score for one submission in one track. */
+  saveRubricScore: async (
+    slug: string,
+    score: Omit<ApiRubricScore, "updatedAt">,
+    authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiRubricScore }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      try {
+        return { status: "success", data: mockTracked.saveScore(slug, score) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, 403);
+      }
+    }
+    // Partial scores are fine (autosave). The judge is the verified session email.
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(score.submissionId)}/rubric-scores/${score.track}`,
+      {
+        method: "PUT",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify({ criteria: score.criteria, notes: score.notes, session: score.session, revisit: !!score.revisit, checks: score.checks ?? {} }),
+      },
+    );
+  },
+
+  /** Judge/admin: per-track leaderboard (average weighted total + tie-breaks). */
+  getRubricLeaderboard: async (
+    slug: string,
+    track: JudgedTrack,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiRubricLeaderboard }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.leaderboard(slug, track) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/rubric-leaderboard/${encodeURIComponent(track)}`, {
+      headers: adminAuthHeaders(_authHeader),
+    });
+  },
+
+  /** Platform admin: award (or clear) a track prize. A project can win in both tracks. */
+  awardTrackPrize: async (
+    slug: string,
+    submissionId: string,
+    track: JudgedTrack,
+    prize: ApiPrizeTier | null,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      let data;
+      try {
+        data = mockTracked.awardPrize(slug, submissionId, track, prize);
+      } catch (e) {
+        throw new ApiError((e as Error).message, 409);
+      }
+      if (!data) throw new ApiError("Submission not found", 404);
+      return { status: "success", data };
+    }
+    return request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/prizes/${encodeURIComponent(track)}`,
+      {
+        method: "PUT",
+        headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: prize ? prize.amount : null }),
+      },
+    );
+  },
+
+  /** Platform admin: flag (or unflag) a podium project as an Ecosystem Prize winner. */
+  setEcosystemPrize: async (
+    slug: string,
+    submissionId: string,
+    flagged: boolean,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      try {
+        return { status: "success", data: mockTracked.setEcosystemPrize(slug, submissionId, flagged) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, 409);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/ecosystem-prize`, {
+      method: "PUT",
+      headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ flagged }),
+    });
+  },
+
+  /** Platform admin: publish / unpublish tracked results. */
+  setTrackedResultsPublished: async (
+    slug: string,
+    publish: boolean,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: { resultsPublishedAt: string | null } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: { resultsPublishedAt: mockTracked.setPublished(slug, publish) } };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/results/${publish ? "publish" : "unpublish"}`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
+    });
+  },
+
+  /** Admin: re-run the testnet transaction check for one submission. */
+  recheckSubmissionTx: async (
+    slug: string,
+    submissionId: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const data = await mockTracked.recheckTx(slug, submissionId);
+      if (!data) throw new ApiError("Submission not found", 404);
+      return { status: "success", data };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/tx-check`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
+    });
+  },
+
+  /**
+   * Update a tracked milestone. Builders write `sentence` and `deliveryLink`;
+   * admins assign the partner and record confirmation, Lounge date and payout.
+   */
+  updateSubmissionMilestone: async (
+    slug: string,
+    submissionId: string,
+    patch: Partial<ApiSubmissionMilestone>,
+    // Admins pass their auth; builders pass null and their verified email token.
+    _authHeader: AdminAuthArg | null,
+    opts: { verifiedToken?: string | null } = {},
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const data = mockTracked.updateMilestone(slug, submissionId, patch);
+      if (!data) throw new ApiError("Milestone not found", 404);
+      return { status: "success", data };
+    }
+    const base = `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/milestone`;
+    return request(_authHeader ? base : `${base}/builder`, {
+      method: "PATCH",
+      headers: {
+        ...(_authHeader ? adminAuthHeaders(_authHeader) : opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(patch),
+    });
   },
 
   // --- Admin tiers (app_admins / global_admins) ---

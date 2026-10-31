@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
+import trackedResultsController from '../controllers/tracked-results.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
@@ -177,6 +178,10 @@ router.get('/:slug/audit-log', requireProgramViewer('slug'), programController.l
 // requireProgramJudge: a judge/admin email session (scoped write) OR a wallet
 // admin. requireProgramJudge NEVER unlocks the payment/approval routes above.
 router.post('/:slug/submissions', submissionLimiter, submissionController.submit);
+// Tracked programs: the public live list (no emails), and a builder's own
+// submission (email sign-in) so they can edit it.
+router.get('/:slug/submissions/public', submissionController.publicSubmissions);
+router.get('/:slug/submissions/mine', submissionController.mySubmission);
 router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
 // Download all submissions + their feedback survey as CSV (judge/admin).
 router.get('/:slug/submissions.csv', requireProgramJudge('slug'), submissionController.exportCsv);
@@ -191,6 +196,58 @@ router.put(
   requireProgramJudge('slug'),
   submissionController.upsertScore,
 );
+// Tracked programs (Free Society Hack): per-judge rubric scores per track.
+// Email judges only (the controller refuses wallet admins); partial scores
+// autosave, and a judge's tracks (program_admin_emails.tracks) are enforced.
+// Refused submissions are kept with their reason; program admins can see them,
+// and only a master (global) admin can accept or dismiss (checked in the controller).
+router.get('/:slug/submission-refusals', requireProgramAdmin('slug'), submissionController.listRefusals);
+router.post(
+  '/:slug/submission-refusals/:refusalId/accept',
+  requireProgramAdmin('slug'),
+  submissionController.acceptRefusal,
+);
+router.post(
+  '/:slug/submission-refusals/:refusalId/dismiss',
+  requireProgramAdmin('slug'),
+  submissionController.dismissRefusal,
+);
+router.get('/:slug/judges', requireProgramJudge('slug'), submissionController.listJudges);
+router.get('/:slug/tracked-submissions', requireProgramJudge('slug'), submissionController.listTracked);
+router.get('/:slug/rubric-scores/mine', requireProgramJudge('slug'), submissionController.listMyRubricScores);
+router.put(
+  '/:slug/submissions/:submissionId/rubric-scores/:track',
+  requireProgramJudge('slug'),
+  submissionController.upsertRubricScore,
+);
+// Tracked programs: leaderboard, progress, awards by track (platform admin,
+// checked in the controller), the Ecosystem Prize, milestones, the tx re-check
+// and the public winner page. Publishing uses /results/publish below.
+router.get('/:slug/rubric-leaderboard/:track', requireProgramJudge('slug'), trackedResultsController.leaderboard);
+router.get('/:slug/judging-progress', requireProgramJudge('slug'), trackedResultsController.judgingProgress);
+router.put(
+  '/:slug/submissions/:submissionId/prizes/:track',
+  requireProgramAdmin('slug'),
+  trackedResultsController.awardPrize,
+);
+router.put(
+  '/:slug/submissions/:submissionId/ecosystem-prize',
+  requireProgramAdmin('slug'),
+  trackedResultsController.setEcosystemPrize,
+);
+router.patch(
+  '/:slug/submissions/:submissionId/milestone',
+  requireProgramAdmin('slug'),
+  trackedResultsController.updateMilestoneAdmin,
+);
+// Builder edit: authenticated in the controller by the verified-email session.
+router.patch(
+  '/:slug/submissions/:submissionId/milestone/builder',
+  submissionLimiter,
+  trackedResultsController.updateMilestoneBuilder,
+);
+router.post('/:slug/submissions/:submissionId/tx-check', requireProgramAdmin('slug'), trackedResultsController.recheckTx);
+router.get('/:slug/submissions/:submissionId/public', trackedResultsController.publicWinner);
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
 // At-a-glance counts for the program header (judge + admin; no PII).

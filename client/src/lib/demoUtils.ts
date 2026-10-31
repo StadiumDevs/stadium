@@ -27,7 +27,7 @@ export function detectDemoType(url: string): DemoType {
   }
 
   // Direct video files
-  if (url.match(/\.(mp4|webm|ogg|mov)$/i)) {
+  if (url.match(/\.(mp4|webm|ogg|mov)(\?|#|$)/i)) {
     return 'video';
   }
 
@@ -46,7 +46,8 @@ export function detectDemoType(url: string): DemoType {
  */
 export function extractYouTubeId(url: string): string | null {
   const patterns = [
-    /youtube\.com\/watch\?v=([^&]+)/,
+    /youtube\.com\/watch\?(?:.*&)?v=([^&#]+)/,
+    /youtube\.com\/shorts\/([^?/#]+)/,
     /youtu\.be\/([^?]+)/,
     /youtube\.com\/embed\/([^?]+)/,
     /youtube\.com\/v\/([^?]+)/,

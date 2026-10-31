@@ -30,6 +30,15 @@ const transform = (row) => {
     prizeNotifiedAt: row.prize_notified_at ?? null,
     agreedToTermsAt: row.agreed_to_terms_at ?? null,
     feedback: row.feedback ?? null,
+    // Tracked programs only: the validated submission fields and the track,
+    // plus the server-set tx check and milestone (their own columns) folded
+    // into details, as the client reads them.
+    details: row.details ? { ...row.details, txCheck: row.tx_check ?? null, milestone: row.milestone ?? null } : null,
+    track: row.track ?? null,
+    // Tracked programs: the prize won in each judged track, and the Ecosystem Prize flag.
+    prizes: row.prizes ?? {},
+    ecosystemPrize: row.ecosystem_prize === true,
+    acceptedFromRefusalId: row.accepted_from_refusal_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -72,7 +81,9 @@ class ProgramSubmissionRepository {
   // Returns { submission, duplicate }. Duplicate is decided up front (one
   // submission per Luma email per program) so the controller can answer 409
   // without leaning on the DB error text.
-  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, agreedToTerms = false }) {
+  // `createdAt` / `acceptedFromRefusalId`: set when a master admin accepts a
+  // refused attempt, so the entry keeps the attempt's time (and judging batch).
+  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, agreedToTerms = false, details = null, createdAt = null, acceptedFromRefusalId = null }) {
     const normalized = normalizeEmail(lumaEmail);
     const existing = await this.findByEmail(programId, normalized);
     if (existing) return { submission: existing, duplicate: true };
@@ -91,6 +102,10 @@ class ProgramSubmissionRepository {
         late,
         feedback: feedback ?? null,
         agreed_to_terms_at: agreedToTerms ? new Date().toISOString() : null,
+        details: details ?? null,
+        track: details?.track ?? null,
+        ...(createdAt ? { created_at: createdAt } : {}),
+        ...(acceptedFromRefusalId ? { accepted_from_refusal_id: acceptedFromRefusalId } : {}),
       })
       .select('*')
       .single();
@@ -100,7 +115,7 @@ class ProgramSubmissionRepository {
 
   // Resubmission: overwrite the editable fields of an existing submission (one
   // per Luma email). Leaves prize / paid / promoted as-is.
-  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late, feedback, agreedToTerms }) {
+  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late, feedback, agreedToTerms, details }) {
     const patch = {
       submitter_name: submitterName,
       project_title: projectTitle,
@@ -114,6 +129,12 @@ class ProgramSubmissionRepository {
     // the submitter re-affirmed it (never clear a prior agreement).
     if (feedback !== undefined) patch.feedback = feedback ?? null;
     if (agreedToTerms === true) patch.agreed_to_terms_at = new Date().toISOString();
+    // Tracked programs: a resubmit replaces the details (and track). created_at
+    // is untouched, so the judging batch stays the first submission's.
+    if (details !== undefined) {
+      patch.details = details ?? null;
+      patch.track = details?.track ?? null;
+    }
 
     const { data, error } = await supabase
       .from('program_submissions')
@@ -166,6 +187,24 @@ class ProgramSubmissionRepository {
         awarded_by: prize ? actor ?? null : null,
         updated_at: new Date().toISOString(),
       })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
+  }
+
+  // Tracked programs: write the server-set award and check columns. Only these
+  // keys are accepted; anything else is ignored.
+  async updateTracked(id, { prizes, ecosystemPrize, txCheck, milestone }) {
+    const patch = { updated_at: new Date().toISOString() };
+    if (prizes !== undefined) patch.prizes = prizes;
+    if (ecosystemPrize !== undefined) patch.ecosystem_prize = !!ecosystemPrize;
+    if (txCheck !== undefined) patch.tx_check = txCheck;
+    if (milestone !== undefined) patch.milestone = milestone;
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update(patch)
       .eq('id', id)
       .select('*')
       .single();

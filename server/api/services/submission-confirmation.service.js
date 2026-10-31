@@ -10,18 +10,20 @@ class SubmissionConfirmationService {
    * returns { ok:false, reason:'provider_not_configured' } when Resend is unset so
    * the caller can surface that the submission landed but no email went out.
    */
-  async send({ email, submitterName, programName, slug, projectTitle, deadline = null, resubmitted = false }) {
+  async send({ email, submitterName, programName, slug, projectTitle, deadline = null, resubmitted = false, details = null, pendingReview = false }) {
     const transport = await getEmailTransport();
     if (!transport) return { ok: false, reason: 'provider_not_configured' };
 
     const link = `${FRONTEND_URL}/programs/${encodeURIComponent(slug)}`;
-    const { subject, html, text } = renderEmail('submission_confirmation', {
+    // pendingReview: verified, but not on the checked-in list; held for an organiser.
+    const { subject, html, text } = renderEmail(pendingReview ? 'submission_pending_review' : 'submission_confirmation', {
       submitterName,
       programName,
       projectTitle,
       link,
       deadline,
       resubmitted,
+      details,
     });
 
     await transport.send({

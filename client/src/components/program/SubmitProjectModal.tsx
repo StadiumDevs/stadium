@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Star } from "lucide-react";
-import { api, type ApiProgram, ApiError } from "@/lib/api";
+import { api, type ApiProgram, type SubmitResult, ApiError, USE_MOCK_DATA } from "@/lib/api";
+import { useSocialAuth } from "@/lib/auth/useSocialAuth";
+import { mockVerifiedEmails } from "@/lib/mockVerifiedEmails";
 import { useToast } from "@/hooks/use-toast";
 import { MarkdownBody } from "@/components/program/MarkdownBody";
 import { getSubmissionTerms } from "@/lib/submissionTerms";
@@ -21,30 +23,100 @@ import {
   getSubmissionFeedback,
   type FeedbackAnswers,
 } from "@/lib/submissionFeedback";
+import { getProgramProfile } from "@/lib/programProfiles";
+import { TrackedSubmissionFields } from "@/components/program/tracked/TrackedSubmissionFields";
+import { RequiredMark } from "@/components/program/RequiredMark";
+import {
+  detailsToTrackedForm,
+  emptyTrackedForm,
+  invalidBorder,
+  invalidText,
+  trackedFormToDetails,
+  validateTrackedForm,
+  videoOptional,
+  type FieldIssue,
+  type TrackedFormState,
+} from "@/components/program/tracked/trackedForm";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// The demo video ask differs by track (Free Society Hack builder doc).
+const videoLabel = (track: TrackedFormState["track"]) =>
+  track === "privacy"
+    ? "DEMO VIDEO LINK (2 MINUTES MAX, OPTIONAL)"
+    : track === "agentic"
+      ? "DEMO VIDEO (3 MINUTES MAX) OR A LIVE LINK SHOWING THE AGENT MAKE A PURCHASE"
+      : track === "both"
+        ? "DEMO VIDEO (SHOW THE ZCASH FLOW AND THE AGENT'S PURCHASE)"
+        : "DEMO VIDEO LINK";
 const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
 const BRIEF_MAX = 500;
 
 /**
  * Public project-submission form for a hackathon program. Anyone can submit;
- * no login required. Captures the fields judges need: name, the email used on
+ * no login required. The form is kept on this device as a draft while it's
+ * filled in. Fallbacks: a builder not on the Luma list can verify their email
+ * (sign-in link) and is either let in after a fresh Luma check or held for an
+ * organiser; updating an existing submission needs the email verified; a
+ * failed send keeps the draft and retries. Captures the fields judges need: name, the email used on
  * Luma, project title, a video demo link, and a GitHub URL. For programs with
  * submission terms (see submissionTerms.ts) the submitter must agree to them,
  * and for programs with a feedback config (submissionFeedback.ts) the feedback
  * questions are collected and required.
  */
+type Draft = {
+  submitterName: string;
+  lumaEmail: string;
+  projectTitle: string;
+  projectBrief: string;
+  videoUrl: string;
+  githubUrl: string;
+  agreedToTerms: boolean;
+  surfaces: string[];
+  surfacesPrimary: string | null;
+  singles: Record<string, string>;
+  texts: Record<string, string>;
+  tracked: TrackedFormState;
+};
+type Problem = "not_checked_in" | "verify_to_update" | "retry";
+
+const DRAFT_SAVE_MS = 400;
+const RETRY_AFTER_MS = 5000;
+const draftKey = (slug: string) => `stadium_submit_draft_${slug}`;
+const readDraft = (slug: string): Draft | null => {
+  try {
+    const raw = localStorage.getItem(draftKey(slug));
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+};
+const writeDraft = (slug: string, d: Draft | null) => {
+  try {
+    if (d) localStorage.setItem(draftKey(slug), JSON.stringify(d));
+    else localStorage.removeItem(draftKey(slug));
+  } catch {
+    // Storage unavailable: the form still works, it just isn't kept.
+  }
+};
+
 export function SubmitProjectModal({
   open,
   onOpenChange,
   program,
+  mode = "new",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   program: ApiProgram;
+  /** "update": load the builder's own submission (after verifying their email) to edit it. */
+  mode?: "new" | "update";
 }) {
   const terms = getSubmissionTerms(program.slug);
   const feedbackConfig = getSubmissionFeedback(program.slug);
+  // Tracked programs (programProfiles.ts) collect tracks, txid, next milestone, etc.
+  const profile = getProgramProfile(program.slug);
+  const [tracked, setTracked] = useState<TrackedFormState>(emptyTrackedForm);
 
   const [submitterName, setName] = useState("");
   const [lumaEmail, setEmail] = useState("");
@@ -63,29 +135,135 @@ export function SubmitProjectModal({
   const [texts, setTexts] = useState<Record<string, string>>({});
 
   const [error, setError] = useState<string | null>(null);
+  // After the first submit attempt, missing or invalid fields are marked red
+  // (recomputed as they type, so a fixed field clears at once).
+  const [attempted, setAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [outcome, setOutcome] = useState<SubmitResult["outcome"] | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const [problemMessage, setProblemMessage] = useState("");
+  const [retryScheduled, setRetryScheduled] = useState(false);
+  const [linkSentTo, setLinkSentTo] = useState<string | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [loadedMine, setLoadedMine] = useState(false);
+  const [, setVerifyTick] = useState(0);
   const { toast } = useToast();
+  const social = useSocialAuth();
+  const retried = useRef(false);
+  const retryTimer = useRef<number>();
+  const done = outcome !== null;
 
+  // Verified = the builder proved they own this email (sign-in link; in the
+  // playground, the stand-in marks it verified for the session).
+  const emailNorm = lumaEmail.trim().toLowerCase();
+  const verified =
+    !!emailNorm && (USE_MOCK_DATA ? mockVerifiedEmails.has(emailNorm) : !!social.token && social.email?.toLowerCase() === emailNorm);
+
+  const applyDraft = useCallback((d: Partial<Draft> | null) => {
+    setName(d?.submitterName ?? "");
+    setEmail(d?.lumaEmail ?? "");
+    setTitle(d?.projectTitle ?? "");
+    setBrief(d?.projectBrief ?? "");
+    setVideo(d?.videoUrl ?? "");
+    setGithub(d?.githubUrl ?? "");
+    setAgreedToTerms(d?.agreedToTerms ?? false);
+    setSurfaces(d?.surfaces ?? []);
+    setSurfacesPrimary(d?.surfacesPrimary ?? null);
+    setSingles(d?.singles ?? {});
+    setTexts(d?.texts ?? {});
+    setTracked(d?.tracked ?? emptyTrackedForm());
+  }, []);
+
+  // Opening restores this device's draft (never wipes it).
   useEffect(() => {
     if (open) {
-      setName("");
-      setEmail("");
-      setTitle("");
-      setBrief("");
-      setVideo("");
-      setGithub("");
+      applyDraft(readDraft(program.slug));
       setCompany("");
-      setAgreedToTerms(false);
       setTermsOpen(false);
-      setSurfaces([]);
-      setSurfacesPrimary(null);
-      setSingles({});
-      setTexts({});
       setError(null);
-      setDone(false);
+      setAttempted(false);
+      setOutcome(null);
+      setProblem(null);
+      setLinkSentTo(null);
+      setLoadedMine(false);
+      retried.current = false;
     }
-  }, [open]);
+    return () => window.clearTimeout(retryTimer.current);
+  }, [open, program.slug, applyDraft]);
+
+  // Keep the draft as they type (the honeypot is never saved).
+  useEffect(() => {
+    if (!open || done) return;
+    const draft: Draft = {
+      submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl,
+      agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked,
+    };
+    const t = window.setTimeout(() => {
+      writeDraft(program.slug, draft);
+      setDraftSaved(true);
+    }, DRAFT_SAVE_MS);
+    return () => window.clearTimeout(t);
+  }, [open, done, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked]);
+
+  const startOver = () => {
+    writeDraft(program.slug, null);
+    applyDraft(null);
+    setDraftSaved(false);
+    setProblem(null);
+    setError(null);
+    setAttempted(false);
+  };
+
+  // Update mode: once the email is verified, load their submission to edit it.
+  useEffect(() => {
+    if (!open || mode !== "update" || !verified || loadedMine) return;
+    setLoadedMine(true);
+    api
+      .getMySubmission(program.slug, { email: lumaEmail, verifiedToken: social.token })
+      .then((r) => {
+        const d = r.data;
+        setName(d.submitterName ?? "");
+        setTitle(d.projectTitle ?? "");
+        setBrief(d.projectBrief ?? "");
+        setVideo(d.videoUrl ?? "");
+        setGithub(d.githubUrl ?? "");
+        if (profile) setTracked(detailsToTrackedForm(d.details));
+        toast({ title: "Your submission is loaded", description: "Change what you need, then UPDATE SUBMISSION." });
+      })
+      .catch((e) => {
+        const notFound = e instanceof ApiError && e.status === 404;
+        toast({
+          title: notFound ? "No submission for this email yet" : "Couldn't load your submission",
+          description: notFound ? "Fill in the form to submit one." : (e as Error).message,
+          variant: notFound ? undefined : "destructive",
+        });
+      });
+  }, [open, mode, verified, loadedMine, program.slug, lumaEmail, social.token, profile, toast]);
+
+  // Prove the email is theirs: a sign-in link (back to this page with the form
+  // saved). In the playground there's no email, so it's verified at once.
+  const verifyEmail = async (): Promise<boolean> => {
+    const email = lumaEmail.trim();
+    if (!EMAIL_RE.test(email)) {
+      setError("Enter a valid email first.");
+      return false;
+    }
+    try {
+      if (USE_MOCK_DATA) {
+        await api.mockVerifyEmail(email);
+        setVerifyTick((n) => n + 1);
+        toast({ title: "Email verified", description: "Playground: verified without sending an email." });
+        return true;
+      }
+      const back = `${window.location.origin}/programs/${encodeURIComponent(program.slug)}?submit=${mode === "update" ? "update" : "1"}`;
+      await social.signInWithEmail(email, back);
+      setLinkSentTo(email);
+      return false;
+    } catch (e) {
+      setError((e as Error)?.message || "Couldn't send the sign-in link.");
+      return false;
+    }
+  };
 
   const toggleSurface = (option: string) => {
     setSurfaces((prev) => {
@@ -97,36 +275,56 @@ export function SubmitProjectModal({
     });
   };
 
-  const validate = (): string | null => {
-    if (!submitterName.trim()) return "Your name is required.";
-    if (!EMAIL_RE.test(lumaEmail.trim())) return "A valid email is required.";
-    if (!projectTitle.trim()) return "A project title is required.";
-    if (!projectBrief.trim()) return "A short brief of what your project does is required.";
-    if (projectBrief.trim().length > BRIEF_MAX) return `The brief must be ${BRIEF_MAX} characters or fewer.`;
-    if (!isHttpUrl(videoUrl)) return "A valid video demo link (http/https) is required.";
-    if (!isHttpUrl(githubUrl)) return "A valid GitHub URL (http/https) is required.";
+  // Every problem with the form, in form order; `field` is the DOM id to mark red and scroll to.
+  const collectIssues = (): FieldIssue[] => {
+    const issues: FieldIssue[] = [];
+    const add = (field: string, message: string) => issues.push({ field, message });
+    if (!submitterName.trim()) add("sub-name", "Your name is required.");
+    if (!EMAIL_RE.test(lumaEmail.trim())) add("sub-email", "A valid email is required.");
+    if (!projectTitle.trim()) add("sub-title", "A project title is required.");
+    if (!projectBrief.trim()) add("sub-brief", "A short brief of what your project does is required.");
+    else if (projectBrief.trim().length > BRIEF_MAX) add("sub-brief", `The brief must be ${BRIEF_MAX} characters or fewer.`);
+    // Privacy-only entries may skip the video (strongly preferred); a given link must still be valid.
+    if (!(videoIsOptional && !videoUrl.trim()) && !isHttpUrl(videoUrl)) add("sub-video", "A valid video demo link (http/https) is required.");
+    if (!isHttpUrl(githubUrl)) add("sub-github", "A valid GitHub URL (http/https) is required.");
+
+    if (profile) issues.push(...validateTrackedForm(profile, tracked));
 
     if (feedbackConfig) {
       for (const q of feedbackConfig.questions) {
         if (q.kind === "multi-primary") {
-          if (surfaces.length === 0) return "Select at least one Bitrefill surface you built with.";
-          if (!surfacesPrimary) return "Star the surface you relied on most.";
+          if (surfaces.length === 0) add(`fb-${q.id}`, `Please answer: ${q.label}`);
+          else if (!surfacesPrimary) add(`fb-${q.id}`, "Star the surface you relied on most.");
         } else if (q.kind === "single") {
-          if (!singles[q.id]) return `Please answer: ${q.label}`;
+          if (!singles[q.id]) add(`fb-${q.id}`, `Please answer: ${q.label}`);
         } else if (q.kind === "text" && q.required) {
-          if (!(texts[q.id] || "").trim()) return `Please answer: ${q.label}`;
+          if (!(texts[q.id] || "").trim()) add(`fb-${q.id}`, `Please answer: ${q.label}`);
         }
       }
     }
 
-    if (terms && !agreedToTerms) return "You must agree to the submission terms.";
-    return null;
+    if (terms && !agreedToTerms) add("sub-terms", "You must agree to the submission terms.");
+    return issues;
+  };
+  const videoIsOptional = !!profile && videoOptional(tracked.track);
+  const issues = attempted ? collectIssues() : [];
+  const invalid = new Set(issues.map((i) => i.field));
+  const bad = (id: string) => invalid.has(id);
+
+  // Bring the first field that needs fixing into view and focus it.
+  const showFirstIssue = (field: string) => {
+    const el = document.getElementById(field);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.focus({ preventScroll: true });
   };
 
   const handleSubmit = async () => {
-    const err = validate();
-    if (err) {
-      setError(err);
+    setAttempted(true);
+    const found = collectIssues();
+    if (found.length > 0) {
+      setError(null);
+      showFirstIssue(found[0].field);
       return;
     }
     setError(null);
@@ -144,7 +342,7 @@ export function SubmitProjectModal({
           }
         : undefined;
 
-      await api.submitProjectSubmission(program.slug, {
+      const result = await api.submitProjectSubmission(program.slug, {
         submitterName: submitterName.trim(),
         lumaEmail: lumaEmail.trim(),
         projectTitle: projectTitle.trim(),
@@ -154,63 +352,174 @@ export function SubmitProjectModal({
         company,
         ...(terms ? { agreedToTerms: true } : {}),
         ...(feedback ? { feedback } : {}),
+        ...(profile ? { details: trackedFormToDetails(tracked) } : {}),
+      }, { verifiedToken: verified && !USE_MOCK_DATA ? social.token : null });
+      writeDraft(program.slug, null);
+      setOutcome(result.outcome);
+      setProblem(null);
+      toast({
+        title: result.outcome === "pending" ? "Received, waiting for an organiser" : result.outcome === "updated" ? "Submission updated" : "Project submitted",
+        description: "Check your email for a confirmation.",
       });
-      setDone(true);
-      toast({ title: "Project submitted", description: "Check your email for a confirmation." });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 403) {
-        setError("That email isn't on the checked-in guest list. Use the email you checked in with at the door.");
+      // The draft stays saved whatever happens.
+      const code = e instanceof ApiError ? e.code : undefined;
+      const status = e instanceof ApiError ? e.status : 0;
+      if (code === "not_checked_in" || status === 403) {
+        setProblem("not_checked_in");
+        setProblemMessage("That email isn't on the event's checked-in list yet.");
+      } else if (code === "verify_to_update" || status === 401) {
+        setProblem("verify_to_update");
+        setProblemMessage("This email already has a submission. Verify the email to update it.");
+      } else if (status === 400 || status === 422) {
+        setError((e as Error).message);
       } else {
-        toast({
-          title: "Couldn't submit project",
-          description: (e as Error)?.message || "Unknown error",
-          variant: "destructive",
-        });
+        // 503 (check-in couldn't be verified), server or network trouble.
+        setProblem("retry");
+        setProblemMessage(
+          status === 503 ? (e as Error).message : "Couldn't reach Stadium. Your form is saved on this device.",
+        );
+        if (!retried.current) {
+          retried.current = true;
+          setRetryScheduled(true);
+          retryTimer.current = window.setTimeout(() => {
+            setRetryScheduled(false);
+            submitRef.current();
+          }, RETRY_AFTER_MS);
+        }
       }
     } finally {
       setSubmitting(false);
     }
   };
+  // ✕ is the only way out of an unfinished form; the draft (and a verified
+  // email) stay on this device, so reopening picks up where they left off.
+  const closeForm = (v: boolean) => {
+    if (!v && !done && mode === "new") {
+      toast({ title: "Draft saved on this device", description: "Open SUBMIT again to continue where you left off." });
+    }
+    onOpenChange(v);
+  };
+  const submitRef = useRef(handleSubmit);
+  submitRef.current = handleSubmit;
+
+  const verifyThenSubmit = async () => {
+    if (await verifyEmail()) {
+      setProblem(null);
+      if (mode !== "update" || problem) await submitRef.current();
+    }
+  };
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => (submitting ? null : onOpenChange(v))}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={open} onOpenChange={(v) => (submitting ? null : closeForm(v))}>
+        <DialogContent
+          className="sm:max-w-lg lg:max-w-[50vw]"
+          // Only ✕ closes an unfinished form: a stray click or Escape mustn't drop the builder out.
+          onInteractOutside={(e) => (done ? null : e.preventDefault())}
+          onEscapeKeyDown={(e) => (done ? null : e.preventDefault())}
+          // Open without focusing (and ringing) the first field.
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="font-display tracking-tight">
-              SUBMIT A PROJECT TO {program.name.toUpperCase()}
+              {mode === "update" ? "UPDATE YOUR SUBMISSION TO" : "SUBMIT A PROJECT TO"} {program.name.toUpperCase()}
             </DialogTitle>
             <DialogDescription className="text-body">
-              Use the email you checked in with at the door. Only checked-in attendees can submit.
+              {mode === "update"
+                ? "Verify the email you submitted with to load your submission and change it."
+                : "Use the email you checked in with at the door. Only checked-in attendees can submit."}
             </DialogDescription>
           </DialogHeader>
 
           {done ? (
-            <div className="panel px-4 py-8 text-center">
-              <div className="label-hw text-display mb-2">·SUBMISSION RECEIVED</div>
-              <p className="label-hw-dim">
-                Your project is in. We've emailed a confirmation to {lumaEmail.trim() || "your inbox"}. Need to change
-                something? Reopen this form and submit again with the same email before the deadline.
-              </p>
+            <div className="panel px-4 py-8 text-center" data-testid="submit-outcome" data-outcome={outcome ?? ""}>
+              {outcome === "pending" ? (
+                <>
+                  <div className="label-hw text-display mb-2">·RECEIVED, WAITING FOR AN ORGANISER</div>
+                  <p className="label-hw-dim normal-case">
+                    Your email ({lumaEmail.trim()}) is verified but isn't on Luma's checked-in list yet, so an organiser will
+                    confirm it. Once they do, your project goes live with the time you sent it. You don't need to submit again.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="label-hw text-display mb-2">{outcome === "updated" ? "·SUBMISSION UPDATED" : "·SUBMISSION RECEIVED"}</div>
+                  <p className="label-hw-dim normal-case">
+                    {outcome === "updated" ? "Your changes are in." : "Your project is in."} We've emailed a confirmation to{" "}
+                    {lumaEmail.trim() || "your inbox"}.{" "}
+                    {profile
+                      ? 'To change it later, choose "Update my submission" on this page and verify this email.'
+                      : "Need to change something? Reopen this form and submit again with the same email before the deadline."}
+                  </p>
+                </>
+              )}
+            </div>
+          ) : mode === "update" && !verified ? (
+            <div className="space-y-3" data-testid="update-gate">
+              <div className="space-y-1.5">
+                <Label htmlFor="sub-email" className="label-hw-dim">THE EMAIL YOU SUBMITTED WITH</Label>
+                <Input id="sub-email" type="email" value={lumaEmail} onChange={(e) => setEmail(e.target.value)} className="font-mono text-sm" />
+              </div>
+              {linkSentTo ? (
+                <p className="label-hw text-display normal-case" data-testid="link-sent">
+                  Sign-in link sent to {linkSentTo}. Open it on this device; you'll come back here with your submission loaded.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={verifyEmail}
+                  className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
+                >
+                  {USE_MOCK_DATA ? "VERIFY THIS EMAIL ▸" : "SEND ME A SIGN-IN LINK ▸"}
+                </button>
+              )}
+              {error && <div className="label-hw text-destructive">·{error.toUpperCase()}</div>}
             </div>
           ) : (
             <>
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              {/* Equal side padding (pulled back with -mx) so focus rings aren't clipped by the scroll edge. */}
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto -mx-2 px-2 py-1">
+                <p className="label-hw-dim normal-case" data-testid="required-note">Fields marked * are required.</p>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-name" className="label-hw-dim">YOUR NAME</Label>
-                  <Input id="sub-name" value={submitterName} onChange={(e) => setName(e.target.value)} className="font-mono text-sm" />
+                  <Label htmlFor="sub-name" className={"label-hw-dim" + invalidText(bad("sub-name"))}>
+                    {profile ? "POINT PERSON NAME" : "YOUR NAME"}<RequiredMark />
+                  </Label>
+                  <Input id="sub-name" value={submitterName} onChange={(e) => setName(e.target.value)} aria-invalid={bad("sub-name") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-name"))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-email" className="label-hw-dim">EMAIL USED ON LUMA</Label>
-                  <Input id="sub-email" type="email" value={lumaEmail} onChange={(e) => setEmail(e.target.value)} className="font-mono text-sm" />
+                  <div className="flex items-baseline justify-between gap-2">
+                    <Label htmlFor="sub-email" className={"label-hw-dim" + invalidText(bad("sub-email"))}>
+                      {profile ? "POINT PERSON EMAIL (USED ON LUMA)" : "EMAIL USED ON LUMA"}<RequiredMark />
+                    </Label>
+                    {verified && (
+                      <span className="label-hw text-led" data-testid="email-verified">
+                        ✓ VERIFIED
+                      </span>
+                    )}
+                  </div>
+                  {profile && (
+                    <p className="label-hw-dim normal-case">Prizes go to the point person. Never shown publicly.</p>
+                  )}
+                  <Input
+                    id="sub-email"
+                    type="email"
+                    value={lumaEmail}
+                    readOnly={mode === "update"}
+                    onChange={(e) => setEmail(e.target.value)}
+                    aria-invalid={bad("sub-email") || undefined}
+                    className={"font-mono text-sm" + invalidBorder(bad("sub-email"))}
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-title" className="label-hw-dim">PROJECT TITLE</Label>
-                  <Input id="sub-title" value={projectTitle} onChange={(e) => setTitle(e.target.value)} className="font-mono text-sm" />
+                  <Label htmlFor="sub-title" className={"label-hw-dim" + invalidText(bad("sub-title"))}>PROJECT TITLE<RequiredMark /></Label>
+                  <Input id="sub-title" value={projectTitle} onChange={(e) => setTitle(e.target.value)} aria-invalid={bad("sub-title") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-title"))} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-baseline justify-between">
-                    <Label htmlFor="sub-brief" className="label-hw-dim">WHAT DOES IT DO?</Label>
+                    <Label htmlFor="sub-brief" className={"label-hw-dim" + invalidText(bad("sub-brief"))}>
+                      {profile ? "DESCRIPTION" : "WHAT DOES IT DO?"}<RequiredMark />
+                    </Label>
                     <span className="label-hw-dim">{projectBrief.trim().length}/{BRIEF_MAX}</span>
                   </div>
                   <Textarea
@@ -220,17 +529,29 @@ export function SubmitProjectModal({
                     placeholder="In 2-3 sentences, describe your project and what it does."
                     value={projectBrief}
                     onChange={(e) => setBrief(e.target.value)}
-                    className="font-mono text-sm"
+                    aria-invalid={bad("sub-brief") || undefined}
+                    className={"font-mono text-sm" + invalidBorder(bad("sub-brief"))}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-video" className="label-hw-dim">VIDEO DEMO LINK</Label>
-                  <Input id="sub-video" placeholder="https://…" value={videoUrl} onChange={(e) => setVideo(e.target.value)} className="font-mono text-sm" />
+                  <Label htmlFor="sub-video" className={"label-hw-dim" + invalidText(bad("sub-video"))}>
+                    {profile ? videoLabel(tracked.track) : "VIDEO DEMO LINK"}<RequiredMark show={!videoIsOptional} />
+                  </Label>
+                  <Input id="sub-video" placeholder="https://…" value={videoUrl} onChange={(e) => setVideo(e.target.value)} aria-invalid={bad("sub-video") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-video"))} />
+                  {videoIsOptional && (
+                    <p className="label-hw-dim normal-case">Optional, but strongly preferred: it's the easiest way to prove Works. Judges watch only the first 2 minutes.</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-github" className="label-hw-dim">GITHUB URL</Label>
-                  <Input id="sub-github" placeholder="https://github.com/…" value={githubUrl} onChange={(e) => setGithub(e.target.value)} className="font-mono text-sm" />
+                  <Label htmlFor="sub-github" className={"label-hw-dim" + invalidText(bad("sub-github"))}>
+                    {profile ? "PUBLIC REPO WITH A README" : "GITHUB URL"}<RequiredMark />
+                  </Label>
+                  <Input id="sub-github" placeholder="https://github.com/…" value={githubUrl} onChange={(e) => setGithub(e.target.value)} aria-invalid={bad("sub-github") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-github"))} />
                 </div>
+
+                {profile && (
+                  <TrackedSubmissionFields profile={profile} value={tracked} onChange={setTracked} invalid={invalid} />
+                )}
 
                 {feedbackConfig && (
                   <div className="space-y-4 border-t border-hairline-subtle pt-4">
@@ -238,8 +559,8 @@ export function SubmitProjectModal({
                     {feedbackConfig.questions.map((q) => {
                       if (q.kind === "multi-primary") {
                         return (
-                          <fieldset key={q.id} className="space-y-2">
-                            <legend className="label-hw-dim">{q.label.toUpperCase()}</legend>
+                          <fieldset key={q.id} id={`fb-${q.id}`} tabIndex={-1} className="space-y-2" aria-invalid={bad(`fb-${q.id}`) || undefined}>
+                            <legend className={"label-hw-dim" + invalidText(bad(`fb-${q.id}`))}>{q.label.toUpperCase()}<RequiredMark /></legend>
                             {q.hint && <p className="label-hw-dim normal-case">{q.hint}</p>}
                             <div className="space-y-1.5">
                               {q.options.map((opt) => {
@@ -275,8 +596,8 @@ export function SubmitProjectModal({
                       }
                       if (q.kind === "single") {
                         return (
-                          <fieldset key={q.id} className="space-y-2">
-                            <legend className="label-hw-dim">{q.label.toUpperCase()}</legend>
+                          <fieldset key={q.id} id={`fb-${q.id}`} tabIndex={-1} className="space-y-2" aria-invalid={bad(`fb-${q.id}`) || undefined}>
+                            <legend className={"label-hw-dim" + invalidText(bad(`fb-${q.id}`))}>{q.label.toUpperCase()}<RequiredMark /></legend>
                             <RadioGroup
                               value={singles[q.id] || ""}
                               onValueChange={(v) => setSingles((prev) => ({ ...prev, [q.id]: v }))}
@@ -296,13 +617,16 @@ export function SubmitProjectModal({
                       // text
                       return (
                         <div key={q.id} className="space-y-1.5">
-                          <Label htmlFor={`fb-${q.id}`} className="label-hw-dim">{q.label.toUpperCase()}</Label>
+                          <Label htmlFor={`fb-${q.id}`} className={"label-hw-dim" + invalidText(bad(`fb-${q.id}`))}>
+                            {q.label.toUpperCase()}<RequiredMark show={!!q.required} />
+                          </Label>
                           <Input
                             id={`fb-${q.id}`}
                             placeholder={q.placeholder}
                             value={texts[q.id] || ""}
                             onChange={(e) => setTexts((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                            className="font-mono text-sm"
+                            aria-invalid={bad(`fb-${q.id}`) || undefined}
+                            className={"font-mono text-sm" + invalidBorder(bad(`fb-${q.id}`))}
                           />
                         </div>
                       );
@@ -318,8 +642,8 @@ export function SubmitProjectModal({
                       onCheckedChange={(v) => setAgreedToTerms(v === true)}
                       className="mt-0.5"
                     />
-                    <label htmlFor="sub-terms" className="text-body text-sm cursor-pointer">
-                      I have read and agree to the submission terms.{" "}
+                    <label htmlFor="sub-terms" className={"text-body text-sm cursor-pointer" + invalidText(bad("sub-terms"))}>
+                      I agree to the terms of the hack.<RequiredMark />{" "}
                       <button
                         type="button"
                         onClick={() => setTermsOpen(true)}
@@ -331,7 +655,6 @@ export function SubmitProjectModal({
                   </div>
                 )}
 
-                {error && <div className="label-hw text-destructive">·{error.toUpperCase()}</div>}
                 {/* Honeypot — hidden from users; bots fill it and get silently dropped. */}
                 <input
                   type="text"
@@ -343,20 +666,83 @@ export function SubmitProjectModal({
                   className="hidden"
                 />
               </div>
+              {problem && (
+                <div className="border border-warn rounded-sm p-3 space-y-2" role="alert" data-testid="submit-problem" data-problem={problem}>
+                  <p className="text-[13px] text-display">{problemMessage}</p>
+                  {problem === "not_checked_in" && (
+                    <p className="label-hw-dim normal-case">
+                      Use the email you checked in with at the door, or verify this one: we'll check it against Luma again, and
+                      if it's still not there an organiser can let your project in.
+                    </p>
+                  )}
+                  {problem === "retry" && retryScheduled && <p className="label-hw-dim">TRYING AGAIN IN A FEW SECONDS…</p>}
+                  {linkSentTo ? (
+                    <p className="label-hw text-display normal-case" data-testid="link-sent">
+                      Sign-in link sent to {linkSentTo}. Open it on this device; your form is saved and will be here when you come
+                      back.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {problem === "not_checked_in" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProblem(null);
+                            document.getElementById("sub-email")?.focus();
+                          }}
+                          className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                        >
+                          USE ANOTHER EMAIL
+                        </button>
+                      )}
+                      {(problem === "not_checked_in" || problem === "verify_to_update") && (
+                        <button
+                          type="button"
+                          onClick={verifyThenSubmit}
+                          disabled={submitting}
+                          className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1.5"
+                        >
+                          VERIFY THIS EMAIL ▸
+                        </button>
+                      )}
+                      {problem === "retry" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.clearTimeout(retryTimer.current);
+                            setRetryScheduled(false);
+                            handleSubmit();
+                          }}
+                          disabled={submitting}
+                          className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1.5"
+                        >
+                          TRY AGAIN
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {draftSaved && (
+                <p className="label-hw-dim flex items-center justify-between gap-2" data-testid="draft-saved">
+                  <span>DRAFT SAVED ON THIS DEVICE</span>
+                  <button type="button" onClick={startOver} className="underline hover:text-display">
+                    START OVER
+                  </button>
+                </p>
+              )}
               {submitting && (
                 <p className="font-mono text-[10px] tracking-[0.14em] text-label-mid text-center pt-1" role="status" aria-live="polite">
                   CHECKING YOU AGAINST THE LUMA GUEST LIST. THIS CAN TAKE A FEW SECONDS.
                 </p>
               )}
+              {(error || issues.length > 0) && (
+                <div className="label-hw text-destructive" role="alert" data-testid="submit-error">
+                  ·{(error ?? issues[0].message).toUpperCase()}
+                  {!error && issues.length > 1 ? ` (+${issues.length - 1} MORE MARKED IN RED)` : ""}
+                </div>
+              )}
               <DialogFooter>
-                <button
-                  type="button"
-                  onClick={() => (submitting ? null : onOpenChange(false))}
-                  disabled={submitting}
-                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
-                >
-                  CANCEL
-                </button>
                 <button
                   type="button"
                   onClick={handleSubmit}
@@ -367,6 +753,8 @@ export function SubmitProjectModal({
                     <>
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> VERIFYING CHECK-IN…
                     </>
+                  ) : mode === "update" ? (
+                    "UPDATE SUBMISSION ▸"
                   ) : (
                     "SUBMIT PROJECT ▸"
                   )}
