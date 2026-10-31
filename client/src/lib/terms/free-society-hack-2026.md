@@ -6,7 +6,7 @@ Free Society Hack is run by WebZero, with Privacy track prizes funded by Zcash C
 
 ## Who can submit
 
-1. You must be an approved Luma guest who checked in at the venue on Wed 4 Nov: True Tramm Trunk BKC, G2-B, Ground Floor, Trade Centre BKC, opposite MTNL, G Block, Bandra Kurla Complex, Bandra East, Mumbai 400098 (on Luma)
+1. You must be an approved Luma guest who checked in at the venue on Wed 4 Nov: True Tramm Trunk BKC, Mumbai
 2. You can build solo or with others. Each project names **one point person**, who submits, is accountable for the project, and receives any prize. There is no team prize; splitting it is up to you.
 3. Organisers, judges and anyone who scores a track cannot win a prize on that track.
 
