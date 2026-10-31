@@ -25,12 +25,16 @@ import {
 } from "@/lib/submissionFeedback";
 import { getProgramProfile } from "@/lib/programProfiles";
 import { TrackedSubmissionFields } from "@/components/program/tracked/TrackedSubmissionFields";
+import { RequiredMark } from "@/components/program/RequiredMark";
 import {
   detailsToTrackedForm,
   emptyTrackedForm,
+  invalidBorder,
+  invalidText,
   trackedFormToDetails,
   validateTrackedForm,
   videoOptional,
+  type FieldIssue,
   type TrackedFormState,
 } from "@/components/program/tracked/trackedForm";
 
@@ -131,6 +135,9 @@ export function SubmitProjectModal({
   const [texts, setTexts] = useState<Record<string, string>>({});
 
   const [error, setError] = useState<string | null>(null);
+  // After the first submit attempt, missing or invalid fields are marked red
+  // (recomputed as they type, so a fixed field clears at once).
+  const [attempted, setAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [outcome, setOutcome] = useState<SubmitResult["outcome"] | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -174,6 +181,7 @@ export function SubmitProjectModal({
       setCompany("");
       setTermsOpen(false);
       setError(null);
+      setAttempted(false);
       setOutcome(null);
       setProblem(null);
       setLinkSentTo(null);
@@ -203,6 +211,7 @@ export function SubmitProjectModal({
     setDraftSaved(false);
     setProblem(null);
     setError(null);
+    setAttempted(false);
   };
 
   // Update mode: once the email is verified, load their submission to edit it.
@@ -266,43 +275,56 @@ export function SubmitProjectModal({
     });
   };
 
-  const validate = (): string | null => {
-    if (!submitterName.trim()) return "Your name is required.";
-    if (!EMAIL_RE.test(lumaEmail.trim())) return "A valid email is required.";
-    if (!projectTitle.trim()) return "A project title is required.";
-    if (!projectBrief.trim()) return "A short brief of what your project does is required.";
-    if (projectBrief.trim().length > BRIEF_MAX) return `The brief must be ${BRIEF_MAX} characters or fewer.`;
+  // Every problem with the form, in form order; `field` is the DOM id to mark red and scroll to.
+  const collectIssues = (): FieldIssue[] => {
+    const issues: FieldIssue[] = [];
+    const add = (field: string, message: string) => issues.push({ field, message });
+    if (!submitterName.trim()) add("sub-name", "Your name is required.");
+    if (!EMAIL_RE.test(lumaEmail.trim())) add("sub-email", "A valid email is required.");
+    if (!projectTitle.trim()) add("sub-title", "A project title is required.");
+    if (!projectBrief.trim()) add("sub-brief", "A short brief of what your project does is required.");
+    else if (projectBrief.trim().length > BRIEF_MAX) add("sub-brief", `The brief must be ${BRIEF_MAX} characters or fewer.`);
     // Privacy-only entries may skip the video (strongly preferred); a given link must still be valid.
-    const noVideoOk = !!profile && videoOptional(tracked.track) && !videoUrl.trim();
-    if (!noVideoOk && !isHttpUrl(videoUrl)) return "A valid video demo link (http/https) is required.";
-    if (!isHttpUrl(githubUrl)) return "A valid GitHub URL (http/https) is required.";
+    if (!(videoIsOptional && !videoUrl.trim()) && !isHttpUrl(videoUrl)) add("sub-video", "A valid video demo link (http/https) is required.");
+    if (!isHttpUrl(githubUrl)) add("sub-github", "A valid GitHub URL (http/https) is required.");
+
+    if (profile) issues.push(...validateTrackedForm(profile, tracked));
 
     if (feedbackConfig) {
       for (const q of feedbackConfig.questions) {
         if (q.kind === "multi-primary") {
-          if (surfaces.length === 0) return `Please answer: ${q.label}`;
-          if (!surfacesPrimary) return "Star the surface you relied on most.";
+          if (surfaces.length === 0) add(`fb-${q.id}`, `Please answer: ${q.label}`);
+          else if (!surfacesPrimary) add(`fb-${q.id}`, "Star the surface you relied on most.");
         } else if (q.kind === "single") {
-          if (!singles[q.id]) return `Please answer: ${q.label}`;
+          if (!singles[q.id]) add(`fb-${q.id}`, `Please answer: ${q.label}`);
         } else if (q.kind === "text" && q.required) {
-          if (!(texts[q.id] || "").trim()) return `Please answer: ${q.label}`;
+          if (!(texts[q.id] || "").trim()) add(`fb-${q.id}`, `Please answer: ${q.label}`);
         }
       }
     }
 
-    if (profile) {
-      const trackedError = validateTrackedForm(profile, tracked);
-      if (trackedError) return trackedError;
-    }
+    if (terms && !agreedToTerms) add("sub-terms", "You must agree to the submission terms.");
+    return issues;
+  };
+  const videoIsOptional = !!profile && videoOptional(tracked.track);
+  const issues = attempted ? collectIssues() : [];
+  const invalid = new Set(issues.map((i) => i.field));
+  const bad = (id: string) => invalid.has(id);
 
-    if (terms && !agreedToTerms) return "You must agree to the submission terms.";
-    return null;
+  // Bring the first field that needs fixing into view and focus it.
+  const showFirstIssue = (field: string) => {
+    const el = document.getElementById(field);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.focus({ preventScroll: true });
   };
 
   const handleSubmit = async () => {
-    const err = validate();
-    if (err) {
-      setError(err);
+    setAttempted(true);
+    const found = collectIssues();
+    if (found.length > 0) {
+      setError(null);
+      showFirstIssue(found[0].field);
       return;
     }
     setError(null);
@@ -370,6 +392,14 @@ export function SubmitProjectModal({
       setSubmitting(false);
     }
   };
+  // ✕ is the only way out of an unfinished form; the draft (and a verified
+  // email) stay on this device, so reopening picks up where they left off.
+  const closeForm = (v: boolean) => {
+    if (!v && !done && mode === "new") {
+      toast({ title: "Draft saved on this device", description: "Open SUBMIT again to continue where you left off." });
+    }
+    onOpenChange(v);
+  };
   const submitRef = useRef(handleSubmit);
   submitRef.current = handleSubmit;
 
@@ -382,8 +412,15 @@ export function SubmitProjectModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => (submitting ? null : onOpenChange(v))}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={open} onOpenChange={(v) => (submitting ? null : closeForm(v))}>
+        <DialogContent
+          className="sm:max-w-lg lg:max-w-[50vw]"
+          // Only ✕ closes an unfinished form: a stray click or Escape mustn't drop the builder out.
+          onInteractOutside={(e) => (done ? null : e.preventDefault())}
+          onEscapeKeyDown={(e) => (done ? null : e.preventDefault())}
+          // Open without focusing (and ringing) the first field.
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="font-display tracking-tight">
               {mode === "update" ? "UPDATE YOUR SUBMISSION TO" : "SUBMIT A PROJECT TO"} {program.name.toUpperCase()}
@@ -441,15 +478,19 @@ export function SubmitProjectModal({
             </div>
           ) : (
             <>
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              {/* Equal side padding (pulled back with -mx) so focus rings aren't clipped by the scroll edge. */}
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto -mx-2 px-2 py-1">
+                <p className="label-hw-dim normal-case" data-testid="required-note">Fields marked * are required.</p>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-name" className="label-hw-dim">{profile ? "POINT PERSON NAME" : "YOUR NAME"}</Label>
-                  <Input id="sub-name" value={submitterName} onChange={(e) => setName(e.target.value)} className="font-mono text-sm" />
+                  <Label htmlFor="sub-name" className={"label-hw-dim" + invalidText(bad("sub-name"))}>
+                    {profile ? "POINT PERSON NAME" : "YOUR NAME"}<RequiredMark />
+                  </Label>
+                  <Input id="sub-name" value={submitterName} onChange={(e) => setName(e.target.value)} aria-invalid={bad("sub-name") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-name"))} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-baseline justify-between gap-2">
-                    <Label htmlFor="sub-email" className="label-hw-dim">
-                      {profile ? "POINT PERSON EMAIL (USED ON LUMA)" : "EMAIL USED ON LUMA"}
+                    <Label htmlFor="sub-email" className={"label-hw-dim" + invalidText(bad("sub-email"))}>
+                      {profile ? "POINT PERSON EMAIL (USED ON LUMA)" : "EMAIL USED ON LUMA"}<RequiredMark />
                     </Label>
                     {verified && (
                       <span className="label-hw text-led" data-testid="email-verified">
@@ -466,16 +507,19 @@ export function SubmitProjectModal({
                     value={lumaEmail}
                     readOnly={mode === "update"}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="font-mono text-sm"
+                    aria-invalid={bad("sub-email") || undefined}
+                    className={"font-mono text-sm" + invalidBorder(bad("sub-email"))}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-title" className="label-hw-dim">PROJECT TITLE</Label>
-                  <Input id="sub-title" value={projectTitle} onChange={(e) => setTitle(e.target.value)} className="font-mono text-sm" />
+                  <Label htmlFor="sub-title" className={"label-hw-dim" + invalidText(bad("sub-title"))}>PROJECT TITLE<RequiredMark /></Label>
+                  <Input id="sub-title" value={projectTitle} onChange={(e) => setTitle(e.target.value)} aria-invalid={bad("sub-title") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-title"))} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-baseline justify-between">
-                    <Label htmlFor="sub-brief" className="label-hw-dim">{profile ? "DESCRIPTION" : "WHAT DOES IT DO?"}</Label>
+                    <Label htmlFor="sub-brief" className={"label-hw-dim" + invalidText(bad("sub-brief"))}>
+                      {profile ? "DESCRIPTION" : "WHAT DOES IT DO?"}<RequiredMark />
+                    </Label>
                     <span className="label-hw-dim">{projectBrief.trim().length}/{BRIEF_MAX}</span>
                   </div>
                   <Textarea
@@ -485,23 +529,28 @@ export function SubmitProjectModal({
                     placeholder="In 2-3 sentences, describe your project and what it does."
                     value={projectBrief}
                     onChange={(e) => setBrief(e.target.value)}
-                    className="font-mono text-sm"
+                    aria-invalid={bad("sub-brief") || undefined}
+                    className={"font-mono text-sm" + invalidBorder(bad("sub-brief"))}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-video" className="label-hw-dim">{profile ? videoLabel(tracked.track) : "VIDEO DEMO LINK"}</Label>
-                  <Input id="sub-video" placeholder="https://…" value={videoUrl} onChange={(e) => setVideo(e.target.value)} className="font-mono text-sm" />
-                  {profile && videoOptional(tracked.track) && (
+                  <Label htmlFor="sub-video" className={"label-hw-dim" + invalidText(bad("sub-video"))}>
+                    {profile ? videoLabel(tracked.track) : "VIDEO DEMO LINK"}<RequiredMark show={!videoIsOptional} />
+                  </Label>
+                  <Input id="sub-video" placeholder="https://…" value={videoUrl} onChange={(e) => setVideo(e.target.value)} aria-invalid={bad("sub-video") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-video"))} />
+                  {videoIsOptional && (
                     <p className="label-hw-dim normal-case">Optional, but strongly preferred: it's the easiest way to prove Works. Judges watch only the first 2 minutes.</p>
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sub-github" className="label-hw-dim">{profile ? "PUBLIC REPO WITH A README" : "GITHUB URL"}</Label>
-                  <Input id="sub-github" placeholder="https://github.com/…" value={githubUrl} onChange={(e) => setGithub(e.target.value)} className="font-mono text-sm" />
+                  <Label htmlFor="sub-github" className={"label-hw-dim" + invalidText(bad("sub-github"))}>
+                    {profile ? "PUBLIC REPO WITH A README" : "GITHUB URL"}<RequiredMark />
+                  </Label>
+                  <Input id="sub-github" placeholder="https://github.com/…" value={githubUrl} onChange={(e) => setGithub(e.target.value)} aria-invalid={bad("sub-github") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-github"))} />
                 </div>
 
                 {profile && (
-                  <TrackedSubmissionFields profile={profile} value={tracked} onChange={setTracked} />
+                  <TrackedSubmissionFields profile={profile} value={tracked} onChange={setTracked} invalid={invalid} />
                 )}
 
                 {feedbackConfig && (
@@ -510,8 +559,8 @@ export function SubmitProjectModal({
                     {feedbackConfig.questions.map((q) => {
                       if (q.kind === "multi-primary") {
                         return (
-                          <fieldset key={q.id} className="space-y-2">
-                            <legend className="label-hw-dim">{q.label.toUpperCase()}</legend>
+                          <fieldset key={q.id} id={`fb-${q.id}`} tabIndex={-1} className="space-y-2" aria-invalid={bad(`fb-${q.id}`) || undefined}>
+                            <legend className={"label-hw-dim" + invalidText(bad(`fb-${q.id}`))}>{q.label.toUpperCase()}<RequiredMark /></legend>
                             {q.hint && <p className="label-hw-dim normal-case">{q.hint}</p>}
                             <div className="space-y-1.5">
                               {q.options.map((opt) => {
@@ -547,8 +596,8 @@ export function SubmitProjectModal({
                       }
                       if (q.kind === "single") {
                         return (
-                          <fieldset key={q.id} className="space-y-2">
-                            <legend className="label-hw-dim">{q.label.toUpperCase()}</legend>
+                          <fieldset key={q.id} id={`fb-${q.id}`} tabIndex={-1} className="space-y-2" aria-invalid={bad(`fb-${q.id}`) || undefined}>
+                            <legend className={"label-hw-dim" + invalidText(bad(`fb-${q.id}`))}>{q.label.toUpperCase()}<RequiredMark /></legend>
                             <RadioGroup
                               value={singles[q.id] || ""}
                               onValueChange={(v) => setSingles((prev) => ({ ...prev, [q.id]: v }))}
@@ -568,13 +617,16 @@ export function SubmitProjectModal({
                       // text
                       return (
                         <div key={q.id} className="space-y-1.5">
-                          <Label htmlFor={`fb-${q.id}`} className="label-hw-dim">{q.label.toUpperCase()}</Label>
+                          <Label htmlFor={`fb-${q.id}`} className={"label-hw-dim" + invalidText(bad(`fb-${q.id}`))}>
+                            {q.label.toUpperCase()}<RequiredMark show={!!q.required} />
+                          </Label>
                           <Input
                             id={`fb-${q.id}`}
                             placeholder={q.placeholder}
                             value={texts[q.id] || ""}
                             onChange={(e) => setTexts((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                            className="font-mono text-sm"
+                            aria-invalid={bad(`fb-${q.id}`) || undefined}
+                            className={"font-mono text-sm" + invalidBorder(bad(`fb-${q.id}`))}
                           />
                         </div>
                       );
@@ -590,8 +642,8 @@ export function SubmitProjectModal({
                       onCheckedChange={(v) => setAgreedToTerms(v === true)}
                       className="mt-0.5"
                     />
-                    <label htmlFor="sub-terms" className="text-body text-sm cursor-pointer">
-                      I have read and agree to the submission terms.{" "}
+                    <label htmlFor="sub-terms" className={"text-body text-sm cursor-pointer" + invalidText(bad("sub-terms"))}>
+                      I agree to the terms of the hack.<RequiredMark />{" "}
                       <button
                         type="button"
                         onClick={() => setTermsOpen(true)}
@@ -603,7 +655,6 @@ export function SubmitProjectModal({
                   </div>
                 )}
 
-                {error && <div className="label-hw text-destructive">·{error.toUpperCase()}</div>}
                 {/* Honeypot — hidden from users; bots fill it and get silently dropped. */}
                 <input
                   type="text"
@@ -685,15 +736,13 @@ export function SubmitProjectModal({
                   CHECKING YOU AGAINST THE LUMA GUEST LIST. THIS CAN TAKE A FEW SECONDS.
                 </p>
               )}
+              {(error || issues.length > 0) && (
+                <div className="label-hw text-destructive" role="alert" data-testid="submit-error">
+                  ·{(error ?? issues[0].message).toUpperCase()}
+                  {!error && issues.length > 1 ? ` (+${issues.length - 1} MORE MARKED IN RED)` : ""}
+                </div>
+              )}
               <DialogFooter>
-                <button
-                  type="button"
-                  onClick={() => (submitting ? null : onOpenChange(false))}
-                  disabled={submitting}
-                  className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-3 py-1.5"
-                >
-                  CANCEL
-                </button>
                 <button
                   type="button"
                   onClick={handleSubmit}

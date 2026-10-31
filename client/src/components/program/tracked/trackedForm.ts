@@ -57,34 +57,47 @@ export const videoOptional = (track: TrackedFormState["track"]) => track === "pr
 const splitLinks = (v: string) => v.split(/[\s,]+/).map((l) => l.trim()).filter(Boolean);
 const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
 export const isApp = (appType: string) => /app/i.test(appType);
-const needsTxid = (profile: ProgramProfile, track: TrackedFormState["track"]) =>
+export const needsTxid = (profile: ProgramProfile, track: TrackedFormState["track"]) =>
   !!track && judgedTracksOf(track).some((t) => trackById(profile, t).requiresTxid);
 
-export function validateTrackedForm(profile: ProgramProfile, f: TrackedFormState): string | null {
-  if (!f.track) return "Choose a track.";
-  if (f.track !== "agentic" && f.themes.length === 0) return "Pick at least one theme.";
-  if (!f.pitch.trim()) return "A one-line pitch is required.";
-  if (f.pitch.trim().length > PITCH_MAX) return `The pitch must be ${PITCH_MAX} characters or fewer.`;
-  if (!f.appType) return "Say what kind of project it is.";
-  if (isApp(f.appType) && !isHttpUrl(f.publicUrl)) return "Apps need a public URL (http/https).";
-  if (f.publicUrl.trim() && !isHttpUrl(f.publicUrl)) return "The public URL must start with http:// or https://";
-  if (!f.technologies.trim()) return "List every technology you used.";
-  if (needsTxid(profile, f.track) && !f.testnetTxid.trim()) return "Privacy entries need one testnet transaction id.";
-  // Same rule as the server (validateSubmissionDetails): a Zcash txid is 64 hex characters.
-  if (needsTxid(profile, f.track) && !/^[0-9a-f]{64}$/i.test(f.testnetTxid.trim())) {
-    return "A testnet transaction id is 64 hex characters (copy it from your wallet or the explorer).";
+/** One problem with the form: `field` is the DOM id the form marks red and scrolls to. */
+export type FieldIssue = { field: string; message: string };
+/** Red text for the label or legend of a field that needs fixing. */
+export const invalidText = (bad: boolean) => (bad ? " text-destructive" : "");
+/** Red border for an input that needs fixing. */
+export const invalidBorder = (bad: boolean) => (bad ? " border-destructive" : "");
+
+/** Every problem with the tracked fields, in form order (empty when valid). */
+export function validateTrackedForm(profile: ProgramProfile, f: TrackedFormState): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  const add = (field: string, message: string) => issues.push({ field, message });
+  if (!f.track) add("trk-track", "Choose a track.");
+  if (judgesPrivacy(f.track) && f.themes.length === 0) add("trk-themes", "Pick at least one theme.");
+  if (!f.pitch.trim()) add("trk-pitch", "A one-line pitch is required.");
+  else if (f.pitch.trim().length > PITCH_MAX) add("trk-pitch", `The pitch must be ${PITCH_MAX} characters or fewer.`);
+  f.team.forEach((m, i) => {
+    if (!m.name.trim()) add(`trk-team-${i}-name`, "Each teammate needs a name (or remove the row).");
+  });
+  if (!f.appType) add("trk-apptype", "Say what kind of project it is.");
+  if (isApp(f.appType) && !isHttpUrl(f.publicUrl)) add("trk-url", "Apps need a public URL (http/https).");
+  else if (f.publicUrl.trim() && !isHttpUrl(f.publicUrl)) add("trk-url", "The public URL must start with http:// or https://");
+  if (!f.technologies.trim()) add("trk-tech", "List the technologies you used.");
+  if (needsTxid(profile, f.track)) {
+    if (!f.testnetTxid.trim()) add("trk-txid", "Privacy entries need one testnet transaction id.");
+    // Same rule as the server (validateSubmissionDetails): a Zcash txid is 64 hex characters.
+    else if (!/^[0-9a-f]{64}$/i.test(f.testnetTxid.trim())) {
+      add("trk-txid", "A testnet transaction id is 64 hex characters (copy it from your wallet or the explorer).");
+    }
   }
-  if (judgesPrivacy(f.track) && !f.privacyNote.trim()) return "Write your privacy and trust note (judges score Private from it).";
-  if (f.privacyNote.trim().length > PRIVACY_NOTE_MAX) return `The privacy and trust note is max ${PRIVACY_NOTE_MAX} characters.`;
-  if (judgesAgentic(f.track) && (!f.bitrefillWorked.trim() || !f.bitrefillDidnt.trim())) {
-    return "Agentic Commerce entries need the Bitrefill feedback: what worked and what didn't.";
+  if (judgesPrivacy(f.track) && !f.privacyNote.trim()) add("trk-privacy-note", "Write your privacy and trust note (judges score Private from it).");
+  else if (f.privacyNote.trim().length > PRIVACY_NOTE_MAX) add("trk-privacy-note", `The privacy and trust note is max ${PRIVACY_NOTE_MAX} characters.`);
+  if (!f.nextStep.trim()) add("trk-next", "Your next 30-day milestone is required.");
+  if (splitLinks(f.nextStepLinks).some((l) => !isHttpUrl(l))) add("trk-next-links", "Each link must start with http:// or https://");
+  if (judgesAgentic(f.track)) {
+    if (!f.bitrefillWorked.trim()) add("trk-bf-worked", "Agentic Commerce entries need the Bitrefill feedback: what worked.");
+    if (!f.bitrefillDidnt.trim()) add("trk-bf-didnt", "Agentic Commerce entries need the Bitrefill feedback: what didn't.");
   }
-  if (!f.nextStep.trim()) return "A next milestone for the 30 days is required.";
-  if (splitLinks(f.nextStepLinks).some((l) => !isHttpUrl(l))) return "Each next-milestone link must start with http:// or https://";
-  for (const m of f.team) {
-    if (!m.name.trim()) return "Each teammate needs a name (or remove the row).";
-  }
-  return null;
+  return issues;
 }
 
 export function trackedFormToDetails(
