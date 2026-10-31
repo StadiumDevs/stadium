@@ -114,7 +114,7 @@ export const mockPrograms: ApiProgram[] = [
     slug: "free-society-hack-2026",
     programType: "hackathon",
     description:
-      "A Zcash hackathon with a Bitrefill track: 75 builders in person at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.",
+      "A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.",
     status: "completed",
     owner: "webzero",
     applicationsOpenAt: "2026-10-12T00:00:00+05:30",

@@ -50,9 +50,9 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
       { time: "Wed 4 Nov 20:00", label: "Evening judging (projects in by now)" },
       { time: "Thu 5 Nov 00:00", label: "Submissions close" },
       { time: "Thu 5 Nov 08:00", label: "Morning judging" },
-      { time: "Thu 5 Nov 10:30", label: "Demo line-up out" },
-      { time: "Thu 5 Nov 11:00", label: "Demo day" },
-      { time: "Thu 5 Nov 13:00", label: "Prize announcements" },
+      { time: "Thu 5 Nov 11:00", label: "Top teams contacted" },
+      { time: "Thu 5 Nov 12:00", label: "Demos of top teams" },
+      { time: "Thu 5 Nov 13:30", label: "Prize announcements" },
     ],
   },
   {

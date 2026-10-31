@@ -21,7 +21,7 @@ VALUES (
   'Free Society Hack',
   'free-society-hack-2026',
   'hackathon',
-  'A Zcash hackathon with a Bitrefill track: 75 builders in person at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.',
+  'A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.',
   'draft',
   'webzero',
   '2026-10-12T00:00:00+05:30',
@@ -38,7 +38,7 @@ VALUES (
 ON CONFLICT DO NOTHING;
 
 UPDATE programs SET
-  description = COALESCE(description, 'A Zcash hackathon with a Bitrefill track: 75 builders in person at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.'),
+  description = COALESCE(description, 'A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.'),
   applications_open_at = COALESCE(applications_open_at, '2026-10-12T00:00:00+05:30'),
   applications_close_at = COALESCE(applications_close_at, '2026-10-30T23:59:00+05:30'),
   event_starts_at = COALESCE(event_starts_at, '2026-11-04T11:00:00+05:30'),
