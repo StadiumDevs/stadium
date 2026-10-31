@@ -1,6 +1,9 @@
 // Submission terms shown in the "Read terms" modal on the project submission
 // form, keyed by program slug. A program with no entry shows no terms gate.
-// Authored as markdown and rendered with MarkdownBody. No em-dashes.
+// Authored as markdown and rendered with MarkdownBody. No em-dashes. Longer
+// terms live as .md files in ./terms, imported as raw text.
+
+import freeSocietyHackTerms from "./terms/free-society-hack-2026.md?raw";
 
 const TERMS_BY_SLUG: Record<string, { title: string; body: string }> = {
   "bitrefill-2026": {
@@ -45,57 +48,9 @@ You agree that Bitrefill may contact you about your project. The details you pro
 
 Organizers may disqualify any submission that breaks the rules, infringes others' rights, or contains illegal or harmful content.`,
   },
-  // PLACEHOLDER: drafted from the event brief. Replace with the 14 Oct Luma
-  // sign-up doc text before the real program is created.
   "free-society-hack-2026": {
-    title: "Free Society Hack: Submission Terms (PLACEHOLDER)",
-    body: `**Placeholder terms for review. The final text comes from the Luma sign-up doc (14 Oct version).**
-
-By submitting a project to the Free Society Hack, you confirm that you have read and agree to the following.
-
-### Eligibility
-
-- You checked in at the hackathon in person at True Tramm Trunk, BKC, Mumbai.
-- You submit through Stadium before submissions close at midnight IST on Wed 4 Nov (00:00 Thu 5 Nov).
-
-### Point person
-
-- Each project names one point person: the person submitting, using the email they registered with on Luma.
-- Prizes are paid to the point person, who is responsible for sharing them with the team.
-
-### Privacy (Zcash) track
-
-To be eligible for Privacy judging, your submission must:
-
-- Work on Zcash testnet with NU7, using shielded funds via unified addresses.
-- Include one testnet transaction id your project created.
-- Include a one-line pitch, a public repo with a README listing every technology used and your design decisions, a privacy and trust note, and a next step for the 30 days with links to anything already started.
-- Include a public URL if it is an app people use. A demo video (2 minutes or less) is optional but strongly preferred.
-
-Out of scope: Zcash Shielded Assets, mainnet funds, Sprout, v4 transactions, and zcashd wallet RPC.
-
-### Agentic Commerce (by Bitrefill) track
-
-Agentic Commerce entries are judged and paid by Bitrefill under its own criteria. A project may enter and win in both tracks.
-
-### Ecosystem Prize and milestone
-
-- The judges pick two of the five Privacy podium projects (at any prize level) for the Ecosystem Prize. Each is paired with a partner and agrees a 30-day milestone.
-- Completing it (agreed by Fri 13 Nov, delivered with a public link and confirmed by the partner by Fri 4 Dec, and shared at a ZecHub Friday Lounge by Fri 4 Dec) releases a further $100 on Fri 11 Dec.
-- If the milestone is not completed, you keep your day prize and only the $100 is not released.
-- The organisers' decision on whether a milestone is complete is final.
-
-### Judging
-
-Five judges score Privacy projects in Stadium on the published rubric. A project whose average Works score is 0 can't win. All judging decisions are final.
-
-### Contact and follow-up
-
-Submitted projects are shown publicly on the program page as soon as they are submitted; emails are never shown publicly, and names are hidden if you choose to stay anonymous.
-
-### Conduct
-
-Organisers may disqualify any submission that breaks the rules, infringes others' rights, or contains illegal or harmful content.`,
+    title: "Free Society Hack: Submission Terms & Prize Disbursement",
+    body: freeSocietyHackTerms,
   },
 };
 
