@@ -65,7 +65,9 @@ describe('validateSubmissionDetails', () => {
   });
 
   it('checks the team', () => {
-    expect(err(good({ team: Array.from({ length: 6 }, () => ({ name: 'A' })) }))).toMatch(/At most 5/);
+    // Solo or a team of up to 4: the point person plus 3 teammates.
+    expect(err(good({ team: Array.from({ length: 4 }, () => ({ name: 'A' })) }))).toMatch(/team of up to 4/);
+    expect(validateSubmissionDetails(cfg, good({ team: Array.from({ length: 3 }, () => ({ name: 'A' })) })).ok).toBe(true);
     expect(err(good({ team: [{ name: '' }] }))).toMatch(/needs a name/);
     expect(err(good({ team: [{ name: 'A', email: 'nope' }] }))).toMatch(/invalid email/);
   });
@@ -152,5 +154,32 @@ describe('validateMilestonePatch', async () => {
     expect(validateMilestonePatch({ payoutStatus: 'paid' }, 'admin').error).toMatch(/payoutStatus/);
     expect(validateMilestonePatch({ agreedAt: 'soon' }, 'admin').error).toMatch(/date/);
     expect(validateMilestonePatch({ evil: 1 }, 'admin').error).toMatch(/Unknown/);
+  });
+});
+
+describe('validateSubmissionDetails / validateSubmission: drafts', () => {
+
+
+  it('a draft may leave required fields empty', () => {
+    const d = validateSubmissionDetails(cfg, { track: 'both' }, { draft: true });
+    expect(d.ok).toBe(true);
+    expect(d.value).toMatchObject({ track: 'both', pitch: '', testnetTxid: null, privacyNote: null, bitrefillFeedback: null });
+    expect(validateSubmissionDetails(cfg, undefined, { draft: true }).ok).toBe(true);
+    expect(validateSubmissionDetails(cfg, {}, { draft: true }).value.track).toBeNull();
+    const s = validateSubmission({ submitterName: 'P', lumaEmail: 'p@x.com', projectTitle: 'T' }, { draft: true });
+    expect(s.ok).toBe(true);
+  });
+
+  it('a draft still checks what is present', () => {
+    expect(validateSubmissionDetails(cfg, { track: 'privacy', testnetTxid: 'nope' }, { draft: true }).ok).toBe(false);
+    expect(validateSubmissionDetails(cfg, { track: 'mystery' }, { draft: true }).ok).toBe(false);
+    expect(validateSubmissionDetails(cfg, { themes: ['Not a theme'] }, { draft: true }).ok).toBe(false);
+    expect(validateSubmission({ submitterName: 'P', lumaEmail: 'p@x.com', projectTitle: 'T', githubUrl: 'ftp://x' }, { draft: true }).ok).toBe(false);
+    expect(validateSubmission({ submitterName: 'P', lumaEmail: 'p@x.com' }, { draft: true }).ok).toBe(false);
+  });
+
+  it('without draft, the same partial entry is refused', () => {
+    expect(validateSubmissionDetails(cfg, { track: 'both' }).ok).toBe(false);
+    expect(validateSubmission({ submitterName: 'P', lumaEmail: 'p@x.com', projectTitle: 'T' }).ok).toBe(false);
   });
 });

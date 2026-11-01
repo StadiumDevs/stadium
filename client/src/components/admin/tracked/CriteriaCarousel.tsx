@@ -257,7 +257,7 @@ export function CriteriaCarousel({
                 </div>
                 {criterionContext?.[c.id]}
                 <div className={cn("grid gap-2", c.levels ? "grid-cols-1" : "grid-cols-3 sm:grid-cols-6")}>
-                  {Array.from({ length: c.max + 1 }, (_, v) => v).map((v) => {
+                  {Array.from({ length: c.max - (c.min ?? 0) + 1 }, (_, i) => (c.min ?? 0) + i).map((v) => {
                     const selected = criteria[c.id] === v;
                     return (
                       <button

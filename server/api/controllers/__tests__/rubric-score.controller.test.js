@@ -22,8 +22,11 @@ vi.mock('../../services/scoring.service.js', () => ({
 vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
+vi.mock('../../repositories/submission-editor.repository.js', () => ({
+  default: { findByProgramEmail: vi.fn(async () => null), listBySubmission: vi.fn(async () => []), add: vi.fn(), remove: vi.fn() },
+}));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
+  default: { findForEditor: vi.fn(async () => null), countDrafts: vi.fn(async () => 0), markFeedbackSubmitted: vi.fn(), create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
 }));
 vi.mock('../../services/submission-confirmation.service.js', () => ({
   default: { send: vi.fn() },
@@ -69,11 +72,44 @@ const judgeReq = (over = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'fsh' });
+  submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'fsh', track: 'privacy', status: 'submitted' });
   rubricRepo.upsert.mockImplementation(async (x) => ({ ...x, id: 'r1' }));
 });
 
 describe('SubmissionController.upsertRubricScore', () => {
+  it('refuses a score for a track the project did not enter', async () => {
+    const req = judgeReq({
+      params: { slug: 'free-society-hack-2026', submissionId: 's1', track: 'agentic' },
+      user: { email: 'judge-a@example.com', programId: 'fsh', canJudge: true, tracks: null },
+      body: { criteria: { techStack: 3 } },
+    });
+    const res = mockRes();
+    await submissionController.upsertRubricScore(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].code).toBe('track_not_entered');
+    expect(rubricRepo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('accepts either track for a Both entry', async () => {
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'fsh', track: 'both', status: 'submitted' });
+    const req = judgeReq({
+      params: { slug: 'free-society-hack-2026', submissionId: 's1', track: 'agentic' },
+      user: { email: 'judge-a@example.com', programId: 'fsh', canJudge: true, tracks: null },
+      body: { criteria: { techStack: 3 } },
+    });
+    const res = mockRes();
+    await submissionController.upsertRubricScore(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('refuses to score a draft', async () => {
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'fsh', track: 'privacy', status: 'draft' });
+    const res = mockRes();
+    await submissionController.upsertRubricScore(judgeReq(), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json.mock.calls[0][0].code).toBe('not_submitted');
+  });
+
   it('autosaves a partial score for the verified judge, ignoring a body judgeEmail', async () => {
     const req = judgeReq({ body: { criteria: { works: 3, private: null }, judgeEmail: 'spoof@evil.com', session: 'evening' } });
     const res = mockRes();
@@ -123,6 +159,7 @@ describe('SubmissionController.upsertRubricScore', () => {
   });
 
   it('lets a judge with no track limit (tracks null) score any track', async () => {
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'fsh', track: 'both', status: 'submitted' });
     const req = judgeReq({
       params: { slug: 'fsh', submissionId: 's1', track: 'agentic' },
       user: { email: 'j@x.com', programId: 'fsh', canJudge: true, tracks: null },

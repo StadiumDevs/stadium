@@ -756,29 +756,19 @@ const ProgramDetailPage = () => {
                     }}
                     disabled={program.status !== "open"}
                   >
-                    SUBMIT A PROJECT ▸
+                    {/* Tracked programs: one way in for starting, continuing or updating (drafts on Stadium). */}
+                    {profile ? "START / CONTINUE MY SUBMISSION ▸" : "SUBMIT A PROJECT ▸"}
                   </RackButton>
                   <p className="label-hw-dim sm:ml-2" data-testid="submit-panel-note">
                     {program.status === "open"
-                      ? "Only people who checked in at the door can submit, using the email they used on Luma."
+                      ? profile
+                        ? "Point person or a teammate with edit access: sign in with your checked-in Luma email. Save drafts as you go, then finalize and submit."
+                        : "Only people who checked in at the door can submit, using the email they used on Luma."
                       : program.status === "draft"
                         ? `Submissions open when the hack starts${startsLabel ? ` (${startsLabel})` : ""}.`
                         : "Submissions are closed for this program."}
                   </p>
                 </div>
-                {profile && program.status === "open" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSubmitMode("update");
-                      setSubmitOpen(true);
-                    }}
-                    className="mt-3 font-mono text-[11px] tracking-[0.08em] text-display hover:underline"
-                    data-testid="update-my-submission"
-                  >
-                    Already submitted? Update my submission ▸
-                  </button>
-                )}
               </div>
             )}
 

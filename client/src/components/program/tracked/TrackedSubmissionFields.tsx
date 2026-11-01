@@ -19,6 +19,22 @@ import {
 } from "./trackedForm";
 
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Teammate edit access on the team rows (drafts on Stadium). */
+export type TeamEditAccess = {
+  /** The point person manages access; a teammate only sees it. */
+  canManage: boolean;
+  /** Emails that can edit (lowercased). */
+  editors: string[];
+  /** Email being granted or removed right now. */
+  busy: string | null;
+  /** Per-email error (e.g. not checked in on Luma). */
+  errors: Record<string, string>;
+  onChange: (email: string, grant: boolean) => void;
+  /** The point person's own email (already can edit). */
+  ownerEmail: string;
+};
 
 /**
  * Extra submission fields for a tracked program (tracks, themes, txid, next milestone, feedback, anonymity).
@@ -29,11 +45,13 @@ export function TrackedSubmissionFields({
   value: f,
   onChange,
   invalid = new Set<string>(),
+  editAccess,
 }: {
   profile: ProgramProfile;
   value: TrackedFormState;
   onChange: (next: TrackedFormState) => void;
   invalid?: Set<string>;
+  editAccess?: TeamEditAccess;
 }) {
   const set = <K extends keyof TrackedFormState>(k: K, v: TrackedFormState[K]) => onChange({ ...f, [k]: v });
   const privacy = !!f.track && f.track !== "agentic";
@@ -60,9 +78,45 @@ export function TrackedSubmissionFields({
         </RadioGroup>
       </fieldset>
 
+      {f.track && (
+        <div className="border border-hairline-subtle bg-panel-deep p-3 space-y-2" data-testid="track-requirements">
+          <div className="label-hw-dim">WHAT {f.track === "both" ? "BOTH TRACKS NEED" : "THIS TRACK NEEDS"}</div>
+          <div className={f.track === "both" ? "grid grid-cols-1 sm:grid-cols-2 gap-3" : ""}>
+            {privacy && (
+              <div data-testid="track-requirements-privacy">
+                <div className="label-hw text-display text-[10px]">PRIVACY TRACK</div>
+                <ul className="list-disc pl-5 text-body text-[12px] leading-relaxed">
+                  <li>Themes</li>
+                  <li>One shielded testnet transaction ID</li>
+                  <li>Privacy and trust note</li>
+                  <li>Public URL if it's an app</li>
+                  <li>Demo video (optional, strongly preferred)</li>
+                </ul>
+              </div>
+            )}
+            {agentic && (
+              <div data-testid="track-requirements-agentic">
+                <div className="label-hw text-display text-[10px]">AGENTIC COMMERCE TRACK</div>
+                <ul className="list-disc pl-5 text-body text-[12px] leading-relaxed">
+                  <li>Demo video or a live link showing the agent make a purchase (required)</li>
+                  <li>Bitrefill feedback: what worked, what didn't</li>
+                  <li>Repo README with the demo URL</li>
+                </ul>
+              </div>
+            )}
+          </div>
+          {f.track === "both" && (
+            <p className="label-hw-dim normal-case">
+              One submission covers both tracks. Each track's judges see their own track's fields and score them with their own rubric.
+              The demo video is required because Agentic Commerce needs it.
+            </p>
+          )}
+        </div>
+      )}
+
       {privacy && (
         <fieldset id="trk-themes" tabIndex={-1} className="space-y-2" aria-invalid={bad("trk-themes") || undefined}>
-          <legend className={"label-hw-dim" + invalidText(bad("trk-themes"))}>THEMES (PRIVACY)<RequiredMark /></legend>
+          <legend className={"label-hw-dim" + invalidText(bad("trk-themes"))}>THEMES (PRIVACY TRACK)<RequiredMark /></legend>
           {profile.themes.map((t) => (
             <div key={t} className="flex items-center gap-2">
               <Checkbox id={`thm-${t}`} checked={f.themes.includes(t)} onCheckedChange={() => set("themes", toggle(f.themes, t))} />
@@ -81,9 +135,25 @@ export function TrackedSubmissionFields({
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="label-hw-dim">TEAMMATES (OPTIONAL)</legend>
-        {f.team.map((m, i) => (
-          <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px_auto] gap-2">
+        <legend className="label-hw-dim">
+          TEAMMATES (OPTIONAL){profile.maxTeammates !== undefined ? ` · SOLO OR A TEAM OF UP TO ${profile.maxTeammates + 1}, INCLUDING YOU` : ""}
+        </legend>
+        {editAccess && (
+          <p className="label-hw-dim normal-case">
+            {editAccess.canManage
+              ? "Give a teammate edit access and they can open and update this submission with their own email. Their email must be checked in on Luma."
+              : "The point person decides who can edit."}
+          </p>
+        )}
+        {f.team.map((m, i) => {
+          const email = m.email.trim().toLowerCase();
+          const canEdit = !!email && (editAccess?.editors.includes(email) ?? false);
+          const showAccess = !!editAccess && EMAIL_RE.test(email) && email !== editAccess.ownerEmail.trim().toLowerCase();
+          const busy = editAccess?.busy === email;
+          const accessError = email ? editAccess?.errors[email] : "";
+          return (
+          <div key={i} className="space-y-1" data-testid={`team-row-${i}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px_auto] gap-2">
             <Input id={`trk-team-${i}-name`} aria-label={`Teammate ${i + 1} name`} aria-invalid={bad(`trk-team-${i}-name`) || undefined} placeholder="Name" value={m.name} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} className={"font-mono text-sm" + invalidBorder(bad(`trk-team-${i}-name`))} />
             <Input aria-label={`Teammate ${i + 1} email`} placeholder="Email" type="email" value={m.email} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} className="font-mono text-sm" />
             <Input aria-label={`Teammate ${i + 1} role`} placeholder="Role" value={m.role} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))} className="font-mono text-sm" />
@@ -91,10 +161,49 @@ export function TrackedSubmissionFields({
               REMOVE
             </button>
           </div>
-        ))}
-        <button type="button" onClick={() => set("team", [...f.team, { name: "", email: "", role: "" }])} className="font-mono text-[10px] tracking-[0.12em] text-display hover:underline">
-          + ADD TEAMMATE
-        </button>
+          {showAccess && (
+            <div className="flex flex-wrap items-center gap-2 pl-0.5">
+              {canEdit ? (
+                <>
+                  <span className="label-hw text-led" data-testid={`can-edit-${i}`}>✓ CAN EDIT</span>
+                  {editAccess.canManage && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => editAccess.onChange(email, false)}
+                      className="font-mono text-[10px] tracking-[0.12em] text-label-mid hover:text-display underline disabled:opacity-50"
+                      data-testid={`revoke-edit-${i}`}
+                    >
+                      REMOVE ACCESS
+                    </button>
+                  )}
+                </>
+              ) : editAccess.canManage ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => editAccess.onChange(email, true)}
+                  className="font-mono text-[10px] tracking-[0.12em] border border-hairline text-display hover:bg-panel-deep px-2.5 py-1 disabled:opacity-50"
+                  data-testid={`grant-edit-${i}`}
+                >
+                  {busy ? "CHECKING LUMA…" : "GIVE EDIT ACCESS"}
+                </button>
+              ) : null}
+              {accessError && (
+                <span className="label-hw text-destructive normal-case" role="alert" data-testid={`edit-error-${i}`}>
+                  {accessError}
+                </span>
+              )}
+            </div>
+          )}
+          </div>
+          );
+        })}
+        {(profile.maxTeammates === undefined || f.team.length < profile.maxTeammates) && (
+          <button type="button" onClick={() => set("team", [...f.team, { name: "", email: "", role: "" }])} className="font-mono text-[10px] tracking-[0.12em] text-display hover:underline">
+            + ADD TEAMMATE
+          </button>
+        )}
         <div className="flex items-start gap-2 pt-1">
           <Checkbox id="trk-anon" checked={f.anonymous} onCheckedChange={(v) => set("anonymous", v === true)} className="mt-0.5" />
           <label htmlFor="trk-anon" className="text-body text-sm cursor-pointer">
@@ -132,7 +241,7 @@ export function TrackedSubmissionFields({
 
       {privacy && (
         <div className="space-y-1.5">
-          <Label htmlFor="trk-txid" className={"label-hw-dim" + invalidText(bad("trk-txid"))}>TESTNET TRANSACTION ID<RequiredMark show={needsTxid(profile, f.track)} /></Label>
+          <Label htmlFor="trk-txid" className={"label-hw-dim" + invalidText(bad("trk-txid"))}>TESTNET TRANSACTION ID (PRIVACY TRACK)<RequiredMark show={needsTxid(profile, f.track)} /></Label>
           <Input id="trk-txid" placeholder="One shielded testnet txid your project created" value={f.testnetTxid} onChange={(e) => set("testnetTxid", e.target.value)} aria-invalid={bad("trk-txid") || undefined} className={"font-mono text-sm" + invalidBorder(bad("trk-txid"))} />
           <p className="label-hw-dim normal-case">
             Stadium checks it exists and is shielded. A failed check never blocks your submission; amounts and memos stay private.

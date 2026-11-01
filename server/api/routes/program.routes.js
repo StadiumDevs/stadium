@@ -1,5 +1,5 @@
 import { Router, text, json } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import multer from 'multer';
 import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
@@ -39,16 +39,42 @@ const nonMemberApplyLimiter = rateLimit({
 // Public project submission is also an unauthenticated write. Cap per IP —
 // generous enough for one person submitting (incl. retries / fixing a typo),
 // tight enough to stop a flood of junk rows at the 200-submission scale.
-const submissionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+// A whole venue often shares one IP (event wifi), and drafts mean several saves
+// per team, so requests with a sign-in session are counted per session, not
+// per IP; anonymous ones keep the tight per-IP cap. A looser per-IP ceiling
+// still applies to everything, so made-up session headers can't flood.
+const SUBMIT_WINDOW_MS = 15 * 60 * 1000;
+const hasSession = (req) => typeof req.headers['x-supabase-token'] === 'string' && req.headers['x-supabase-token'] !== '';
+const tooMany = {
+  status: 'error',
+  message: 'Too many submissions from this network. Please try again later.',
+};
+const anonymousSubmitLimiter = rateLimit({
+  windowMs: SUBMIT_WINDOW_MS,
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    status: 'error',
-    message: 'Too many submissions from this network. Please try again later.',
-  },
+  skip: hasSession,
+  message: tooMany,
 });
+const sessionSubmitLimiter = rateLimit({
+  windowMs: SUBMIT_WINDOW_MS,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !hasSession(req),
+  keyGenerator: (req) => `session:${String(req.headers['x-supabase-token']).slice(-48)}`,
+  message: tooMany,
+});
+const venueSubmitLimiter = rateLimit({
+  windowMs: SUBMIT_WINDOW_MS,
+  limit: 1500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ''),
+  message: tooMany,
+});
+const submissionLimiter = [venueSubmitLimiter, anonymousSubmitLimiter, sessionSubmitLimiter];
 
 // Cover-image uploads buffer the file in memory (small banners) so the controller
 // can stream the bytes straight to Supabase Storage. Hard-cap at 5MB here too so
@@ -182,6 +208,11 @@ router.post('/:slug/submissions', submissionLimiter, submissionController.submit
 // submission (email sign-in) so they can edit it.
 router.get('/:slug/submissions/public', submissionController.publicSubmissions);
 router.get('/:slug/submissions/mine', submissionController.mySubmission);
+// Builder (verified email; checked in the controller): the feedback step, and
+// the point person giving teammates edit access. Same rate limit as submitting.
+router.put('/:slug/submissions/mine/feedback', submissionLimiter, submissionController.submitFeedback);
+router.post('/:slug/submissions/mine/editors', submissionLimiter, submissionController.addEditor);
+router.delete('/:slug/submissions/mine/editors/:email', submissionLimiter, submissionController.removeEditor);
 router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
 // Download all submissions + their feedback survey as CSV (judge/admin).
 router.get('/:slug/submissions.csv', requireProgramJudge('slug'), submissionController.exportCsv);

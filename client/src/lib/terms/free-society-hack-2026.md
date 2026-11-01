@@ -35,7 +35,7 @@ By submitting you confirm that:
 ## Judging
 
 1. Privacy track: five judges score in Stadium on Works, Private, Easy, Needed and Continuing (0–3 each) plus a Bonus (0 or 1), out of 16. Scores are averaged across the judges who scored the project; a project whose average Works score is 0 cannot win. Ties go to the higher Continuing score, then Needed.
-2. Agentic Commerce track: three Bitrefill judges score out of 5 on use of the Bitrefill stack, following the requirements, and innovation.
+2. Agentic Commerce track: three Bitrefill judges score each submission from 1 to 5 on use of the Bitrefill stack, following the requirements, and innovation (max 15, averaged across the judges; ties go to innovation).
 3. A project can enter and win on both tracks.
 4. Winners are announced on stage at demo day, Thu 5 Nov. You don't have to demo to win.
 5. Judges' and organisers' decisions are final.
