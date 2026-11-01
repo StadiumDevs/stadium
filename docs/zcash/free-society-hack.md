@@ -99,7 +99,7 @@ See `docs/improvement-backlog.md` (2026-10-25 entries):
 
 `client/src/lib/programProfiles.ts` holds a per-track rubric:
 - **Privacy (final, 28 Oct):** Works, Private, Easy, Needed, Continuing scored 0–3 plus a Bonus of 0 or 1, no weights, max 16, with the brief's level descriptors. Tie-breaks are Continuing, then Needed. **Winner gate:** a project whose average Works is 0 can't take a prize; the leaderboard shows a warning and disables its prize select (the mock also refuses it). The judge view links the [Privacy track judging guide](https://app.notion.com/p/Privacy-track-judging-guide-4023e52aeb158049acc3e80512df018d) on Notion.
-- **Agentic Commerce:** Bitrefill's existing 0–2 / 0–5 / 0–5 criteria. Tie-breaks are innovation, then tech stack, as today.
+- **Agentic Commerce:** Bitrefill's three criteria, each scored 1–5 (max 15), averaged across the judges. Ties go to How innovative.
 
 Judges pick a level line per criterion and write a note. The leaderboard ranks by the average total across the judges who scored each project, and labels any tie with what broke it.
 
@@ -170,7 +170,7 @@ The builder doc (tracks and resources) is the source of truth; the site now matc
 - **Privacy and trust note** (`details.privacyNote`): required for Privacy and Both, max 3000 characters. Judges score Private from it; it shows on the judge's Private question, in the details view and in both CSVs.
 - **Demo video:** optional (strongly preferred) for Privacy only, stored as `''` (no schema change). Agentic and Both need a video (3 min max) or a live link. Judges without a video get a NO VIDEO step pointing to the README.
 - **Bitrefill feedback** (`details.bitrefillFeedback { worked, didnt }`): required for Agentic and Both; never public (stripped from the public projection); shown to admins, on the Agentic judge card and in the CSVs. The $100 best-feedback prize is judged from it.
-- **Agentic rubric:** each criterion out of 5 (requirements was 0-2). Server `RUBRICS.agentic.requirements.max` is 5.
+- **Agentic rubric:** each criterion 1–5 (`min: 1, max: 5` in server `RUBRICS.agentic` and client `AGENTIC_RUBRIC`); a 0 is refused.
 - **Ironwood:** copy no longer says Orchard (the tx check says "shielded"); the stored pool label is "shielded (Ironwood), unified addresses".
 - **"Both":** still one entry with both tracks' items, not one submission per track.
 - **After the hack:** "we'll be in touch with teams"; no emails are promised.
@@ -284,8 +284,8 @@ The agent never merges, deploys or applies migrations. A CODEOWNER merges; the S
 ### D. Event days
 1. **Tue 3 Nov:** dry run (as staging step 3, with `SUBMIT_TEST_EMAILS`), then delete the test entry and clear the variable.
 2. **Wed 4 Nov 11:00 IST:** status `open`. **20:00:** evening judging.
-3. **Thu 5 Nov 00:00:** status `closed` (scoring still works). **08:00:** morning judging. **Before 11:00:** export the ranked CSV and contact the top teams. **12:00:** demos of top teams.
-4. **13:30:** award the five Privacy podium prizes (Works-0 projects are blocked) and the Agentic prizes, flag two Privacy podium projects for the Ecosystem Prize, PUBLISH RESULTS. Status `completed` after demo day.
+3. **Thu 5 Nov 00:00:** status `closed` (scoring still works). **08:00:** morning judging. Builder writes (submit, drafts, feedback, edit access) are refused by the server from 00:00 IST (`submissionsCloseAt` in `trackedPrograms.js`). **Before 11:00:** export the ranked CSV. **11:00:** doors open, top teams announced. **11:30** kickoff, **11:40** Zcash India, **11:45–12:15** Privacy demos 1–6, **12:15–12:30** Bitrefill demos 1–3.
+4. **12:30–13:00:** judges rank winners. **13:00:** award the five Privacy podium prizes (Works-0 projects are blocked) and the Agentic prizes, flag two Privacy podium projects for the Ecosystem Prize, PUBLISH RESULTS. Prizes announced 13:00–13:15, photos and close 13:15–13:30. Status `completed` after demo day.
 5. **By Fri 13 Nov / Thu 19 Nov / Fri 4 Dec / Fri 11 Dec:** record the milestone steps in ·ECOSYSTEM PRIZE MILESTONES; release the payouts.
 6. **Fri 20 Nov:** export the builder feedback CSV.
 

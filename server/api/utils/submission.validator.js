@@ -254,7 +254,7 @@ export function validateScore(body = {}) {
 }
 
 // Rubric scores (tracked programs). Partial is allowed: each criterion is an
-// integer 0..max or null (not scored yet), so a judge's work can autosave.
+// integer min..max (min defaults to 0) or null (not scored yet), so a judge's work can autosave.
 // `revisit` is the judge's own "come back to this" mark; `checks` records
 // what they looked at before scoring (video, repo, tx).
 export function validateRubricScore(track, body = {}) {
@@ -272,8 +272,9 @@ export function validateRubricScore(track, body = {}) {
       criteria[key] = null;
       continue;
     }
-    if (!Number.isInteger(value) || value < 0 || value > c.max) {
-      return { ok: false, error: `${key} must be a whole number between 0 and ${c.max}` };
+    const min = c.min ?? 0;
+    if (!Number.isInteger(value) || value < min || value > c.max) {
+      return { ok: false, error: `${key} must be a whole number between ${min} and ${c.max}` };
     }
     criteria[key] = value;
   }
@@ -345,7 +346,9 @@ export function validateSubmissionDetails(config, details, { draft = false } = {
 
   if (!Array.isArray(d.team ?? [])) return { ok: false, error: 'team must be a list' };
   const rawTeam = d.team ?? [];
-  if (rawTeam.length > config.maxTeam) return { ok: false, error: `At most ${config.maxTeam} teammates` };
+  if (rawTeam.length > config.maxTeam) {
+    return { ok: false, error: `Solo or a team of up to ${config.maxTeam + 1}: at most ${config.maxTeam} teammates besides the point person` };
+  }
   const team = [];
   for (const m of rawTeam) {
     const name = str(m?.name);

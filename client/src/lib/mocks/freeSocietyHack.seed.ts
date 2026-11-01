@@ -732,7 +732,7 @@ const PRIVACY_SCORES: Record<string, PrivRow[]> = {
   ],
 };
 
-// [requirements, techStack, innovation], each 0-5, per Bitrefill judge.
+// [requirements, techStack, innovation], each 1-5, per Bitrefill judge.
 type AgRow = [number, number, number];
 const AGENTIC_SCORES: Record<string, AgRow[]> = {
   "tab-settler": [[5, 5, 5], [5, 5, 4]],

@@ -11,7 +11,7 @@ import submissionRefusalRepository from '../repositories/submission-refusal.repo
 import experienceRatingRepository from '../repositories/submission-experience-rating.repository.js';
 import submissionEditorRepository from '../repositories/submission-editor.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
-import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
+import { trackedProgramFor, batchFor, submissionsClosed } from '../constants/trackedPrograms.js';
 import { toPublicList } from '../utils/public-submission.js';
 import {
   validateSubmission,
@@ -176,6 +176,9 @@ async function refuse(res, program, body, reasonCode, status, message, { emailVe
   return res.status(status).json({ status: 'error', message, ...(code ? { code } : {}) });
 }
 
+const closedResponse = (res) =>
+  res.status(403).json({ status: 'error', code: 'submissions_closed', message: 'Submissions are closed.' });
+
 // Comma-separated emails that skip the Luma gate (testing; off by default).
 const testEmailsAllowed = () =>
   new Set(
@@ -254,6 +257,10 @@ async function builderAccess(req, res, { ownerOnly = false } = {}) {
     res.status(404).json({ status: 'error', message: 'No submission for this email yet. Save a draft first.' });
     return null;
   }
+  if (submissionsClosed(tracked)) {
+    closedResponse(res);
+    return null;
+  }
   if (ownerOnly && access.role !== 'owner') {
     res.status(403).json({ status: 'error', code: 'owner_only', message: 'Only the point person can change who can edit.' });
     return null;
@@ -283,6 +290,9 @@ class SubmissionController {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
       const tracked = trackedProgramFor(program.slug);
+      // Submissions close at the program's deadline: no new entries or saves
+      // (drafts included) after it. Judges and admins aren't affected.
+      if (submissionsClosed(tracked)) return closedResponse(res);
       const wantsDraft = !!tracked && req.body?.intent === 'draft';
 
       // Who is saving: the email proven with the sign-in link (Supabase magic link).

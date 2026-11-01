@@ -36,7 +36,7 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 
 - [ ] On /programs/free-society-hack-2026/llms.txt, /programs/free-society-hack-2026/privacy/llms.txt and /programs/free-society-hack-2026/agentic-commerce/llms.txt, the files are served as plain text with absolute URLs (no `{{ORIGIN}}` left): the index links both track briefs and has a start prompt per track; each brief links the other brief, the index, the program page and /llms.txt; /llms.txt lists the program and both briefs; the about panel's ·FOR AI CODING AGENTS block (always visible) shows a PRIVACY and an AGENTIC COMMERCE card, each with its agent prompt (COPY AGENT PROMPT copies it, with the brief's full URL), a link opening its brief and COPY LINK; on /programs the Free Society Hack card's AI BRIEF row opens the index; on production, /programs/free-society-hack-2026/llms-full.txt redirects to the index
 - [ ] On /programs/free-society-hack-2026, submit as Privacy with no demo video → accepted (the video is optional for Privacy) but the privacy and trust note is required; as Agentic Commerce → a demo video and both Bitrefill feedback answers are required; as Both → all of them
-- [ ] On the judge view, a Privacy entry's Private question shows the builder's privacy and trust note; an Agentic entry's card shows the Bitrefill feedback; Agentic criteria are scored 0 to 5; an entry without a video shows a NO VIDEO step pointing to the README
+- [ ] On the judge view, a Privacy entry's Private question shows the builder's privacy and trust note; an Agentic entry's card shows the Bitrefill feedback; Agentic criteria are scored 1 to 5 (no 0 button); an entry without a video shows a NO VIDEO step pointing to the README
 - [ ] On /programs/free-society-hack-2026 and the submit form, nothing tells builders to use Orchard (only the developer resources' "Orchard is sealed" warning mentions it)
 
 - [ ] On /programs/free-society-hack-2026, the ·FOR AI ASSISTANTS block spans the full width of the about panel (text left, buttons right on desktop; stacked on phones)
@@ -125,7 +125,9 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] Click outside the form, or press Escape → it stays open; click ✕ → it closes with the toast "Draft saved on this device"; reopen → the draft is back
 - [ ] Click "Read terms" → "Free Society Hack: Submission Terms & Prize Disbursement" with both tables; Privacy demo video 2 min max, Agentic demo video 3 min max
 - [ ] Fill a valid Privacy entry as builder@example.com and tick "I agree to the terms of the hack." → ·SUBMISSION RECEIVED
-- [ ] The page schedule on Thu 5 Nov reads 11:00 Top teams contacted, 12:00 Demos of top teams, 13:30 Prize announcements
+- [ ] The page schedule on Thu 5 Nov reads 11:00 Doors open, top teams announced; 11:30 Kickoff; 11:40 Zcash India; 11:45–12:15 Privacy demos 1–6; 12:15–12:30 Bitrefill demos 1–3; 12:30–13:00 Judges rank winners; 13:00–13:15 Prize announcements; 13:15–13:30 Photos and close (same in the llms.txt index)
+- [ ] In the submit form, the team list says SOLO OR A TEAM OF UP TO 4, INCLUDING YOU and + ADD TEAMMATE disappears after 3 teammates; the server refuses a 4th teammate
+- [ ] After Thu 5 Nov 00:00 IST, saving or finalizing a submission, submitting feedback or changing edit access shows "Submissions are closed."; judges can still score and re-score and admins can still award prizes
 - [ ] On /programs/free-society-hack-2026, the about text reads "A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai." with no builder count
 - [ ] In the submit form (and the admin forms), the fields are lighter than the dialog behind them, with a visible edge, and typed text is near-white
 - [ ] On /programs/free-society-hack-2026 while OPEN (results not published), ·SUBMIT YOUR PROJECT sits directly above ·TWO TRACKS, under the AI assistants block, so it stays near the top as projects come in

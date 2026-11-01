@@ -1,4 +1,4 @@
-// Rubrics for tracked programs, keyed by track. Criterion ids and maxima must
+// Rubrics for tracked programs, keyed by track. Criterion ids and ranges must
 // match client/src/lib/programProfiles.ts (PRIVACY_RUBRIC, AGENTIC_RUBRIC):
 // the client renders the levels, the server validates what it stores.
 export const RUBRICS = {
@@ -11,11 +11,11 @@ export const RUBRICS = {
     { id: 'continuing', max: 3 },
     { id: 'bonus', max: 1 },
   ],
-  // Agentic Commerce (Bitrefill's criteria, each out of 5).
+  // Agentic Commerce (Bitrefill's criteria): each scored 1 to 5, max 15.
   agentic: [
-    { id: 'requirements', max: 5 },
-    { id: 'techStack', max: 5 },
-    { id: 'innovation', max: 5 },
+    { id: 'requirements', min: 1, max: 5 },
+    { id: 'techStack', min: 1, max: 5 },
+    { id: 'innovation', min: 1, max: 5 },
   ],
 };
 
@@ -38,10 +38,8 @@ export const RUBRIC_RANKING = {
     },
   },
   agentic: {
-    tieBreaks: [
-      { kind: 'criterion', id: 'innovation', label: 'Innovation' },
-      { kind: 'criterion', id: 'techStack', label: 'Tech stack' },
-    ],
+    // Bitrefill's rule: ties go to the higher How innovative score.
+    tieBreaks: [{ kind: 'criterion', id: 'innovation', label: 'How innovative' }],
     bonusId: null,
     winnerGate: null,
   },

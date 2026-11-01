@@ -135,7 +135,9 @@ export function TrackedSubmissionFields({
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="label-hw-dim">TEAMMATES (OPTIONAL)</legend>
+        <legend className="label-hw-dim">
+          TEAMMATES (OPTIONAL){profile.maxTeammates !== undefined ? ` · SOLO OR A TEAM OF UP TO ${profile.maxTeammates + 1}, INCLUDING YOU` : ""}
+        </legend>
         {editAccess && (
           <p className="label-hw-dim normal-case">
             {editAccess.canManage
@@ -197,9 +199,11 @@ export function TrackedSubmissionFields({
           </div>
           );
         })}
-        <button type="button" onClick={() => set("team", [...f.team, { name: "", email: "", role: "" }])} className="font-mono text-[10px] tracking-[0.12em] text-display hover:underline">
-          + ADD TEAMMATE
-        </button>
+        {(profile.maxTeammates === undefined || f.team.length < profile.maxTeammates) && (
+          <button type="button" onClick={() => set("team", [...f.team, { name: "", email: "", role: "" }])} className="font-mono text-[10px] tracking-[0.12em] text-display hover:underline">
+            + ADD TEAMMATE
+          </button>
+        )}
         <div className="flex items-start gap-2 pt-1">
           <Checkbox id="trk-anon" checked={f.anonymous} onCheckedChange={(v) => set("anonymous", v === true)} className="mt-0.5" />
           <label htmlFor="trk-anon" className="text-body text-sm cursor-pointer">

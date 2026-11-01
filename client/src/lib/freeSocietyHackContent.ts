@@ -51,9 +51,15 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
       { time: "Wed 4 Nov 20:00", label: "Evening judging (projects in by now)" },
       { time: "Thu 5 Nov 00:00", label: "Submissions close" },
       { time: "Thu 5 Nov 08:00", label: "Morning judging" },
-      { time: "Thu 5 Nov 11:00", label: "Top teams contacted" },
-      { time: "Thu 5 Nov 12:00", label: "Demos of top teams" },
-      { time: "Thu 5 Nov 13:30", label: "Prize announcements" },
+      // Demo day (Thu 5 Nov, 11:30–13:30). Mirrored in the llms.txt index.
+      { time: "Thu 5 Nov 11:00", label: "Doors open, top teams announced" },
+      { time: "Thu 5 Nov 11:30", label: "Kickoff (10 min)" },
+      { time: "Thu 5 Nov 11:40", label: "Zcash India (5 min)" },
+      { time: "Thu 5 Nov 11:45–12:15", label: "Privacy demos 1–6" },
+      { time: "Thu 5 Nov 12:15–12:30", label: "Bitrefill demos 1–3 (3 min on stage + 2 min changeover each)" },
+      { time: "Thu 5 Nov 12:30–13:00", label: "Judges rank winners" },
+      { time: "Thu 5 Nov 13:00–13:15", label: "Prize announcements" },
+      { time: "Thu 5 Nov 13:15–13:30", label: "Photos and close" },
     ],
   },
   {
@@ -123,7 +129,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
       "| **Public repo** with a README explaining the project and the demo URL | Yes |\n" +
       "| **Demo video, 3 minutes max,** or a live link showing the agent make a purchase | Yes |\n" +
       "| **Bitrefill feedback:** what worked and what didn't (questions on the submit form) | Yes |\n\n" +
-      "**Judging:** three Bitrefill judges score every submission out of 5 on use of the Bitrefill tech stack, following the requirements, and how innovative it is; the scores are averaged. The ranking picks the winners and the top 5 teams Bitrefill spotlights. The $100 best-feedback prize goes to the most useful feedback.",
+      "**Judging:** three Bitrefill judges score every submission from 1 to 5 on use of the Bitrefill tech stack, following the requirements, and how innovative it is (max 15); the scores are averaged across the judges, and ties go to the higher How innovative score. The ranking picks the winners and the top 5 teams Bitrefill spotlights. The $100 best-feedback prize goes to the most useful feedback.",
   },
   {
     type: "markdown",
@@ -143,7 +149,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
     type: "markdown",
     title: "How to submit",
     body:
-      "Submit on Stadium by **Thu 5 Nov, 00:00 IST**, with the email you registered with on Luma. Pick your track, or **Both**, and fill in what that track asks for. Entering both? Pick \"Both\" and fill in both tracks' items in one submission (testnet transaction ID, privacy and trust note, Bitrefill feedback, and a demo video).",
+      "Submit on Stadium by **Thu 5 Nov, 00:00 IST**, with the email you registered with on Luma. Solo or a team of up to 4, including the point person. One submission per project: pick your track, or **Both** to enter and win in both, and fill in what that track asks for. Entering both? Pick \"Both\" and fill in both tracks' items in one submission (testnet transaction ID, privacy and trust note, Bitrefill feedback, and a demo video).",
   },
   {
     type: "markdown",

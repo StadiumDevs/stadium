@@ -7,13 +7,17 @@ describe('validateRubricScore', () => {
     expect(v).toEqual({ ok: true, value: { criteria: { works: 3, private: null }, notes: 'ok', session: 'evening', revisit: false, checks: {} } });
   });
 
-  it('agentic criteria are each out of 5 (Bitrefill)', () => {
+  it('agentic criteria are each scored 1 to 5 (Bitrefill)', () => {
     expect(validateRubricScore('agentic', { criteria: { requirements: 5, techStack: 5, innovation: 5 } }).ok).toBe(true);
-    expect(validateRubricScore('agentic', { criteria: { requirements: 6 } }).error).toMatch(/between 0 and 5/);
+    expect(validateRubricScore('agentic', { criteria: { requirements: 1, techStack: 1, innovation: 1 } }).ok).toBe(true);
+    expect(validateRubricScore('agentic', { criteria: { requirements: 6 } }).error).toMatch(/between 1 and 5/);
+    expect(validateRubricScore('agentic', { criteria: { innovation: 0 } }).error).toMatch(/between 1 and 5/);
+    // Privacy keeps 0 as a valid score.
+    expect(validateRubricScore('privacy', { criteria: { works: 0, bonus: 0 } }).ok).toBe(true);
   });
 
   it('accepts a full agentic score', () => {
-    const v = validateRubricScore('agentic', { criteria: { requirements: 2, techStack: 5, innovation: 0 } });
+    const v = validateRubricScore('agentic', { criteria: { requirements: 2, techStack: 5, innovation: 1 } });
     expect(v.ok).toBe(true);
     expect(v.value.session).toBeNull();
   });

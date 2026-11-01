@@ -613,6 +613,8 @@ export function SubmitProjectModal({
       if (code === "feedback_required") {
         setError("Submit the event feedback first (at the bottom of the form).");
         showFirstIssue("sub-feedback");
+      } else if (code === "submissions_closed") {
+        setError("Submissions are closed. Your last saved version is the one the judges see.");
       } else if (code === "email_in_use") {
         setError((e as Error).message);
       } else if (code === "not_checked_in" || status === 403) {

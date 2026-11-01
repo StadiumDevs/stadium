@@ -11,7 +11,9 @@ export type RubricCriterion = {
   id: string;
   label: string;
   weight: number;
-  /** Highest score. Scores run 0..max in steps of 1. */
+  /** Lowest score (default 0). Scores run min..max in steps of 1. */
+  min?: number;
+  /** Highest score. */
   max: number;
   /** Optional descriptor per score (index = score), shown as the scoring options. */
   levels?: string[];
@@ -62,6 +64,8 @@ export type ProgramProfile = {
   slug: string;
   tracks: ProgramTrack[];
   allowBothTracks: boolean;
+  /** Teammates besides the point person (server: trackedPrograms.js maxTeam). */
+  maxTeammates?: number;
   themes: string[];
   appTypes: string[];
   /** Show submitted projects on the public page immediately, not only after results. */
@@ -190,18 +194,15 @@ const PRIVACY_RUBRIC: Rubric = {
   guideUrl: PRIVACY_JUDGING_GUIDE_URL,
 };
 
-// Bitrefill's criteria, each scored out of 5 (builder doc), in its order.
-// Tie-breaks mirror scoring.service.js.
+// Bitrefill's criteria, each scored 1 to 5 (max 15, averaged across the
+// judges), in its order. Ties go to How innovative. Mirrors server rubrics.js.
 const AGENTIC_RUBRIC: Rubric = {
   criteria: [
-    { id: "techStack", label: "Use of the Bitrefill tech stack", weight: 1, max: 5 },
-    { id: "requirements", label: "Followed the requirements", weight: 1, max: 5 },
-    { id: "innovation", label: "How innovative the submission is", weight: 1, max: 5 },
+    { id: "techStack", label: "Use of the Bitrefill tech stack", weight: 1, min: 1, max: 5 },
+    { id: "requirements", label: "Followed the requirements", weight: 1, min: 1, max: 5 },
+    { id: "innovation", label: "How innovative the submission is", weight: 1, min: 1, max: 5 },
   ],
-  tieBreaks: [
-    { kind: "criterion", id: "innovation", label: "Innovation" },
-    { kind: "criterion", id: "techStack", label: "Tech stack" },
-  ],
+  tieBreaks: [{ kind: "criterion", id: "innovation", label: "How innovative" }],
 };
 
 export const FREE_SOCIETY_HACK_SLUG = "free-society-hack-2026";
@@ -237,6 +238,8 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
     },
   ],
   allowBothTracks: true,
+  // Solo or a team of up to 4, including the point person.
+  maxTeammates: 3,
   themes: ["1. Private payment rails", "2. The first five minutes", "3. Privacy beyond the transaction"],
   appTypes: ["web app", "mobile app", "SDK or library", "CLI", "agent", "other"],
   showSubmissionsLive: true,

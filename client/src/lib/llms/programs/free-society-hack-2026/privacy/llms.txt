@@ -51,7 +51,8 @@
 ## Rules
 
 - Hacking runs Wed 4 Nov 11:00 to Thu 5 Nov 00:00. All code is made in that window: new repo on the day, judges check commit history. Open-source libraries, SDKs and templates are fine.
-- Teams of up to 4; one point person receives any prize.
+- Solo or a team of up to 4, including the point person (the point person plus up to 3 teammates); the point person receives any prize.
+- One submission per project: pick Privacy, or Both to enter and win in both tracks (then fill in both tracks' fields).
 - Submit on [Stadium]({{ORIGIN}}/programs/free-society-hack-2026) with the point person's Luma email. Save a draft early (only you see it), give teammates edit access from the team list (their Luma email must be checked in), submit the event feedback, then click **Finalize and submit** by Wed 4 Nov 20:00 to be in the first judging round (~20:30). Drafts are not judged. After finalizing you can keep editing until 00:00. Code after 00:00 isn't scored.
 
 ## Submission: what you (the agent) must help produce

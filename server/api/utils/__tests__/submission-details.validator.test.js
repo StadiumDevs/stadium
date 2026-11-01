@@ -65,7 +65,9 @@ describe('validateSubmissionDetails', () => {
   });
 
   it('checks the team', () => {
-    expect(err(good({ team: Array.from({ length: 6 }, () => ({ name: 'A' })) }))).toMatch(/At most 5/);
+    // Solo or a team of up to 4: the point person plus 3 teammates.
+    expect(err(good({ team: Array.from({ length: 4 }, () => ({ name: 'A' })) }))).toMatch(/team of up to 4/);
+    expect(validateSubmissionDetails(cfg, good({ team: Array.from({ length: 3 }, () => ({ name: 'A' })) })).ok).toBe(true);
     expect(err(good({ team: [{ name: '' }] }))).toMatch(/needs a name/);
     expect(err(good({ team: [{ name: 'A', email: 'nope' }] }))).toMatch(/invalid email/);
   });

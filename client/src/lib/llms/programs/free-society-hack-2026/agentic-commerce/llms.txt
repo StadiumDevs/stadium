@@ -47,7 +47,7 @@ Payment methods: balance (event credits), Bitcoin, Lightning, ETH (Ethereum, Bas
 ## Rules
 
 - Use at least one Bitrefill surface (MCP, CLI, Agent Skills, x402, REST API). Show an agent-initiated purchase working in the demo, not mocked.
-- Hacking runs Wed 4 Nov 11:00 to Thu 5 Nov 00:00; all code made in that window (new repo, commit history checked). Teams of up to 4.
+- Hacking runs Wed 4 Nov 11:00 to Thu 5 Nov 00:00; all code made in that window (new repo, commit history checked). Solo or a team of up to 4, including the point person. One submission per project: pick Agentic Commerce, or Both to enter and win in both tracks (then fill in both tracks' fields).
 - Submit on [Stadium]({{ORIGIN}}/programs/free-society-hack-2026) with the point person's Luma email. Save a draft early (only you see it), give teammates edit access from the team list (their Luma email must be checked in), submit the event feedback, then click **Finalize and submit** by Wed 4 Nov 20:00 to be in the first judging round (~20:30). Drafts are not judged. After finalizing you can keep editing until 00:00. Code after 00:00 isn't scored.
 - Codes are cash: never log, print, commit or post them; mask them in the demo. Small money only: dedicated low-balance account or wallet; never put a seed phrase or private key in code or prompts.
 - Redeem into your own accounts; top up team phones only. No CAPTCHA solving, credential collection or bulk accounts. Disqualified: promo or cashback farming, laundering, reselling codes at scale, getting around KYC or sanctions.

@@ -267,6 +267,38 @@ describe('Submission drafts: save on the server, come back, teammates, feedback,
     expect(row().details.privacyNote).toBeTruthy();
   });
 
+  it('the deadline: saves at 23:59:59 IST pass; at 00:00 IST builders are refused, judges still score', async () => {
+    at('2026-11-04T23:59:59+05:30');
+    const before = await as(MATE, submissionController.submit, { body: { ...base, details: fullDetails({ pitch: 'Last second' }) } });
+    expect(before.status).toBe(200);
+    expect(row().details.pitch).toBe('Last second');
+
+    at('2026-11-05T00:00:00+05:30'); // 2026-11-04T18:30:00Z
+    const after = await as(OWNER, submissionController.submit, { body: { ...base, details: fullDetails({ pitch: 'Too late' }) } });
+    expect(after.status).toBe(403);
+    expect(after.body.code).toBe('submissions_closed');
+    expect(row().details.pitch).toBe('Last second');
+    // Drafts, new entries, feedback and edit access are closed too.
+    const draft = await as(OWNER, submissionController.submit, { body: { ...base, intent: 'draft', details: fullDetails() } });
+    expect(draft.status).toBe(403);
+    const fresh = await as(MATE, submissionController.submit, { body: { ...base, lumaEmail: MATE, intent: 'draft' } });
+    expect(fresh.status).toBe(403);
+    const fb = await as(OWNER, submissionController.submitFeedback, { body: { ratings: RATINGS } });
+    expect(fb.status).toBe(403);
+    const ed = await as(OWNER, submissionController.removeEditor, { params: { email: MATE } });
+    expect(ed.status).toBe(403);
+    // The team can still read it; judges still score and re-score.
+    expect((await as(OWNER, submissionController.mySubmission)).status).toBe(200);
+    for (const works of [2, 3]) {
+      const score = await asJudge('zec-judge@example.com', submissionController.upsertRubricScore, {
+        params: { submissionId: row().id, track: 'privacy' },
+        body: { criteria: { works } },
+      });
+      expect(score.status).toBe(200);
+    }
+    at('2026-11-04T23:40:00+05:30');
+  });
+
   it('taking a teammate off the team list removes their edit access', async () => {
     const r = await as(OWNER, submissionController.submit, {
       body: { ...base, details: fullDetails({ team: [{ name: 'Nisha', email: LATE_MATE, role: 'design' }] }) },
