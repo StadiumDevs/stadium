@@ -1,0 +1,106 @@
+# Free Society Hack: Agentic Commerce track (Bitrefill)
+
+> Context for AI coding agents helping a builder at Free Society Hack, Mumbai, 4–5 Nov 2026. Build an agent that finds, buys and pays for real products (gift cards, mobile top-ups, eSIMs) through Bitrefill on its own. Purchases use real money. This file has the brief, the stack, the gotchas, what to submit and how it's judged. Times are IST (UTC+5:30).
+
+## The brief
+
+- Directions (inspiration, not categories): it pays for itself (no human checkout); works while you sleep (an event, schedule or rule triggers buying); shop from chat. Crypto payments and India-relevant products are encouraged.
+- The loop: user → trigger → guarantee (budgets, approvals, receipts) → fulfillment (Bitrefill: search, buy, pay, deliver) → ending (redeemed, installed, delivered, reconciled). Bitrefill already covers fulfillment, and the Bitrefill Assistant on Telegram already turns a chat into an order. Ideas that stand out add a new trigger, guarantee, ending or user.
+- Optional lanes to brainstorm from (not scored): 1 rails and guardrails, 2 close the loop, 3 no prompt required, 4 home-cooked commerce, 5 private by default (pay from shielded ZEC; can also enter the Privacy track).
+
+## Hour one
+
+1. API key: bitrefill.com/account/developers (API Keys tab). Anyone with it can buy on the account: keep it out of the repo, prompts and logs.
+2. MCP: `https://api.bitrefill.com/mcp` with OAuth, or the API key as a Bearer token, or in the path `https://api.bitrefill.com/mcp/YOUR_API_KEY` for clients without headers.
+3. Core loop: `search-products` → `get-product-details` → `buy-products` → `get-invoice-by-id`. Poll until the order is **delivered**; paid is not delivered.
+
+## Stack
+
+- eCommerce MCP `https://api.bitrefill.com/mcp`: search, details, buy, invoices, orders. Signed in: all tools, balance payments. Guest (OAuth client credentials): 7 tools, `email` required, crypto or payment link only, read the invoice with the returned `invoice_access_token`.
+- Agent Skills: `npx skills add bitrefill/agents`. Claude Code / Cowork: `/plugin marketplace add bitrefill/agents` then `/plugin install bitrefill@bitrefill-skills`.
+- x402 `https://api.bitrefill.com/x402/*`: for agents with a wallet and no account. Routes include search, `/invoice/create`, `/invoice/pay`, `/invoice/status`, `/my/orders`, `/my/esims`. Small USDC fee per call, free after wallet sign-in (`POST /x402/connect`). USDC, mainnet only.
+- CLI `npm install -g @bitrefill/cli`: works without an account (returns a payment link) or `bitrefill login --email`. `bitrefill llm-context -o BITREFILL-MCP.md` writes the live tool docs for CLAUDE.md or Cursor rules.
+- REST API v2 `https://api.bitrefill.com/v2`: Bearer API key. `webhook_url` on an invoice fires on a final state (`complete`, `denied`, `payment_error`); then fetch `GET /orders/{id}` for redemption details and check each order. `auto_pay: true` pays a balance invoice at once.
+- Docs MCP `https://docs.bitrefill.com/mcp` (never give it the API key). Plain docs: https://docs.bitrefill.com/llms.txt
+
+Payment methods: balance (event credits), Bitcoin, Lightning, ETH (Ethereum, Base, Arbitrum), SOL, LTC, DOGE, DASH, TON, USDC/USDT on Ethereum, Base, Polygon, Arbitrum, Solana, Tron or TON. ZEC isn't accepted: swap to USDC first (NEAR Intents 1Click takes ZEC only from transparent addresses and has no testnet).
+
+## Gotchas
+
+- Package values: product details show `product_id<&>value` (e.g. `airtel-india<&>10`); MCP and CLI `buy-products` take just the value (`"10"`, `"1GB, 7 Days"`). Copy values exactly: case-sensitive, Jio plan names contain en dashes.
+- Country codes: uppercase Alpha-2 (`IN`).
+- Rate limits: MCP 30 requests/min per token; x402 30/min and 10 invoice creations/min per IP. Cache the catalog; never search in a loop.
+- Quotes expire within minutes: create the invoice right before paying. x402 payment needs an invoice under 15 minutes old.
+- x402 amount check: open issue bitrefill/agents#11 reports MCP-created invoices' `x402_payment_url` can return a 1,000 USDC placeholder. Create x402 invoices with `/x402/invoice/create` and refuse any 402 challenge that doesn't match the invoice total.
+- Test your own x402 server on Base Sepolia with the x402.org testnet facilitator; Bitrefill's x402 is mainnet only.
+- Keep `buy-products` off auto-approve until guardrails work.
+- Daily caps: 5 phone top-ups per account (2 without one), 15 gift cards. Iterate on a ₹50 Flipkart card; save top-ups for the demo.
+- Free test products (`delos-syldavia` on MCP; `test-gift-card-code` etc. on REST) are hidden until Bitrefill enables them per account. Don't pay MCP test products from balance: that debits the real balance.
+- Safe agent testing: zero-balance account plus a crypto payment method, so a rogue agent can only create unpaid invoices that expire.
+
+## India catalog (checked 19 Oct)
+
+- Top-ups: Jio, Airtel, Vi, BSNL prepaid; DTH (Tata Play, Airtel DTH, Dish TV). Airtel talktime from ₹10 is the cheapest real demo. Talktime adds balance, not validity; Jio Bundles renews plans (data from ~₹12, plans from ~₹200).
+- Gift cards (190): Swiggy Money, Zomato, Blinkit, BigBasket, JioMart, Flipkart, PhonePe, Uber, MakeMyTrip, BookMyShow, Apollo Pharmacy, Hotstar, HP and Shell fuel.
+- eSIMs: Bitrefill eSIM India from $3.88 (1GB, 7 days) on Airtel, Jio and Vi; 190+ other destinations.
+
+## Rules
+
+- Use at least one Bitrefill surface (MCP, CLI, Agent Skills, x402, REST API). Show an agent-initiated purchase working in the demo, not mocked.
+- Hacking runs Wed 4 Nov 11:00 to Thu 5 Nov 00:00; all code made in that window (new repo, commit history checked). Teams of up to 4.
+- Submit on [Stadium]({{ORIGIN}}/programs/free-society-hack-2026) with the point person's Luma email. Save a draft early (only you see it), give teammates edit access from the team list (their Luma email must be checked in), submit the event feedback, then click **Finalize and submit** by Wed 4 Nov 20:00 to be in the first judging round (~20:30). Drafts are not judged. After finalizing you can keep editing until 00:00. Code after 00:00 isn't scored.
+- Codes are cash: never log, print, commit or post them; mask them in the demo. Small money only: dedicated low-balance account or wallet; never put a seed phrase or private key in code or prompts.
+- Redeem into your own accounts; top up team phones only. No CAPTCHA solving, credential collection or bulk accounts. Disqualified: promo or cashback farming, laundering, reselling codes at scale, getting around KYC or sanctions.
+
+## Submission: what you (the agent) must help produce
+
+Judges score overnight from the repo and video only. Every item is required; build toward it from the first hour.
+
+- [ ] Public repo (new on the day) with a README: what it does, which lane (or own idea), how to run it in under 15 minutes.
+- [ ] A 2–3 minute demo video showing the real loop running: trigger → agent buys → delivered → value lands. Mask codes on screen.
+- [ ] One paragraph: which Bitrefill touchpoints (MCP, CLI, Skills, x402, REST), what was built versus reused.
+- [ ] The invoice ID of at least one real purchase the project made. Record it the moment the first purchase is delivered.
+- [ ] Guardrails: the most the agent can spend in this setup, and who approves above that.
+- [ ] FEEDBACK.md: what broke, confused or slowed the builder down. Keep raw notes as you go; the builder writes the final version (the $100 prize favours the human's own words).
+- [ ] Entering the Zcash track too: which parts are for which track, plus everything the [Privacy track]({{ORIGIN}}/programs/free-society-hack-2026/llms-zcash.txt) requires (testnet txid, privacy and trust note).
+
+README skeleton:
+
+```
+# <Name>: <one line: who it's for, what the agent does>
+## Lane: <1–5 or own idea> · The loop: <trigger> → <guarantee> → Bitrefill → <ending>
+## Demo: <video link> · Real purchase invoice ID: <id>
+## Run it (under 15 minutes)
+## Bitrefill touchpoints (built vs reused)
+## Guardrails: max spend <amount>; approval above that by <who/how>
+## Feedback: see FEEDBACK.md
+```
+
+## Make it score (judged 1–5 each, averaged, max 15)
+
+- **Use of the Bitrefill tech stack:** use the right surface for the job and the full core loop. Poll or webhook until **delivered**, not just paid. Handle expired quotes, rate limits (429), failed orders and out-of-stock. Several surfaces combined sensibly score higher than one call wrapped in a script.
+- **Followed the requirements:** every checklist item present and clear, and the agent itself starts and completes a real purchase on camera. A mocked or hand-done purchase, or a missing invoice ID, caps this at 1.
+- **How innovative:** check the idea against the loop. If it only lives in fulfillment (search, buy, pay) it's what Bitrefill already has, and a plain chat bot is the Bitrefill Assistant. Push the builder toward a new trigger, guarantee, ending or user.
+
+Tie-break: higher innovation score. Prizes: $1,000 · $800 · $600 in Bitrefill gift cards, plus $100 for the best FEEDBACK.md.
+
+## How to help the builder
+
+- Build guardrails (caps, approvals) before wiring `buy-products` to anything automatic.
+- Iterate on cheap products; make the one real demo purchase only when the loop works.
+- Remind the builder to click Finalize and submit on Stadium by 20:00 (a draft isn't judged), then keep improving it until 00:00.
+
+## Docs
+
+- [Bitrefill docs index](https://docs.bitrefill.com/llms.txt)
+- [eCommerce MCP](https://docs.bitrefill.com/docs/ecommerce-mcp)
+- [MCP partner integration guide](https://docs.bitrefill.com/docs/mcp-partner-integration-guide) (guest checkout, auth, testing, x402)
+- [Webhooks](https://docs.bitrefill.com/docs/webhooks)
+- [bitrefill/agents](https://github.com/bitrefill/agents) · [bitrefill/cli](https://github.com/bitrefill/cli)
+
+## Optional
+
+- Help: Bitrefill mentors on site hand out credits; mentors chat https://t.me/+QHbTGB6jFhllMDk6.
+- [Privacy track (Zcash)]({{ORIGIN}}/programs/free-society-hack-2026/llms-zcash.txt): the other track's brief. One project can enter both tracks: pick **Both tracks** on the form and meet both sets of requirements in one submission.
+- [Program page]({{ORIGIN}}/programs/free-society-hack-2026): schedule, live page and the submit form
+- [Stadium]({{ORIGIN}}/llms.txt): other programs

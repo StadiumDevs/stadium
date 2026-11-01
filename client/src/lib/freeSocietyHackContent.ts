@@ -1,6 +1,6 @@
 import type { ProgramContentSection } from "./api";
 import { BITREFILL, mdLink, ZCASH } from "./llms/devResources";
-import { llmsFullPath, llmsPath } from "./llms/llmsPrograms";
+import { llmsPath, llmsTrackPath } from "./llms/llmsPrograms";
 
 /**
  * Authored public-page content for the Zcash Free Society Hack (program slug
@@ -22,9 +22,10 @@ export const FREE_SOCIETY_HACK_VENUE_MAP_URL =
 export const FREE_SOCIETY_HACK_BUILDER_PACK_URL =
   "https://app.notion.com/p/Free-Society-Hack-Builder-Pack-3ff3e52aeb15807eace6f16f84a74c14";
 
-/** The program's llms.txt (generated at build), for AI assistants. */
+/** The program's llms.txt index and per-track briefs, for AI assistants. */
 export const FREE_SOCIETY_HACK_LLMS_PATH = llmsPath("free-society-hack-2026");
-export const FREE_SOCIETY_HACK_LLMS_FULL_PATH = llmsFullPath("free-society-hack-2026");
+export const FREE_SOCIETY_HACK_LLMS_ZCASH_PATH = llmsTrackPath("free-society-hack-2026", "zcash");
+export const FREE_SOCIETY_HACK_LLMS_BITREFILL_PATH = llmsTrackPath("free-society-hack-2026", "bitrefill");
 
 const devResourcesBody =
   "**Zcash.** " + ZCASH.intro + "\n\n" +
@@ -39,7 +40,7 @@ const devResourcesBody =
   "**Bitrefill.** " + BITREFILL.intro + " Use at least one surface: " +
   BITREFILL.surfaces.map((x) => mdLink(x.surface, false)).join(", ") +
   ". Test with test products (MCP test product `delos-syldavia`); never pay for them with real money or store credit.\n\n" +
-  "The full lists (more tools, learning links, every gotcha) are in the Builder Pack and in [llms-full.txt](" + FREE_SOCIETY_HACK_LLMS_FULL_PATH + ").";
+  "The full lists (more tools, learning links, every gotcha) are in the Builder Pack and in the track briefs: [llms-zcash.txt](" + FREE_SOCIETY_HACK_LLMS_ZCASH_PATH + ") and [llms-bitrefill.txt](" + FREE_SOCIETY_HACK_LLMS_BITREFILL_PATH + ").";
 
 export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
   {
@@ -155,7 +156,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
     body:
       "Everything you need to build, including how Privacy projects are judged, is in the " +
       "[Free Society Hack Builder Pack](" + FREE_SOCIETY_HACK_BUILDER_PACK_URL + ").\n\n" +
-      "**Using an AI assistant?** Give it [llms.txt](" + FREE_SOCIETY_HACK_LLMS_PATH + ") or the full [llms-full.txt](" + FREE_SOCIETY_HACK_LLMS_FULL_PATH + "): the tracks, themes, what to submit, how it's judged and the developer resources, in one file it can read.",
+      "**Using an AI assistant?** Give it your track's brief: [llms-zcash.txt](" + FREE_SOCIETY_HACK_LLMS_ZCASH_PATH + ") for Privacy, [llms-bitrefill.txt](" + FREE_SOCIETY_HACK_LLMS_BITREFILL_PATH + ") for Agentic Commerce, or both if you enter both. Each has the rules, what to submit, how it's judged and the developer resources. The index is [llms.txt](" + FREE_SOCIETY_HACK_LLMS_PATH + ").",
   },
   {
     type: "markdown",
