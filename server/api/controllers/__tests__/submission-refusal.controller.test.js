@@ -245,6 +245,14 @@ describe('acceptRefusal — event ratings', () => {
     expect(ratingRepo.upsertForSubmission).toHaveBeenCalledWith({ submissionId: 'new-entry', programId: 'fsh', ratings: body.ratings });
   });
 
+  it('carries what the builder liked onto the accepted entry', async () => {
+    refusalRepo.findById.mockResolvedValue(refusal({ payload: { ...body, eventLiked: 'The venue' } }));
+    const res = mockRes();
+    await submissionController.acceptRefusal(req(), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ eventLiked: 'The venue' }));
+  });
+
   it('still accepts a refusal stored before ratings existed', async () => {
     const { ratings, ...old } = body;
     refusalRepo.findById.mockResolvedValue(refusal({ payload: old }));

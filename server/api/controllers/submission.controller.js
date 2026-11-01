@@ -966,11 +966,12 @@ class SubmissionController {
     try {
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const [feedback, ratings] = await Promise.all([
+      const [feedback, ratings, liked] = await Promise.all([
         programSubmissionRepository.aggregateFeedback(program.id),
         experienceRatingRepository.aggregateByProgram(program.id),
+        programSubmissionRepository.listEventLiked(program.id),
       ]);
-      res.status(200).json({ status: 'success', data: { ...feedback, ratings } });
+      res.status(200).json({ status: 'success', data: { ...feedback, ratings, liked } });
     } catch (error) {
       console.error('❌ Error aggregating feedback:', error);
       res.status(500).json({ status: 'error', message: 'Failed to aggregate feedback' });

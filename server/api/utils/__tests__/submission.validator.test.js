@@ -233,4 +233,14 @@ describe('validateExperienceRatings', () => {
     expect(opt.ok).toBe(true);
     expect(opt.value.ratings).toBeNull();
   });
+
+  it('validateSubmission takes an optional, trimmed "what you liked" (max 500)', () => {
+    expect(validateSubmission(goodSubmission).value.eventLiked).toBeNull();
+    expect(validateSubmission({ ...goodSubmission, eventLiked: '   ' }).value.eventLiked).toBeNull();
+    expect(validateSubmission({ ...goodSubmission, eventLiked: '  The mentors ' }).value.eventLiked).toBe('The mentors');
+    expect(validateSubmission({ ...goodSubmission, eventLiked: 'x'.repeat(500) }).ok).toBe(true);
+    const long = validateSubmission({ ...goodSubmission, eventLiked: 'x'.repeat(501) });
+    expect(long.ok).toBe(false);
+    expect(long.error).toMatch(/max 500/);
+  });
 });

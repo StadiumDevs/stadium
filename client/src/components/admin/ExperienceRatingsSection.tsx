@@ -3,10 +3,12 @@ import { api, USE_MOCK_DATA, type AdminAuthArg, type ApiResultsFeedbackAggregate
 import { EXPERIENCE_RATING_CATEGORIES, RATING_MAX } from "@/lib/experienceRatings";
 
 type Ratings = NonNullable<ApiResultsFeedbackAggregate["ratings"]>;
+type Liked = NonNullable<ApiResultsFeedbackAggregate["liked"]>;
 
 /**
  * Admin: the builders' event ratings (given when they submit), averaged per
- * category. Shown for every program once anyone has rated; hidden until then.
+ * category, and what they said they liked. Shown for every program once anyone
+ * has rated; hidden until then.
  */
 export function ExperienceRatingsSection({
   programSlug,
@@ -16,6 +18,7 @@ export function ExperienceRatingsSection({
   getAuth: () => Promise<AdminAuthArg>;
 }) {
   const [ratings, setRatings] = useState<Ratings | null>(null);
+  const [liked, setLiked] = useState<Liked>([]);
   const [refreshTick, setRefreshTick] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +30,9 @@ export function ExperienceRatingsSection({
     authPromise
       .then((authHeader) => api.getFeedbackAggregate(programSlug, authHeader))
       .then((r) => {
-        if (active) setRatings(r.data.ratings ?? {});
+        if (!active) return;
+        setRatings(r.data.ratings ?? {});
+        setLiked(r.data.liked ?? []);
       })
       .catch(() => {
         // Degrade quietly: the section stays hidden.
@@ -86,6 +91,21 @@ export function ExperienceRatingsSection({
             </div>
           );
         })}
+      </div>
+      <div className="mt-4 border-t border-hairline-subtle pt-3" data-testid="event-liked">
+        <div className="label-hw-dim mb-2">·WHAT BUILDERS LIKED ({liked.length})</div>
+        {liked.length === 0 ? (
+          <p className="label-hw-dim normal-case">None yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {liked.map((l, i) => (
+              <li key={`${l.submittedAt}-${i}`} className="text-body text-sm leading-relaxed">
+                <span className="label-hw text-display">{l.projectTitle}</span>
+                <span className="block whitespace-pre-line">{l.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

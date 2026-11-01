@@ -23,3 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_submission_experience_ratings_program
 
 -- Only the server (service role) reads and writes; no public policies.
 ALTER TABLE submission_experience_ratings ENABLE ROW LEVEL SECURITY;
+
+-- "Anything you especially liked about the event?": optional free text the
+-- builder adds next to the ratings. Organisers only (admin EVENT RATINGS, CSV).
+ALTER TABLE program_submissions ADD COLUMN IF NOT EXISTS event_liked TEXT;

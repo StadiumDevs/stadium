@@ -19,7 +19,7 @@ const capValue = (v, depth = 0) => {
 // The fields of a submission attempt worth keeping (never the honeypot).
 const PAYLOAD_KEYS = [
   'submitterName', 'lumaEmail', 'projectTitle', 'projectBrief', 'videoUrl', 'githubUrl',
-  'feedback', 'agreedToTerms', 'details', 'ratings',
+  'feedback', 'agreedToTerms', 'details', 'ratings', 'eventLiked',
 ];
 export const toStoredPayload = (body = {}) =>
   Object.fromEntries(PAYLOAD_KEYS.filter((k) => body[k] !== undefined).map((k) => [k, capValue(body[k])]));

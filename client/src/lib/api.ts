@@ -236,6 +236,8 @@ export type SubmissionPayload = {
    * here because this type also reads back older submissions and refusals.
    */
   ratings?: ExperienceRatings;
+  /** Optional: "Anything you especially liked about the event?" (max 500 characters). */
+  eventLiked?: string;
   feedback?: {
     surfaces: string[];
     surfacesPrimary: string | null;
@@ -541,6 +543,8 @@ export type ApiResultsFeedbackAggregate = {
   total: number;
   /** Event ratings per category (experienceRatings.ts ids): average 1 to 5 and how many rated. */
   ratings?: Partial<Record<ExperienceRatingCategory, { avg: number; count: number }>>;
+  /** What builders said they liked about the event, newest first. */
+  liked?: { projectTitle: string; text: string; submittedAt: string }[];
 };
 
 /** Public, PII-free results payload for the program page (gated on publish). */
@@ -2547,6 +2551,10 @@ export const api = {
             support: { avg: 4.6, count: 17 },
             tools: { avg: 3.4, count: 17 },
           },
+          liked: [
+            { projectTitle: "Chai Ledger", text: "The mentors sat with us until the payment flow worked.", submittedAt: "2026-11-04T19:40:00+05:30" },
+            { projectTitle: "Memo Mailbox", text: "Getting testnet ZEC on the spot.", submittedAt: "2026-11-04T18:05:00+05:30" },
+          ],
         },
       };
     }

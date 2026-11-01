@@ -58,6 +58,7 @@ const videoLabel = (track: TrackedFormState["track"]) =>
         : "DEMO VIDEO LINK";
 const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
 const BRIEF_MAX = 500;
+const EVENT_LIKED_MAX = 500;
 
 /**
  * Public project-submission form for a hackathon program. Anyone can submit;
@@ -86,6 +87,7 @@ type Draft = {
   texts: Record<string, string>;
   tracked: TrackedFormState;
   ratings: ExperienceRatingsDraft;
+  eventLiked?: string;
 };
 type Problem = "not_checked_in" | "verify_to_update" | "retry";
 
@@ -136,6 +138,7 @@ export function SubmitProjectModal({
   const [company, setCompany] = useState(""); // honeypot
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [ratings, setRatings] = useState<ExperienceRatingsDraft>({});
+  const [eventLiked, setEventLiked] = useState("");
   const [termsOpen, setTermsOpen] = useState(false);
 
   // Feedback answers, kept generic and assembled into FeedbackAnswers on submit.
@@ -183,6 +186,7 @@ export function SubmitProjectModal({
     setTexts(d?.texts ?? {});
     setTracked(d?.tracked ?? emptyTrackedForm());
     setRatings(d?.ratings ?? {});
+    setEventLiked(d?.eventLiked ?? "");
   }, []);
 
   // Opening restores this device's draft (never wipes it).
@@ -207,14 +211,14 @@ export function SubmitProjectModal({
     if (!open || done) return;
     const draft: Draft = {
       submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl,
-      agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings,
+      agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked,
     };
     const t = window.setTimeout(() => {
       writeDraft(program.slug, draft);
       setDraftSaved(true);
     }, DRAFT_SAVE_MS);
     return () => window.clearTimeout(t);
-  }, [open, done, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings]);
+  }, [open, done, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked]);
 
   const startOver = () => {
     writeDraft(program.slug, null);
@@ -370,6 +374,7 @@ export function SubmitProjectModal({
         ...(terms ? { agreedToTerms: true } : {}),
         ...(feedback ? { feedback } : {}),
         ratings,
+        ...(eventLiked.trim() ? { eventLiked: eventLiked.trim() } : {}),
         ...(profile ? { details: trackedFormToDetails(tracked) } : {}),
       }, { verifiedToken: verified && !USE_MOCK_DATA ? social.token : null });
       writeDraft(program.slug, null);
@@ -665,6 +670,22 @@ export function SubmitProjectModal({
                       invalid={bad(ratingFieldId(id))}
                     />
                   ))}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <Label htmlFor="sub-event-liked" className="label-hw-dim">
+                        ANYTHING YOU ESPECIALLY LIKED ABOUT THE EVENT? (OPTIONAL)
+                      </Label>
+                      <span className="label-hw-dim">{eventLiked.trim().length}/{EVENT_LIKED_MAX}</span>
+                    </div>
+                    <Textarea
+                      id="sub-event-liked"
+                      rows={2}
+                      maxLength={EVENT_LIKED_MAX}
+                      value={eventLiked}
+                      onChange={(e) => setEventLiked(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                  </div>
                 </div>
 
                 {terms && (

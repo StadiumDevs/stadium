@@ -26,7 +26,7 @@ vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn(), aggregateFeedback: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn(), aggregateFeedback: vi.fn(), listEventLiked: vi.fn() },
 }));
 vi.mock('../../services/submission-confirmation.service.js', () => ({
   default: { send: vi.fn() },
@@ -696,16 +696,33 @@ describe('SubmissionController — event ratings', () => {
     err.mockRestore();
   });
 
-  it('feedbackAggregate includes the per-category rating averages', async () => {
+  it('feedbackAggregate includes the per-category rating averages and what builders liked', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     submissionRepo.aggregateFeedback.mockResolvedValue({ total: 2, agentEnv: {} });
     ratingRepo.aggregateByProgram.mockResolvedValue({ overall: { avg: 4.5, count: 2 } });
+    const liked = [{ projectTitle: 'Engine', text: 'The mentors', submittedAt: '2026-11-04T10:00:00Z' }];
+    submissionRepo.listEventLiked.mockResolvedValue(liked);
     const res = mockRes();
     await submissionController.feedbackAggregate({ params: { slug: 'bitrefill' } }, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       status: 'success',
-      data: { total: 2, agentEnv: {}, ratings: { overall: { avg: 4.5, count: 2 } } },
+      data: { total: 2, agentEnv: {}, ratings: { overall: { avg: 4.5, count: 2 } }, liked },
     });
+  });
+
+  it('stores what the builder liked about the event with the submission', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(true);
+    submissionRepo.findByEmail.mockResolvedValue(null);
+    submissionRepo.create.mockResolvedValue({
+      submission: { id: 'engine-ab12', lumaEmail: 'ada@example.com', submitterName: 'Ada', projectTitle: 'Engine' },
+      duplicate: false,
+    });
+    confirmationService.send.mockResolvedValue({ ok: true });
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: { ...GOOD_BODY, eventLiked: '  The mentors  ' } }, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ eventLiked: 'The mentors' }));
   });
 });

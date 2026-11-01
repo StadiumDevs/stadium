@@ -138,6 +138,8 @@ export function validateExperienceRatings(ratings, { required = true } = {}) {
 // Returns { ok: true, value } with trimmed/normalized fields, or
 // { ok: false, error } with a human-readable message.
 // `videoOptional`: a tracked track where the demo video is optional (stored as '').
+export const EVENT_LIKED_MAX = 500;
+
 // `ratingsOptional`: accept a body without event ratings (refusals stored before ratings existed).
 export function validateSubmission(body = {}, { videoOptional = false, ratingsOptional = false } = {}) {
   const submitterName = str(body.submitterName);
@@ -172,6 +174,12 @@ export function validateSubmission(body = {}, { videoOptional = false, ratingsOp
   const rt = validateExperienceRatings(body.ratings, { required: !ratingsOptional });
   if (!rt.ok) return { ok: false, error: rt.error };
 
+  // Optional: "Anything you especially liked about the event?"
+  const eventLiked = str(body.eventLiked);
+  if (eventLiked.length > EVENT_LIKED_MAX) {
+    return { ok: false, error: `What you liked about the event is max ${EVENT_LIKED_MAX} characters` };
+  }
+
   return {
     ok: true,
     value: {
@@ -184,6 +192,7 @@ export function validateSubmission(body = {}, { videoOptional = false, ratingsOp
       feedback: fb.value,
       agreedToTerms: body.agreedToTerms === true,
       ratings: rt.value,
+      eventLiked: eventLiked || null,
     },
   };
 }
