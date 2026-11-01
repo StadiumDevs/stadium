@@ -8,6 +8,7 @@ import submissionScoreRepository from '../repositories/submission-score.reposito
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
 import submissionRefusalRepository from '../repositories/submission-refusal.repository.js';
+import experienceRatingRepository from '../repositories/submission-experience-rating.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
 import { toPublicList } from '../utils/public-submission.js';
@@ -35,6 +36,17 @@ const JIT_SYNC_FLOOR_MS = 25 * 1000;
 // Winner selection + publishing are platform-admin only. After requireProgramAdmin,
 // a global admin carries isGlobalAdmin === true; per-program admins do not.
 const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
+
+// Store the builder's event ratings. Best-effort: the submission is already
+// saved, so a failed rating write is logged, never surfaced as a failed submit.
+async function saveRatings(submission, programId, ratings) {
+  if (!ratings) return;
+  try {
+    await experienceRatingRepository.upsertForSubmission({ submissionId: submission.id, programId, ratings });
+  } catch (err) {
+    console.error('❌ Could not save event ratings:', err);
+  }
+}
 
 // Tracked programs: check the testnet txid after the response (never blocks
 // the submission). Re-checked only when the txid changed or was never checked.
@@ -285,6 +297,7 @@ class SubmissionController {
         resubmitted = false;
         statusCode = 201;
       }
+      await saveRatings(submission, program.id, v.value.ratings);
       if (tracked) {
         await scheduleTxCheck(submission, existing);
         if (existing) await dropPrizesOutsideTrack(submission, tracked);
@@ -504,7 +517,10 @@ class SubmissionController {
         return res.status(409).json({ status: 'error', message: 'Already accepted' });
       }
       const tracked = trackedProgramFor(program.slug);
-      const v = validateSubmission(refusal.payload, { videoOptional: videoOptionalFor(tracked, refusal.payload?.details) });
+      const v = validateSubmission(refusal.payload, {
+        videoOptional: videoOptionalFor(tracked, refusal.payload?.details),
+        ratingsOptional: true,
+      });
       if (!v.ok) {
         return res.status(422).json({ status: 'error', message: `Can't accept: ${v.error}. Ask the builder to resubmit.` });
       }
@@ -527,6 +543,7 @@ class SubmissionController {
         createdAt: refusal.createdAt,
         acceptedFromRefusalId: refusal.id,
       });
+      await saveRatings(submission, program.id, v.value.ratings);
       const reviewedBy = req.user?.address ?? null;
       const updated = await submissionRefusalRepository.setReviewed(refusal.id, {
         status: 'accepted',
@@ -949,8 +966,11 @@ class SubmissionController {
     try {
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const data = await programSubmissionRepository.aggregateFeedback(program.id);
-      res.status(200).json({ status: 'success', data });
+      const [feedback, ratings] = await Promise.all([
+        programSubmissionRepository.aggregateFeedback(program.id),
+        experienceRatingRepository.aggregateByProgram(program.id),
+      ]);
+      res.status(200).json({ status: 'success', data: { ...feedback, ratings } });
     } catch (error) {
       console.error('❌ Error aggregating feedback:', error);
       res.status(500).json({ status: 'error', message: 'Failed to aggregate feedback' });

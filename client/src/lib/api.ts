@@ -1,3 +1,5 @@
+import type { ExperienceRatingCategory, ExperienceRatings } from "./experienceRatings";
+
 // Fallbacks: production so Vercel deploy works without env; dev so local works without .env
 const PRODUCTION_API = 'https://stadium-production-996a.up.railway.app/api';
 const DEV_API = 'http://localhost:2000/api';
@@ -229,6 +231,11 @@ export type SubmissionPayload = {
   githubUrl: string;
   company?: string;
   agreedToTerms?: boolean;
+  /**
+   * The builder's 1 to 5 event ratings. Required by the server on submit; optional
+   * here because this type also reads back older submissions and refusals.
+   */
+  ratings?: ExperienceRatings;
   feedback?: {
     surfaces: string[];
     surfacesPrimary: string | null;
@@ -532,6 +539,8 @@ export type ApiResultsFeedbackAggregate = {
   biggestBlocker: Record<string, number>;
   couldntHandleSamples: string[];
   total: number;
+  /** Event ratings per category (experienceRatings.ts ids): average 1 to 5 and how many rated. */
+  ratings?: Partial<Record<ExperienceRatingCategory, { avg: number; count: number }>>;
 };
 
 /** Public, PII-free results payload for the program page (gated on publish). */
@@ -2532,6 +2541,12 @@ export const api = {
           surfacesPrimary: { "Hosted MCP": 7, "REST API": 3 },
           couldntHandleSamples: ["Complex multi-step invoice flows", "Webhook retry logic"],
           total: 17,
+          ratings: {
+            overall: { avg: 4.3, count: 17 },
+            organisation: { avg: 4.1, count: 17 },
+            support: { avg: 4.6, count: 17 },
+            tools: { avg: 3.4, count: 17 },
+          },
         },
       };
     }

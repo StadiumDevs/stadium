@@ -26,6 +26,13 @@ import {
 import { getProgramProfile } from "@/lib/programProfiles";
 import { TrackedSubmissionFields } from "@/components/program/tracked/TrackedSubmissionFields";
 import { RequiredMark } from "@/components/program/RequiredMark";
+import { ExperienceRatingField } from "@/components/program/ExperienceRatingField";
+import {
+  EXPERIENCE_RATING_CATEGORIES,
+  isRatingsComplete,
+  ratingFieldId,
+  type ExperienceRatingsDraft,
+} from "@/lib/experienceRatings";
 import {
   detailsToTrackedForm,
   emptyTrackedForm,
@@ -62,7 +69,8 @@ const BRIEF_MAX = 500;
  * Luma, project title, a video demo link, and a GitHub URL. For programs with
  * submission terms (see submissionTerms.ts) the submitter must agree to them,
  * and for programs with a feedback config (submissionFeedback.ts) the feedback
- * questions are collected and required.
+ * questions are collected and required. Every program asks the builder to rate
+ * the event (experienceRatings.ts), also required.
  */
 type Draft = {
   submitterName: string;
@@ -77,6 +85,7 @@ type Draft = {
   singles: Record<string, string>;
   texts: Record<string, string>;
   tracked: TrackedFormState;
+  ratings: ExperienceRatingsDraft;
 };
 type Problem = "not_checked_in" | "verify_to_update" | "retry";
 
@@ -126,6 +135,7 @@ export function SubmitProjectModal({
   const [githubUrl, setGithub] = useState("");
   const [company, setCompany] = useState(""); // honeypot
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [ratings, setRatings] = useState<ExperienceRatingsDraft>({});
   const [termsOpen, setTermsOpen] = useState(false);
 
   // Feedback answers, kept generic and assembled into FeedbackAnswers on submit.
@@ -172,6 +182,7 @@ export function SubmitProjectModal({
     setSingles(d?.singles ?? {});
     setTexts(d?.texts ?? {});
     setTracked(d?.tracked ?? emptyTrackedForm());
+    setRatings(d?.ratings ?? {});
   }, []);
 
   // Opening restores this device's draft (never wipes it).
@@ -196,14 +207,14 @@ export function SubmitProjectModal({
     if (!open || done) return;
     const draft: Draft = {
       submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl,
-      agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked,
+      agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings,
     };
     const t = window.setTimeout(() => {
       writeDraft(program.slug, draft);
       setDraftSaved(true);
     }, DRAFT_SAVE_MS);
     return () => window.clearTimeout(t);
-  }, [open, done, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked]);
+  }, [open, done, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings]);
 
   const startOver = () => {
     writeDraft(program.slug, null);
@@ -303,6 +314,10 @@ export function SubmitProjectModal({
       }
     }
 
+    for (const { id, label } of EXPERIENCE_RATING_CATEGORIES) {
+      if (ratings[id] === undefined) add(ratingFieldId(id), `Please rate: ${label}`);
+    }
+
     if (terms && !agreedToTerms) add("sub-terms", "You must agree to the submission terms.");
     return issues;
   };
@@ -327,6 +342,8 @@ export function SubmitProjectModal({
       showFirstIssue(found[0].field);
       return;
     }
+    // collectIssues guarantees every rating is set; this narrows the type.
+    if (!isRatingsComplete(ratings)) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -352,6 +369,7 @@ export function SubmitProjectModal({
         company,
         ...(terms ? { agreedToTerms: true } : {}),
         ...(feedback ? { feedback } : {}),
+        ratings,
         ...(profile ? { details: trackedFormToDetails(tracked) } : {}),
       }, { verifiedToken: verified && !USE_MOCK_DATA ? social.token : null });
       writeDraft(program.slug, null);
@@ -633,6 +651,21 @@ export function SubmitProjectModal({
                     })}
                   </div>
                 )}
+
+                <div className="space-y-3 border-t border-hairline-subtle pt-4">
+                  <div className="label-hw text-display">·RATE THE EVENT</div>
+                  <p className="label-hw-dim normal-case">1 is poor, 5 is excellent. Only the organisers see this.</p>
+                  {EXPERIENCE_RATING_CATEGORIES.map(({ id, label }) => (
+                    <ExperienceRatingField
+                      key={id}
+                      id={ratingFieldId(id)}
+                      label={label}
+                      value={ratings[id]}
+                      onChange={(score) => setRatings((prev) => ({ ...prev, [id]: score }))}
+                      invalid={bad(ratingFieldId(id))}
+                    />
+                  ))}
+                </div>
 
                 {terms && (
                   <div className="flex items-start gap-2 border-t border-hairline-subtle pt-4">

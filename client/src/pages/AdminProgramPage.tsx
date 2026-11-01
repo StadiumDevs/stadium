@@ -24,6 +24,7 @@ import { ProgramSignupsSection } from "@/components/admin/ProgramSignupsSection"
 import { LumaGuestsSection } from "@/components/admin/LumaGuestsSection";
 import { ProgramAuditLogSection } from "@/components/admin/ProgramAuditLogSection";
 import { ProgramResultsSummarySection } from "@/components/admin/ProgramResultsSummarySection";
+import { ExperienceRatingsSection } from "@/components/admin/ExperienceRatingsSection";
 import { RubricJudgingSection } from "@/components/admin/tracked/RubricJudgingSection";
 import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdminSection";
 import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
@@ -432,6 +433,9 @@ const AdminProgramPage = () => {
                     getAuth={getAdminAuth}
                   />
                 )}
+
+                {/* Builders' event ratings, every program (hidden until someone rates). */}
+                <ExperienceRatingsSection programSlug={program.slug} getAuth={getAdminAuth} />
 
                 <ProgramAdminsSection
                   programSlug={program.slug}

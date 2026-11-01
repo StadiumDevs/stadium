@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   validateSubmission,
   validateFeedback,
+  validateExperienceRatings,
   validateScore,
   validatePrize,
   prizeTiersFor,
@@ -26,6 +27,7 @@ const goodSubmission = {
   projectBrief: '  A general-purpose mechanical computer. It runs programs from punched cards.  ',
   videoUrl: 'https://youtu.be/demo',
   githubUrl: 'https://github.com/ada/engine',
+  ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
 };
 
 describe('validateSubmission', () => {
@@ -195,5 +197,40 @@ describe('validateScore', () => {
 
   it('rejects overly long notes', () => {
     expect(validateScore({ requirements: 1, techStack: 1, innovation: 1, notes: 'x'.repeat(5001) }).ok).toBe(false);
+  });
+});
+
+describe('validateExperienceRatings', () => {
+  const full = { overall: 4, organisation: 5, support: 1, tools: 3 };
+
+  it('accepts every category scored 1 to 5', () => {
+    expect(validateExperienceRatings(full)).toEqual({ ok: true, value: full });
+  });
+
+  it('rejects missing, out-of-range, fractional, string or unknown entries', () => {
+    expect(validateExperienceRatings(undefined).ok).toBe(false);
+    expect(validateExperienceRatings({ overall: 4 }).ok).toBe(false);
+    expect(validateExperienceRatings({ ...full, overall: 0 }).ok).toBe(false);
+    expect(validateExperienceRatings({ ...full, overall: 6 }).ok).toBe(false);
+    expect(validateExperienceRatings({ ...full, overall: 3.5 }).ok).toBe(false);
+    expect(validateExperienceRatings({ ...full, overall: '4' }).ok).toBe(false);
+    expect(validateExperienceRatings({ ...full, vibes: 5 }).ok).toBe(false);
+    expect(validateExperienceRatings([4, 4, 4, 4]).ok).toBe(false);
+  });
+
+  it('optional: absent is fine, but a present object must still be complete', () => {
+    expect(validateExperienceRatings(null, { required: false })).toEqual({ ok: true, value: null });
+    expect(validateExperienceRatings({ overall: 4 }, { required: false }).ok).toBe(false);
+  });
+
+  it('validateSubmission requires ratings unless ratingsOptional', () => {
+    const { ratings, ...noRatings } = goodSubmission;
+    expect(validateSubmission(goodSubmission).value.ratings).toEqual(ratings);
+    const r = validateSubmission(noRatings);
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/rate the event/i);
+    const opt = validateSubmission(noRatings, { ratingsOptional: true });
+    expect(opt.ok).toBe(true);
+    expect(opt.value.ratings).toBeNull();
   });
 });
