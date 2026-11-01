@@ -30,6 +30,8 @@ const transform = (row) => {
     prizeNotifiedAt: row.prize_notified_at ?? null,
     agreedToTermsAt: row.agreed_to_terms_at ?? null,
     feedback: row.feedback ?? null,
+    // "Anything you especially liked about the event?" (optional, organisers only).
+    eventLiked: row.event_liked ?? null,
     // Tracked programs only: the validated submission fields and the track,
     // plus the server-set tx check and milestone (their own columns) folded
     // into details, as the client reads them.
@@ -83,7 +85,7 @@ class ProgramSubmissionRepository {
   // without leaning on the DB error text.
   // `createdAt` / `acceptedFromRefusalId`: set when a master admin accepts a
   // refused attempt, so the entry keeps the attempt's time (and judging batch).
-  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, agreedToTerms = false, details = null, createdAt = null, acceptedFromRefusalId = null }) {
+  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, eventLiked = null, agreedToTerms = false, details = null, createdAt = null, acceptedFromRefusalId = null }) {
     const normalized = normalizeEmail(lumaEmail);
     const existing = await this.findByEmail(programId, normalized);
     if (existing) return { submission: existing, duplicate: true };
@@ -101,6 +103,7 @@ class ProgramSubmissionRepository {
         github_url: githubUrl,
         late,
         feedback: feedback ?? null,
+        event_liked: eventLiked ?? null,
         agreed_to_terms_at: agreedToTerms ? new Date().toISOString() : null,
         details: details ?? null,
         track: details?.track ?? null,
@@ -115,7 +118,7 @@ class ProgramSubmissionRepository {
 
   // Resubmission: overwrite the editable fields of an existing submission (one
   // per Luma email). Leaves prize / paid / promoted as-is.
-  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late, feedback, agreedToTerms, details }) {
+  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late, feedback, eventLiked, agreedToTerms, details }) {
     const patch = {
       submitter_name: submitterName,
       project_title: projectTitle,
@@ -128,6 +131,7 @@ class ProgramSubmissionRepository {
     // Resubmits overwrite the feedback; only re-stamp the terms agreement when
     // the submitter re-affirmed it (never clear a prior agreement).
     if (feedback !== undefined) patch.feedback = feedback ?? null;
+    if (eventLiked !== undefined) patch.event_liked = eventLiked ?? null;
     if (agreedToTerms === true) patch.agreed_to_terms_at = new Date().toISOString();
     // Tracked programs: a resubmit replaces the details (and track). created_at
     // is untouched, so the judging batch stays the first submission's.
@@ -250,6 +254,20 @@ class ProgramSubmissionRepository {
   async delete(id) {
     const { error } = await supabase.from('program_submissions').delete().eq('id', id);
     if (error) throw error;
+  }
+
+  // What builders said they liked about the event, newest first (organisers only).
+  async listEventLiked(programId) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .select('project_title, event_liked, created_at')
+      .eq('program_id', programId)
+      .not('event_liked', 'is', null)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || [])
+      .filter((r) => (r.event_liked || '').trim())
+      .map((r) => ({ projectTitle: r.project_title, text: r.event_liked, submittedAt: r.created_at }));
   }
 
   // Aggregate categorical feedback fields across all submissions for a program.

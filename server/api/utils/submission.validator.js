@@ -3,6 +3,7 @@
 // reusable from the controller.
 
 import { RUBRICS, RUBRIC_CHECKS } from '../constants/rubrics.js';
+import { EXPERIENCE_RATING_CATEGORIES, RATING_MIN, RATING_MAX } from '../constants/experienceRatings.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -107,10 +108,40 @@ export function validateFeedback(feedback) {
   return { ok: true, value: out };
 }
 
+// Validate the builder's event ratings: { overall: 4, organisation: 5, ... }.
+// Every category is required unless `required` is false (then an absent object
+// is fine, but a present one must still be complete and valid). Returns
+// { ok, value } where value is null or the normalized ratings, or { ok: false, error }.
+export function validateExperienceRatings(ratings, { required = true } = {}) {
+  if (ratings === undefined || ratings === null) {
+    return required ? { ok: false, error: 'Please rate the event (every category, 1 to 5)' } : { ok: true, value: null };
+  }
+  if (typeof ratings !== 'object' || Array.isArray(ratings)) {
+    return { ok: false, error: 'ratings must be an object' };
+  }
+  for (const key of Object.keys(ratings)) {
+    if (!EXPERIENCE_RATING_CATEGORIES.includes(key)) {
+      return { ok: false, error: `Unknown rating category: ${String(key).slice(0, 64)}` };
+    }
+  }
+  const out = {};
+  for (const key of EXPERIENCE_RATING_CATEGORIES) {
+    const v = ratings[key];
+    if (!Number.isInteger(v) || v < RATING_MIN || v > RATING_MAX) {
+      return { ok: false, error: `Please rate the event (every category, ${RATING_MIN} to ${RATING_MAX})` };
+    }
+    out[key] = v;
+  }
+  return { ok: true, value: out };
+}
+
 // Returns { ok: true, value } with trimmed/normalized fields, or
 // { ok: false, error } with a human-readable message.
 // `videoOptional`: a tracked track where the demo video is optional (stored as '').
-export function validateSubmission(body = {}, { videoOptional = false } = {}) {
+export const EVENT_LIKED_MAX = 500;
+
+// `ratingsOptional`: accept a body without event ratings (refusals stored before ratings existed).
+export function validateSubmission(body = {}, { videoOptional = false, ratingsOptional = false } = {}) {
   const submitterName = str(body.submitterName);
   const lumaEmail = str(body.lumaEmail);
   const projectTitle = str(body.projectTitle);
@@ -140,6 +171,15 @@ export function validateSubmission(body = {}, { videoOptional = false } = {}) {
   const fb = validateFeedback(body.feedback);
   if (!fb.ok) return { ok: false, error: fb.error };
 
+  const rt = validateExperienceRatings(body.ratings, { required: !ratingsOptional });
+  if (!rt.ok) return { ok: false, error: rt.error };
+
+  // Optional: "Anything you especially liked about the event?"
+  const eventLiked = str(body.eventLiked);
+  if (eventLiked.length > EVENT_LIKED_MAX) {
+    return { ok: false, error: `What you liked about the event is max ${EVENT_LIKED_MAX} characters` };
+  }
+
   return {
     ok: true,
     value: {
@@ -151,6 +191,8 @@ export function validateSubmission(body = {}, { videoOptional = false } = {}) {
       githubUrl,
       feedback: fb.value,
       agreedToTerms: body.agreedToTerms === true,
+      ratings: rt.value,
+      eventLiked: eventLiked || null,
     },
   };
 }

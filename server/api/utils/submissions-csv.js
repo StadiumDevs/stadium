@@ -16,6 +16,7 @@ const HEADER = [
   'surfaces',
   'surfacesPrimary',
   ...FEEDBACK_KEYS,
+  'eventLiked',
 ];
 
 // Flatten program submissions (including the post-submit feedback survey) to a
@@ -40,6 +41,7 @@ export function submissionsToCsv(submissions, { programSlug } = {}) {
         surfaces,
         fb.surfacesPrimary ?? '',
         ...FEEDBACK_KEYS.map((k) => fb[k] ?? ''),
+        s.eventLiked ?? '',
       ]),
     );
   }

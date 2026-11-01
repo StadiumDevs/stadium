@@ -122,7 +122,7 @@ describe('validateSubmissionDetails', () => {
   });
 
   it('the demo video is optional for Privacy only (stored empty), still checked when given', () => {
-    const base = { submitterName: 'A', lumaEmail: 'a@x.com', projectTitle: 'T', projectBrief: 'b', githubUrl: 'https://github.com/x/y' };
+    const base = { submitterName: 'A', lumaEmail: 'a@x.com', projectTitle: 'T', projectBrief: 'b', githubUrl: 'https://github.com/x/y', ratings: { overall: 4, organisation: 5, support: 4, tools: 3 } };
     expect(videoOptionalFor(cfg, { track: 'privacy' })).toBe(true);
     expect(videoOptionalFor(cfg, { track: 'both' })).toBe(false);
     expect(videoOptionalFor(cfg, { track: 'agentic' })).toBe(false);

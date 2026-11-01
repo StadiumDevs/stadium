@@ -101,6 +101,7 @@ const submit = (email, title, d, token = null) =>
       projectBrief: 'What it does.',
       videoUrl: 'https://youtu.be/demo',
       githubUrl: 'https://github.com/x/' + title.toLowerCase().replace(/\W+/g, '-'),
+      ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
       details: d,
     },
   });
@@ -319,6 +320,8 @@ describe('Free Society Hack judging — data that lands in the database', () => 
     const row = store.submission_refusals.find((r) => r.luma_email === 'walkin@example.com');
     expect(row).toMatchObject({ email_verified: true, reason_code: 'not_checked_in', status: 'refused' });
     expect(store.program_submissions.some((s) => s.luma_email === 'walkin@example.com')).toBe(false);
+    // The event ratings wait with the held attempt; nothing is rated yet.
+    expect(row.payload.ratings).toEqual({ overall: 4, organisation: 5, support: 4, tools: 3 });
 
     at('2026-11-04T22:00:00+05:30');
     const ok = await call(submissionController.acceptRefusal, {
@@ -326,6 +329,9 @@ describe('Free Society Hack judging — data that lands in the database', () => 
       user: { address: '5Master', isGlobalAdmin: true, programSlug: SLUG },
     });
     expect(ok.status).toBe(200);
+    const accepted = store.program_submissions.find((s) => s.luma_email === 'walkin@example.com');
+    const rated = (store.submission_experience_ratings ?? []).filter((r) => r.submission_id === accepted.id);
+    expect(Object.fromEntries(rated.map((r) => [r.category, r.score]))).toEqual({ overall: 4, organisation: 5, support: 4, tools: 3 });
     const list = await asJudge('judge-a@example.com', submissionController.listTracked);
     expect(list.body.data.submissions.find((s) => s.projectTitle === 'Walk-in Wallet').batch).toBe('evening');
   });

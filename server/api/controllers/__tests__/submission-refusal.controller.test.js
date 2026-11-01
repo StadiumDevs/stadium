@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
+  default: { upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
+}));
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
   extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
@@ -57,6 +60,7 @@ const signupRepo = (await import('../../repositories/program-signup.repository.j
 const confirmationService = (await import('../../services/submission-confirmation.service.js')).default;
 const refusalRepo = (await import('../../repositories/submission-refusal.repository.js')).default;
 const auditLog = (await import('../../services/program-audit-log.service.js')).default;
+const ratingRepo = (await import('../../repositories/submission-experience-rating.repository.js')).default;
 const submissionController = (await import('../submission.controller.js')).default;
 
 const mockRes = () => {
@@ -74,6 +78,7 @@ const details = {
 const body = {
   submitterName: 'Sam', lumaEmail: 'Sam@Example.com', projectTitle: 'Late Ledger', projectBrief: 'b',
   videoUrl: 'https://youtu.be/x', githubUrl: 'https://github.com/x/y', details, company: '',
+  ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
 };
 const MASTER = { address: '5Master', chain: 'substrate', isGlobalAdmin: true, programSlug: FSH.slug };
 const PROGRAM_ADMIN = { address: '5ProgAdmin', chain: 'substrate', isGlobalAdmin: false, programId: 'fsh' };
@@ -226,5 +231,34 @@ describe('dismissRefusal (master admin only)', () => {
     const res = mockRes();
     await submissionController.dismissRefusal({ params: { slug: FSH.slug, refusalId: 'ref-1' }, user: PROGRAM_ADMIN }, res);
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+});
+
+describe('acceptRefusal — event ratings', () => {
+  const req = () => ({ params: { slug: FSH.slug, refusalId: 'ref-1' }, user: MASTER });
+
+  it('carries the held ratings onto the accepted entry', async () => {
+    refusalRepo.findById.mockResolvedValue(refusal());
+    const res = mockRes();
+    await submissionController.acceptRefusal(req(), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(ratingRepo.upsertForSubmission).toHaveBeenCalledWith({ submissionId: 'new-entry', programId: 'fsh', ratings: body.ratings });
+  });
+
+  it('carries what the builder liked onto the accepted entry', async () => {
+    refusalRepo.findById.mockResolvedValue(refusal({ payload: { ...body, eventLiked: 'The venue' } }));
+    const res = mockRes();
+    await submissionController.acceptRefusal(req(), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ eventLiked: 'The venue' }));
+  });
+
+  it('still accepts a refusal stored before ratings existed', async () => {
+    const { ratings, ...old } = body;
+    refusalRepo.findById.mockResolvedValue(refusal({ payload: old }));
+    const res = mockRes();
+    await submissionController.acceptRefusal(req(), res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(ratingRepo.upsertForSubmission).not.toHaveBeenCalled();
   });
 });

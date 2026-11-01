@@ -129,3 +129,4 @@ Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 - [ ] On /programs/free-society-hack-2026, the about text reads "A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai." with no builder count
 - [ ] In the submit form (and the admin forms), the fields are lighter than the dialog behind them, with a visible edge, and typed text is near-white
 - [ ] On /programs/free-society-hack-2026 while OPEN (results not published), ·SUBMIT YOUR PROJECT sits directly above ·TWO TRACKS, under the AI assistants block, so it stays near the top as projects come in
+- [ ] In the submit form, under ·RATE THE EVENT, "ANYTHING YOU ESPECIALLY LIKED ABOUT THE EVENT? (OPTIONAL)" takes up to 500 characters with a counter; submitting without it works; with it, the admin ·EVENT RATINGS panel lists it under ·WHAT BUILDERS LIKED (project title + text) and the submissions CSV has an eventLiked column
