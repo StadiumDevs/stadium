@@ -140,8 +140,11 @@ export function validateExperienceRatings(ratings, { required = true } = {}) {
 // `videoOptional`: a tracked track where the demo video is optional (stored as '').
 export const EVENT_LIKED_MAX = 500;
 
-// `ratingsOptional`: accept a body without event ratings (refusals stored before ratings existed).
-export function validateSubmission(body = {}, { videoOptional = false, ratingsOptional = false } = {}) {
+// `ratingsOptional`: accept a body without event ratings (refusals stored before
+// ratings existed, drafts, and updates after the feedback was submitted).
+// `draft`: a tracked draft save. Only the name, email and title are required;
+// anything else present must still be well-formed.
+export function validateSubmission(body = {}, { videoOptional = false, ratingsOptional = false, draft = false } = {}) {
   const submitterName = str(body.submitterName);
   const lumaEmail = str(body.lumaEmail);
   const projectTitle = str(body.projectTitle);
@@ -158,20 +161,20 @@ export function validateSubmission(body = {}, { videoOptional = false, ratingsOp
   if (!projectTitle || projectTitle.length > 200) {
     return { ok: false, error: 'A project title is required (max 200 characters)' };
   }
-  if (!projectBrief || projectBrief.length > BRIEF_MAX) {
+  if ((!draft && !projectBrief) || projectBrief.length > BRIEF_MAX) {
     return { ok: false, error: `A short brief of what your project does is required (max ${BRIEF_MAX} characters)` };
   }
-  if (videoUrl ? !isHttpUrl(videoUrl) : !videoOptional) {
+  if (videoUrl ? !isHttpUrl(videoUrl) : !(videoOptional || draft)) {
     return { ok: false, error: 'A valid video demo link (http/https) is required' };
   }
-  if (!isHttpUrl(githubUrl)) {
+  if (githubUrl ? !isHttpUrl(githubUrl) : !draft) {
     return { ok: false, error: 'A valid GitHub URL (http/https) is required' };
   }
 
   const fb = validateFeedback(body.feedback);
   if (!fb.ok) return { ok: false, error: fb.error };
 
-  const rt = validateExperienceRatings(body.ratings, { required: !ratingsOptional });
+  const rt = validateExperienceRatings(body.ratings, { required: !(ratingsOptional || draft) });
   if (!rt.ok) return { ok: false, error: rt.error };
 
   // Optional: "Anything you especially liked about the event?"
@@ -318,22 +321,26 @@ export const BITREFILL_FEEDBACK_MAX = 2000;
 export const videoOptionalFor = (config, details) =>
   !!config && (config.videoOptionalTracks ?? []).includes(str(details?.track));
 
-export function validateSubmissionDetails(config, details) {
+// `draft`: a draft save. Required fields may be missing; whatever is present is
+// still checked (lengths, formats, known themes and app types).
+export function validateSubmissionDetails(config, details, { draft = false } = {}) {
   if (!config) return { ok: false, error: 'This program does not take tracked submissions' };
+  if (draft && (details === undefined || details === null)) details = {};
   if (!details || typeof details !== 'object' || Array.isArray(details)) {
     return { ok: false, error: 'Submission details are required for this program' };
   }
   const d = details;
   const track = str(d.track);
-  if (!config.submissionTracks.includes(track)) return { ok: false, error: 'Choose a track' };
+  const need = !draft;
+  if (track ? !config.submissionTracks.includes(track) : need) return { ok: false, error: 'Choose a track' };
   const judgesPrivacy = track !== 'agentic';
 
   const themes = strList(d.themes).map(str).filter(Boolean);
   if (themes.some((t) => !config.themes.includes(t))) return { ok: false, error: 'Unknown theme' };
-  if (judgesPrivacy && themes.length === 0) return { ok: false, error: 'Pick at least one theme' };
+  if (need && judgesPrivacy && themes.length === 0) return { ok: false, error: 'Pick at least one theme' };
 
   const pitch = str(d.pitch);
-  if (!pitch) return { ok: false, error: 'A one-line pitch is required' };
+  if (need && !pitch) return { ok: false, error: 'A one-line pitch is required' };
   if (pitch.length > PITCH_MAX) return { ok: false, error: `The pitch must be ${PITCH_MAX} characters or fewer` };
 
   if (!Array.isArray(d.team ?? [])) return { ok: false, error: 'team must be a list' };
@@ -351,29 +358,30 @@ export function validateSubmissionDetails(config, details) {
   }
 
   const appType = str(d.appType);
-  if (!config.appTypes.includes(appType)) return { ok: false, error: 'Say what kind of project it is' };
+  if (appType ? !config.appTypes.includes(appType) : need) return { ok: false, error: 'Say what kind of project it is' };
   const publicUrl = str(d.publicUrl) || null;
   if (publicUrl && !isHttpUrl(publicUrl)) return { ok: false, error: 'The public URL must start with http:// or https://' };
-  if (isApp(appType) && !publicUrl) return { ok: false, error: 'Apps need a public URL (http/https)' };
+  if (need && isApp(appType) && !publicUrl) return { ok: false, error: 'Apps need a public URL (http/https)' };
 
   const demoVideoLength = str(d.demoVideoLength) || null;
   if (demoVideoLength && demoVideoLength.length > 10) return { ok: false, error: 'Video length is max 10 characters (e.g. 1:54)' };
 
   const technologies = strList(d.technologies).map(str).filter(Boolean);
-  if (technologies.length === 0) return { ok: false, error: 'List every technology you used' };
+  if (need && technologies.length === 0) return { ok: false, error: 'List every technology you used' };
   if (technologies.length > 20 || technologies.some((t) => t.length > 60)) {
     return { ok: false, error: 'Technologies: at most 20, each max 60 characters' };
   }
 
-  const txidRequired = config.txidTracks.includes(track);
-  const testnetTxid = txidRequired ? str(d.testnetTxid) || null : null;
-  if (txidRequired && !testnetTxid) return { ok: false, error: 'Privacy entries need one testnet transaction id' };
+  // A draft with no track yet keeps every track's fields.
+  const txidTrack = config.txidTracks.includes(track) || (draft && !track);
+  const testnetTxid = txidTrack ? str(d.testnetTxid) || null : null;
+  if (need && txidTrack && !testnetTxid) return { ok: false, error: 'Privacy entries need one testnet transaction id' };
   if (testnetTxid && !TXID_RE.test(testnetTxid)) {
     return { ok: false, error: 'A testnet transaction id is 64 hex characters' };
   }
 
   const nextStep = str(d.nextStep);
-  if (!nextStep) return { ok: false, error: 'A next milestone for the 30 days is required' };
+  if (need && !nextStep) return { ok: false, error: 'A next milestone for the 30 days is required' };
   if (nextStep.length > 1000) return { ok: false, error: 'The next milestone is max 1000 characters' };
   const nextStepLinks = strList(d.nextStepLinks).map(str).filter(Boolean);
   if (nextStepLinks.length > 10) return { ok: false, error: 'At most 10 next-milestone links' };
@@ -386,9 +394,9 @@ export function validateSubmissionDetails(config, details) {
   if (frictionNotes && frictionNotes.length > 2000) return { ok: false, error: 'Friction notes are max 2000 characters' };
 
   // Privacy and trust note: judges score Private from it.
-  const noteRequired = (config.privacyNoteTracks ?? []).includes(track);
-  const privacyNote = noteRequired ? str(d.privacyNote) || null : null;
-  if (noteRequired && !privacyNote) {
+  const noteTrack = (config.privacyNoteTracks ?? []).includes(track) || (draft && !track);
+  const privacyNote = noteTrack ? str(d.privacyNote) || null : null;
+  if (need && noteTrack && !privacyNote) {
     return { ok: false, error: 'Privacy entries need a privacy and trust note' };
   }
   if (privacyNote && privacyNote.length > PRIVACY_NOTE_MAX) {
@@ -396,19 +404,19 @@ export function validateSubmissionDetails(config, details) {
   }
 
   // Bitrefill feedback (Agentic Commerce): what worked, what didn't.
-  const feedbackRequired = (config.bitrefillFeedbackTracks ?? []).includes(track);
+  const feedbackTrack = (config.bitrefillFeedbackTracks ?? []).includes(track) || (draft && !track);
   let bitrefillFeedback = null;
-  if (feedbackRequired) {
+  if (feedbackTrack) {
     const raw = d.bitrefillFeedback && typeof d.bitrefillFeedback === 'object' ? d.bitrefillFeedback : {};
     const worked = str(raw.worked);
     const didnt = str(raw.didnt);
-    if (!worked || !didnt) {
+    if (need && (!worked || !didnt)) {
       return { ok: false, error: "Agentic Commerce entries need the Bitrefill feedback: what worked and what didn't" };
     }
     if (worked.length > BITREFILL_FEEDBACK_MAX || didnt.length > BITREFILL_FEEDBACK_MAX) {
       return { ok: false, error: `Each Bitrefill feedback answer is max ${BITREFILL_FEEDBACK_MAX} characters` };
     }
-    bitrefillFeedback = { worked, didnt };
+    bitrefillFeedback = worked || didnt ? { worked, didnt } : null;
   }
 
   if (d.anonymous !== undefined && typeof d.anonymous !== 'boolean') {
@@ -418,7 +426,7 @@ export function validateSubmissionDetails(config, details) {
   return {
     ok: true,
     value: {
-      track,
+      track: track || null,
       themes: judgesPrivacy ? themes : [],
       pitch,
       team,

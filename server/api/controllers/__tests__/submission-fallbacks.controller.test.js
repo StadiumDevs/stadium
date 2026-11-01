@@ -1,15 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
-  default: { upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
+  default: { getForSubmission: vi.fn(async () => ({})), upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
 }));
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
   extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
 }));
 vi.mock('../../services/program.service.js', () => ({ default: { findBySlug: vi.fn() } }));
+vi.mock('../../repositories/submission-editor.repository.js', () => ({
+  default: { findByProgramEmail: vi.fn(async () => null), listBySubmission: vi.fn(async () => []), add: vi.fn(), remove: vi.fn() },
+}));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), listByProgramId: vi.fn(), updateTracked: vi.fn(async (id, x) => ({ id, ...x })) },
+  default: { findForEditor: vi.fn(async () => null), countDrafts: vi.fn(async () => 0), markFeedbackSubmitted: vi.fn(), create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), listByProgramId: vi.fn(), updateTracked: vi.fn(async (id, x) => ({ id, ...x })) },
 }));
 vi.mock('../../repositories/program-signup.repository.js', () => ({ default: { existsByEmail: vi.fn() } }));
 vi.mock('../../repositories/submission-refusal.repository.js', () => ({ default: { create: vi.fn(async () => ({ id: 'ref' })) } }));
@@ -176,12 +179,15 @@ describe('GET submissions/mine', () => {
     const r2 = mockRes();
     await submissionController.mySubmission({ params: { slug: FSH.slug }, headers: { 'x-supabase-token': 'tok:nobody@x.com' } }, r2);
     expect(r2.status).toHaveBeenCalledWith(404);
-    submissionRepo.findByEmail.mockResolvedValue({ id: 's', lumaEmail: 'priya@example.com', projectTitle: 'Chai', details, prizeAmount: 1 });
+    submissionRepo.findForEditor.mockResolvedValue({
+      submission: { id: 's', lumaEmail: 'priya@example.com', projectTitle: 'Chai', details, prizeAmount: 1, status: 'draft' },
+      role: 'owner',
+    });
     const r3 = mockRes();
     await submissionController.mySubmission({ params: { slug: FSH.slug }, headers: { 'x-supabase-token': 'tok:priya@example.com' } }, r3);
-    expect(submissionRepo.findByEmail).toHaveBeenLastCalledWith('fsh', 'priya@example.com');
+    expect(submissionRepo.findForEditor).toHaveBeenLastCalledWith('fsh', 'priya@example.com');
     const data = r3.json.mock.calls[0][0].data;
-    expect(data).toMatchObject({ lumaEmail: 'priya@example.com', projectTitle: 'Chai', details });
+    expect(data).toMatchObject({ lumaEmail: 'priya@example.com', projectTitle: 'Chai', details, status: 'draft', role: 'owner', editors: [] });
     expect(data).not.toHaveProperty('prizeAmount');
   });
 });

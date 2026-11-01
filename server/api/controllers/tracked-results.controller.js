@@ -68,7 +68,8 @@ class TrackedResultsController {
         return fail(res, 403, `You are not a judge for the ${track} track.`);
       }
       const [submissions, scores, judges] = await Promise.all([
-        programSubmissionRepository.listByProgramId(ctx.program.id),
+        // Drafts aren't judged until the team finalizes them.
+        programSubmissionRepository.listByProgramId(ctx.program.id, { status: 'submitted' }),
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
@@ -94,7 +95,8 @@ class TrackedResultsController {
       const ctx = await loadTracked(req, res);
       if (!ctx) return;
       const [submissions, scores, judges] = await Promise.all([
-        programSubmissionRepository.listByProgramId(ctx.program.id),
+        // Drafts aren't judged until the team finalizes them.
+        programSubmissionRepository.listByProgramId(ctx.program.id, { status: 'submitted' }),
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);

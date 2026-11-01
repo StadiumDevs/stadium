@@ -1,10 +1,17 @@
 import { supabase } from '../../db.js';
 import { generateId } from '../utils/id.js';
+import submissionEditorRepository from './submission-editor.repository.js';
 
 // Luma email is the natural key within a program; store it lowercased so the
 // per-program UNIQUE constraint is case-insensitive.
 const normalizeEmail = (email) =>
   typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+// Who saved last and when (point person or a teammate). Server-set only.
+const editStamp = (editor, at = new Date().toISOString()) =>
+  editor?.email
+    ? { last_edited_at: at, last_edited_by_email: normalizeEmail(editor.email), last_edited_by_name: editor.name || null }
+    : {};
 
 const transform = (row) => {
   if (!row) return null;
@@ -41,20 +48,66 @@ const transform = (row) => {
     prizes: row.prizes ?? {},
     ecosystemPrize: row.ecosystem_prize === true,
     acceptedFromRefusalId: row.accepted_from_refusal_id ?? null,
+    // Tracked drafts: 'draft' is visible only to the team; 'submitted' is judged.
+    status: row.status ?? 'submitted',
+    finalizedAt: row.finalized_at ?? null,
+    feedbackSubmittedAt: row.feedback_submitted_at ?? null,
+    lastEditedAt: row.last_edited_at ?? null,
+    lastEditedByEmail: row.last_edited_by_email ?? null,
+    lastEditedByName: row.last_edited_by_name ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 };
 
 class ProgramSubmissionRepository {
-  async listByProgramId(programId) {
-    const { data, error } = await supabase
-      .from('program_submissions')
-      .select('*')
-      .eq('program_id', programId)
-      .order('created_at', { ascending: true });
+  // `status`: 'submitted' for judge queues and the public list (drafts are the
+  // team's own until finalized); omit for every row (admin list, CSV).
+  async listByProgramId(programId, { status } = {}) {
+    let q = supabase.from('program_submissions').select('*').eq('program_id', programId);
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q.order('created_at', { ascending: true });
     if (error) throw error;
     return (data || []).map(transform);
+  }
+
+  // How many entries are still drafts (organisers' view).
+  async countDrafts(programId) {
+    const { count, error } = await supabase
+      .from('program_submissions')
+      .select('id', { count: 'exact', head: true })
+      .eq('program_id', programId)
+      .eq('status', 'draft');
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  // The entry a verified email may edit: as the point person (luma_email), or
+  // as a teammate the point person gave edit access. { submission, role } or null.
+  async findForEditor(programId, email) {
+    const own = await this.findByEmail(programId, email);
+    if (own) return { submission: own, role: 'owner' };
+    const grant = await submissionEditorRepository.findByProgramEmail(programId, email);
+    if (!grant) return null;
+    const submission = await this.findById(grant.submissionId);
+    return submission ? { submission, role: 'editor' } : null;
+  }
+
+  // The feedback step (event ratings) was submitted. `feedbackSubmittedAt` is
+  // passed only the first time, so the original stamp is kept.
+  async markFeedbackSubmitted(id, { feedbackSubmittedAt, eventLiked, editor } = {}) {
+    const at = new Date().toISOString();
+    const patch = { updated_at: at, ...editStamp(editor, at) };
+    if (feedbackSubmittedAt) patch.feedback_submitted_at = feedbackSubmittedAt;
+    if (eventLiked !== undefined) patch.event_liked = eventLiked ?? null;
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update(patch)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
   }
 
   async findById(id) {
@@ -85,7 +138,9 @@ class ProgramSubmissionRepository {
   // without leaning on the DB error text.
   // `createdAt` / `acceptedFromRefusalId`: set when a master admin accepts a
   // refused attempt, so the entry keeps the attempt's time (and judging batch).
-  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, eventLiked = null, agreedToTerms = false, details = null, createdAt = null, acceptedFromRefusalId = null }) {
+  // `status` / `finalizedAt` / `feedbackSubmittedAt` / `editor` ({ email, name }):
+  // tracked drafts. Defaults keep legacy submits as before (submitted at once).
+  async create({ programId, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, late = false, feedback = null, eventLiked = null, agreedToTerms = false, details = null, createdAt = null, acceptedFromRefusalId = null, status = 'submitted', finalizedAt, feedbackSubmittedAt = null, editor = null }) {
     const normalized = normalizeEmail(lumaEmail);
     const existing = await this.findByEmail(programId, normalized);
     if (existing) return { submission: existing, duplicate: true };
@@ -109,6 +164,10 @@ class ProgramSubmissionRepository {
         track: details?.track ?? null,
         ...(createdAt ? { created_at: createdAt } : {}),
         ...(acceptedFromRefusalId ? { accepted_from_refusal_id: acceptedFromRefusalId } : {}),
+        status,
+        finalized_at: status === 'submitted' ? finalizedAt ?? createdAt ?? new Date().toISOString() : null,
+        feedback_submitted_at: feedbackSubmittedAt,
+        ...editStamp(editor ?? { email: normalized, name: submitterName }),
       })
       .select('*')
       .single();
@@ -118,7 +177,9 @@ class ProgramSubmissionRepository {
 
   // Resubmission: overwrite the editable fields of an existing submission (one
   // per Luma email). Leaves prize / paid / promoted as-is.
-  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late, feedback, eventLiked, agreedToTerms, details }) {
+  // `status` / `finalizedAt` / `feedbackSubmittedAt`: set only when given (a
+  // first finalize). `editor` ({ email, name }) stamps who saved.
+  async updateSubmission(id, { submitterName, projectTitle, projectBrief, videoUrl, githubUrl, late, feedback, eventLiked, agreedToTerms, details, status, finalizedAt, feedbackSubmittedAt, editor }) {
     const patch = {
       submitter_name: submitterName,
       project_title: projectTitle,
@@ -139,6 +200,10 @@ class ProgramSubmissionRepository {
       patch.details = details ?? null;
       patch.track = details?.track ?? null;
     }
+    if (status !== undefined) patch.status = status;
+    if (finalizedAt !== undefined) patch.finalized_at = finalizedAt;
+    if (feedbackSubmittedAt !== undefined) patch.feedback_submitted_at = feedbackSubmittedAt;
+    if (editor) Object.assign(patch, editStamp(editor, patch.updated_at));
 
     const { data, error } = await supabase
       .from('program_submissions')

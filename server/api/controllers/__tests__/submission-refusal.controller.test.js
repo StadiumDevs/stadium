@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
-  default: { upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
+  default: { getForSubmission: vi.fn(async () => ({})), upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
 }));
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
@@ -25,8 +25,11 @@ vi.mock('../../services/scoring.service.js', () => ({
 vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
+vi.mock('../../repositories/submission-editor.repository.js', () => ({
+  default: { findByProgramEmail: vi.fn(async () => null), listBySubmission: vi.fn(async () => []), add: vi.fn(), remove: vi.fn() },
+}));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
+  default: { findForEditor: vi.fn(async () => null), countDrafts: vi.fn(async () => 0), markFeedbackSubmitted: vi.fn(), create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
 }));
 vi.mock('../../services/submission-confirmation.service.js', () => ({
   default: { send: vi.fn() },

@@ -182,6 +182,11 @@ router.post('/:slug/submissions', submissionLimiter, submissionController.submit
 // submission (email sign-in) so they can edit it.
 router.get('/:slug/submissions/public', submissionController.publicSubmissions);
 router.get('/:slug/submissions/mine', submissionController.mySubmission);
+// Builder (verified email; checked in the controller): the feedback step, and
+// the point person giving teammates edit access. Same rate limit as submitting.
+router.put('/:slug/submissions/mine/feedback', submissionLimiter, submissionController.submitFeedback);
+router.post('/:slug/submissions/mine/editors', submissionLimiter, submissionController.addEditor);
+router.delete('/:slug/submissions/mine/editors/:email', submissionLimiter, submissionController.removeEditor);
 router.get('/:slug/submissions', requireProgramJudge('slug'), submissionController.list);
 // Download all submissions + their feedback survey as CSV (judge/admin).
 router.get('/:slug/submissions.csv', requireProgramJudge('slug'), submissionController.exportCsv);

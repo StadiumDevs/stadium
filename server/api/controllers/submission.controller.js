@@ -9,12 +9,15 @@ import submissionRubricScoreRepository from '../repositories/submission-rubric-s
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
 import submissionRefusalRepository from '../repositories/submission-refusal.repository.js';
 import experienceRatingRepository from '../repositories/submission-experience-rating.repository.js';
+import submissionEditorRepository from '../repositories/submission-editor.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
 import { toPublicList } from '../utils/public-submission.js';
 import {
   validateSubmission,
   validateSubmissionDetails,
+  validateExperienceRatings,
+  EVENT_LIKED_MAX,
   videoOptionalFor,
   validateScore,
   validateRubricScore,
@@ -173,8 +176,101 @@ async function refuse(res, program, body, reasonCode, status, message, { emailVe
   return res.status(status).json({ status: 'error', message, ...(code ? { code } : {}) });
 }
 
+// Comma-separated emails that skip the Luma gate (testing; off by default).
+const testEmailsAllowed = () =>
+  new Set(
+    (process.env.SUBMIT_TEST_EMAILS || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+// Is this email on the program's checked-in Luma list? On a miss, Luma-gated
+// programs lazily re-sync (someone may have checked in seconds ago), respecting
+// a floor so repeated not-on-list retries can't hammer Luma; `fresh` (a verified
+// email) always gets a fresh check. A sync FAILURE is `transient`, so a legit
+// attendee isn't told "not on the list". Shared by submit and teammate access.
+async function checkInStatus(program, email, { fresh = false } = {}) {
+  let present = await programSignupRepository.existsByEmail(program.id, email);
+  let transient = false;
+  if (!present && lumaSyncService.isActive(program)) {
+    const lastSync = program.lastGuestSyncAt ? Date.parse(program.lastGuestSyncAt) : 0;
+    const stale = fresh || !lastSync || Date.now() - lastSync > JIT_SYNC_FLOOR_MS;
+    if (stale) {
+      const sync = await lumaSyncService.syncProgram(program);
+      transient = sync.status === 'truncated' || String(sync.status).startsWith('error');
+      present = await programSignupRepository.existsByEmail(program.id, email);
+    } else {
+      // Synced very recently and still absent → the last sync's health is the
+      // verdict's confidence.
+      transient =
+        program.lastGuestSyncStatus === 'truncated' || String(program.lastGuestSyncStatus || '').startsWith('error');
+    }
+  }
+  return { present, transient };
+}
+
+// The name for the last-edit stamp: the point person's, or a teammate's from
+// their row on the team list (falling back to their email).
+function editorName(access, verifiedEmail, value) {
+  if (access?.role !== 'editor') return value.submitterName;
+  const team = value.details?.team ?? access.submission.details?.team ?? [];
+  return team.find((m) => m.email && m.email.toLowerCase() === verifiedEmail)?.name || verifiedEmail;
+}
+
+// Drop edit access for teammates no longer on the team list.
+async function pruneEditors(submission) {
+  try {
+    const onTeam = new Set((submission.details?.team ?? []).map((m) => (m.email || '').toLowerCase()).filter(Boolean));
+    const editors = await submissionEditorRepository.listBySubmission(submission.id);
+    for (const e of editors) if (!onTeam.has(e.email)) await submissionEditorRepository.remove(submission.id, e.email);
+  } catch (err) {
+    console.error('❌ Could not prune submission editors:', err);
+  }
+}
+
+// The verified builder's access to their program's tracked entry. Answers the
+// request itself (and returns null) when there's no session, program or entry.
+async function builderAccess(req, res, { ownerOnly = false } = {}) {
+  const token = extractSupabaseToken(req);
+  const user = token ? await getSupabaseUser(token) : null;
+  const email = user?.email ? user.email.trim().toLowerCase() : null;
+  if (!email) {
+    res.status(401).json({ status: 'error', code: 'verify_email', message: 'Verify your email first.' });
+    return null;
+  }
+  const program = await programService.findBySlug(req.params.slug);
+  if (!program) {
+    res.status(404).json({ status: 'error', message: 'Program not found' });
+    return null;
+  }
+  const tracked = trackedProgramFor(program.slug);
+  if (!tracked) {
+    res.status(404).json({ status: 'error', message: 'Not a tracked program' });
+    return null;
+  }
+  const access = await programSubmissionRepository.findForEditor(program.id, email);
+  if (!access) {
+    res.status(404).json({ status: 'error', message: 'No submission for this email yet. Save a draft first.' });
+    return null;
+  }
+  if (ownerOnly && access.role !== 'owner') {
+    res.status(403).json({ status: 'error', code: 'owner_only', message: 'Only the point person can change who can edit.' });
+    return null;
+  }
+  return { email, program, tracked, ...access };
+}
+
 class SubmissionController {
   // Public: anyone can submit a project to a program by filling the form.
+  //
+  // Tracked programs also take drafts (`intent: 'draft'`): a verified point
+  // person (or a teammate they gave edit access) saves the entry as a draft that
+  // only the team sees, then `intent: 'finalize'` (the default, so older clients
+  // keep working) puts it in the judges' queues. A finalized entry stays
+  // editable while the program is open, and every save is fully validated.
+  // Finalizing needs the event feedback: submitted earlier through
+  // PUT /submissions/mine/feedback, or as `ratings` in this request.
   async submit(req, res) {
     try {
       const { slug } = req.params;
@@ -186,77 +282,92 @@ class SubmissionController {
       if (!program) {
         return res.status(404).json({ status: 'error', message: 'Program not found' });
       }
-      // Tracked programs (e.g. Free Society Hack) also need their track
-      // fields; validated against the program's config and stored as details.
       const tracked = trackedProgramFor(program.slug);
-      const v = validateSubmission(req.body, { videoOptional: videoOptionalFor(tracked, req.body?.details) });
+      const wantsDraft = !!tracked && req.body?.intent === 'draft';
+
+      // Who is saving: the email proven with the sign-in link (Supabase magic link).
+      const token = extractSupabaseToken(req);
+      const user = token ? await getSupabaseUser(token) : null;
+      const verifiedEmail = user?.email ? user.email.trim().toLowerCase() : null;
+      if (wantsDraft && !verifiedEmail) {
+        return res.status(401).json({ status: 'error', code: 'verify_email', message: 'Verify your email to save a draft.' });
+      }
+
+      // Tracked: the entry this verified email may edit (point person or teammate).
+      // The owner's email and name come from the stored entry, never the form.
+      const access = tracked && verifiedEmail ? await programSubmissionRepository.findForEditor(program.id, verifiedEmail) : null;
+      let body = req.body ?? {};
+      if (access) {
+        const owner = access.submission;
+        body = {
+          ...body,
+          lumaEmail: owner.lumaEmail,
+          ...(access.role === 'editor' ? { submitterName: owner.submitterName } : {}),
+        };
+      }
+      const submitterEmail = String(body.lumaEmail || '').trim().toLowerCase();
+      const emailVerified = !!verifiedEmail && (verifiedEmail === submitterEmail || access?.role === 'editor');
+
+      let existing = access?.submission ?? null;
+      // Tracked programs: updating an existing entry needs the email verified, so
+      // nobody can overwrite another team's submission by typing their email
+      // (answered after validation, as before).
+      let needsVerify = false;
+      if (!existing) {
+        existing = submitterEmail ? await programSubmissionRepository.findByEmail(program.id, submitterEmail) : null;
+        needsVerify = !!existing && !!tracked && !emailVerified;
+      }
+      // A teammate's email that's already on another team can't start a new entry.
+      if (tracked && !existing && verifiedEmail === submitterEmail) {
+        const grant = await submissionEditorRepository.findByProgramEmail(program.id, submitterEmail);
+        if (grant) {
+          return res.status(409).json({ status: 'error', code: 'email_in_use', message: "You're already on a team for this program. Open your team's submission instead." });
+        }
+      }
+
+      // A finalized entry never goes back to draft: its saves are full saves.
+      const asDraft = wantsDraft && (!existing || existing.status === 'draft');
+      const feedbackDone = !!tracked && !!existing?.feedbackSubmittedAt;
+      const hasRatings = body.ratings !== undefined && body.ratings !== null;
+
+      // Finalizing needs the event feedback (submitted before, or in this request).
+      if (tracked && !asDraft && !feedbackDone && !hasRatings) {
+        return res.status(400).json({ status: 'error', code: 'feedback_required', message: 'Submit the event feedback before you finalize.' });
+      }
+      const v = validateSubmission(body, {
+        videoOptional: videoOptionalFor(tracked, body.details),
+        ratingsOptional: asDraft || feedbackDone,
+        draft: asDraft,
+      });
       if (!v.ok) {
-        return refuse(res, program, req.body, 'invalid', 400, v.error);
+        if (asDraft) return res.status(400).json({ status: 'error', message: v.error });
+        return refuse(res, program, body, 'invalid', 400, v.error);
       }
       if (tracked) {
-        const dv = validateSubmissionDetails(tracked, req.body?.details);
+        const dv = validateSubmissionDetails(tracked, body.details, { draft: asDraft });
         if (!dv.ok) {
-          return refuse(res, program, req.body, 'invalid', 400, dv.error);
+          if (asDraft) return res.status(400).json({ status: 'error', message: dv.error });
+          return refuse(res, program, body, 'invalid', 400, dv.error);
         }
         v.value.details = dv.value;
       }
-      const submitterEmail = String(v.value.lumaEmail || '').trim().toLowerCase();
-      // A builder can prove they own the email with the sign-in link (Supabase
-      // magic link): the token's email must be the submission's email.
-      let emailVerified = false;
-      const token = extractSupabaseToken(req);
-      if (token) {
-        const user = await getSupabaseUser(token);
-        emailVerified = !!user?.email && user.email.trim().toLowerCase() === submitterEmail;
+      if (needsVerify) {
+        return refuse(res, program, body, 'update_unverified', 401, 'Verify your email to update your submission.', {
+          code: 'verify_to_update',
+        });
       }
-      // Tracked programs: updating an existing entry needs the email verified, so
-      // nobody can overwrite another team's submission by typing their email.
-      if (tracked && !emailVerified) {
-        const current = await programSubmissionRepository.findByEmail(program.id, submitterEmail);
-        if (current) {
-          return refuse(res, program, req.body, 'update_unverified', 401, 'Verify your email to update your submission.', {
-            code: 'verify_to_update',
-          });
-        }
-      }
+
       // Only checked-in attendees may submit: the email must be on the program's
       // imported Luma (checked-in / approved guest) list. SUBMIT_TEST_EMAILS is a
       // comma-separated allowlist that bypasses this gate for testing (off by
-      // default; set per-deployment). Such submissions are still flagged
-      // eligible:false on the leaderboard since they're not in the Luma list.
-      const testEmails = new Set(
-        (process.env.SUBMIT_TEST_EMAILS || '')
-          .split(',')
-          .map((e) => e.trim().toLowerCase())
-          .filter(Boolean),
-      );
-      if (!testEmails.has(submitterEmail)) {
-        let present = await programSignupRepository.existsByEmail(program.id, submitterEmail);
-        // Luma-gated programs: on a miss, lazily re-sync the checked-in list
-        // (someone may have checked in seconds ago) before deciding. Respect a
-        // floor so repeated not-on-list retries can't hammer Luma. A sync
-        // FAILURE must not be reported to a legit attendee as "not on the list"
-        // — distinguish transient (retry) from definitive (rejected).
-        let transient = false;
-        if (!present && lumaSyncService.isActive(program)) {
-          const lastSync = program.lastGuestSyncAt ? Date.parse(program.lastGuestSyncAt) : 0;
-          // A verified email always gets a fresh check against the Luma feed.
-          const stale = emailVerified || !lastSync || Date.now() - lastSync > JIT_SYNC_FLOOR_MS;
-          if (stale) {
-            const sync = await lumaSyncService.syncProgram(program);
-            transient = sync.status === 'truncated' || String(sync.status).startsWith('error');
-            present = await programSignupRepository.existsByEmail(program.id, submitterEmail);
-          } else {
-            // Synced very recently and still absent → treat the last sync's
-            // health as the verdict's confidence.
-            transient =
-              program.lastGuestSyncStatus === 'truncated' ||
-              String(program.lastGuestSyncStatus || '').startsWith('error');
-          }
-        }
+      // default; set per-deployment). A tracked entry that already exists passed
+      // this gate when it was created.
+      const gated = !(tracked && existing);
+      if (gated && !testEmailsAllowed().has(submitterEmail)) {
+        const { present, transient } = await checkInStatus(program, submitterEmail, { fresh: emailVerified });
         if (!present) {
           if (transient) {
-            return refuse(res, program, req.body, 'unverified', 503, "Couldn't verify your check-in right now. Please try again in a moment.");
+            return refuse(res, program, body, 'unverified', 503, "Couldn't verify your check-in right now. Please try again in a moment.");
           }
           if (emailVerified) {
             // Verified, but still not on Luma's checked-in list: held for a
@@ -264,7 +375,7 @@ class SubmissionController {
             const message =
               "Received. Your email isn't on Luma's checked-in list yet, so an organiser will confirm it. You don't need to submit again.";
             sendPendingEmail(program, v.value);
-            return refuse(res, program, req.body, 'not_checked_in', 202, message, {
+            return refuse(res, program, body, 'not_checked_in', 202, message, {
               emailVerified: true,
               code: 'pending_review',
               pending: true,
@@ -273,7 +384,7 @@ class SubmissionController {
           return refuse(
             res,
             program,
-            req.body,
+            body,
             'not_checked_in',
             403,
             'Only checked-in attendees can submit. Use the email you checked in with on Luma.',
@@ -281,53 +392,82 @@ class SubmissionController {
           );
         }
       }
-      // Deadline is informational: a submit after event end is flagged late, not blocked.
-      const late = !!(program.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
+      // Deadline is informational: a submit after event end is flagged late, not
+      // blocked. A draft is never late; it's decided when it's finalized.
+      const late = !asDraft && !!(program.eventEndsAt && Date.now() > Date.parse(program.eventEndsAt));
 
-      // Resubmit = overwrite the existing entry (one submission per Luma email).
-      const existing = await programSubmissionRepository.findByEmail(program.id, v.value.lumaEmail);
+      const now = new Date().toISOString();
+      const editor = { email: verifiedEmail || submitterEmail, name: editorName(access, verifiedEmail, v.value) };
+      const finalizing = !asDraft && (!existing || existing.status === 'draft');
+      const draftFields = tracked
+        ? {
+            status: asDraft ? 'draft' : 'submitted',
+            ...(finalizing ? { finalizedAt: now } : {}),
+            ...(hasRatings && !feedbackDone ? { feedbackSubmittedAt: now } : {}),
+            editor,
+          }
+        : { editor };
+
       let submission;
-      let resubmitted;
       let statusCode;
       if (existing) {
-        submission = await programSubmissionRepository.updateSubmission(existing.id, { ...v.value, late });
-        resubmitted = true;
+        submission = await programSubmissionRepository.updateSubmission(existing.id, { ...v.value, late, ...draftFields });
         statusCode = 200;
       } else {
-        ({ submission } = await programSubmissionRepository.create({ programId: program.id, ...v.value, late }));
-        resubmitted = false;
+        ({ submission } = await programSubmissionRepository.create({ programId: program.id, ...v.value, late, ...draftFields }));
         statusCode = 201;
       }
+      // A finalized entry that is saved again is a resubmit (confirmation email says so).
+      const resubmitted = !!existing && !finalizing;
       await saveRatings(submission, program.id, v.value.ratings);
       if (tracked) {
-        await scheduleTxCheck(submission, existing);
+        if (!asDraft) await scheduleTxCheck(submission, existing);
         if (existing) await dropPrizesOutsideTrack(submission, tracked);
+        // A teammate taken off the team list loses edit access (point person saves only).
+        if (existing && access?.role === 'owner') await pruneEditors(submission);
       }
 
-      // Confirmation email is best-effort — a Resend failure never fails the submission.
+      // Confirmation email is best-effort — a Resend failure never fails the
+      // submission. Drafts get none: only finalizing (or updating a finalized
+      // entry) does.
       let emailSent = false;
       let emailReason = null;
-      try {
-        const result = await submissionConfirmationService.send({
-          email: submission.lumaEmail,
-          submitterName: submission.submitterName,
-          programName: program.name,
-          slug: program.slug,
-          projectTitle: submission.projectTitle,
-          deadline: program.eventEndsAt ?? null,
-          resubmitted,
-          details: submission.details ?? null,
-        });
-        emailSent = result.ok;
-        emailReason = result.ok ? null : result.reason;
-      } catch (err) {
-        emailReason = 'send_failed';
-        console.error('❌ Submission confirmation email failed:', err);
+      if (!asDraft) {
+        try {
+          const result = await submissionConfirmationService.send({
+            email: submission.lumaEmail,
+            submitterName: submission.submitterName,
+            programName: program.name,
+            slug: program.slug,
+            projectTitle: submission.projectTitle,
+            deadline: program.eventEndsAt ?? null,
+            resubmitted,
+            details: submission.details ?? null,
+          });
+          emailSent = result.ok;
+          emailReason = result.ok ? null : result.reason;
+        } catch (err) {
+          emailReason = 'send_failed';
+          console.error('❌ Submission confirmation email failed:', err);
+        }
       }
 
-      return res
-        .status(statusCode)
-        .json({ status: 'success', data: { id: submission.id, late }, resubmitted, emailSent, emailReason });
+      return res.status(statusCode).json({
+        status: 'success',
+        data: {
+          id: submission.id,
+          late,
+          status: submission.status,
+          finalizedAt: submission.finalizedAt,
+          feedbackSubmittedAt: submission.feedbackSubmittedAt,
+          lastEditedAt: submission.lastEditedAt,
+          lastEditedByName: submission.lastEditedByName,
+          lastEditedByEmail: submission.lastEditedByEmail,
+        },
+        resubmitted,
+        emailSent,
+        emailReason,
+      });
     } catch (error) {
       console.error('❌ Error submitting project:', error);
       res.status(500).json({ status: 'error', message: 'Failed to submit project' });
@@ -433,7 +573,9 @@ class SubmissionController {
   }
 
   // Builder (email sign-in): their own submission, to edit it. The token's
-  // email is the key; nothing else is exposed.
+  // email is the key: the point person's entry, or (tracked programs) the entry
+  // a teammate was given edit access to. Includes the saved feedback, so the
+  // form never asks for it again, and who can edit.
   async mySubmission(req, res) {
     try {
       const token = extractSupabaseToken(req);
@@ -443,8 +585,18 @@ class SubmissionController {
       }
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const s = await programSubmissionRepository.findByEmail(program.id, user.email);
-      if (!s) return res.status(404).json({ status: 'error', message: 'No submission for this email yet' });
+      const tracked = trackedProgramFor(program.slug);
+      const access = tracked
+        ? await programSubmissionRepository.findForEditor(program.id, user.email)
+        : await programSubmissionRepository.findByEmail(program.id, user.email).then((x) => (x ? { submission: x, role: 'owner' } : null));
+      if (!access) return res.status(404).json({ status: 'error', message: 'No submission for this email yet' });
+      const s = access.submission;
+      const [editors, ratings] = tracked
+        ? await Promise.all([
+            submissionEditorRepository.listBySubmission(s.id),
+            experienceRatingRepository.getForSubmission(s.id).catch(() => ({})),
+          ])
+        : [[], {}];
       res.status(200).json({
         status: 'success',
         data: {
@@ -457,11 +609,116 @@ class SubmissionController {
           details: s.details,
           createdAt: s.createdAt,
           updatedAt: s.updatedAt,
+          status: s.status,
+          finalizedAt: s.finalizedAt,
+          feedbackSubmittedAt: s.feedbackSubmittedAt,
+          lastEditedAt: s.lastEditedAt,
+          lastEditedByName: s.lastEditedByName,
+          lastEditedByEmail: s.lastEditedByEmail,
+          eventLiked: s.eventLiked,
+          ratings: Object.keys(ratings || {}).length ? ratings : null,
+          role: access.role,
+          editors: editors.map((e) => e.email),
         },
       });
     } catch (error) {
       console.error('❌ Error loading own submission:', error);
       res.status(500).json({ status: 'error', message: 'Failed to load your submission' });
+    }
+  }
+
+  // Builder (point person or teammate, verified): submit the event feedback
+  // (ratings + "anything you liked"). Required once before finalizing; after
+  // that the answers can still be changed but are never asked for again.
+  async submitFeedback(req, res) {
+    try {
+      const a = await builderAccess(req, res);
+      if (!a) return;
+      const rt = validateExperienceRatings(req.body?.ratings, { required: true });
+      if (!rt.ok) return res.status(400).json({ status: 'error', message: rt.error });
+      const liked = typeof req.body?.eventLiked === 'string' ? req.body.eventLiked.trim() : '';
+      if (liked.length > EVENT_LIKED_MAX) {
+        return res.status(400).json({ status: 'error', message: `What you liked about the event is max ${EVENT_LIKED_MAX} characters` });
+      }
+      await experienceRatingRepository.upsertForSubmission({ submissionId: a.submission.id, programId: a.program.id, ratings: rt.value });
+      const updated = await programSubmissionRepository.markFeedbackSubmitted(a.submission.id, {
+        feedbackSubmittedAt: a.submission.feedbackSubmittedAt ? undefined : new Date().toISOString(),
+        eventLiked: liked || null,
+        editor: { email: a.email, name: editorName(a, a.email, a.submission) },
+      });
+      res.status(200).json({
+        status: 'success',
+        data: {
+          feedbackSubmittedAt: updated.feedbackSubmittedAt,
+          lastEditedAt: updated.lastEditedAt,
+          lastEditedByName: updated.lastEditedByName,
+          lastEditedByEmail: updated.lastEditedByEmail,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error saving submission feedback:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to save your feedback' });
+    }
+  }
+
+  // Point person (verified): give a teammate on the team list edit access. The
+  // teammate's email must be checked in on Luma and not on another team.
+  async addEditor(req, res) {
+    try {
+      const a = await builderAccess(req, res, { ownerOnly: true });
+      if (!a) return;
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+      if (!ATTEMPT_EMAIL_RE.test(email)) return res.status(400).json({ status: 'error', message: 'A valid email is required' });
+      if (email === a.submission.lumaEmail) {
+        return res.status(400).json({ status: 'error', message: "That's the point person's email: it can already edit." });
+      }
+      const onTeam = (a.submission.details?.team ?? []).some((m) => (m.email || '').toLowerCase() === email);
+      if (!onTeam) {
+        return res.status(400).json({ status: 'error', code: 'not_on_team', message: 'Add this teammate (with their email) to the team list and save first.' });
+      }
+      const [ownsEntry, grant] = await Promise.all([
+        programSubmissionRepository.findByEmail(a.program.id, email),
+        submissionEditorRepository.findByProgramEmail(a.program.id, email),
+      ]);
+      if (ownsEntry || (grant && grant.submissionId !== a.submission.id)) {
+        return res.status(409).json({ status: 'error', code: 'email_in_use', message: 'This email is already on another team for this program.' });
+      }
+      if (!testEmailsAllowed().has(email)) {
+        const { present, transient } = await checkInStatus(a.program, email, { fresh: true });
+        if (!present) {
+          if (transient) return res.status(503).json({ status: 'error', message: "Couldn't check Luma right now. Please try again in a moment." });
+          return res.status(403).json({ status: 'error', code: 'not_checked_in', message: "This email isn't checked in on Luma." });
+        }
+      }
+      await submissionEditorRepository.add({ submissionId: a.submission.id, programId: a.program.id, email, addedBy: a.email });
+      const editors = await submissionEditorRepository.listBySubmission(a.submission.id);
+      auditLog.logSafe({
+        programId: a.program.id,
+        actor: { email: a.email },
+        action: 'submission.editor_added',
+        targetType: 'submission',
+        targetId: a.submission.id,
+        metadata: { email },
+      });
+      res.status(201).json({ status: 'success', data: { editors: editors.map((e) => e.email) } });
+    } catch (error) {
+      console.error('❌ Error adding submission editor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to give edit access' });
+    }
+  }
+
+  // Point person (verified): remove a teammate's edit access.
+  async removeEditor(req, res) {
+    try {
+      const a = await builderAccess(req, res, { ownerOnly: true });
+      if (!a) return;
+      const email = String(req.params.email || '').trim().toLowerCase();
+      await submissionEditorRepository.remove(a.submission.id, email);
+      const editors = await submissionEditorRepository.listBySubmission(a.submission.id);
+      res.status(200).json({ status: 'success', data: { editors: editors.map((e) => e.email) } });
+    } catch (error) {
+      console.error('❌ Error removing submission editor:', error);
+      res.status(500).json({ status: 'error', message: 'Failed to remove edit access' });
     }
   }
 
@@ -474,7 +731,8 @@ class SubmissionController {
       }
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const rows = await programSubmissionRepository.listByProgramId(program.id);
+      // Drafts are the team's own until finalized.
+      const rows = await programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' });
       res.status(200).json({
         status: 'success',
         data: { published: !!program.resultsPublishedAt, submissions: toPublicList(rows, !!program.resultsPublishedAt) },
@@ -620,19 +878,28 @@ class SubmissionController {
   }
 
   // Judge/admin: a tracked program's submissions with their details, track and
-  // judging batch (from the first submission time; see trackedPrograms.js).
-  // Every Luma-gated submission lands in its batch with no manual step.
+  // judging batch (from when it was finalized; see trackedPrograms.js). Drafts
+  // stay out until the team clicks Finalize and submit.
   async listTracked(req, res) {
     try {
       const tracked = trackedProgramFor(req.params.slug);
       if (!tracked) return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const rows = await programSubmissionRepository.listByProgramId(program.id);
-      const data = rows.map((s) => ({ ...s, batch: batchFor(tracked.judgingBatches, s.createdAt) }));
+      // Only finalized entries are ready to judge; the batch is from when the
+      // team finalized (older entries: their first submission).
+      const rows = await programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' });
+      const isJudgeOnly = req.user?.role === 'judge';
+      const data = rows.map((s) => ({
+        ...s,
+        batch: batchFor(tracked.judgingBatches, s.finalizedAt ?? s.createdAt),
+        // Anonymous entries: judges see when it was last edited, not by whom.
+        ...(isJudgeOnly && s.details?.anonymous ? { lastEditedByName: null, lastEditedByEmail: null } : {}),
+      }));
+      const draftCount = isJudgeOnly ? undefined : await programSubmissionRepository.countDrafts(program.id);
       res.status(200).json({
         status: 'success',
-        data: { submissions: data, batches: tracked.judgingBatches, resultsPublishedAt: program.resultsPublishedAt ?? null },
+        data: { submissions: data, batches: tracked.judgingBatches, resultsPublishedAt: program.resultsPublishedAt ?? null, ...(draftCount !== undefined ? { draftCount } : {}) },
       });
     } catch (error) {
       console.error('❌ Error listing tracked submissions:', error);
