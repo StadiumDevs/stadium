@@ -19,6 +19,22 @@ import {
 } from "./trackedForm";
 
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Teammate edit access on the team rows (drafts on Stadium). */
+export type TeamEditAccess = {
+  /** The point person manages access; a teammate only sees it. */
+  canManage: boolean;
+  /** Emails that can edit (lowercased). */
+  editors: string[];
+  /** Email being granted or removed right now. */
+  busy: string | null;
+  /** Per-email error (e.g. not checked in on Luma). */
+  errors: Record<string, string>;
+  onChange: (email: string, grant: boolean) => void;
+  /** The point person's own email (already can edit). */
+  ownerEmail: string;
+};
 
 /**
  * Extra submission fields for a tracked program (tracks, themes, txid, next milestone, feedback, anonymity).
@@ -29,11 +45,13 @@ export function TrackedSubmissionFields({
   value: f,
   onChange,
   invalid = new Set<string>(),
+  editAccess,
 }: {
   profile: ProgramProfile;
   value: TrackedFormState;
   onChange: (next: TrackedFormState) => void;
   invalid?: Set<string>;
+  editAccess?: TeamEditAccess;
 }) {
   const set = <K extends keyof TrackedFormState>(k: K, v: TrackedFormState[K]) => onChange({ ...f, [k]: v });
   const privacy = !!f.track && f.track !== "agentic";
@@ -118,8 +136,22 @@ export function TrackedSubmissionFields({
 
       <fieldset className="space-y-2">
         <legend className="label-hw-dim">TEAMMATES (OPTIONAL)</legend>
-        {f.team.map((m, i) => (
-          <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px_auto] gap-2">
+        {editAccess && (
+          <p className="label-hw-dim normal-case">
+            {editAccess.canManage
+              ? "Give a teammate edit access and they can open and update this submission with their own email. Their email must be checked in on Luma."
+              : "The point person decides who can edit."}
+          </p>
+        )}
+        {f.team.map((m, i) => {
+          const email = m.email.trim().toLowerCase();
+          const canEdit = !!email && (editAccess?.editors.includes(email) ?? false);
+          const showAccess = !!editAccess && EMAIL_RE.test(email) && email !== editAccess.ownerEmail.trim().toLowerCase();
+          const busy = editAccess?.busy === email;
+          const accessError = email ? editAccess?.errors[email] : "";
+          return (
+          <div key={i} className="space-y-1" data-testid={`team-row-${i}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px_auto] gap-2">
             <Input id={`trk-team-${i}-name`} aria-label={`Teammate ${i + 1} name`} aria-invalid={bad(`trk-team-${i}-name`) || undefined} placeholder="Name" value={m.name} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} className={"font-mono text-sm" + invalidBorder(bad(`trk-team-${i}-name`))} />
             <Input aria-label={`Teammate ${i + 1} email`} placeholder="Email" type="email" value={m.email} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} className="font-mono text-sm" />
             <Input aria-label={`Teammate ${i + 1} role`} placeholder="Role" value={m.role} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))} className="font-mono text-sm" />
@@ -127,7 +159,44 @@ export function TrackedSubmissionFields({
               REMOVE
             </button>
           </div>
-        ))}
+          {showAccess && (
+            <div className="flex flex-wrap items-center gap-2 pl-0.5">
+              {canEdit ? (
+                <>
+                  <span className="label-hw text-led" data-testid={`can-edit-${i}`}>✓ CAN EDIT</span>
+                  {editAccess.canManage && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => editAccess.onChange(email, false)}
+                      className="font-mono text-[10px] tracking-[0.12em] text-label-mid hover:text-display underline disabled:opacity-50"
+                      data-testid={`revoke-edit-${i}`}
+                    >
+                      REMOVE ACCESS
+                    </button>
+                  )}
+                </>
+              ) : editAccess.canManage ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => editAccess.onChange(email, true)}
+                  className="font-mono text-[10px] tracking-[0.12em] border border-hairline text-display hover:bg-panel-deep px-2.5 py-1 disabled:opacity-50"
+                  data-testid={`grant-edit-${i}`}
+                >
+                  {busy ? "CHECKING LUMA…" : "GIVE EDIT ACCESS"}
+                </button>
+              ) : null}
+              {accessError && (
+                <span className="label-hw text-destructive normal-case" role="alert" data-testid={`edit-error-${i}`}>
+                  {accessError}
+                </span>
+              )}
+            </div>
+          )}
+          </div>
+          );
+        })}
         <button type="button" onClick={() => set("team", [...f.team, { name: "", email: "", role: "" }])} className="font-mono text-[10px] tracking-[0.12em] text-display hover:underline">
           + ADD TEAMMATE
         </button>

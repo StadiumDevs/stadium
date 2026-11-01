@@ -249,16 +249,50 @@ export type SubmissionPayload = {
   };
   /** Tracked-program fields (programProfiles.ts); validated server-side by validateSubmissionDetails. */
   details?: Omit<ApiSubmissionDetails, "txCheck" | "milestone">;
+  /**
+   * Tracked programs: "draft" saves a partial entry only the team sees;
+   * "finalize" (the default) puts it in the judges' queues.
+   */
+  intent?: "draft" | "finalize";
 };
 
-/** What happened to a submit: created, updated (resubmit), or held for an organiser. */
+/** Tracked drafts: a draft is the team's own; submitted entries are judged. */
+export type SubmissionStatus = "draft" | "submitted";
+
+/** Who saved a tracked entry last (point person or a teammate), and when. */
+export type SubmissionEditStamp = {
+  lastEditedAt?: string | null;
+  lastEditedByName?: string | null;
+  lastEditedByEmail?: string | null;
+};
+
+/** Where a tracked entry stands after a save. */
+export type SubmissionState = SubmissionEditStamp & {
+  status: SubmissionStatus;
+  finalizedAt: string | null;
+  feedbackSubmittedAt: string | null;
+};
+
+/** What happened to a submit: created, updated (resubmit), saved as a draft, or held for an organiser. */
 export type SubmitResult = {
   status: string;
-  data?: { id: string; late?: boolean };
+  data?: { id: string; late?: boolean } & Partial<SubmissionState>;
   resubmitted?: boolean;
   message?: string;
-  outcome: "created" | "updated" | "pending";
+  outcome: "created" | "updated" | "pending" | "draft";
 };
+
+/** The verified builder's own tracked entry (point person or a teammate with edit access). */
+export type MySubmission = SubmissionPayload &
+  Partial<SubmissionState> & {
+    createdAt?: string;
+    /** "owner" = the point person; "editor" = a teammate they gave edit access. */
+    role?: "owner" | "editor";
+    /** Teammates' emails with edit access. */
+    editors?: string[];
+    eventLiked?: string | null;
+    ratings?: ExperienceRatings | null;
+  };
 
 /** A refused submission, kept with the reason the builder was shown (admin only). */
 export type ApiSubmissionRefusal = {
@@ -307,6 +341,12 @@ export type ApiSubmission = {
   awardedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Tracked drafts: absent on older records (= submitted). */
+  status?: SubmissionStatus;
+  finalizedAt?: string | null;
+  lastEditedAt?: string | null;
+  lastEditedByName?: string | null;
+  lastEditedByEmail?: string | null;
 };
 
 /** A prize tier configurable per program; awarded amount snapshots one of these. */
@@ -2197,9 +2237,16 @@ export const api = {
   submitProjectSubmission: async (
     slug: string,
     payload: SubmissionPayload,
-    /** A Supabase session token proving the builder owns `payload.lumaEmail`. */
-    opts: { verifiedToken?: string | null } = {},
+    /**
+     * A Supabase session token proving who is saving (the point person, or a
+     * teammate with edit access). `sessionEmail`: that email (mock mode only).
+     */
+    opts: { verifiedToken?: string | null; sessionEmail?: string | null } = {},
   ): Promise<SubmitResult> => {
+    if (USE_MOCK_DATA && payload.details) {
+      const { mockSaveTracked } = await import("./mockSubmissionFlow");
+      return mockSaveTracked(slug, payload, opts.sessionEmail ?? null);
+    }
     if (USE_MOCK_DATA) {
       // Only checked-in attendees (on the imported Luma list) may submit.
       const { mockProgramSignups, mockPrograms } = await import("./mockPrograms");
@@ -2252,18 +2299,73 @@ export const api = {
         ...(opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {}),
       },
       body: JSON.stringify(payload),
-    })) as { status: string; data?: { id: string; late?: boolean }; resubmitted?: boolean; message?: string };
+    })) as { status: string; data?: SubmitResult["data"]; resubmitted?: boolean; message?: string };
     return {
       ...r,
-      outcome: r.status === "pending" ? "pending" : r.resubmitted ? "updated" : "created",
+      outcome:
+        r.status === "pending" ? "pending" : r.data?.status === "draft" ? "draft" : r.resubmitted ? "updated" : "created",
     };
+  },
+
+  /** Builder (verified): submit the event feedback; required once before finalizing. */
+  submitSubmissionFeedback: async (
+    slug: string,
+    body: { ratings: ExperienceRatings; eventLiked?: string | null },
+    opts: { verifiedToken?: string | null; sessionEmail?: string | null },
+  ): Promise<{ status: string; data: SubmissionEditStamp & { feedbackSubmittedAt: string | null } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockSubmitFeedback } = await import("./mockSubmissionFlow");
+      return mockSubmitFeedback(slug, body, opts.sessionEmail ?? null);
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/mine/feedback`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...(opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {}) },
+      body: JSON.stringify(body),
+    });
+  },
+
+  /** Point person (verified): give a teammate on the team list edit access (checked against Luma). */
+  addSubmissionEditor: async (
+    slug: string,
+    email: string,
+    opts: { verifiedToken?: string | null; sessionEmail?: string | null },
+  ): Promise<{ status: string; data: { editors: string[] } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockSetEditor } = await import("./mockSubmissionFlow");
+      return mockSetEditor(slug, email, true, opts.sessionEmail ?? null);
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/mine/editors`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {}) },
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  /** Point person (verified): remove a teammate's edit access. */
+  removeSubmissionEditor: async (
+    slug: string,
+    email: string,
+    opts: { verifiedToken?: string | null; sessionEmail?: string | null },
+  ): Promise<{ status: string; data: { editors: string[] } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockSetEditor } = await import("./mockSubmissionFlow");
+      return mockSetEditor(slug, email, false, opts.sessionEmail ?? null);
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/mine/editors/${encodeURIComponent(email)}`, {
+      method: "DELETE",
+      headers: opts.verifiedToken ? { "x-supabase-token": opts.verifiedToken } : {},
+    });
   },
 
   /** Builder (email sign-in): their own submission, to edit it. */
   getMySubmission: async (
     slug: string,
     opts: { email: string; verifiedToken?: string | null },
-  ): Promise<{ status: string; data: SubmissionPayload & { createdAt?: string } }> => {
+  ): Promise<{ status: string; data: MySubmission }> => {
+    if (USE_MOCK_DATA && (await import("./programProfiles")).getProgramProfile(slug)) {
+      const { mockMySubmission } = await import("./mockSubmissionFlow");
+      return mockMySubmission(slug, opts.email);
+    }
     if (USE_MOCK_DATA) {
       const { mockVerifiedEmails } = await import("./mockVerifiedEmails");
       const email = opts.email.trim().toLowerCase();
@@ -2603,25 +2705,28 @@ export const api = {
   listTrackedSubmissions: async (
     slug: string,
     _authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null } }> => {
+  ): Promise<{ status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null; draftCount?: number | null } }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockEditStamps } = await import("./mockSubmissionFlow");
+      const stamps = mockEditStamps(slug);
       return {
         status: "success",
         data: {
-          submissions: mockTracked.list(slug),
+          submissions: mockTracked.list(slug).map((x) => ({ ...x, status: "submitted" as const, ...stamps[x.lumaEmail.trim().toLowerCase()] })),
           resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
         },
       };
     }
     const r = (await request(`/programs/${encodeURIComponent(slug)}/tracked-submissions`, {
       headers: adminAuthHeaders(_authHeader),
-    })) as { status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt?: string | null } };
+    })) as { status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt?: string | null; draftCount?: number } };
     return {
       status: r.status,
       data: {
         submissions: r.data.submissions.map((x) => ({ ...x, prizes: x.prizes ?? {}, ecosystemPrize: x.ecosystemPrize ?? false })),
         resultsPublishedAt: r.data.resultsPublishedAt ?? null,
+        draftCount: r.data.draftCount ?? null,
       },
     };
   },

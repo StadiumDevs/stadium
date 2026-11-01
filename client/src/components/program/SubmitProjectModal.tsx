@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Star } from "lucide-react";
-import { api, type ApiProgram, type SubmitResult, ApiError, USE_MOCK_DATA } from "@/lib/api";
+import { api, type ApiProgram, type MySubmission, type SubmissionPayload, type SubmissionState, type SubmitResult, ApiError, USE_MOCK_DATA } from "@/lib/api";
 import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import { mockVerifiedEmails } from "@/lib/mockVerifiedEmails";
 import { useToast } from "@/hooks/use-toast";
@@ -90,26 +90,39 @@ type Draft = {
   eventLiked?: string;
 };
 type Problem = "not_checked_in" | "verify_to_update" | "retry";
+type StoredDraft = Draft & { savedAt?: string };
+
+/** Tracked programs: the team's entry on Stadium, as last loaded or saved. */
+type Entry = Partial<SubmissionState> & { role: "owner" | "editor"; editors: string[] };
 
 const DRAFT_SAVE_MS = 400;
 const RETRY_AFTER_MS = 5000;
-const draftKey = (slug: string) => `stadium_submit_draft_${slug}`;
-const readDraft = (slug: string): Draft | null => {
+// Unsaved changes kept on this device. Tracked programs keep one per verified
+// email, so the point person and a teammate sharing a laptop never overwrite
+// each other's; the legacy form keeps one per program.
+const draftKey = (slug: string, who?: string | null) =>
+  who ? `stadium_submit_draft_${slug}:${who.trim().toLowerCase()}` : `stadium_submit_draft_${slug}`;
+const readDraft = (slug: string, who?: string | null): StoredDraft | null => {
   try {
-    const raw = localStorage.getItem(draftKey(slug));
-    return raw ? (JSON.parse(raw) as Draft) : null;
+    const raw = localStorage.getItem(draftKey(slug, who));
+    return raw ? (JSON.parse(raw) as StoredDraft) : null;
   } catch {
     return null;
   }
 };
-const writeDraft = (slug: string, d: Draft | null) => {
+const writeDraft = (slug: string, d: StoredDraft | null, who?: string | null) => {
   try {
-    if (d) localStorage.setItem(draftKey(slug), JSON.stringify(d));
-    else localStorage.removeItem(draftKey(slug));
+    if (d) localStorage.setItem(draftKey(slug, who), JSON.stringify(d));
+    else localStorage.removeItem(draftKey(slug, who));
   } catch {
     // Storage unavailable: the form still works, it just isn't kept.
   }
 };
+const normEmail = (e: string | null | undefined) => (e ?? "").trim().toLowerCase();
+const formatStamp = (iso: string | null | undefined) =>
+  iso
+    ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST"
+    : "";
 
 export function SubmitProjectModal({
   open,
@@ -128,6 +141,17 @@ export function SubmitProjectModal({
   // Tracked programs (programProfiles.ts) collect tracks, txid, next milestone, etc.
   const profile = getProgramProfile(program.slug);
   const [tracked, setTracked] = useState<TrackedFormState>(emptyTrackedForm);
+  // Tracked programs: drafts on Stadium, opened by the point person or a
+  // teammate with edit access after verifying their email.
+  const trackedFlow = !!profile;
+  const [gateEmail, setGateEmail] = useState("");
+  const [entry, setEntry] = useState<Entry | null>(null);
+  const [entryLoaded, setEntryLoaded] = useState(false);
+  const [restoredFromDevice, setRestoredFromDevice] = useState(false);
+  const [feedbackAttempted, setFeedbackAttempted] = useState(false);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [accessBusy, setAccessBusy] = useState<string | null>(null);
+  const [accessErrors, setAccessErrors] = useState<Record<string, string>>({});
 
   const [submitterName, setName] = useState("");
   const [lumaEmail, setEmail] = useState("");
@@ -169,8 +193,24 @@ export function SubmitProjectModal({
   // Verified = the builder proved they own this email (sign-in link; in the
   // playground, the stand-in marks it verified for the session).
   const emailNorm = lumaEmail.trim().toLowerCase();
-  const verified =
-    !!emailNorm && (USE_MOCK_DATA ? mockVerifiedEmails.has(emailNorm) : !!social.token && social.email?.toLowerCase() === emailNorm);
+  // Tracked: who is signed in (point person or teammate), whatever the form's
+  // point-person email says.
+  const sessionEmail = trackedFlow
+    ? USE_MOCK_DATA
+      ? mockVerifiedEmails.has(normEmail(gateEmail))
+        ? normEmail(gateEmail)
+        : null
+      : social.token && social.email
+        ? normEmail(social.email)
+        : null
+    : null;
+  const verified = trackedFlow
+    ? !!sessionEmail
+    : !!emailNorm && (USE_MOCK_DATA ? mockVerifiedEmails.has(emailNorm) : !!social.token && social.email?.toLowerCase() === emailNorm);
+  const isEditor = entry?.role === "editor";
+  const isSubmitted = entry?.status === "submitted";
+  const feedbackDone = !!entry?.feedbackSubmittedAt;
+  const sessionOpts = { verifiedToken: USE_MOCK_DATA ? null : social.token, sessionEmail };
 
   const applyDraft = useCallback((d: Partial<Draft> | null) => {
     setName(d?.submitterName ?? "");
@@ -189,10 +229,22 @@ export function SubmitProjectModal({
     setEventLiked(d?.eventLiked ?? "");
   }, []);
 
-  // Opening restores this device's draft (never wipes it).
+  // Opening restores this device's draft (never wipes it). Tracked programs load
+  // the signed-in person's own device draft once their entry is loaded.
   useEffect(() => {
     if (open) {
-      applyDraft(readDraft(program.slug));
+      if (trackedFlow) {
+        applyDraft(null);
+        setEntry(null);
+        setEntryLoaded(false);
+        setRestoredFromDevice(false);
+        setFeedbackAttempted(false);
+        setAccessErrors({});
+        loadStarted.current = false;
+        setGateEmail((prev) => prev || social.email || readDraft(program.slug)?.lumaEmail || "");
+      } else {
+        applyDraft(readDraft(program.slug));
+      }
       setCompany("");
       setTermsOpen(false);
       setError(null);
@@ -204,34 +256,138 @@ export function SubmitProjectModal({
       retried.current = false;
     }
     return () => window.clearTimeout(retryTimer.current);
-  }, [open, program.slug, applyDraft]);
+    // social.email only seeds the gate; reopening is what resets the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, program.slug, applyDraft, trackedFlow]);
 
   // Keep the draft as they type (the honeypot is never saved).
+  // Tracked: only once the entry is loaded, under the signed-in person's key.
+  // `baseline` is the form as loaded; only a change from it is kept.
+  const baseline = useRef<string | null>(null);
   useEffect(() => {
     if (!open || done) return;
-    const draft: Draft = {
+    if (trackedFlow && (!sessionEmail || !entryLoaded)) return;
+    const draft: StoredDraft = {
       submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl,
       agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked,
+      savedAt: new Date().toISOString(),
     };
+    const { savedAt: _at, ...form } = draft;
+    const shape = JSON.stringify(form);
+    if (trackedFlow && baseline.current === null) {
+      baseline.current = shape;
+      return;
+    }
     const t = window.setTimeout(() => {
-      writeDraft(program.slug, draft);
+      // Loading the entry fills the form too; only a change by the builder counts.
+      if (trackedFlow && shape === baseline.current) return;
+      writeDraft(program.slug, draft, trackedFlow ? sessionEmail : null);
       setDraftSaved(true);
     }, DRAFT_SAVE_MS);
     return () => window.clearTimeout(t);
-  }, [open, done, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked]);
+  }, [open, done, trackedFlow, sessionEmail, entryLoaded, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked]);
 
   const startOver = () => {
-    writeDraft(program.slug, null);
-    applyDraft(null);
+    writeDraft(program.slug, null, trackedFlow ? sessionEmail : null);
     setDraftSaved(false);
     setProblem(null);
     setError(null);
     setAttempted(false);
+    // Tracked: drop this device's changes and reload the copy on Stadium.
+    if (trackedFlow) {
+      setRestoredFromDevice(false);
+      setEntryLoaded(false);
+      loadStarted.current = false;
+    } else {
+      applyDraft(null);
+    }
   };
+
+  // Apply the entry as saved on Stadium (and who may edit it).
+  const applyMine = useCallback(
+    (d: MySubmission) => {
+      setName(d.submitterName ?? "");
+      setEmail(d.lumaEmail ?? "");
+      setTitle(d.projectTitle ?? "");
+      setBrief(d.projectBrief ?? "");
+      setVideo(d.videoUrl ?? "");
+      setGithub(d.githubUrl ?? "");
+      if (d.details) setTracked(detailsToTrackedForm(d.details));
+      if (d.ratings) setRatings(d.ratings);
+      setEventLiked(d.eventLiked ?? "");
+      // Agreed when it was first saved; the box stays ticked.
+      if (d.status === "submitted") setAgreedToTerms(true);
+    },
+    [],
+  );
+
+  // Tracked: once signed in, load the entry this email may edit (point person
+  // or teammate), then this person's unsaved device changes if they're newer.
+  const loadStarted = useRef(false);
+  useEffect(() => {
+    if (!open || !trackedFlow || !sessionEmail || entryLoaded || loadStarted.current) return;
+    loadStarted.current = true;
+    const who = sessionEmail;
+    // A draft kept before sign-in (unkeyed) moves to this person's key.
+    let local = readDraft(program.slug, who);
+    const loose = readDraft(program.slug);
+    if (!local && loose && (!loose.lumaEmail || normEmail(loose.lumaEmail) === who)) {
+      local = loose;
+      writeDraft(program.slug, loose, who);
+      writeDraft(program.slug, null);
+    }
+    const newer = (d: MySubmission) =>
+      !!local?.savedAt && Date.parse(local.savedAt) > Date.parse(d.lastEditedAt ?? d.updatedAt ?? d.createdAt ?? "0");
+    api
+      .getMySubmission(program.slug, { email: who, verifiedToken: sessionOpts.verifiedToken })
+      .then((r) => {
+        const d = r.data;
+        setEntry({
+          role: d.role ?? "owner",
+          editors: d.editors ?? [],
+          status: d.status ?? "submitted",
+          finalizedAt: d.finalizedAt ?? null,
+          feedbackSubmittedAt: d.feedbackSubmittedAt ?? null,
+          lastEditedAt: d.lastEditedAt ?? null,
+          lastEditedByName: d.lastEditedByName ?? null,
+          lastEditedByEmail: d.lastEditedByEmail ?? null,
+        });
+        applyMine(d);
+        if (local && newer(d)) {
+          applyDraft(local);
+          // The point person's name and email always come from Stadium.
+          setEmail(d.lumaEmail ?? "");
+          if (d.role === "editor") setName(d.submitterName ?? "");
+          setRestoredFromDevice(true);
+        } else if (local) {
+          writeDraft(program.slug, null, who);
+        }
+      })
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) {
+          // Nothing on Stadium yet: this person starts the team's entry.
+          setEntry(null);
+          if (local) {
+            applyDraft(local);
+            setRestoredFromDevice(true);
+          }
+          setEmail(who);
+          return;
+        }
+        loadStarted.current = false;
+        toast({ title: "Couldn't load your submission", description: (e as Error).message, variant: "destructive" });
+      })
+      .finally(() => {
+        baseline.current = null;
+        setEntryLoaded(true);
+      });
+    // sessionOpts is derived from sessionEmail and the token.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, trackedFlow, sessionEmail, entryLoaded, program.slug, applyMine, applyDraft, toast]);
 
   // Update mode: once the email is verified, load their submission to edit it.
   useEffect(() => {
-    if (!open || mode !== "update" || !verified || loadedMine) return;
+    if (!open || trackedFlow || mode !== "update" || !verified || loadedMine) return;
     setLoadedMine(true);
     api
       .getMySubmission(program.slug, { email: lumaEmail, verifiedToken: social.token })
@@ -253,12 +409,12 @@ export function SubmitProjectModal({
           variant: notFound ? undefined : "destructive",
         });
       });
-  }, [open, mode, verified, loadedMine, program.slug, lumaEmail, social.token, profile, toast]);
+  }, [open, trackedFlow, mode, verified, loadedMine, program.slug, lumaEmail, social.token, profile, toast]);
 
   // Prove the email is theirs: a sign-in link (back to this page with the form
   // saved). In the playground there's no email, so it's verified at once.
   const verifyEmail = async (): Promise<boolean> => {
-    const email = lumaEmail.trim();
+    const email = (trackedFlow ? gateEmail : lumaEmail).trim();
     if (!EMAIL_RE.test(email)) {
       setError("Enter a valid email first.");
       return false;
@@ -318,16 +474,32 @@ export function SubmitProjectModal({
       }
     }
 
-    for (const { id, label } of EXPERIENCE_RATING_CATEGORIES) {
-      if (ratings[id] === undefined) add(ratingFieldId(id), `Please rate: ${label}`);
+    // Tracked programs submit the ratings in their own feedback step.
+    if (!trackedFlow) {
+      for (const { id, label } of EXPERIENCE_RATING_CATEGORIES) {
+        if (ratings[id] === undefined) add(ratingFieldId(id), `Please rate: ${label}`);
+      }
     }
 
     if (terms && !agreedToTerms) add("sub-terms", "You must agree to the submission terms.");
     return issues;
   };
+  // A draft only needs who and what (tracked programs).
+  const collectDraftIssues = (): FieldIssue[] => {
+    const issues: FieldIssue[] = [];
+    if (!submitterName.trim()) issues.push({ field: "sub-name", message: "Your name is required to save a draft." });
+    if (!EMAIL_RE.test(lumaEmail.trim())) issues.push({ field: "sub-email", message: "A valid email is required." });
+    if (!projectTitle.trim()) issues.push({ field: "sub-title", message: "A project title is required to save a draft." });
+    return issues;
+  };
+  const [lastIntent, setLastIntent] = useState<"draft" | "finalize">("finalize");
   const videoIsOptional = !!profile && videoOptional(tracked.track);
-  const issues = attempted ? collectIssues() : [];
+  const issues = attempted ? (trackedFlow && lastIntent === "draft" ? collectDraftIssues() : collectIssues()) : [];
   const invalid = new Set(issues.map((i) => i.field));
+  // Tracked feedback step: ratings marked red once they tried to submit it.
+  if (trackedFlow && feedbackAttempted) {
+    for (const { id } of EXPERIENCE_RATING_CATEGORIES) if (ratings[id] === undefined) invalid.add(ratingFieldId(id));
+  }
   const bad = (id: string) => invalid.has(id);
 
   // Bring the first field that needs fixing into view and focus it.
@@ -338,16 +510,27 @@ export function SubmitProjectModal({
     el.focus({ preventScroll: true });
   };
 
-  const handleSubmit = async () => {
+  // `intent` (tracked programs): "draft" saves the team's entry on Stadium
+  // without sending it to judges; "finalize" sends it (and is the only save once
+  // it's submitted). `quiet`: a save on the way to something else (feedback,
+  // edit access) that stays in the form. Resolves true when saved.
+  const handleSubmit = async (want: "draft" | "finalize" = "finalize", { quiet = false } = {}): Promise<boolean> => {
+    const intent = trackedFlow ? (isSubmitted ? "finalize" : want) : "finalize";
+    setLastIntent(intent);
     setAttempted(true);
-    const found = collectIssues();
+    const found = trackedFlow && intent === "draft" ? collectDraftIssues() : collectIssues();
     if (found.length > 0) {
       setError(null);
       showFirstIssue(found[0].field);
-      return;
+      return false;
     }
-    // collectIssues guarantees every rating is set; this narrows the type.
-    if (!isRatingsComplete(ratings)) return;
+    if (trackedFlow && intent === "finalize" && !feedbackDone) {
+      setError("Submit the event feedback first (at the bottom of the form).");
+      showFirstIssue("sub-feedback");
+      return false;
+    }
+    // collectIssues guarantees every rating is set (legacy form); this narrows the type.
+    if (!trackedFlow && !isRatingsComplete(ratings)) return false;
     setError(null);
     setSubmitting(true);
     try {
@@ -363,7 +546,7 @@ export function SubmitProjectModal({
           }
         : undefined;
 
-      const result = await api.submitProjectSubmission(program.slug, {
+      const payload: SubmissionPayload = {
         submitterName: submitterName.trim(),
         lumaEmail: lumaEmail.trim(),
         projectTitle: projectTitle.trim(),
@@ -371,24 +554,63 @@ export function SubmitProjectModal({
         videoUrl: videoUrl.trim(),
         githubUrl: githubUrl.trim(),
         company,
-        ...(terms ? { agreedToTerms: true } : {}),
+        ...(terms && (agreedToTerms || !trackedFlow) ? { agreedToTerms: true } : {}),
         ...(feedback ? { feedback } : {}),
-        ratings,
-        ...(eventLiked.trim() ? { eventLiked: eventLiked.trim() } : {}),
-        ...(profile ? { details: trackedFormToDetails(tracked) } : {}),
-      }, { verifiedToken: verified && !USE_MOCK_DATA ? social.token : null });
-      writeDraft(program.slug, null);
-      setOutcome(result.outcome);
+        // Tracked programs send the ratings in the feedback step instead.
+        ...(trackedFlow ? {} : { ratings: ratings as SubmissionPayload["ratings"] }),
+        ...(!trackedFlow && eventLiked.trim() ? { eventLiked: eventLiked.trim() } : {}),
+        ...(profile ? { details: trackedFormToDetails(tracked), intent } : {}),
+      };
+      const result = await api.submitProjectSubmission(
+        program.slug,
+        payload,
+        trackedFlow ? sessionOpts : { verifiedToken: verified && !USE_MOCK_DATA ? social.token : null },
+      );
+      writeDraft(program.slug, null, trackedFlow ? sessionEmail : null);
+      setDraftSaved(false);
       setProblem(null);
+      if (trackedFlow && result.outcome !== "pending") {
+        const d = result.data;
+        setEntry((prev) => ({
+          role: prev?.role ?? "owner",
+          editors: prev?.editors ?? [],
+          status: d?.status ?? (intent === "draft" ? "draft" : "submitted"),
+          finalizedAt: d?.finalizedAt ?? prev?.finalizedAt ?? null,
+          feedbackSubmittedAt: d?.feedbackSubmittedAt ?? prev?.feedbackSubmittedAt ?? null,
+          lastEditedAt: d?.lastEditedAt ?? null,
+          lastEditedByName: d?.lastEditedByName ?? null,
+          lastEditedByEmail: d?.lastEditedByEmail ?? null,
+        }));
+        setRestoredFromDevice(false);
+        baseline.current = null;
+      }
+      if (trackedFlow && (intent === "draft" || quiet) && result.outcome !== "pending") {
+        if (!quiet) {
+          toast({ title: "Draft saved on Stadium", description: "Only your team sees it. Finalize and submit when it's ready." });
+        }
+        return true;
+      }
+      setOutcome(result.outcome);
       toast({
-        title: result.outcome === "pending" ? "Received, waiting for an organiser" : result.outcome === "updated" ? "Submission updated" : "Project submitted",
+        title:
+          result.outcome === "pending"
+            ? "Received, waiting for an organiser"
+            : result.outcome === "updated"
+              ? "Submission updated"
+              : "Project submitted",
         description: "Check your email for a confirmation.",
       });
+      return true;
     } catch (e) {
       // The draft stays saved whatever happens.
       const code = e instanceof ApiError ? e.code : undefined;
       const status = e instanceof ApiError ? e.status : 0;
-      if (code === "not_checked_in" || status === 403) {
+      if (code === "feedback_required") {
+        setError("Submit the event feedback first (at the bottom of the form).");
+        showFirstIssue("sub-feedback");
+      } else if (code === "email_in_use") {
+        setError((e as Error).message);
+      } else if (code === "not_checked_in" || status === 403) {
         setProblem("not_checked_in");
         setProblemMessage("That email isn't on the event's checked-in list yet.");
       } else if (code === "verify_to_update" || status === 401) {
@@ -407,18 +629,91 @@ export function SubmitProjectModal({
           setRetryScheduled(true);
           retryTimer.current = window.setTimeout(() => {
             setRetryScheduled(false);
-            submitRef.current();
+            submitRef.current(intent, { quiet });
           }, RETRY_AFTER_MS);
         }
       }
+      return false;
     } finally {
       setSubmitting(false);
     }
   };
+
+  // Tracked: the feedback step. Saves the draft first if there's no entry yet.
+  const submitFeedback = async () => {
+    setFeedbackAttempted(true);
+    if (!isRatingsComplete(ratings)) {
+      const missing = EXPERIENCE_RATING_CATEGORIES.find(({ id }) => ratings[id] === undefined);
+      if (missing) showFirstIssue(ratingFieldId(missing.id));
+      return;
+    }
+    if (!entry && !(await handleSubmit("draft", { quiet: true }))) return;
+    setFeedbackBusy(true);
+    try {
+      const r = await api.submitSubmissionFeedback(program.slug, { ratings, eventLiked: eventLiked.trim() || null }, sessionOpts);
+      setEntry((prev) => ({
+        role: prev?.role ?? "owner",
+        editors: prev?.editors ?? [],
+        status: prev?.status ?? "draft",
+        finalizedAt: prev?.finalizedAt ?? null,
+        ...prev,
+        feedbackSubmittedAt: r.data.feedbackSubmittedAt,
+        lastEditedAt: r.data.lastEditedAt ?? prev?.lastEditedAt ?? null,
+        lastEditedByName: r.data.lastEditedByName ?? prev?.lastEditedByName ?? null,
+        lastEditedByEmail: r.data.lastEditedByEmail ?? prev?.lastEditedByEmail ?? null,
+      }));
+      setError(null);
+      toast({ title: "Feedback submitted", description: "Thank you. You can now finalize and submit." });
+    } catch (e) {
+      toast({ title: "Couldn't submit the feedback", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+
+  // Tracked: the point person gives (or removes) a teammate's edit access. The
+  // team list is saved first, since the server checks the teammate is on it.
+  const setEditAccess = async (email: string, grant: boolean) => {
+    const e = normEmail(email);
+    setAccessErrors((prev) => ({ ...prev, [e]: "" }));
+    setAccessBusy(e);
+    try {
+      if (grant && !(await handleSubmit(isSubmitted ? "finalize" : "draft", { quiet: true }))) {
+        setAccessErrors((prev) => ({ ...prev, [e]: "Fix the fields marked in red, then try again." }));
+        return;
+      }
+      const r = grant
+        ? await api.addSubmissionEditor(program.slug, e, sessionOpts)
+        : await api.removeSubmissionEditor(program.slug, e, sessionOpts);
+      setEntry((prev) => (prev ? { ...prev, editors: r.data.editors } : prev));
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : undefined;
+      setAccessErrors((prev) => ({
+        ...prev,
+        [e]: code === "not_checked_in" ? "This email isn't checked in on Luma." : (err as Error).message,
+      }));
+    } finally {
+      setAccessBusy(null);
+    }
+  };
+
+  // Tracked: sign out to let someone else (a teammate) open the submission.
+  const switchPerson = async () => {
+    if (!USE_MOCK_DATA) await social.signOut();
+    setGateEmail("");
+    setEntry(null);
+    setEntryLoaded(false);
+    loadStarted.current = false;
+    applyDraft(null);
+    setLinkSentTo(null);
+    setDraftSaved(false);
+  };
   // ✕ is the only way out of an unfinished form; the draft (and a verified
   // email) stay on this device, so reopening picks up where they left off.
   const closeForm = (v: boolean) => {
-    if (!v && !done && mode === "new") {
+    if (!v && !done && trackedFlow && entryLoaded && draftSaved) {
+      toast({ title: "Unsaved changes kept on this device", description: "SAVE DRAFT keeps them on Stadium for your team." });
+    } else if (!v && !done && mode === "new" && !trackedFlow) {
       toast({ title: "Draft saved on this device", description: "Open SUBMIT again to continue where you left off." });
     }
     onOpenChange(v);
@@ -429,7 +724,7 @@ export function SubmitProjectModal({
   const verifyThenSubmit = async () => {
     if (await verifyEmail()) {
       setProblem(null);
-      if (mode !== "update" || problem) await submitRef.current();
+      if (mode !== "update" || problem) await submitRef.current(lastIntent);
     }
   };
 
@@ -446,12 +741,15 @@ export function SubmitProjectModal({
         >
           <DialogHeader>
             <DialogTitle className="font-display tracking-tight">
-              {mode === "update" ? "UPDATE YOUR SUBMISSION TO" : "SUBMIT A PROJECT TO"} {program.name.toUpperCase()}
+              {trackedFlow ? "YOUR TEAM'S SUBMISSION TO" : mode === "update" ? "UPDATE YOUR SUBMISSION TO" : "SUBMIT A PROJECT TO"}{" "}
+              {program.name.toUpperCase()}
             </DialogTitle>
             <DialogDescription className="text-body">
-              {mode === "update"
-                ? "Verify the email you submitted with to load your submission and change it."
-                : "Use the email you checked in with at the door. Only checked-in attendees can submit."}
+              {trackedFlow
+                ? "Save a draft as you go, give teammates edit access, then finalize and submit for judging. Only checked-in attendees can submit."
+                : mode === "update"
+                  ? "Verify the email you submitted with to load your submission and change it."
+                  : "Use the email you checked in with at the door. Only checked-in attendees can submit."}
             </DialogDescription>
           </DialogHeader>
 
@@ -469,12 +767,49 @@ export function SubmitProjectModal({
                 <>
                   <div className="label-hw text-display mb-2">{outcome === "updated" ? "·SUBMISSION UPDATED" : "·SUBMISSION RECEIVED"}</div>
                   <p className="label-hw-dim normal-case">
-                    {outcome === "updated" ? "Your changes are in." : "Your project is in."} We've emailed a confirmation to{" "}
+                    {outcome === "updated" ? "Your changes are in." : "Your project is in the judging queue."} We've emailed a confirmation to{" "}
                     {lumaEmail.trim() || "your inbox"}.{" "}
                     {profile
-                      ? 'To change it later, choose "Update my submission" on this page and verify this email.'
+                      ? 'You and teammates with edit access can keep changing it until submissions close: choose "Start / continue my submission" on this page.'
                       : "Need to change something? Reopen this form and submit again with the same email before the deadline."}
                   </p>
+                </>
+              )}
+            </div>
+          ) : trackedFlow && (!sessionEmail || !entryLoaded) ? (
+            <div className="space-y-3" data-testid="submission-gate">
+              {sessionEmail ? (
+                <p className="label-hw-dim flex items-center gap-2" role="status">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> LOADING YOUR TEAM'S SUBMISSION…
+                </p>
+              ) : (
+                <>
+                  <p className="text-body text-[13px] leading-relaxed">
+                    The point person starts the team's submission with the email they checked in with on Luma. Teammates the point
+                    person gives edit access open it with their own checked-in email.
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sub-gate-email" className="label-hw-dim">YOUR EMAIL (USED ON LUMA)</Label>
+                    <Input id="sub-gate-email" type="email" value={gateEmail} onChange={(e) => setGateEmail(e.target.value)} className="font-mono text-sm" />
+                  </div>
+                  {linkSentTo ? (
+                    <p className="label-hw text-display normal-case" data-testid="link-sent">
+                      Sign-in link sent to {linkSentTo}. Open it on this device; you'll come back here with your team's submission.
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        void verifyEmail().then((ok) => ok && setVerifyTick((n) => n + 1));
+                      }}
+                      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
+                      data-testid="gate-verify"
+                    >
+                      {USE_MOCK_DATA ? "VERIFY THIS EMAIL ▸" : "SEND ME A SIGN-IN LINK ▸"}
+                    </button>
+                  )}
+                  {error && <div className="label-hw text-destructive">·{error.toUpperCase()}</div>}
                 </>
               )}
             </div>
@@ -503,12 +838,55 @@ export function SubmitProjectModal({
             <>
               {/* Equal side padding (pulled back with -mx) so focus rings aren't clipped by the scroll edge. */}
               <div className="space-y-4 max-h-[60vh] overflow-y-auto -mx-2 px-2 py-1">
-                <p className="label-hw-dim normal-case" data-testid="required-note">Fields marked * are required.</p>
+                {trackedFlow && (
+                  <div
+                    className={
+                      "border rounded-sm p-3 space-y-1 " + (isSubmitted ? "border-led" : "border-hairline bg-panel-deep")
+                    }
+                    data-testid="submission-status"
+                    data-status={entry?.status ?? "new"}
+                  >
+                    <div className={"label-hw " + (isSubmitted ? "text-led" : "text-display")}>
+                      {isSubmitted
+                        ? "·SUBMITTED · IN THE JUDGING QUEUE · YOU CAN STILL EDIT UNTIL SUBMISSIONS CLOSE"
+                        : entry
+                          ? "·DRAFT · NOT VISIBLE TO JUDGES UNTIL YOU FINALIZE AND SUBMIT"
+                          : "·NEW · SAVE A DRAFT TO KEEP IT ON STADIUM FOR YOUR TEAM"}
+                    </div>
+                    {entry?.lastEditedAt && (
+                      <p className="label-hw-dim normal-case" data-testid="last-saved">
+                        Last saved {formatStamp(entry.lastEditedAt)}
+                        {entry.lastEditedByName ? ` by ${entry.lastEditedByName}` : ""}
+                        {entry.lastEditedByEmail ? ` (${entry.lastEditedByEmail})` : ""}.
+                      </p>
+                    )}
+                    <p className="label-hw-dim normal-case flex flex-wrap items-center gap-x-2">
+                      <span data-testid="signed-in-as">
+                        Signed in as {sessionEmail}
+                        {isEditor ? " (teammate with edit access)" : entry ? " (point person)" : ""}.
+                      </span>
+                      <button type="button" onClick={switchPerson} className="underline hover:text-display" data-testid="switch-person">
+                        NOT YOU?
+                      </button>
+                    </p>
+                    {restoredFromDevice && (
+                      <p className="label-hw text-warn normal-case flex flex-wrap items-center gap-x-2" data-testid="restored-from-device">
+                        <span>Restored your unsaved changes from this device.</span>
+                        <button type="button" onClick={startOver} className="underline hover:text-display">
+                          DISCARD
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                )}
+                <p className="label-hw-dim normal-case" data-testid="required-note">
+                  Fields marked * are required to finalize.{trackedFlow ? " A draft needs only the point person and a title." : ""}
+                </p>
                 <div className="space-y-1.5">
                   <Label htmlFor="sub-name" className={"label-hw-dim" + invalidText(bad("sub-name"))}>
                     {profile ? "POINT PERSON NAME" : "YOUR NAME"}<RequiredMark />
                   </Label>
-                  <Input id="sub-name" value={submitterName} onChange={(e) => setName(e.target.value)} aria-invalid={bad("sub-name") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-name"))} />
+                  <Input id="sub-name" value={submitterName} readOnly={isEditor} onChange={(e) => setName(e.target.value)} aria-invalid={bad("sub-name") || undefined} className={"font-mono text-sm" + invalidBorder(bad("sub-name"))} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-baseline justify-between gap-2">
@@ -528,7 +906,7 @@ export function SubmitProjectModal({
                     id="sub-email"
                     type="email"
                     value={lumaEmail}
-                    readOnly={mode === "update"}
+                    readOnly={mode === "update" || trackedFlow}
                     onChange={(e) => setEmail(e.target.value)}
                     aria-invalid={bad("sub-email") || undefined}
                     className={"font-mono text-sm" + invalidBorder(bad("sub-email"))}
@@ -573,7 +951,20 @@ export function SubmitProjectModal({
                 </div>
 
                 {profile && (
-                  <TrackedSubmissionFields profile={profile} value={tracked} onChange={setTracked} invalid={invalid} />
+                  <TrackedSubmissionFields
+                    profile={profile}
+                    value={tracked}
+                    onChange={setTracked}
+                    invalid={invalid}
+                    editAccess={{
+                      canManage: !isEditor,
+                      editors: entry?.editors ?? [],
+                      busy: accessBusy,
+                      errors: accessErrors,
+                      onChange: setEditAccess,
+                      ownerEmail: lumaEmail,
+                    }}
+                  />
                 )}
 
                 {feedbackConfig && (
@@ -657,8 +1048,8 @@ export function SubmitProjectModal({
                   </div>
                 )}
 
-                <div className="space-y-3 border-t border-hairline-subtle pt-4">
-                  <div className="label-hw text-display">·RATE THE EVENT</div>
+                <div id="sub-feedback" tabIndex={-1} className="space-y-3 border-t border-hairline-subtle pt-4" data-testid="feedback-step">
+                  <div className="label-hw text-display">{trackedFlow ? "·EVENT FEEDBACK (REQUIRED BEFORE YOU FINALIZE)" : "·RATE THE EVENT"}</div>
                   <p className="label-hw-dim normal-case">1 is poor, 5 is excellent. Only the organisers see this.</p>
                   {EXPERIENCE_RATING_CATEGORIES.map(({ id, label }) => (
                     <ExperienceRatingField
@@ -686,6 +1077,25 @@ export function SubmitProjectModal({
                       className="font-mono text-sm"
                     />
                   </div>
+                  {trackedFlow && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={submitFeedback}
+                        disabled={feedbackBusy || submitting}
+                        className={feedbackDone ? "font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5" : "font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"}
+                        data-testid="submit-feedback"
+                      >
+                        {feedbackBusy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : null}
+                        {feedbackDone ? "UPDATE FEEDBACK" : "SUBMIT FEEDBACK"}
+                      </button>
+                      {feedbackDone && (
+                        <span className="label-hw text-led" data-testid="feedback-done">
+                          ✓ FEEDBACK SUBMITTED
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {terms && (
@@ -765,7 +1175,7 @@ export function SubmitProjectModal({
                           onClick={() => {
                             window.clearTimeout(retryTimer.current);
                             setRetryScheduled(false);
-                            handleSubmit();
+                            void handleSubmit(lastIntent);
                           }}
                           disabled={submitting}
                           className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-3 py-1.5"
@@ -779,9 +1189,9 @@ export function SubmitProjectModal({
               )}
               {draftSaved && (
                 <p className="label-hw-dim flex items-center justify-between gap-2" data-testid="draft-saved">
-                  <span>DRAFT SAVED ON THIS DEVICE</span>
+                  <span>{trackedFlow ? "UNSAVED CHANGES KEPT ON THIS DEVICE" : "DRAFT SAVED ON THIS DEVICE"}</span>
                   <button type="button" onClick={startOver} className="underline hover:text-display">
-                    START OVER
+                    {trackedFlow ? "DISCARD" : "START OVER"}
                   </button>
                 </p>
               )}
@@ -796,10 +1206,55 @@ export function SubmitProjectModal({
                   {!error && issues.length > 1 ? ` (+${issues.length - 1} MORE MARKED IN RED)` : ""}
                 </div>
               )}
-              <DialogFooter>
+              <DialogFooter className="gap-2">
+                {trackedFlow ? (
+                  <>
+                    {!isSubmitted && (
+                      <button
+                        type="button"
+                        onClick={() => void handleSubmit("draft")}
+                        disabled={submitting}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                        data-testid="save-draft"
+                      >
+                        SAVE DRAFT
+                      </button>
+                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void handleSubmit("finalize")}
+                        disabled={submitting || !feedbackDone}
+                        title={feedbackDone ? undefined : "Submit the event feedback first"}
+                        className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
+                        data-testid="finalize-submit"
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> SAVING…
+                          </>
+                        ) : isSubmitted ? (
+                          "SAVE CHANGES ▸"
+                        ) : (
+                          "FINALIZE AND SUBMIT ▸"
+                        )}
+                      </button>
+                      {!feedbackDone && (
+                        <button
+                          type="button"
+                          onClick={() => showFirstIssue("sub-feedback")}
+                          className="label-hw-dim normal-case underline hover:text-display"
+                          data-testid="finalize-hint"
+                        >
+                          Submit the event feedback first
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
                 <button
                   type="button"
-                  onClick={handleSubmit}
+                  onClick={() => void handleSubmit()}
                   disabled={submitting}
                   className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-1.5 inline-flex items-center gap-1.5"
                 >
@@ -813,6 +1268,7 @@ export function SubmitProjectModal({
                     "SUBMIT PROJECT ▸"
                   )}
                 </button>
+                )}
               </DialogFooter>
             </>
           )}

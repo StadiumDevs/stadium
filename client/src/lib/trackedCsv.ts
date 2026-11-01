@@ -56,6 +56,9 @@ export function buildSubmissionsCsv(
     "ecosystemPrize",
     "anonymous",
     "late",
+    "finalizedAt",
+    "lastEditedAt",
+    "lastEditedBy",
   ];
   const trackCols: { track: JudgedTrack; judges: string[]; criteria: string[] }[] = [];
   for (const t of profile.tracks) {
@@ -99,6 +102,9 @@ export function buildSubmissionsCsv(
       s.ecosystemPrize ? "yes" : "no",
       d.anonymous ? "yes" : "no",
       s.late ? "yes" : "no",
+      s.finalizedAt ?? s.createdAt,
+      s.lastEditedAt ?? s.updatedAt ?? "",
+      [s.lastEditedByName, s.lastEditedByEmail].filter(Boolean).join(" / "),
     ];
     for (const tc of trackCols) {
       const r = boards[tc.track]?.rows.find((x) => x.submissionId === s.id);

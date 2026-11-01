@@ -34,6 +34,12 @@ import { DemoVideo } from "./DemoVideo";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
+/** When a project was last saved (point person or teammate), in IST like the schedule. */
+const formatEditedAt = (iso: string | null | undefined) =>
+  iso
+    ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST"
+    : "";
+
 // A change not yet confirmed by the server. Kept on this device until it is,
 // so a refresh or a dropped connection never loses a judge's work.
 type Draft = { criteria: Record<string, number | null>; notes: string; revisit?: boolean; checks?: ApiRubricScore["checks"] };
@@ -124,6 +130,8 @@ export function RubricJudgingSection({
 }) {
   const { toast } = useToast();
   const isJudge = !!judgeEmail;
+  // Organisers: entries still drafts (not in any queue until the team finalizes).
+  const [draftCount, setDraftCount] = useState<number | null>(null);
   const [tab, setTab] = useState<"score" | "leaderboard">(isJudge ? "score" : "leaderboard");
   const [judges, setJudges] = useState<ProgramJudge[]>([]);
   // Scores are saved under the batch being judged now (evening until 20:00 on
@@ -160,6 +168,7 @@ export function RubricJudgingSection({
     setJudges(j.data.map((x) => ({ ...x, tracks: x.tracks ?? profile.tracks.map((t) => t.id) })));
     setSubmissions(list.data.submissions);
     setPublishedAt(list.data.resultsPublishedAt);
+    setDraftCount(list.data.draftCount ?? null);
   }, [getAuth, programSlug, profile]);
 
   useEffect(() => {
@@ -503,6 +512,11 @@ export function RubricJudgingSection({
         </div>
       </div>
 
+      {!isJudge && draftCount !== null && draftCount > 0 && (
+        <p className="label-hw-dim" data-testid="draft-count">
+          {draftCount} DRAFT{draftCount === 1 ? "" : "S"} NOT YET SUBMITTED (NOT IN ANY JUDGE'S QUEUE)
+        </p>
+      )}
       <JudgingProgressTable
         profile={profile}
         programSlug={programSlug}
@@ -658,6 +672,13 @@ export function RubricJudgingSection({
                     </span>
                   </header>
                   <div className="p-3 space-y-4">
+                    {(s.lastEditedAt || s.updatedAt) && (
+                      <p className="label-hw-dim" data-testid="last-edited">
+                        LAST EDITED {formatEditedAt(s.lastEditedAt ?? s.updatedAt)}
+                        {s.lastEditedByName ? ` · ${s.lastEditedByName.toUpperCase()}` : ""}
+                        {s.lastEditedByEmail ? <span className="normal-case"> ({s.lastEditedByEmail})</span> : null}
+                      </p>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[13px] text-body">
                       <div className="space-y-1">
                         <p>{s.details.pitch}</p>
