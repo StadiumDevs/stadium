@@ -45,6 +45,7 @@ describe('lumaSyncService.syncProgram', () => {
     luma.isConfigured.mockReturnValue(false);
     const r = await service.syncProgram(PROGRAM);
     expect(r.status).toBe('not_configured');
+    expect(r.approved).toBe(0);
     expect(luma.fetchEligibleGuests).not.toHaveBeenCalled();
   });
 
@@ -52,12 +53,13 @@ describe('lumaSyncService.syncProgram', () => {
     luma.fetchEligibleGuests.mockResolvedValue({
       total: 3,
       eligible: [G('a@x.io'), G('b@x.io')],
+      approved: 3,
       truncated: false,
     });
     signupRepo.replaceLumaGuests.mockResolvedValue({ upserted: 2, removed: 0 });
 
     const r = await service.syncProgram(PROGRAM);
-    expect(r).toMatchObject({ status: 'ok', checkedIn: 2, upserted: 2 });
+    expect(r).toMatchObject({ status: 'ok', checkedIn: 2, approved: 3, upserted: 2 });
     expect(signupRepo.replaceLumaGuests).toHaveBeenCalledWith('prog-1', [G('a@x.io'), G('b@x.io')]);
     expect(programRepo.setGuestSyncState).toHaveBeenCalledWith(
       'prog-1',
@@ -88,9 +90,10 @@ describe('lumaSyncService.syncProgram', () => {
   });
 
   it('truncated: never overwrites on a partial sweep', async () => {
-    luma.fetchEligibleGuests.mockResolvedValue({ total: 9999, eligible: [G('a@x.io')], truncated: true });
+    luma.fetchEligibleGuests.mockResolvedValue({ total: 9999, eligible: [G('a@x.io')], approved: 40, truncated: true });
     const r = await service.syncProgram(PROGRAM);
     expect(r.status).toBe('truncated');
+    expect(r.approved).toBe(40); // display count is still reported
     expect(signupRepo.replaceLumaGuests).not.toHaveBeenCalled();
   });
 
@@ -98,6 +101,7 @@ describe('lumaSyncService.syncProgram', () => {
     luma.fetchEligibleGuests.mockRejectedValue(new Error('Luma 429'));
     const r = await service.syncProgram(PROGRAM);
     expect(r.status).toMatch(/^error:/);
+    expect(r.approved).toBe(0);
     expect(programRepo.setGuestSyncState).toHaveBeenCalledWith(
       'prog-1',
       expect.objectContaining({ status: expect.stringMatching(/^error:/) }),
