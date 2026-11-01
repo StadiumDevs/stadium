@@ -62,7 +62,7 @@ Judges score overnight from the repo and video only. Every item is required; bui
 - [ ] The invoice ID of at least one real purchase the project made. Record it the moment the first purchase is delivered.
 - [ ] Guardrails: the most the agent can spend in this setup, and who approves above that.
 - [ ] FEEDBACK.md: what broke, confused or slowed the builder down. Keep raw notes as you go; the builder writes the final version (the $100 prize favours the human's own words).
-- [ ] Entering the Zcash track too: which parts are for which track, plus everything the [Privacy track]({{ORIGIN}}/programs/free-society-hack-2026/llms-zcash.txt) requires (testnet txid, privacy and trust note).
+- [ ] Entering the Zcash track too: which parts are for which track, plus everything the [Privacy track]({{ORIGIN}}/programs/free-society-hack-2026/privacy/llms.txt) requires (testnet txid, privacy and trust note).
 
 README skeleton:
 
@@ -101,6 +101,7 @@ Tie-break: higher innovation score. Prizes: $1,000 · $800 · $600 in Bitrefill 
 ## Optional
 
 - Help: Bitrefill mentors on site hand out credits; mentors chat https://t.me/+QHbTGB6jFhllMDk6.
-- [Privacy track (Zcash)]({{ORIGIN}}/programs/free-society-hack-2026/llms-zcash.txt): the other track's brief. One project can enter both tracks: pick **Both tracks** on the form and meet both sets of requirements in one submission.
+- [Privacy track (Zcash)]({{ORIGIN}}/programs/free-society-hack-2026/privacy/llms.txt): the other track's brief. One project can enter both tracks: pick **Both tracks** on the form and meet both sets of requirements in one submission.
 - [Program page]({{ORIGIN}}/programs/free-society-hack-2026): schedule, live page and the submit form
+- [Event index]({{ORIGIN}}/programs/free-society-hack-2026/llms.txt): both tracks, key times, the start prompts
 - [Stadium]({{ORIGIN}}/llms.txt): other programs

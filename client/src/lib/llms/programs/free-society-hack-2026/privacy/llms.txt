@@ -124,7 +124,8 @@ Prizes: $1,300 · 2 × $300 · 2 × $200 in USDC, plus the Ecosystem Prize (a 30
 
 ## Optional
 
-- [Agentic Commerce track (Bitrefill)]({{ORIGIN}}/programs/free-society-hack-2026/llms-bitrefill.txt): the other track's brief. One project can enter both tracks: pick **Both tracks** on the form and meet both sets of requirements in one submission.
+- [Agentic Commerce track (Bitrefill)]({{ORIGIN}}/programs/free-society-hack-2026/agentic-commerce/llms.txt): the other track's brief. One project can enter both tracks: pick **Both tracks** on the form and meet both sets of requirements in one submission.
 - [Program page]({{ORIGIN}}/programs/free-society-hack-2026): schedule, live page and the submit form
+- [Event index]({{ORIGIN}}/programs/free-society-hack-2026/llms.txt): both tracks, key times, the start prompts
 - [Stadium]({{ORIGIN}}/llms.txt): other programs
 - Help: mentors at the venue; mentors chat https://t.me/+QHbTGB6jFhllMDk6; `#zechub` on the [Zcash Discord](https://discord.gg/zcash).

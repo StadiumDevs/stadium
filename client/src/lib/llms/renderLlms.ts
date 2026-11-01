@@ -1,19 +1,14 @@
 /**
- * Builds the llms.txt files (https://llmstxt.org) for programs with a profile,
- * so an AI assistant can help a builder pick a valid idea, check a submission
- * against the requirements and choose tools. Generated at build time by the
- * plugin in vite.config.ts from the same sources the site uses: the program's
- * page content, its profile (tracks, themes, rubric) and the developer
- * resources. The per-track briefs (llms-zcash.txt, llms-bitrefill.txt) are
- * hand-written files in ./programs/<slug>/; the Vite plugin reads them and
- * passes them in, and this file only fills in the site origin.
+ * The llms.txt files (https://llmstxt.org) for AI coding agents. Each program's
+ * index and per-track briefs are hand-written in ./programs/<slug>/ (paths in
+ * llmsPrograms.ts); the plugin in vite.config.ts reads them and passes them in.
+ * This file fills in the site origin ({{ORIGIN}}) and builds the site-wide
+ * /llms.txt that lists every program and its briefs.
  *
  * Pure functions, relative imports only (bundled by the Vite config loader).
  */
 import { FREE_SOCIETY_HACK_BUILDER_PACK_URL } from "../freeSocietyHackContent";
-import { getProgramProfile } from "../programProfiles";
-import { BITREFILL, mdLink, ZCASH } from "./devResources";
-import { llmsPath, llmsTrackFiles, llmsTrackPath, llmsTrackSource } from "./llmsPrograms";
+import { llmsPath, llmsSources, llmsTrackFiles, llmsTrackPath } from "./llmsPrograms";
 
 export type LlmsProgram = {
   slug: string;
@@ -42,42 +37,6 @@ export const LLMS_PROGRAMS: LlmsProgram[] = [
   },
 ];
 
-export { llmsPath, llmsTrackPath };
-
-/** The short index file (llmstxt.org format). */
-export function renderLlmsTxt(p: LlmsProgram, origin: string): string {
-  const page = `${origin}/programs/${p.slug}`;
-  const tracks = llmsTrackFiles(p.slug);
-  return [
-    `# ${p.name}`,
-    "",
-    `> ${p.summary} When: ${p.when}. Where: ${p.where}. Submissions close ${p.deadline}.`,
-    "",
-    "Use these files to help a builder: propose ideas that fit the track and its rules, check a submission against exactly what the track requires and how it is judged, and pick the right tools. Read the brief for the builder's track; for a project entering both tracks, read both. Don't invent requirements that are not listed there.",
-    "",
-    "## Docs",
-    "",
-    ...tracks.map((t) => `- [${t.label}](${origin}${llmsTrackPath(p.slug, t.id)}): ${t.about}`),
-    `- [Program page](${page}): the live page, schedule, and the submit form`,
-    `- [Builder Pack](${p.builderPackUrl}): the organisers' full guide`,
-    ...(getProgramProfile(p.slug)?.tracks.map((t) => t.rubric.guideUrl).filter(Boolean).map((u) => `- [Privacy judging guide](${u}): how judges score Privacy projects`) ?? []),
-    `- [Register on Luma](${p.lumaUrl}): only checked-in builders can submit, with their Luma email`,
-    "",
-    "## Developer resources",
-    "",
-    `- ${mdLink(ZCASH.local.tool, false)}: a local Zcash network with NU7 and its own faucet`,
-    `- ${mdLink(ZCASH.learn[0], false)}: the curated map of Zcash docs, SDKs and nodes`,
-    "- [ZIP 321 payment URIs](https://zips.z.cash/zip-0321), [ZIP 316 unified addresses](https://zips.z.cash/zip-0316), [ZIP 317 fees](https://zips.z.cash/zip-0317)",
-    `- ${mdLink(BITREFILL.surfaces[1].surface, false)}: Bitrefill's MCP server for agents`,
-    `- ${mdLink(BITREFILL.docsIndex, false)}: Bitrefill's own docs index`,
-    "",
-    "## Optional",
-    "",
-    `- [Stadium](${origin}/llms.txt): other programs`,
-    "",
-  ].join("\n");
-}
-
 /** The site-wide index at /llms.txt. */
 export function renderRootLlmsTxt(origin: string): string {
   return [
@@ -85,7 +44,7 @@ export function renderRootLlmsTxt(origin: string): string {
     "",
     "> Stadium is the web app for WebZero's hackathons and incubator programs: program pages, project submissions, live judging and results.",
     "",
-    "Programs with a builder brief for AI assistants (tracks, rules, what to submit, judging, developer resources):",
+    "Programs with briefs for AI coding agents. Load the program index, then only the track brief you need: each one is self-contained.",
     "",
     "## Programs",
     "",
@@ -97,29 +56,24 @@ export function renderRootLlmsTxt(origin: string): string {
   ].join("\n");
 }
 
-/**
- * The hand-written track briefs this build needs, as source paths relative to
- * client/src/lib/llms. The Vite plugin reads them and passes them back in.
- */
-export const llmsTrackSources = (): string[] =>
-  LLMS_PROGRAMS.flatMap((p) => llmsTrackFiles(p.slug).map((t) => llmsTrackSource(p.slug, t.id)));
+/** Every hand-written source this build needs, relative to client/src/lib/llms. */
+export const llmsTrackSources = (): string[] => LLMS_PROGRAMS.flatMap((p) => llmsSources(p.slug).map((x) => x.source));
 
-/** A track brief with its {{ORIGIN}} placeholders filled in. */
+/** A hand-written file with its {{ORIGIN}} placeholders filled in. */
 export const renderTrackBrief = (source: string, origin: string) => source.split("{{ORIGIN}}").join(origin);
 
 /**
- * Every published file: path → contents. `sources` maps a track brief's source
- * path (from llmsTrackSources) to its text; a missing brief fails loudly so a
- * build never ships a dead link.
+ * Every published file: path → contents. `sources` maps a source path (from
+ * llmsTrackSources) to its text; a missing file fails loudly so a build never
+ * ships a dead link.
  */
 export function llmsFiles(origin: string, sources: Record<string, string>): Record<string, string> {
   const files: Record<string, string> = { "llms.txt": renderRootLlmsTxt(origin) };
   for (const p of LLMS_PROGRAMS) {
-    files[llmsPath(p.slug).slice(1)] = renderLlmsTxt(p, origin);
-    for (const t of llmsTrackFiles(p.slug)) {
-      const src = sources[llmsTrackSource(p.slug, t.id)];
-      if (src == null) throw new Error(`llms: missing track brief ${llmsTrackSource(p.slug, t.id)}`);
-      files[llmsTrackPath(p.slug, t.id).slice(1)] = renderTrackBrief(src, origin);
+    for (const { source, path } of llmsSources(p.slug)) {
+      const text = sources[source];
+      if (text == null) throw new Error(`llms: missing ${source}`);
+      files[path.slice(1)] = renderTrackBrief(text, origin);
     }
   }
   return files;
