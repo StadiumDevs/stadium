@@ -514,6 +514,8 @@ export type ApiProgram = {
 export type ProgramGuestSyncResult = {
   syncStatus: string;
   checkedInCount: number;
+  /** Guests Luma lists as approved (absent on servers older than this field). */
+  approvedCount?: number;
   syncedAt: string;
   upserted: number;
   removed: number;
@@ -1789,6 +1791,7 @@ export const api = {
         data: {
           syncStatus: "ok",
           checkedInCount: 0,
+          approvedCount: 0,
           syncedAt: new Date().toISOString(),
           upserted: 0,
           removed: 0,

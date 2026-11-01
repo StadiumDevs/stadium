@@ -849,7 +849,13 @@ class ProgramController {
       const checkedInCount = await programSignupRepository.countBySource(program.id, 'luma_api');
       res.status(200).json({
         status: 'success',
-        data: { ...result, syncStatus: result.status, checkedInCount, syncedAt: new Date().toISOString() },
+        data: {
+          ...result,
+          syncStatus: result.status,
+          checkedInCount,
+          approvedCount: result.approved ?? 0,
+          syncedAt: new Date().toISOString(),
+        },
       });
       auditLog.logSafe({
         programId: program.id,

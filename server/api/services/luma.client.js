@@ -120,12 +120,14 @@ function isEligible(guest, mode) {
   return mode === 'approved' && guest.approvalStatus === 'approved';
 }
 
-// The gate-eligible subset plus totals, for the sync service.
+// The gate-eligible subset plus totals (all guests, approved registrants), for
+// the sync service.
 export async function fetchEligibleGuests(eventId, mode = 'checked_in') {
   const { guests, pages, truncated } = await fetchAllGuests(eventId);
   return {
     total: guests.length,
     eligible: guests.filter((g) => isEligible(g, mode)),
+    approved: guests.filter((g) => g.approvalStatus === 'approved').length,
     pages,
     truncated,
   };
