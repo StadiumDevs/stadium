@@ -44,6 +44,7 @@ export type ProgramTrack = {
 };
 
 /** A judge's profile. `email` is null for other judges (the server shows a judge only their own). */
+/** A judge and the tracks they may score (normalised: never null on the client). */
 export type ProgramJudge = { email: string | null; name: string; tracks: JudgedTrack[] };
 
 /** The judging batch a submission belongs to, from its first submission time. */
@@ -275,6 +276,17 @@ export const trackById = (profile: ProgramProfile, id: JudgedTrack) =>
 /** The judged tracks a submission takes part in. */
 export const judgedTracksOf = (track: SubmissionTrack): JudgedTrack[] =>
   track === "both" ? ["privacy", "agentic"] : [track];
+
+/**
+ * Which track-specific fields to show. With `view` (a judge scoring one track,
+ * or a track's leaderboard), only that track's fields; otherwise every field
+ * the entry's track has ("both" = privacy and agentic).
+ */
+export const trackFieldsFor = (entry: SubmissionTrack | null | undefined, view?: JudgedTrack | null) => {
+  const entered = entry ? judgedTracksOf(entry) : [];
+  const show = (t: JudgedTrack) => entered.includes(t) && (!view || view === t);
+  return { privacy: show("privacy"), agentic: show("agentic") };
+};
 
 export const tiersForTrack = (tiers: ApiPrizeTier[] | null | undefined, track: ProgramTrack) =>
   (tiers ?? []).filter((t) => t.label.startsWith(track.prizePrefix));

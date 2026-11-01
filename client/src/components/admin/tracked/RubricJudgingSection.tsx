@@ -17,6 +17,7 @@ import {
   rubricDraftKey,
   tiersForTrack,
   trackById,
+  trackFieldsFor,
   trackLabel,
   weightedTotal,
   type ProgramJudge,
@@ -155,10 +156,11 @@ export function RubricJudgingSection({
   const loadAll = useCallback(async () => {
     const auth = await getAuth();
     const [j, list] = await Promise.all([api.listTrackJudges(programSlug, auth), api.listTrackedSubmissions(programSlug, auth)]);
-    setJudges(j.data);
+    // A judge invited with no track limit comes back as tracks: null = every track.
+    setJudges(j.data.map((x) => ({ ...x, tracks: x.tracks ?? profile.tracks.map((t) => t.id) })));
     setSubmissions(list.data.submissions);
     setPublishedAt(list.data.resultsPublishedAt);
-  }, [getAuth, programSlug]);
+  }, [getAuth, programSlug, profile]);
 
   useEffect(() => {
     loadAll()
@@ -199,6 +201,7 @@ export function RubricJudgingSection({
     if (!judge) return [];
     const items: { s: ApiTrackedSubmission; track: JudgedTrack }[] = [];
     for (const s of submissions) {
+      if (!s.details?.track) continue;
       for (const t of judgedTracksOf(s.details.track)) if (judge.tracks.includes(t)) items.push({ s, track: t });
     }
     // Batches in order (evening first), keeping submission order within each.
@@ -520,7 +523,12 @@ export function RubricJudgingSection({
           <div className="flex flex-wrap items-center gap-2" data-testid="scoring-as">
             <span className="label-hw-dim">SCORING AS</span>
             <span className="font-mono text-[12px] text-display">{judge.name}</span>
-            <span className="label-hw-dim">· {judge.tracks.map((t) => trackById(profile, t).label).join(" and ")} only</span>
+            <span className="label-hw-dim">
+              ·{" "}
+              {judge.tracks.length >= profile.tracks.length
+                ? "all tracks"
+                : `${judge.tracks.map((t) => trackById(profile, t).label).join(" and ")} only`}
+            </span>
           </div>
 
           <ScoringNav
@@ -593,6 +601,9 @@ export function RubricJudgingSection({
               const complete = isFullyScored(rubric, d.criteria);
               const started = Object.values(d.criteria).some((v) => typeof v === "number") || !!d.notes;
               const total = weightedTotal(rubric, d.criteria);
+              // Only the fields for the track being scored; a Both entry shows a hint.
+              const show = trackFieldsFor(s.details.track, track);
+              const otherTracks = judgedTracksOf(s.details.track).filter((t) => t !== track);
               const prev = queue[(currentIdx - 1 + queue.length) % queue.length];
               const next = queue[(currentIdx + 1) % queue.length];
               return (
@@ -603,6 +614,11 @@ export function RubricJudgingSection({
                     </span>
                     <span className="font-display text-lg uppercase tracking-tight text-display flex-1 min-w-[160px]">{s.projectTitle}</span>
                     <span className="label-hw-dim">{trackById(profile, track).shortLabel}</span>
+                    {otherTracks.length > 0 && (
+                      <span className="label-hw-dim border border-hairline rounded-sm px-1.5 py-0.5" data-testid="card-also-entered">
+                        ALSO ENTERED IN {otherTracks.map((t) => trackById(profile, t).shortLabel).join(", ")}
+                      </span>
+                    )}
                     {batchLabel(s.batch) && (
                       <span className="label-hw-dim border border-hairline rounded-sm px-1.5 py-0.5" data-testid="card-batch">
                         {batchLabel(s.batch)}
@@ -650,13 +666,16 @@ export function RubricJudgingSection({
                           {trackLabel(profile, s.details.track)} · {s.details.appType} · POINT PERSON{" "}
                           {s.details.anonymous ? "ANONYMOUS" : s.submitterName.toUpperCase()}
                         </p>
+                        {show.privacy && s.details.themes?.length > 0 && (
+                          <p className="label-hw-dim" data-testid="judge-themes">THEMES · {s.details.themes.join(" · ")}</p>
+                        )}
                       </div>
                       <div className="space-y-1 break-all">
                         {s.details.publicUrl && <a className="block underline" href={s.details.publicUrl} target="_blank" rel="noopener noreferrer">{s.details.publicUrl}</a>}
                         <a className="block underline" href={s.videoUrl} target="_blank" rel="noopener noreferrer">{s.videoUrl}</a>
                         <a className="block underline" href={s.githubUrl} target="_blank" rel="noopener noreferrer">{s.githubUrl}</a>
-                        {s.details.testnetTxid && (
-                          <div className="flex flex-wrap items-center gap-2">
+                        {show.privacy && s.details.testnetTxid && (
+                          <div className="flex flex-wrap items-center gap-2" data-testid="judge-txid">
                             <TxidLink txid={s.details.testnetTxid} explorerUrl={profile.txExplorerUrl} />
                             <button type="button" onClick={() => recheck(s.id)} disabled={busy === `tx:${s.id}`} className={`${btnGhost} inline-flex items-center gap-1`}>
                               <RotateCw className="h-3 w-3" aria-hidden="true" /> RE-CHECK
@@ -666,7 +685,7 @@ export function RubricJudgingSection({
                         <p className="normal-case text-label-mid">Next milestone: {s.details.nextStep}</p>
                       </div>
                     </div>
-                    {track === "agentic" && s.details.bitrefillFeedback && (
+                    {show.agentic && s.details.bitrefillFeedback && (
                       <div className="text-[12px] space-y-0.5" data-testid="judge-bitrefill-feedback">
                         <div className="label-hw-dim">BITREFILL FEEDBACK (BEST-FEEDBACK PRIZE, NOT SCORED HERE)</div>
                         <p className="text-body"><span className="text-label-mid">Worked: </span>{s.details.bitrefillFeedback.worked}</p>
@@ -880,6 +899,7 @@ export function RubricJudgingSection({
         submission={detailsSubmission}
         onOpenChange={(open) => !open && setDetailsId(null)}
         showPageLink={!!publishedAt}
+        track={boardTrack}
       />
     </section>
   );

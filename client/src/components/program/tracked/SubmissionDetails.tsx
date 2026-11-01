@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { ApiPublicSubmission } from "@/lib/api";
-import { trackLabel, type ProgramProfile } from "@/lib/programProfiles";
+import { trackFieldsFor, trackLabel, type JudgedTrack, type ProgramProfile } from "@/lib/programProfiles";
 import { TxCheckBadge, TxidLink } from "./TxCheckBadge";
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
@@ -26,15 +26,27 @@ const Chips = ({ items }: { items: string[] }) => (
   </div>
 );
 
-/** Everything a builder submitted (public projection: no emails). */
-export function SubmissionDetails({ profile, submission: s }: { profile: ProgramProfile; submission: ApiPublicSubmission }) {
+/**
+ * Everything a builder submitted (public projection: no emails). With `track`
+ * (opened from one track's leaderboard), only that track's fields show.
+ */
+export function SubmissionDetails({
+  profile,
+  submission: s,
+  track,
+}: {
+  profile: ProgramProfile;
+  submission: ApiPublicSubmission;
+  track?: JudgedTrack | null;
+}) {
   const d = s.details;
+  const show = trackFieldsFor(d.track, track);
   return (
     <dl>
       <Row label="ONE-LINE PITCH">{d.pitch}</Row>
       <Row label="DESCRIPTION">{s.projectBrief}</Row>
       <Row label="TRACK">{trackLabel(profile, d.track)}</Row>
-      {d.themes.length > 0 && (
+      {show.privacy && d.themes.length > 0 && (
         <Row label="THEMES">
           <Chips items={d.themes} />
         </Row>
@@ -72,7 +84,7 @@ export function SubmissionDetails({ profile, submission: s }: { profile: Program
       <Row label="TECHNOLOGIES">
         <Chips items={d.technologies} />
       </Row>
-      {d.track !== "agentic" && (
+      {show.privacy && (
         <Row label="TESTNET TX">
           <div className="space-y-1.5">
             <TxCheckBadge check={d.txCheck} />
@@ -87,7 +99,7 @@ export function SubmissionDetails({ profile, submission: s }: { profile: Program
           </div>
         </Row>
       )}
-      {d.track !== "agentic" && (
+      {show.privacy && (
         <Row label="PRIVACY AND TRUST NOTE">
           {d.privacyNote ? <p className="whitespace-pre-line">{d.privacyNote}</p> : <span className="text-label-mid">None given</span>}
         </Row>
@@ -109,7 +121,7 @@ export function SubmissionDetails({ profile, submission: s }: { profile: Program
           <span className="text-label-mid">None given</span>
         )}
       </Row>
-      {d.bitrefillFeedback && (
+      {show.agentic && d.bitrefillFeedback && (
         <Row label="BITREFILL FEEDBACK">
           <p><span className="text-label-mid">Worked: </span>{d.bitrefillFeedback.worked}</p>
           <p><span className="text-label-mid">Didn't: </span>{d.bitrefillFeedback.didnt}</p>

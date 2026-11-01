@@ -27,6 +27,7 @@ import prizeAwardService from '../services/prize-award.service.js';
 import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
 import { checkAndStore as checkTxAndStore } from '../services/tx-check.service.js';
+import { judgedTracksOf } from '../services/rubric-leaderboard.service.js';
 
 // On a Luma-gated cache-miss we lazily re-sync, but only if the last sync is
 // older than this floor. Bounds Luma calls when not-on-list emails retry, while
@@ -674,6 +675,14 @@ class SubmissionController {
       const submission = await programSubmissionRepository.findById(submissionId);
       if (!submission || submission.programId !== programId) {
         return res.status(404).json({ status: 'error', message: 'Submission not found' });
+      }
+      // Drafts aren't in any queue until the team finalizes them.
+      if (submission.status === 'draft') {
+        return res.status(409).json({ status: 'error', code: 'not_submitted', message: 'This project is still a draft.' });
+      }
+      // A score only counts for a track the project entered ("both" = each).
+      if (!judgedTracksOf(submission.track ?? submission.details?.track).includes(track)) {
+        return res.status(400).json({ status: 'error', code: 'track_not_entered', message: `This project didn't enter the ${track} track.` });
       }
       const v = validateRubricScore(track, req.body);
       if (!v.ok) {

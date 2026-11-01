@@ -60,9 +60,45 @@ export function TrackedSubmissionFields({
         </RadioGroup>
       </fieldset>
 
+      {f.track && (
+        <div className="border border-hairline-subtle bg-panel-deep p-3 space-y-2" data-testid="track-requirements">
+          <div className="label-hw-dim">WHAT {f.track === "both" ? "BOTH TRACKS NEED" : "THIS TRACK NEEDS"}</div>
+          <div className={f.track === "both" ? "grid grid-cols-1 sm:grid-cols-2 gap-3" : ""}>
+            {privacy && (
+              <div data-testid="track-requirements-privacy">
+                <div className="label-hw text-display text-[10px]">PRIVACY TRACK</div>
+                <ul className="list-disc pl-5 text-body text-[12px] leading-relaxed">
+                  <li>Themes</li>
+                  <li>One shielded testnet transaction ID</li>
+                  <li>Privacy and trust note</li>
+                  <li>Public URL if it's an app</li>
+                  <li>Demo video (optional, strongly preferred)</li>
+                </ul>
+              </div>
+            )}
+            {agentic && (
+              <div data-testid="track-requirements-agentic">
+                <div className="label-hw text-display text-[10px]">AGENTIC COMMERCE TRACK</div>
+                <ul className="list-disc pl-5 text-body text-[12px] leading-relaxed">
+                  <li>Demo video or a live link showing the agent make a purchase (required)</li>
+                  <li>Bitrefill feedback: what worked, what didn't</li>
+                  <li>Repo README with the demo URL</li>
+                </ul>
+              </div>
+            )}
+          </div>
+          {f.track === "both" && (
+            <p className="label-hw-dim normal-case">
+              One submission covers both tracks. Each track's judges see their own track's fields and score them with their own rubric.
+              The demo video is required because Agentic Commerce needs it.
+            </p>
+          )}
+        </div>
+      )}
+
       {privacy && (
         <fieldset id="trk-themes" tabIndex={-1} className="space-y-2" aria-invalid={bad("trk-themes") || undefined}>
-          <legend className={"label-hw-dim" + invalidText(bad("trk-themes"))}>THEMES (PRIVACY)<RequiredMark /></legend>
+          <legend className={"label-hw-dim" + invalidText(bad("trk-themes"))}>THEMES (PRIVACY TRACK)<RequiredMark /></legend>
           {profile.themes.map((t) => (
             <div key={t} className="flex items-center gap-2">
               <Checkbox id={`thm-${t}`} checked={f.themes.includes(t)} onCheckedChange={() => set("themes", toggle(f.themes, t))} />
@@ -132,7 +168,7 @@ export function TrackedSubmissionFields({
 
       {privacy && (
         <div className="space-y-1.5">
-          <Label htmlFor="trk-txid" className={"label-hw-dim" + invalidText(bad("trk-txid"))}>TESTNET TRANSACTION ID<RequiredMark show={needsTxid(profile, f.track)} /></Label>
+          <Label htmlFor="trk-txid" className={"label-hw-dim" + invalidText(bad("trk-txid"))}>TESTNET TRANSACTION ID (PRIVACY TRACK)<RequiredMark show={needsTxid(profile, f.track)} /></Label>
           <Input id="trk-txid" placeholder="One shielded testnet txid your project created" value={f.testnetTxid} onChange={(e) => set("testnetTxid", e.target.value)} aria-invalid={bad("trk-txid") || undefined} className={"font-mono text-sm" + invalidBorder(bad("trk-txid"))} />
           <p className="label-hw-dim normal-case">
             Stadium checks it exists and is shielded. A failed check never blocks your submission; amounts and memos stay private.

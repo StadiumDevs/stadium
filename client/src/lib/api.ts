@@ -2682,7 +2682,7 @@ export const api = {
   listTrackJudges: async (
     slug: string,
     authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { email: string | null; name: string; tracks: JudgedTrack[] }[] }> => {
+  ): Promise<{ status: string; data: { email: string | null; name: string; tracks: JudgedTrack[] | null }[] }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       return { status: "success", data: mockTracked.judges(slug) };
