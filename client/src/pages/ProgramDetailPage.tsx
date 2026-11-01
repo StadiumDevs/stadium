@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { ProjectExplorer } from "@/components/ProjectExplorer";
 import { UnitCard } from "@/components/unit-card";
@@ -94,7 +94,9 @@ const ProgramDetailPage = () => {
   const [submitMode, setSubmitMode] = useState<"new" | "update">("new");
   // Back from the email sign-in link (?submit=1 / ?submit=update): reopen the
   // form, which restores its draft, with the email now verified.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   // Playground only: ?preview=before shows a tracked program as it looks before
   // the hack (registration open, no projects yet). Nothing stored changes.
   const previewBefore = USE_MOCK_DATA && !!profile && searchParams.get("preview") === "before";
@@ -105,8 +107,14 @@ const ProgramDetailPage = () => {
     setSubmitOpen(true);
     const next = new URLSearchParams(searchParams);
     next.delete("submit");
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+    // Keep the hash: the sign-in link returns its session there
+    // (#access_token=…), and Supabase may not have read it yet. Dropping it
+    // (as setSearchParams does) lost the session and looped back to the gate.
+    const search = next.toString();
+    navigate({ search: search ? `?${search}` : "", hash: location.hash }, { replace: true });
+    // location.hash is read once, alongside the ?submit it came with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, navigate]);
   // Public results: search box over published submissions, and the collapsible
   // "about" panel (hackathon info) that sits below the projects once published.
   const [resultsQuery, setResultsQuery] = useState("");

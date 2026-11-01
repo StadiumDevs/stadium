@@ -119,6 +119,40 @@ const writeDraft = (slug: string, d: StoredDraft | null, who?: string | null) =>
   }
 };
 const normEmail = (e: string | null | undefined) => (e ?? "").trim().toLowerCase();
+
+// Tracked programs: the sign-in link last sent from this browser. In
+// localStorage so it's shared with the tab the link opens in: coming back with
+// a session for this email continues straight to the submission, and a reopened
+// form shows "link sent" instead of a send button Supabase would throttle.
+type LinkSent = { email: string; sentAt: number; cooldownUntil: number };
+const LINK_COOLDOWN_MS = 60 * 1000;
+// A link older than this no longer auto-continues (the session asks "continue as").
+const LINK_TRUST_MS = 60 * 60 * 1000;
+const linkKey = (slug: string) => `stadium_signin_link_${slug}`;
+const readLinkSent = (slug: string): LinkSent | null => {
+  try {
+    const raw = localStorage.getItem(linkKey(slug));
+    const v = raw ? (JSON.parse(raw) as LinkSent) : null;
+    return v && Date.now() - v.sentAt < LINK_TRUST_MS ? v : null;
+  } catch {
+    return null;
+  }
+};
+const writeLinkSent = (slug: string, v: LinkSent | null) => {
+  try {
+    if (v) localStorage.setItem(linkKey(slug), JSON.stringify(v));
+    else localStorage.removeItem(linkKey(slug));
+  } catch {
+    // Storage unavailable: the gate still works, it just doesn't remember the link.
+  }
+};
+// Supabase's resend throttle: "For security purposes, you can only request this after 30 seconds."
+const throttleSeconds = (e: unknown): number | null => {
+  const m = /after (\d+) seconds?/i.exec((e as Error)?.message ?? "");
+  if (m) return Number(m[1]);
+  const code = (e as { code?: string })?.code;
+  return code === "over_email_send_rate_limit" ? 60 : null;
+};
 const formatStamp = (iso: string | null | undefined) =>
   iso
     ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST"
@@ -152,6 +186,13 @@ export function SubmitProjectModal({
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [accessBusy, setAccessBusy] = useState<string | null>(null);
   const [accessErrors, setAccessErrors] = useState<Record<string, string>>({});
+  // Gate: the link sent from this browser, whether an existing sign-in session
+  // was confirmed as the person submitting, and a failed load (never a blank form).
+  const [linkSent, setLinkSent] = useState<LinkSent | null>(null);
+  const [sessionConfirmed, setSessionConfirmed] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const [submitterName, setName] = useState("");
   const [lumaEmail, setEmail] = useState("");
@@ -195,7 +236,7 @@ export function SubmitProjectModal({
   const emailNorm = lumaEmail.trim().toLowerCase();
   // Tracked: who is signed in (point person or teammate), whatever the form's
   // point-person email says.
-  const sessionEmail = trackedFlow
+  const signedInEmail = trackedFlow
     ? USE_MOCK_DATA
       ? mockVerifiedEmails.has(normEmail(gateEmail))
         ? normEmail(gateEmail)
@@ -204,6 +245,11 @@ export function SubmitProjectModal({
         ? normEmail(social.email)
         : null
     : null;
+  // A session only opens a submission once it's confirmed as the person
+  // submitting: back from the link we sent, or "continue as" (an organiser's
+  // admin session must not silently become a builder).
+  const sessionEmail = signedInEmail && (USE_MOCK_DATA || sessionConfirmed) ? signedInEmail : null;
+  const cooldownLeft = linkSent ? Math.max(0, Math.ceil((linkSent.cooldownUntil - now) / 1000)) : 0;
   const verified = trackedFlow
     ? !!sessionEmail
     : !!emailNorm && (USE_MOCK_DATA ? mockVerifiedEmails.has(emailNorm) : !!social.token && social.email?.toLowerCase() === emailNorm);
@@ -241,7 +287,10 @@ export function SubmitProjectModal({
         setFeedbackAttempted(false);
         setAccessErrors({});
         loadStarted.current = false;
-        setGateEmail((prev) => prev || social.email || readDraft(program.slug)?.lumaEmail || "");
+        setSessionConfirmed(false);
+        setLoadError(null);
+        setLinkSent(readLinkSent(program.slug));
+        setGateEmail((prev) => prev || readLinkSent(program.slug)?.email || social.email || readDraft(program.slug)?.lumaEmail || "");
       } else {
         applyDraft(readDraft(program.slug));
       }
@@ -325,6 +374,19 @@ export function SubmitProjectModal({
     [],
   );
 
+  // Back from the link we sent: the session is for that email, so continue.
+  useEffect(() => {
+    if (!open || !trackedFlow || USE_MOCK_DATA || sessionConfirmed || !signedInEmail) return;
+    if (linkSent && normEmail(linkSent.email) === signedInEmail) setSessionConfirmed(true);
+  }, [open, trackedFlow, sessionConfirmed, signedInEmail, linkSent]);
+
+  // Countdown until the sign-in link can be sent again.
+  useEffect(() => {
+    if (!open || !linkSent || linkSent.cooldownUntil <= Date.now()) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [open, linkSent]);
+
   // Tracked: once signed in, load the entry this email may edit (point person
   // or teammate), then this person's unsaved device changes if they're newer.
   const loadStarted = useRef(false);
@@ -357,6 +419,7 @@ export function SubmitProjectModal({
           lastEditedByEmail: d.lastEditedByEmail ?? null,
         });
         applyMine(d);
+        setLoadError(null);
         if (local && newer(d)) {
           applyDraft(local);
           // The point person's name and email always come from Stadium.
@@ -366,6 +429,8 @@ export function SubmitProjectModal({
         } else if (local) {
           writeDraft(program.slug, null, who);
         }
+        baseline.current = null;
+        setEntryLoaded(true);
       })
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) {
@@ -376,18 +441,19 @@ export function SubmitProjectModal({
             setRestoredFromDevice(true);
           }
           setEmail(who);
+          setLoadError(null);
+          baseline.current = null;
+          setEntryLoaded(true);
           return;
         }
+        // Never fall through to an empty form: saving it would overwrite the
+        // team's entry. Stay on the gate with a retry.
         loadStarted.current = false;
-        toast({ title: "Couldn't load your submission", description: (e as Error).message, variant: "destructive" });
-      })
-      .finally(() => {
-        baseline.current = null;
-        setEntryLoaded(true);
+        setLoadError((e as Error)?.message || "Couldn't load your submission.");
       });
     // sessionOpts is derived from sessionEmail and the token.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, trackedFlow, sessionEmail, entryLoaded, program.slug, applyMine, applyDraft, toast]);
+  }, [open, trackedFlow, sessionEmail, entryLoaded, loadAttempt, program.slug, applyMine, applyDraft]);
 
   // Update mode: once the email is verified, load their submission to edit it.
   useEffect(() => {
@@ -433,8 +499,30 @@ export function SubmitProjectModal({
       const back = `${window.location.origin}/programs/${encodeURIComponent(program.slug)}?submit=${mode === "update" ? "update" : "1"}`;
       await social.signInWithEmail(email, back);
       setLinkSentTo(email);
+      if (trackedFlow) {
+        const sent = { email: normEmail(email), sentAt: Date.now(), cooldownUntil: Date.now() + LINK_COOLDOWN_MS };
+        writeLinkSent(program.slug, sent);
+        setLinkSent(sent);
+        setNow(Date.now());
+      }
       return false;
     } catch (e) {
+      // Supabase throttles repeat links: a link was already sent, so say so
+      // (with when another can be sent) instead of showing the raw error.
+      const wait = throttleSeconds(e);
+      if (trackedFlow && wait !== null) {
+        const prev = readLinkSent(program.slug);
+        const sent = {
+          email: normEmail(email),
+          sentAt: prev && normEmail(prev.email) === normEmail(email) ? prev.sentAt : Date.now(),
+          cooldownUntil: Date.now() + wait * 1000,
+        };
+        writeLinkSent(program.slug, sent);
+        setLinkSent(sent);
+        setNow(Date.now());
+        setError(null);
+        return false;
+      }
       setError((e as Error)?.message || "Couldn't send the sign-in link.");
       return false;
     }
@@ -707,6 +795,10 @@ export function SubmitProjectModal({
   // Tracked: sign out to let someone else (a teammate) open the submission.
   const switchPerson = async () => {
     if (!USE_MOCK_DATA) await social.signOut();
+    writeLinkSent(program.slug, null);
+    setLinkSent(null);
+    setSessionConfirmed(false);
+    setLoadError(null);
     setGateEmail("");
     setEntry(null);
     setEntryLoaded(false);
@@ -785,37 +877,88 @@ export function SubmitProjectModal({
             </div>
           ) : trackedFlow && (!sessionEmail || !entryLoaded) ? (
             <div className="space-y-3" data-testid="submission-gate">
-              {sessionEmail ? (
+              {!USE_MOCK_DATA && social.loading ? (
+                <p className="label-hw-dim flex items-center gap-2" role="status" data-testid="gate-checking">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> CHECKING YOUR SIGN-IN…
+                </p>
+              ) : sessionEmail && loadError ? (
+                <div className="space-y-2" role="alert" data-testid="gate-load-error">
+                  <p className="text-[13px] text-display">Couldn't load the submission for {sessionEmail}: {loadError}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoadError(null);
+                        setLoadAttempt((n) => n + 1);
+                      }}
+                      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-2"
+                      data-testid="gate-retry"
+                    >
+                      TRY AGAIN
+                    </button>
+                    <button type="button" onClick={switchPerson} className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-4 py-2">
+                      USE A DIFFERENT EMAIL
+                    </button>
+                  </div>
+                </div>
+              ) : sessionEmail ? (
                 <p className="label-hw-dim flex items-center gap-2" role="status">
                   <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> LOADING YOUR TEAM'S SUBMISSION…
                 </p>
+              ) : signedInEmail ? (
+                <div className="space-y-2" data-testid="gate-continue">
+                  <p className="text-body text-[13px] leading-relaxed">
+                    You're signed in as <span className="text-display">{signedInEmail}</span>. Continue as this email to open its
+                    submission (as the point person, or as a teammate with edit access).
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSessionConfirmed(true)}
+                      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-2"
+                      data-testid="gate-continue-as"
+                    >
+                      CONTINUE AS {signedInEmail.toUpperCase()} ▸
+                    </button>
+                    <button type="button" onClick={switchPerson} className="font-mono text-[10px] tracking-[0.14em] border border-hairline text-display hover:bg-panel-deep disabled:opacity-50 px-4 py-2" data-testid="gate-other-email">
+                      USE A DIFFERENT EMAIL
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <>
                   <p className="text-body text-[13px] leading-relaxed">
-                    The point person starts the team's submission with the email they checked in with on Luma. Teammates the point
+                    The point person opens the team's submission with the email they checked in with on Luma. Teammates the point
                     person gives edit access open it with their own checked-in email.
                   </p>
                   <div className="space-y-1.5">
                     <Label htmlFor="sub-gate-email" className="label-hw-dim">YOUR EMAIL (USED ON LUMA)</Label>
                     <Input id="sub-gate-email" type="email" value={gateEmail} onChange={(e) => setGateEmail(e.target.value)} className="font-mono text-sm" />
                   </div>
-                  {linkSentTo ? (
+                  {!USE_MOCK_DATA && linkSent && normEmail(linkSent.email) === normEmail(gateEmail) && (
                     <p className="label-hw text-display normal-case" data-testid="link-sent">
-                      Sign-in link sent to {linkSentTo}. Open it on this device; you'll come back here with your team's submission.
+                      Sign-in link sent to {linkSent.email}. Open it on this device (check spam too); you'll come back here with your
+                      team's submission open.
+                      {cooldownLeft > 0 ? ` You can request a new link in ${cooldownLeft}s.` : ""}
                     </p>
-                  ) : (
+                  )}
+                  {USE_MOCK_DATA || !linkSent || normEmail(linkSent.email) !== normEmail(gateEmail) || cooldownLeft === 0 ? (
                     <button
                       type="button"
                       onClick={() => {
                         setError(null);
                         void verifyEmail().then((ok) => ok && setVerifyTick((n) => n + 1));
                       }}
-                      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
+                      className="font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim disabled:opacity-50 px-4 py-2"
                       data-testid="gate-verify"
                     >
-                      {USE_MOCK_DATA ? "VERIFY THIS EMAIL ▸" : "SEND ME A SIGN-IN LINK ▸"}
+                      {USE_MOCK_DATA
+                        ? "VERIFY THIS EMAIL ▸"
+                        : linkSent && normEmail(linkSent.email) === normEmail(gateEmail)
+                          ? "SEND A NEW LINK ▸"
+                          : "SEND ME A SIGN-IN LINK ▸"}
                     </button>
-                  )}
+                  ) : null}
                   {error && <div className="label-hw text-destructive">·{error.toUpperCase()}</div>}
                 </>
               )}
