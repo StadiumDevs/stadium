@@ -75,6 +75,10 @@ export function validateTrackedForm(profile: ProgramProfile, f: TrackedFormState
   if (judgesPrivacy(f.track) && f.themes.length === 0) add("trk-themes", "Pick at least one theme.");
   if (!f.pitch.trim()) add("trk-pitch", "A one-line pitch is required.");
   else if (f.pitch.trim().length > PITCH_MAX) add("trk-pitch", `The pitch must be ${PITCH_MAX} characters or fewer.`);
+  const maxTeammates = profile.maxTeammates;
+  if (maxTeammates !== undefined && f.team.length > maxTeammates) {
+    add(`trk-team-${maxTeammates}-name`, `Solo or a team of up to ${maxTeammates + 1}: remove a teammate.`);
+  }
   f.team.forEach((m, i) => {
     if (!m.name.trim()) add(`trk-team-${i}-name`, "Each teammate needs a name (or remove the row).");
   });

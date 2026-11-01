@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ApiPublicSubmission } from "@/lib/api";
+import type { JudgedTrack } from "@/lib/api";
 import { isEcosystem, type ProgramProfile } from "@/lib/programProfiles";
 import { MilestoneProgress } from "./MilestoneProgress";
 import { SubmissionDetails } from "./SubmissionDetails";
@@ -14,6 +15,7 @@ export function SubmissionDetailModal({
   submission,
   onOpenChange,
   showPageLink = true,
+  track = null,
 }: {
   profile: ProgramProfile;
   programSlug: string;
@@ -21,6 +23,8 @@ export function SubmissionDetailModal({
   onOpenChange: (open: boolean) => void;
   /** Winner page link; off where results may not be published yet (judging). */
   showPageLink?: boolean;
+  /** Opened from one track's leaderboard: show only that track's fields. */
+  track?: JudgedTrack | null;
 }) {
   const prizes = submission ? prizeEntries(submission) : [];
   const milestone = submission && isEcosystem(submission) ? submission.details.milestone : null;
@@ -59,7 +63,7 @@ export function SubmissionDetailModal({
               </div>
             )}
             {milestone && <MilestoneProgress profile={profile} milestone={milestone} />}
-            <SubmissionDetails profile={profile} submission={submission} />
+            <SubmissionDetails profile={profile} submission={submission} track={track} />
             {showPageLink && prizes.length > 0 && (
               <Link
                 to={`/programs/${programSlug}/projects/${submission.id}`}

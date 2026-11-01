@@ -17,6 +17,7 @@ import {
   rubricDraftKey,
   tiersForTrack,
   trackById,
+  trackFieldsFor,
   trackLabel,
   weightedTotal,
   type ProgramJudge,
@@ -32,6 +33,12 @@ import { CriteriaCarousel, type CheckStep } from "./CriteriaCarousel";
 import { DemoVideo } from "./DemoVideo";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+/** When a project was last saved (point person or teammate), in IST like the schedule. */
+const formatEditedAt = (iso: string | null | undefined) =>
+  iso
+    ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST"
+    : "";
 
 // A change not yet confirmed by the server. Kept on this device until it is,
 // so a refresh or a dropped connection never loses a judge's work.
@@ -123,6 +130,8 @@ export function RubricJudgingSection({
 }) {
   const { toast } = useToast();
   const isJudge = !!judgeEmail;
+  // Organisers: entries still drafts (not in any queue until the team finalizes).
+  const [unsubmittedDrafts, setUnsubmittedDrafts] = useState<number | null>(null);
   const [tab, setTab] = useState<"score" | "leaderboard">(isJudge ? "score" : "leaderboard");
   const [judges, setJudges] = useState<ProgramJudge[]>([]);
   // Scores are saved under the batch being judged now (evening until 20:00 on
@@ -155,10 +164,12 @@ export function RubricJudgingSection({
   const loadAll = useCallback(async () => {
     const auth = await getAuth();
     const [j, list] = await Promise.all([api.listTrackJudges(programSlug, auth), api.listTrackedSubmissions(programSlug, auth)]);
-    setJudges(j.data);
+    // A judge invited with no track limit comes back as tracks: null = every track.
+    setJudges(j.data.map((x) => ({ ...x, tracks: x.tracks ?? profile.tracks.map((t) => t.id) })));
     setSubmissions(list.data.submissions);
     setPublishedAt(list.data.resultsPublishedAt);
-  }, [getAuth, programSlug]);
+    setUnsubmittedDrafts(list.data.draftCount ?? null);
+  }, [getAuth, programSlug, profile]);
 
   useEffect(() => {
     loadAll()
@@ -199,6 +210,7 @@ export function RubricJudgingSection({
     if (!judge) return [];
     const items: { s: ApiTrackedSubmission; track: JudgedTrack }[] = [];
     for (const s of submissions) {
+      if (!s.details?.track) continue;
       for (const t of judgedTracksOf(s.details.track)) if (judge.tracks.includes(t)) items.push({ s, track: t });
     }
     // Batches in order (evening first), keeping submission order within each.
@@ -500,6 +512,11 @@ export function RubricJudgingSection({
         </div>
       </div>
 
+      {!isJudge && unsubmittedDrafts !== null && unsubmittedDrafts > 0 && (
+        <p className="label-hw-dim" data-testid="draft-count">
+          {unsubmittedDrafts} DRAFT{unsubmittedDrafts === 1 ? "" : "S"} NOT YET SUBMITTED (NOT IN ANY JUDGE'S QUEUE)
+        </p>
+      )}
       <JudgingProgressTable
         profile={profile}
         programSlug={programSlug}
@@ -520,7 +537,12 @@ export function RubricJudgingSection({
           <div className="flex flex-wrap items-center gap-2" data-testid="scoring-as">
             <span className="label-hw-dim">SCORING AS</span>
             <span className="font-mono text-[12px] text-display">{judge.name}</span>
-            <span className="label-hw-dim">· {judge.tracks.map((t) => trackById(profile, t).label).join(" and ")} only</span>
+            <span className="label-hw-dim">
+              ·{" "}
+              {judge.tracks.length >= profile.tracks.length
+                ? "all tracks"
+                : `${judge.tracks.map((t) => trackById(profile, t).label).join(" and ")} only`}
+            </span>
           </div>
 
           <ScoringNav
@@ -593,6 +615,9 @@ export function RubricJudgingSection({
               const complete = isFullyScored(rubric, d.criteria);
               const started = Object.values(d.criteria).some((v) => typeof v === "number") || !!d.notes;
               const total = weightedTotal(rubric, d.criteria);
+              // Only the fields for the track being scored; a Both entry shows a hint.
+              const show = trackFieldsFor(s.details.track, track);
+              const otherTracks = judgedTracksOf(s.details.track).filter((t) => t !== track);
               const prev = queue[(currentIdx - 1 + queue.length) % queue.length];
               const next = queue[(currentIdx + 1) % queue.length];
               return (
@@ -603,6 +628,11 @@ export function RubricJudgingSection({
                     </span>
                     <span className="font-display text-lg uppercase tracking-tight text-display flex-1 min-w-[160px]">{s.projectTitle}</span>
                     <span className="label-hw-dim">{trackById(profile, track).shortLabel}</span>
+                    {otherTracks.length > 0 && (
+                      <span className="label-hw-dim border border-hairline rounded-sm px-1.5 py-0.5" data-testid="card-also-entered">
+                        ALSO ENTERED IN {otherTracks.map((t) => trackById(profile, t).shortLabel).join(", ")}
+                      </span>
+                    )}
                     {batchLabel(s.batch) && (
                       <span className="label-hw-dim border border-hairline rounded-sm px-1.5 py-0.5" data-testid="card-batch">
                         {batchLabel(s.batch)}
@@ -642,6 +672,13 @@ export function RubricJudgingSection({
                     </span>
                   </header>
                   <div className="p-3 space-y-4">
+                    {(s.lastEditedAt || s.updatedAt) && (
+                      <p className="label-hw-dim" data-testid="last-edited">
+                        LAST EDITED {formatEditedAt(s.lastEditedAt ?? s.updatedAt)}
+                        {s.lastEditedByName ? ` · ${s.lastEditedByName.toUpperCase()}` : ""}
+                        {s.lastEditedByEmail ? <span className="normal-case"> ({s.lastEditedByEmail})</span> : null}
+                      </p>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[13px] text-body">
                       <div className="space-y-1">
                         <p>{s.details.pitch}</p>
@@ -650,13 +687,16 @@ export function RubricJudgingSection({
                           {trackLabel(profile, s.details.track)} · {s.details.appType} · POINT PERSON{" "}
                           {s.details.anonymous ? "ANONYMOUS" : s.submitterName.toUpperCase()}
                         </p>
+                        {show.privacy && s.details.themes?.length > 0 && (
+                          <p className="label-hw-dim" data-testid="judge-themes">THEMES · {s.details.themes.join(" · ")}</p>
+                        )}
                       </div>
                       <div className="space-y-1 break-all">
                         {s.details.publicUrl && <a className="block underline" href={s.details.publicUrl} target="_blank" rel="noopener noreferrer">{s.details.publicUrl}</a>}
                         <a className="block underline" href={s.videoUrl} target="_blank" rel="noopener noreferrer">{s.videoUrl}</a>
                         <a className="block underline" href={s.githubUrl} target="_blank" rel="noopener noreferrer">{s.githubUrl}</a>
-                        {s.details.testnetTxid && (
-                          <div className="flex flex-wrap items-center gap-2">
+                        {show.privacy && s.details.testnetTxid && (
+                          <div className="flex flex-wrap items-center gap-2" data-testid="judge-txid">
                             <TxidLink txid={s.details.testnetTxid} explorerUrl={profile.txExplorerUrl} />
                             <button type="button" onClick={() => recheck(s.id)} disabled={busy === `tx:${s.id}`} className={`${btnGhost} inline-flex items-center gap-1`}>
                               <RotateCw className="h-3 w-3" aria-hidden="true" /> RE-CHECK
@@ -666,7 +706,7 @@ export function RubricJudgingSection({
                         <p className="normal-case text-label-mid">Next milestone: {s.details.nextStep}</p>
                       </div>
                     </div>
-                    {track === "agentic" && s.details.bitrefillFeedback && (
+                    {show.agentic && s.details.bitrefillFeedback && (
                       <div className="text-[12px] space-y-0.5" data-testid="judge-bitrefill-feedback">
                         <div className="label-hw-dim">BITREFILL FEEDBACK (BEST-FEEDBACK PRIZE, NOT SCORED HERE)</div>
                         <p className="text-body"><span className="text-label-mid">Worked: </span>{s.details.bitrefillFeedback.worked}</p>
@@ -880,6 +920,7 @@ export function RubricJudgingSection({
         submission={detailsSubmission}
         onOpenChange={(open) => !open && setDetailsId(null)}
         showPageLink={!!publishedAt}
+        track={boardTrack}
       />
     </section>
   );

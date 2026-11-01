@@ -1,6 +1,6 @@
 import type { ProgramContentSection } from "./api";
 import { BITREFILL, mdLink, ZCASH } from "./llms/devResources";
-import { llmsFullPath, llmsPath } from "./llms/llmsPrograms";
+import { llmsPath, llmsTrackPath } from "./llms/llmsPrograms";
 
 /**
  * Authored public-page content for the Zcash Free Society Hack (program slug
@@ -22,9 +22,10 @@ export const FREE_SOCIETY_HACK_VENUE_MAP_URL =
 export const FREE_SOCIETY_HACK_BUILDER_PACK_URL =
   "https://app.notion.com/p/Free-Society-Hack-Builder-Pack-3ff3e52aeb15807eace6f16f84a74c14";
 
-/** The program's llms.txt (generated at build), for AI assistants. */
+/** The program's llms.txt index and per-track briefs, for AI assistants. */
 export const FREE_SOCIETY_HACK_LLMS_PATH = llmsPath("free-society-hack-2026");
-export const FREE_SOCIETY_HACK_LLMS_FULL_PATH = llmsFullPath("free-society-hack-2026");
+export const FREE_SOCIETY_HACK_LLMS_PRIVACY_PATH = llmsTrackPath("free-society-hack-2026", "privacy");
+export const FREE_SOCIETY_HACK_LLMS_AGENTIC_PATH = llmsTrackPath("free-society-hack-2026", "agentic-commerce");
 
 const devResourcesBody =
   "**Zcash.** " + ZCASH.intro + "\n\n" +
@@ -39,7 +40,7 @@ const devResourcesBody =
   "**Bitrefill.** " + BITREFILL.intro + " Use at least one surface: " +
   BITREFILL.surfaces.map((x) => mdLink(x.surface, false)).join(", ") +
   ". Test with test products (MCP test product `delos-syldavia`); never pay for them with real money or store credit.\n\n" +
-  "The full lists (more tools, learning links, every gotcha) are in the Builder Pack and in [llms-full.txt](" + FREE_SOCIETY_HACK_LLMS_FULL_PATH + ").";
+  "The full lists (more tools, learning links, every gotcha) are in the Builder Pack and in the track briefs for coding agents: [Privacy llms.txt](" + FREE_SOCIETY_HACK_LLMS_PRIVACY_PATH + ") and [Agentic Commerce llms.txt](" + FREE_SOCIETY_HACK_LLMS_AGENTIC_PATH + ").";
 
 export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
   {
@@ -50,9 +51,15 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
       { time: "Wed 4 Nov 20:00", label: "Evening judging (projects in by now)" },
       { time: "Thu 5 Nov 00:00", label: "Submissions close" },
       { time: "Thu 5 Nov 08:00", label: "Morning judging" },
-      { time: "Thu 5 Nov 11:00", label: "Top teams contacted" },
-      { time: "Thu 5 Nov 12:00", label: "Demos of top teams" },
-      { time: "Thu 5 Nov 13:30", label: "Prize announcements" },
+      // Demo day (Thu 5 Nov, 11:30–13:30). Mirrored in the llms.txt index.
+      { time: "Thu 5 Nov 11:00", label: "Doors open, top teams announced" },
+      { time: "Thu 5 Nov 11:30", label: "Kickoff (10 min)" },
+      { time: "Thu 5 Nov 11:40", label: "Zcash India (5 min)" },
+      { time: "Thu 5 Nov 11:45–12:15", label: "Privacy demos 1–6" },
+      { time: "Thu 5 Nov 12:15–12:30", label: "Bitrefill demos 1–3 (3 min on stage + 2 min changeover each)" },
+      { time: "Thu 5 Nov 12:30–13:00", label: "Judges rank winners" },
+      { time: "Thu 5 Nov 13:00–13:15", label: "Prize announcements" },
+      { time: "Thu 5 Nov 13:15–13:30", label: "Photos and close" },
     ],
   },
   {
@@ -122,7 +129,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
       "| **Public repo** with a README explaining the project and the demo URL | Yes |\n" +
       "| **Demo video, 3 minutes max,** or a live link showing the agent make a purchase | Yes |\n" +
       "| **Bitrefill feedback:** what worked and what didn't (questions on the submit form) | Yes |\n\n" +
-      "**Judging:** three Bitrefill judges score every submission out of 5 on use of the Bitrefill tech stack, following the requirements, and how innovative it is; the scores are averaged. The ranking picks the winners and the top 5 teams Bitrefill spotlights. The $100 best-feedback prize goes to the most useful feedback.",
+      "**Judging:** three Bitrefill judges score every submission from 1 to 5 on use of the Bitrefill tech stack, following the requirements, and how innovative it is (max 15); the scores are averaged across the judges, and ties go to the higher How innovative score. The ranking picks the winners and the top 5 teams Bitrefill spotlights. The $100 best-feedback prize goes to the most useful feedback.",
   },
   {
     type: "markdown",
@@ -142,7 +149,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
     type: "markdown",
     title: "How to submit",
     body:
-      "Submit on Stadium by **Thu 5 Nov, 00:00 IST**, with the email you registered with on Luma. Pick your track, or **Both**, and fill in what that track asks for. Entering both? Pick \"Both\" and fill in both tracks' items in one submission (testnet transaction ID, privacy and trust note, Bitrefill feedback, and a demo video).",
+      "Submit on Stadium by **Thu 5 Nov, 00:00 IST**, with the email you registered with on Luma. Solo or a team of up to 4, including the point person. One submission per project: pick your track, or **Both** to enter and win in both, and fill in what that track asks for. Entering both? Pick \"Both\" and fill in both tracks' items in one submission (testnet transaction ID, privacy and trust note, Bitrefill feedback, and a demo video).",
   },
   {
     type: "markdown",
@@ -155,7 +162,7 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
     body:
       "Everything you need to build, including how Privacy projects are judged, is in the " +
       "[Free Society Hack Builder Pack](" + FREE_SOCIETY_HACK_BUILDER_PACK_URL + ").\n\n" +
-      "**Using an AI assistant?** Give it [llms.txt](" + FREE_SOCIETY_HACK_LLMS_PATH + ") or the full [llms-full.txt](" + FREE_SOCIETY_HACK_LLMS_FULL_PATH + "): the tracks, themes, what to submit, how it's judged and the developer resources, in one file it can read.",
+      "**Using a coding agent?** Give it your track's brief: [Privacy llms.txt](" + FREE_SOCIETY_HACK_LLMS_PRIVACY_PATH + ") or [Agentic Commerce llms.txt](" + FREE_SOCIETY_HACK_LLMS_AGENTIC_PATH + "), or both if you enter both. Each is self-contained: the rules, what to submit, how it's judged and the stack. Save it as AGENTS.md in your repo. The event index is [llms.txt](" + FREE_SOCIETY_HACK_LLMS_PATH + ").",
   },
   {
     type: "markdown",

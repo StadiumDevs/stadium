@@ -38,6 +38,16 @@ class SubmissionExperienceRatingRepository {
     return (data || []).map(transform);
   }
 
+  // One submission's ratings as { category: score }, to prefill the form.
+  async getForSubmission(submissionId) {
+    const { data, error } = await supabase
+      .from('submission_experience_ratings')
+      .select('*')
+      .eq('submission_id', submissionId);
+    if (error) throw error;
+    return Object.fromEntries((data || []).map((r) => [r.category, Number(r.score)]));
+  }
+
   async listByProgramId(programId) {
     const { data, error } = await supabase
       .from('submission_experience_ratings')

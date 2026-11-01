@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
-  default: { upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
+  default: { getForSubmission: vi.fn(async () => ({})), upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
 }));
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
@@ -25,8 +25,11 @@ vi.mock('../../services/scoring.service.js', () => ({
 vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
+vi.mock('../../repositories/submission-editor.repository.js', () => ({
+  default: { findByProgramEmail: vi.fn(async () => null), listBySubmission: vi.fn(async () => []), add: vi.fn(), remove: vi.fn() },
+}));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
+  default: { findForEditor: vi.fn(async () => null), countDrafts: vi.fn(async () => 0), markFeedbackSubmitted: vi.fn(), create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
 }));
 vi.mock('../../services/submission-confirmation.service.js', () => ({
   default: { send: vi.fn() },
@@ -196,7 +199,32 @@ describe('SubmissionController.listTracked', () => {
     expect(data.submissions.map((s) => [s.id, s.batch])).toEqual([['a', 'evening'], ['b', 'morning']]);
     expect(data.batches.map((b) => b.id)).toEqual(['evening', 'morning']);
     expect(data.resultsPublishedAt).toBeNull();
-    expect(submissionRepo.listByProgramId).toHaveBeenCalledWith('fsh');
+    // Drafts never reach the judges.
+    expect(submissionRepo.listByProgramId).toHaveBeenCalledWith('fsh', { status: 'submitted' });
+  });
+  it('batches by when the team finalized, not when the draft was opened', async () => {
+    programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: null });
+    submissionRepo.listByProgramId.mockResolvedValue([
+      // Draft opened 18:00 IST, finalized 20:30 IST: morning.
+      { id: 'a', createdAt: '2026-11-04T12:30:00.000Z', finalizedAt: '2026-11-04T15:00:00.000Z' },
+    ]);
+    const res = mockRes();
+    await submissionController.listTracked({ params: { slug: 'free-society-hack-2026' }, user: { email: 'j@x.com', programId: 'fsh' } }, res);
+    expect(res.json.mock.calls[0][0].data.submissions[0].batch).toBe('morning');
+  });
+  it('hides who last edited an anonymous entry from judges, not from admins', async () => {
+    programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: null });
+    const row = { id: 'a', createdAt: '2026-11-04T12:30:00.000Z', details: { anonymous: true }, lastEditedAt: '2026-11-04T14:00:00.000Z', lastEditedByName: 'Priya', lastEditedByEmail: 'priya@example.com' };
+    submissionRepo.listByProgramId.mockResolvedValue([row]);
+    const asJudge = mockRes();
+    await submissionController.listTracked({ params: { slug: 'free-society-hack-2026' }, user: { email: 'j@x.com', programId: 'fsh', role: 'judge' } }, asJudge);
+    expect(asJudge.json.mock.calls[0][0].data.submissions[0]).toMatchObject({ lastEditedAt: row.lastEditedAt, lastEditedByName: null, lastEditedByEmail: null });
+    expect(asJudge.json.mock.calls[0][0].data).not.toHaveProperty('draftCount');
+    const asAdmin = mockRes();
+    submissionRepo.countDrafts.mockResolvedValue(3);
+    await submissionController.listTracked({ params: { slug: 'free-society-hack-2026' }, user: { email: 'a@x.com', programId: 'fsh', role: 'admin' } }, asAdmin);
+    expect(asAdmin.json.mock.calls[0][0].data.submissions[0].lastEditedByName).toBe('Priya');
+    expect(asAdmin.json.mock.calls[0][0].data.draftCount).toBe(3);
   });
   it('404s a program that is not tracked', async () => {
     const res = mockRes();

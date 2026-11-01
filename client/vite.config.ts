@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import fs from "fs";
 import path from "path";
 import type { Plugin } from "vite";
-import { llmsFiles } from "./src/lib/llms/renderLlms";
+import { llmsFiles, llmsTrackSources } from "./src/lib/llms/renderLlms";
 
 // The llms.txt files (for AI assistants) are generated from the same content,
 // profiles and developer resources the site uses: served in dev, emitted into
@@ -12,6 +13,12 @@ import { llmsFiles } from "./src/lib/llms/renderLlms";
 // itself (the request host).
 const siteOrigin = () => process.env.VITE_SITE_URL || "https://stadium.joinwebzero.com";
 
+// The hand-written per-track briefs, read fresh on every request in dev.
+const readTrackSources = () =>
+  Object.fromEntries(
+    llmsTrackSources().map((rel) => [rel, fs.readFileSync(path.resolve(__dirname, "src/lib/llms", rel), "utf8")]),
+  );
+
 function llmsTxt(): Plugin {
   return {
     name: "stadium-llms-txt",
@@ -19,14 +26,14 @@ function llmsTxt(): Plugin {
       server.middlewares.use((req, res, next) => {
         const pathname = (req.url ?? "").split("?")[0];
         const origin = `http://${req.headers.host ?? "localhost:8080"}`;
-        const body = llmsFiles(origin)[pathname.slice(1)];
+        const body = llmsFiles(origin, readTrackSources())[pathname.slice(1)];
         if (!body) return next();
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
         res.end(body);
       });
     },
     generateBundle() {
-      for (const [fileName, source] of Object.entries(llmsFiles(siteOrigin()))) {
+      for (const [fileName, source] of Object.entries(llmsFiles(siteOrigin(), readTrackSources()))) {
         this.emitFile({ type: "asset", fileName, source });
       }
     },

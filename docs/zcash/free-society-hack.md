@@ -99,7 +99,7 @@ See `docs/improvement-backlog.md` (2026-10-25 entries):
 
 `client/src/lib/programProfiles.ts` holds a per-track rubric:
 - **Privacy (final, 28 Oct):** Works, Private, Easy, Needed, Continuing scored 0–3 plus a Bonus of 0 or 1, no weights, max 16, with the brief's level descriptors. Tie-breaks are Continuing, then Needed. **Winner gate:** a project whose average Works is 0 can't take a prize; the leaderboard shows a warning and disables its prize select (the mock also refuses it). The judge view links the [Privacy track judging guide](https://app.notion.com/p/Privacy-track-judging-guide-4023e52aeb158049acc3e80512df018d) on Notion.
-- **Agentic Commerce:** Bitrefill's existing 0–2 / 0–5 / 0–5 criteria. Tie-breaks are innovation, then tech stack, as today.
+- **Agentic Commerce:** Bitrefill's three criteria, each scored 1–5 (max 15), averaged across the judges. Ties go to How innovative.
 
 Judges pick a level line per criterion and write a note. The leaderboard ranks by the average total across the judges who scored each project, and labels any tie with what broke it.
 
@@ -170,17 +170,21 @@ The builder doc (tracks and resources) is the source of truth; the site now matc
 - **Privacy and trust note** (`details.privacyNote`): required for Privacy and Both, max 3000 characters. Judges score Private from it; it shows on the judge's Private question, in the details view and in both CSVs.
 - **Demo video:** optional (strongly preferred) for Privacy only, stored as `''` (no schema change). Agentic and Both need a video (3 min max) or a live link. Judges without a video get a NO VIDEO step pointing to the README.
 - **Bitrefill feedback** (`details.bitrefillFeedback { worked, didnt }`): required for Agentic and Both; never public (stripped from the public projection); shown to admins, on the Agentic judge card and in the CSVs. The $100 best-feedback prize is judged from it.
-- **Agentic rubric:** each criterion out of 5 (requirements was 0-2). Server `RUBRICS.agentic.requirements.max` is 5.
+- **Agentic rubric:** each criterion 1–5 (`min: 1, max: 5` in server `RUBRICS.agentic` and client `AGENTIC_RUBRIC`); a 0 is refused.
 - **Ironwood:** copy no longer says Orchard (the tx check says "shielded"); the stored pool label is "shielded (Ironwood), unified addresses".
 - **"Both":** still one entry with both tracks' items, not one submission per track.
 - **After the hack:** "we'll be in touch with teams"; no emails are promised.
 - **Page content** rewritten from the doc (themes with For/Build, the submit tables, the privacy note, Agentic Commerce, How to submit, Developer resources, Help on the day). Regenerated `20261026000000_free_society_hack_2026_content.sql`.
 
-**llms.txt** (for AI assistants, https://llmstxt.org): generated at build by the `stadium-llms-txt` plugin in `client/vite.config.ts` from the page content, the program profile (rubrics) and `client/src/lib/llms/devResources.ts`, via `client/src/lib/llms/renderLlms.ts`. Served in dev too.
+**llms.txt** (for AI coding agents, https://llmstxt.org): hand-written files in `client/src/lib/llms/programs/free-society-hack-2026/` at the same paths they are served from, with `{{ORIGIN}}` for the site origin. The `stadium-llms-txt` plugin in `client/vite.config.ts` serves them in dev and emits them into dist at build; `client/src/lib/llms/renderLlms.ts` fills in the origin and generates the site-wide `/llms.txt`. The tracks and their start prompts are `LLMS_TRACK_FILES` in `client/src/lib/llms/llmsPrograms.ts` (keep the prompts in step with the index's "Start" section).
 
-- `/llms.txt`: Stadium and the programs that have one.
-- `/programs/free-society-hack-2026/llms.txt`: the short index.
-- `/programs/free-society-hack-2026/llms-full.txt`: everything inline: event, schedule, tracks, themes, rules, a valid-idea checklist, the form field by field, the privacy note, rubrics with every level, prizes, and the Zcash and Bitrefill developer resources.
+- `/llms.txt`: Stadium, the programs and their track briefs.
+- `/programs/free-society-hack-2026/llms.txt`: the event index: pick a track, the start prompt to paste into a coding agent, key times, help.
+- `/programs/free-society-hack-2026/privacy/llms.txt`: the Privacy (Zcash) brief, self-contained (network facts, endpoints, SDKs, themes, rules, checklist, judging).
+- `/programs/free-society-hack-2026/agentic-commerce/llms.txt`: the Agentic Commerce (Bitrefill) brief, self-contained (stack, gotchas, India catalog, rules, checklist, judging).
+- `/programs/free-society-hack-2026/llms-full.txt` (retired): permanently redirected to the index in `client/vercel.json`.
+
+The program page's ·FOR AI CODING AGENTS block shows each track's agent prompt (COPY AGENT PROMPT), the brief and its link.
 
 Built files always link to `https://stadium.joinwebzero.com` (override with `VITE_SITE_URL`), previews included, so a shared file never points at a throwaway Vercel host; until the release those links show the app shell. The dev server links to itself. Add a program by adding it to `LLMS_PROGRAMS`.
 
@@ -206,7 +210,7 @@ Everything the playground does now has a server endpoint; `trackedNotOnServer` i
 - **Code:** `server/api/controllers/tracked-results.controller.js`, `server/api/services/rubric-leaderboard.service.js` (pure; mirrors the playground), `server/api/services/tx-check.service.js`.
 - **Data:** `supabase/migrations/20261101000000_tracked_awards_milestones.sql` adds `program_submissions.prizes`, `ecosystem_prize`, `tx_check` and `milestone`.
 - **Tx check:** the public lightwalletd `testnet.zec.rocks:443` (override with `TX_CHECK_LIGHTWALLETD`). `GetTransaction` proves the transaction exists and gives its height; the compact block at that height lists its Sapling spends/outputs and Orchard/Ironwood actions, so no raw transaction parsing. Statuses: `verified`, `not_found`, `not_shielded`, `could_not_check` (unreachable or not mined yet, after 3 tries). Checked live on 29 Oct: a real Ironwood testnet transaction came back `verified`, a made-up txid `not_found`. The protos are vendored in `server/api/services/proto/lightwalletd/`; tests never call the network (`TX_CHECK_DISABLED` in `vitest.config.js`).
-- **Venue (30 Oct):** True Tramm Trunk, BKC, Mumbai (was Capital Social). The map link lives in the profile (`venueMapUrl`); the page links LOCATION and the FAQ to it, and llms-full.txt includes it. Both FSH migrations regenerated.
+- **Venue (30 Oct):** True Tramm Trunk, BKC, Mumbai (was Capital Social). The map link lives in the profile (`venueMapUrl`); the page links LOCATION and the FAQ to it, and the program llms.txt index includes the venue. Both FSH migrations regenerated.
 - **Review fixes (30 Oct):** an award needs at least one full score in that track; the builder can't edit a milestone once the payout is settled; an unflagged project's milestone stays private; a resubmit that leaves a track drops that track's prize (and the flag if needed); a changed txid clears the old check at once; the builder's sign-in must be a confirmed email.
 - **Tests:** unit tests for the leaderboard, the tx check (fake transport) and the milestone validator; the sim journey (`server/sim/__tests__/rubric-judging-journey.test.js`) now runs score → leaderboard → awards → Ecosystem flag → publish → winner page → milestone edits against the real controllers.
 - **Program creation:** `supabase/migrations/20261025000000_free_society_hack_2026_program.sql` creates the program as `draft` (runs before the content migration). Re-runnable; on a row an admin already created it only fills empty fields. (If the id `free-society-hack-2026` is already used by a program with another slug, the insert is skipped: check with `SELECT id, slug FROM programs WHERE id = 'free-society-hack-2026' OR slug = 'free-society-hack-2026';`.) Applied with every other migration, in order, on a fresh Postgres 16 on 29 Oct: all clean (except the Supabase-only storage bucket migration, as expected), re-runs clean, and the fill-only update left a hand-made row's values alone.
@@ -263,7 +267,7 @@ The agent never merges, deploys or applies migrations. A CODEOWNER merges; the S
    6. `20261101000000_tracked_awards_milestones.sql` (prizes, Ecosystem flag, tx check, milestone)
 2. Staging env (Railway): `LUMA_API_KEY`, `RESEND_API_KEY` + `RESEND_FROM_EMAIL`, optionally `SUBMIT_TEST_EMAILS`, optionally `TX_CHECK_LIGHTWALLETD`. Supabase Auth: add the staging and production program URLs to the magic-link redirect allow-list (`/programs/free-society-hack-2026*`).
 3. Smoke test on staging:
-   - `/programs/free-society-hack-2026` shows DRAFT, REGISTER ON LUMA and the AI block; `/llms.txt` and `/programs/free-society-hack-2026/llms-full.txt` load.
+   - `/programs/free-society-hack-2026` shows DRAFT, REGISTER ON LUMA and the AI block; `/llms.txt`, `/programs/free-society-hack-2026/llms.txt`, `privacy/llms.txt` and `agentic-commerce/llms.txt` load.
    - Admin: Luma guests → set event id, SYNC NOW. Invite one test judge per track (name + track).
    - Set status `open`; submit a Privacy entry with a real testnet txid (from a `SUBMIT_TEST_EMAILS` address); the TX badge turns VERIFIED within a minute; update it with the email sign-in link.
    - Score as the test judges; the leaderboard ranks it; award a prize; flag Ecosystem; PUBLISH; the winner page loads; edit the milestone as the point person (sign-in link) and as admin; UNPUBLISH.
@@ -280,8 +284,8 @@ The agent never merges, deploys or applies migrations. A CODEOWNER merges; the S
 ### D. Event days
 1. **Tue 3 Nov:** dry run (as staging step 3, with `SUBMIT_TEST_EMAILS`), then delete the test entry and clear the variable.
 2. **Wed 4 Nov 11:00 IST:** status `open`. **20:00:** evening judging.
-3. **Thu 5 Nov 00:00:** status `closed` (scoring still works). **08:00:** morning judging. **Before 11:00:** export the ranked CSV and contact the top teams. **12:00:** demos of top teams.
-4. **13:30:** award the five Privacy podium prizes (Works-0 projects are blocked) and the Agentic prizes, flag two Privacy podium projects for the Ecosystem Prize, PUBLISH RESULTS. Status `completed` after demo day.
+3. **Thu 5 Nov 00:00:** status `closed` (scoring still works). **08:00:** morning judging. Builder writes (submit, drafts, feedback, edit access) are refused by the server from 00:00 IST (`submissionsCloseAt` in `trackedPrograms.js`). **Before 11:00:** export the ranked CSV. **11:00:** doors open, top teams announced. **11:30** kickoff, **11:40** Zcash India, **11:45–12:15** Privacy demos 1–6, **12:15–12:30** Bitrefill demos 1–3.
+4. **12:30–13:00:** judges rank winners. **13:00:** award the five Privacy podium prizes (Works-0 projects are blocked) and the Agentic prizes, flag two Privacy podium projects for the Ecosystem Prize, PUBLISH RESULTS. Prizes announced 13:00–13:15, photos and close 13:15–13:30. Status `completed` after demo day.
 5. **By Fri 13 Nov / Thu 19 Nov / Fri 4 Dec / Fri 11 Dec:** record the milestone steps in ·ECOSYSTEM PRIZE MILESTONES; release the payouts.
 6. **Fri 20 Nov:** export the builder feedback CSV.
 
