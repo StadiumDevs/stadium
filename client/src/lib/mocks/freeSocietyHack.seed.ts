@@ -54,6 +54,7 @@ const AGENTIC_JUDGES = FSH_JUDGES.filter((j) => j.tracks.includes("agentic")).ma
 
 /** Point-person email anyone can use to try the submit form in the playground. */
 export const FSH_DEMO_BUILDER_EMAIL = "builder@example.com";
+export const FSH_DEMO_TEAMMATE_EMAIL = "teammate@example.com";
 
 // Deterministic, valid-looking 64-hex txid per index.
 const hexTxid = (seed: number) => {
@@ -959,4 +960,6 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
 export const FSH_GUEST_EMAILS: [string, string][] = [
   ...PROJECTS.map((p) => p.person),
   ["Demo Builder (mock)", FSH_DEMO_BUILDER_EMAIL],
+  // Checked in with no entry of their own: a teammate the demo builder can give edit access.
+  ["Demo Teammate (mock)", FSH_DEMO_TEAMMATE_EMAIL],
 ];

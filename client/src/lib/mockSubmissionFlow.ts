@@ -221,7 +221,8 @@ export async function mockSetEditor(slug: string, email: string, grant: boolean,
       throw new ApiError("Add this teammate (with their email) to the team list and save first.", 400, "not_on_team");
     }
     const other = mockSubmissionDrafts.access(slug, e);
-    if (other && other.meta.ownerEmail !== a.meta.ownerEmail) {
+    const ownsSeeded = mockTracked.list(slug).some((s) => norm(s.lumaEmail) === e);
+    if (ownsSeeded || (other && other.meta.ownerEmail !== a.meta.ownerEmail)) {
       throw new ApiError("This email is already on another team for this program.", 409, "email_in_use");
     }
     if (!checkedIn(slug, e)) throw new ApiError("This email isn't checked in on Luma.", 403, "not_checked_in");

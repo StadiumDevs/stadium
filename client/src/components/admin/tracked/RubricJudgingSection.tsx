@@ -131,7 +131,7 @@ export function RubricJudgingSection({
   const { toast } = useToast();
   const isJudge = !!judgeEmail;
   // Organisers: entries still drafts (not in any queue until the team finalizes).
-  const [draftCount, setDraftCount] = useState<number | null>(null);
+  const [unsubmittedDrafts, setUnsubmittedDrafts] = useState<number | null>(null);
   const [tab, setTab] = useState<"score" | "leaderboard">(isJudge ? "score" : "leaderboard");
   const [judges, setJudges] = useState<ProgramJudge[]>([]);
   // Scores are saved under the batch being judged now (evening until 20:00 on
@@ -168,7 +168,7 @@ export function RubricJudgingSection({
     setJudges(j.data.map((x) => ({ ...x, tracks: x.tracks ?? profile.tracks.map((t) => t.id) })));
     setSubmissions(list.data.submissions);
     setPublishedAt(list.data.resultsPublishedAt);
-    setDraftCount(list.data.draftCount ?? null);
+    setUnsubmittedDrafts(list.data.draftCount ?? null);
   }, [getAuth, programSlug, profile]);
 
   useEffect(() => {
@@ -512,9 +512,9 @@ export function RubricJudgingSection({
         </div>
       </div>
 
-      {!isJudge && draftCount !== null && draftCount > 0 && (
+      {!isJudge && unsubmittedDrafts !== null && unsubmittedDrafts > 0 && (
         <p className="label-hw-dim" data-testid="draft-count">
-          {draftCount} DRAFT{draftCount === 1 ? "" : "S"} NOT YET SUBMITTED (NOT IN ANY JUDGE'S QUEUE)
+          {unsubmittedDrafts} DRAFT{unsubmittedDrafts === 1 ? "" : "S"} NOT YET SUBMITTED (NOT IN ANY JUDGE'S QUEUE)
         </p>
       )}
       <JudgingProgressTable

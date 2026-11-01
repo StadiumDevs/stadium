@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ApiPublicSubmission } from "@/lib/api";
-import { trackFieldsFor, trackLabel, type JudgedTrack, type ProgramProfile } from "@/lib/programProfiles";
+import type { ApiPublicSubmission, JudgedTrack } from "@/lib/api";
+import { trackFieldsFor, trackLabel, type ProgramProfile } from "@/lib/programProfiles";
 import { TxCheckBadge, TxidLink } from "./TxCheckBadge";
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (

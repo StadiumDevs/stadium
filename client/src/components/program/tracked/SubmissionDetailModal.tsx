@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ApiPublicSubmission } from "@/lib/api";
-import { isEcosystem, type JudgedTrack, type ProgramProfile } from "@/lib/programProfiles";
+import type { JudgedTrack } from "@/lib/api";
+import { isEcosystem, type ProgramProfile } from "@/lib/programProfiles";
 import { MilestoneProgress } from "./MilestoneProgress";
 import { SubmissionDetails } from "./SubmissionDetails";
 import { EcosystemBadge } from "./SubmissionCard";

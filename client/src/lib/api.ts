@@ -286,6 +286,7 @@ export type SubmitResult = {
 export type MySubmission = SubmissionPayload &
   Partial<SubmissionState> & {
     createdAt?: string;
+    updatedAt?: string;
     /** "owner" = the point person; "editor" = a teammate they gave edit access. */
     role?: "owner" | "editor";
     /** Teammates' emails with edit access. */

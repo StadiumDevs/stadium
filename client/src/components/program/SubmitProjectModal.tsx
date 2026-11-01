@@ -262,8 +262,13 @@ export function SubmitProjectModal({
 
   // Keep the draft as they type (the honeypot is never saved).
   // Tracked: only once the entry is loaded, under the signed-in person's key.
-  // `baseline` is the form as loaded; only a change from it is kept.
+  // `baseline` is the form as loaded or last saved; only a change from it is
+  // kept (null = take the next render's form as the baseline, after a load).
   const baseline = useRef<string | null>(null);
+  const formShape = JSON.stringify({
+    submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl,
+    agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked,
+  });
   useEffect(() => {
     if (!open || done) return;
     if (trackedFlow && (!sessionEmail || !entryLoaded)) return;
@@ -272,8 +277,7 @@ export function SubmitProjectModal({
       agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked,
       savedAt: new Date().toISOString(),
     };
-    const { savedAt: _at, ...form } = draft;
-    const shape = JSON.stringify(form);
+    const shape = formShape;
     if (trackedFlow && baseline.current === null) {
       baseline.current = shape;
       return;
@@ -285,7 +289,7 @@ export function SubmitProjectModal({
       setDraftSaved(true);
     }, DRAFT_SAVE_MS);
     return () => window.clearTimeout(t);
-  }, [open, done, trackedFlow, sessionEmail, entryLoaded, program.slug, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked]);
+  }, [open, done, trackedFlow, sessionEmail, entryLoaded, program.slug, formShape, submitterName, lumaEmail, projectTitle, projectBrief, videoUrl, githubUrl, agreedToTerms, surfaces, surfacesPrimary, singles, texts, tracked, ratings, eventLiked]);
 
   const startOver = () => {
     writeDraft(program.slug, null, trackedFlow ? sessionEmail : null);
@@ -582,7 +586,8 @@ export function SubmitProjectModal({
           lastEditedByEmail: d?.lastEditedByEmail ?? null,
         }));
         setRestoredFromDevice(false);
-        baseline.current = null;
+        // What was just saved is the new baseline: the next change is kept on the device.
+        baseline.current = formShape;
       }
       if (trackedFlow && (intent === "draft" || quiet) && result.outcome !== "pending") {
         if (!quiet) {
