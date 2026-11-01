@@ -26,7 +26,7 @@ export interface PaletteAnchor {
 
 export interface Palette {
   key: string;
-  label: string;          // shown in the picker, e.g. "RACK" or "WEBZERO"
+  label: string;          // shown in the picker, e.g. "RACK"
   led: HSL;               // accent color — constant across brightness
   anchors: {
     dark: PaletteAnchor;  // brightness = 0
@@ -102,74 +102,9 @@ const GRAYSCALE: Palette = {
   },
 };
 
-// ── WebZero ("WEBZERO") — paper / poster ─────────────────────────────────
-// Cream paper, ink type. Vermillion + teal as panel tint accents. Lime LED.
-// At dark the page is "ink with paper text"; at light it's a printed poster.
-const WEBZERO: Palette = {
-  key: 'webzero',
-  label: 'WEBZERO',
-  led: [68, 76, 55], // lime
-  anchors: {
-    dark: {
-      shell:           [  0,  0,  4],   // ink
-      panelLight:      [ 11, 12, 10],   // vermillion-tinted dark panel
-      panelMid:        [ 11,  8,  8],
-      panelDark:       [  0,  0,  4],
-      panelDeep:       [  0,  0,  2],
-      hairline:        [168, 25, 22],   // teal hairline
-      hairlineSubtle:  [168, 18, 14],
-      display:         [ 40, 50, 91],   // cream type
-      displayDim:      [ 40, 35, 78],
-      body:            [ 40, 15, 65],
-      labelMid:        [ 40, 35, 78],
-      labelDim:        [ 11, 30, 50],   // vermillion stamp dim
-    },
-    dusk: {
-      shell:           [ 20, 30, 35],
-      panelLight:      [ 20, 25, 42],
-      panelMid:        [ 20, 22, 38],
-      panelDark:       [ 20, 18, 32],
-      panelDeep:       [ 20, 15, 28],
-      hairline:        [168, 30, 50],
-      hairlineSubtle:  [168, 22, 42],
-      display:         [ 40, 45, 90],
-      displayDim:      [ 40, 30, 78],
-      body:            [ 40, 18, 70],
-      labelMid:        [ 40, 30, 78],
-      labelDim:        [ 11, 40, 55],
-    },
-    dawn: {
-      shell:           [ 30, 40, 75],
-      panelLight:      [ 35, 50, 88],
-      panelMid:        [ 35, 45, 84],
-      panelDark:       [ 30, 30, 70],
-      panelDeep:       [ 30, 28, 65],
-      hairline:        [168, 32, 55],
-      hairlineSubtle:  [168, 25, 65],
-      display:         [  0,  0, 12],
-      displayDim:      [  0,  0, 22],
-      body:            [  0,  0, 32],
-      labelMid:        [  0,  0, 22],
-      labelDim:        [ 11, 45, 42],
-    },
-    light: {
-      shell:           [ 40, 50, 91],   // cream paper
-      panelLight:      [ 40, 60, 96],
-      panelMid:        [ 40, 55, 93],
-      panelDark:       [ 40, 40, 85],
-      panelDeep:       [ 40, 35, 80],
-      hairline:        [168, 35, 45],   // teal hairline
-      hairlineSubtle:  [168, 25, 68],
-      display:         [  0,  0,  4],   // ink
-      displayDim:      [  0,  0, 18],
-      body:            [  0,  0, 30],
-      labelMid:        [  0,  0, 18],
-      labelDim:        [ 11, 50, 38],   // vermillion stamp dim
-    },
-  },
-};
-
-export const PALETTES: Palette[] = [GRAYSCALE, WEBZERO];
+// Grayscale only. A stored key for a removed palette (e.g. 'webzero', whose
+// picker went with the top-bar dropdown) falls back to GRAYSCALE in getPalette.
+export const PALETTES: Palette[] = [GRAYSCALE];
 export const DEFAULT_PALETTE_KEY = 'grayscale';
 
 export function getPalette(key: string): Palette {

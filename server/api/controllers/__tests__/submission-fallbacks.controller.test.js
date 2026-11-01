@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
+  default: { upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
+}));
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
   extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
@@ -59,6 +62,7 @@ const body = (email = 'walkin@example.com') => ({
   videoUrl: 'https://youtu.be/x',
   githubUrl: 'https://github.com/x/y',
   details,
+  ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
 });
 const run = async (b, token) => {
   const res = mockRes();

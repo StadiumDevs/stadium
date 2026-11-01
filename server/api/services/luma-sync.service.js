@@ -28,9 +28,12 @@ async function runSync(program) {
   const programId = program.id;
   const eventId = program.lumaEventId;
   let status;
-  let result = { total: 0, checkedIn: 0, upserted: 0, removed: 0 };
+  let result = { total: 0, checkedIn: 0, approved: 0, upserted: 0, removed: 0 };
   try {
-    const { total, eligible, truncated } = await fetchEligibleGuests(eventId, gateMode());
+    const { total, eligible, approved = 0, truncated } = await fetchEligibleGuests(eventId, gateMode());
+    // Approved registrants, for the admin's "N checked in out of M approved".
+    // Display only: reported even when the sweep isn't trusted to overwrite the cache.
+    result.approved = approved;
 
     if (truncated) {
       // Partial sweep — never trust it enough to overwrite a good cache.
@@ -42,7 +45,7 @@ async function runSync(program) {
     } else {
       const { upserted, removed } = await signupRepository.replaceLumaGuests(programId, eligible);
       status = 'ok';
-      result = { total, checkedIn: eligible.length, upserted, removed };
+      result = { total, checkedIn: eligible.length, approved, upserted, removed };
     }
   } catch (err) {
     status = shortError(err);
@@ -71,11 +74,11 @@ class LumaSyncService {
   }
 
   // Sync a program's checked-in guests. Single-flighted per program. Returns
-  // { status, total, checkedIn, upserted, removed }. `status` is one of
+  // { status, total, checkedIn, approved, upserted, removed }. `status` is one of
   // 'ok' | 'truncated' | 'empty_guard' | 'error:<msg>' | 'not_configured'.
   async syncProgram(program) {
     if (!this.isActive(program)) {
-      return { status: 'not_configured', total: 0, checkedIn: 0, upserted: 0, removed: 0 };
+      return { status: 'not_configured', total: 0, checkedIn: 0, approved: 0, upserted: 0, removed: 0 };
     }
     const programId = program.id;
     if (inFlight.has(programId)) return inFlight.get(programId);

@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Edit, Loader2, Plus } from "lucide-react";
-import { api, type ApiProgram } from "@/lib/api";
+import { api, type AdminAuthArg, type ApiProgram } from "@/lib/api";
 import { ProgramFormModal } from "@/components/admin/ProgramFormModal";
 
 const statusBadge = (status: ApiProgram["status"]) => {
@@ -39,7 +39,14 @@ const formatDateRange = (from?: string | null, to?: string | null) => {
   return `${fmt(from)} → ${fmt(to)}`;
 };
 
-export function ProgramsTable({ connectedAddress }: { connectedAddress?: string } = {}) {
+export function ProgramsTable({
+  connectedAddress,
+  signAuthHeader,
+}: {
+  connectedAddress?: string;
+  /** Authorizes create/edit/upload in the program form (the cached admin bearer). */
+  signAuthHeader?: () => Promise<AdminAuthArg>;
+} = {}) {
   const navigate = useNavigate();
   const [programs, setPrograms] = useState<ApiProgram[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,8 +169,8 @@ export function ProgramsTable({ connectedAddress }: { connectedAddress?: string 
           open={formOpen}
           onOpenChange={setFormOpen}
           program={editing}
-          connectedAddress={connectedAddress}
           onSaved={handleSaved}
+          signAuthHeader={signAuthHeader}
         />
       )}
     </div>

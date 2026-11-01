@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
+  default: { upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
+}));
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
   extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
@@ -74,6 +77,7 @@ const base = {
   projectBrief: 'Shielded checkout for cafés.',
   videoUrl: 'https://youtu.be/abc',
   githubUrl: 'https://github.com/x/chai',
+  ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
 };
 const details = {
   privacyNote: 'Amounts and memos are shielded; our server stores order ids next to emails.', bitrefillFeedback: { worked: 'The MCP was quick to set up.', didnt: 'Test products were hard to find.' }, track: 'privacy',

@@ -96,7 +96,13 @@ export function LumaGuestsSection({ program, signAuthHeader, onProgramChange }: 
       setLumaCount(r.data.checkedInCount);
       onProgramChange?.({ lastGuestSyncAt: r.data.syncedAt, lastGuestSyncStatus: r.data.syncStatus });
       if (r.data.syncStatus === "ok") {
-        toast({ title: `Synced ${r.data.checkedInCount} checked-in guests` });
+        const n = r.data.checkedInCount;
+        toast({
+          title:
+            typeof r.data.approvedCount === "number"
+              ? `${n} checked-in ${n === 1 ? "guest" : "guests"} out of ${r.data.approvedCount} approved`
+              : `Synced ${n} checked-in guests`,
+        });
       } else {
         toast({
           title: "Sync returned a warning",

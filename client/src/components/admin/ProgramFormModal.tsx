@@ -182,13 +182,15 @@ export function ProgramFormModal({
       if (!Number.isInteger(n) || n < 1) e.maxApplicants = "Must be a positive integer.";
     }
     if (eventUrl.trim() && !/^https?:\/\//i.test(eventUrl.trim())) {
-      e.eventUrl = "Must start with http:// or https://";
+      e.eventUrl = "Event URL must start with http:// or https://";
     }
-    if (coverImageUrl.trim() && !/^https?:\/\//i.test(coverImageUrl.trim())) {
-      e.coverImageUrl = "Must start with http:// or https://";
+    // Also accept a site-relative path: past programs' covers are served from
+    // client/public/program-covers (e.g. "/program-covers/symbiosis-2025.webp").
+    if (coverImageUrl.trim() && !/^(https?:\/\/|\/(?!\/))/i.test(coverImageUrl.trim())) {
+      e.coverImageUrl = "Cover image URL must start with http://, https:// or /";
     }
     if (galleryUrl.trim() && !/^https?:\/\//i.test(galleryUrl.trim())) {
-      e.galleryUrl = "Must start with http:// or https://";
+      e.galleryUrl = "Gallery URL must start with http:// or https://";
     }
     if (applicationsOpenAt && applicationsCloseAt) {
       if (new Date(applicationsOpenAt).getTime() >= new Date(applicationsCloseAt).getTime()) {

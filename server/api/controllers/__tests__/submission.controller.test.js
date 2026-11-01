@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
+  default: { upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
+}));
 vi.mock('../../auth/supabaseUser.js', () => ({
   getSupabaseUser: vi.fn(async (token) => (token && token.startsWith('tok:') ? { id: 'u', email: token.slice(4) } : null)),
   extractSupabaseToken: (req) => req.headers?.['x-supabase-token'] ?? null,
@@ -23,7 +26,7 @@ vi.mock('../../repositories/program.repository.js', () => ({
   default: { setResultsPublished: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
+  default: { create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn(), aggregateFeedback: vi.fn(), listEventLiked: vi.fn() },
 }));
 vi.mock('../../services/submission-confirmation.service.js', () => ({
   default: { send: vi.fn() },
@@ -55,6 +58,8 @@ const signupRepo = (await import('../../repositories/program-signup.repository.j
 const confirmationService = (await import('../../services/submission-confirmation.service.js')).default;
 const prizeAwardService = (await import('../../services/prize-award.service.js')).default;
 const lumaSyncService = (await import('../../services/luma-sync.service.js')).default;
+const ratingRepo = (await import('../../repositories/submission-experience-rating.repository.js')).default;
+const refusalRepo = (await import('../../repositories/submission-refusal.repository.js')).default;
 const submissionController = (await import('../submission.controller.js')).default;
 
 const mockRes = () => {
@@ -73,6 +78,7 @@ const GOOD_BODY = {
   projectBrief: 'A mechanical computer that runs programs from punched cards.',
   videoUrl: 'https://youtu.be/x',
   githubUrl: 'https://github.com/ada/x',
+  ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -630,5 +636,93 @@ describe('SubmissionController.deleteSubmission (admin)', () => {
     await submissionController.deleteSubmission(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
     expect(submissionRepo.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubmissionController — event ratings', () => {
+  const firstSubmit = () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(true);
+    submissionRepo.findByEmail.mockResolvedValue(null);
+    submissionRepo.create.mockResolvedValue({
+      submission: { id: 'engine-ab12', lumaEmail: 'ada@example.com', submitterName: 'Ada', projectTitle: 'Engine' },
+      duplicate: false,
+    });
+    confirmationService.send.mockResolvedValue({ ok: true });
+  };
+
+  it('stores the ratings against the new submission', async () => {
+    firstSubmit();
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: GOOD_BODY }, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(ratingRepo.upsertForSubmission).toHaveBeenCalledWith({
+      submissionId: 'engine-ab12',
+      programId: 'bitrefill',
+      ratings: GOOD_BODY.ratings,
+    });
+  });
+
+  it('a resubmit overwrites the ratings on the existing entry', async () => {
+    firstSubmit();
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'engine-ab12' });
+    submissionRepo.updateSubmission.mockResolvedValue({ id: 'engine-ab12', lumaEmail: 'ada@example.com' });
+    const res = mockRes();
+    const ratings = { overall: 1, organisation: 2, support: 3, tools: 4 };
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: { ...GOOD_BODY, ratings } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(ratingRepo.upsertForSubmission).toHaveBeenCalledWith(expect.objectContaining({ submissionId: 'engine-ab12', ratings }));
+  });
+
+  it('400s (and records the refusal) when the ratings are missing', async () => {
+    firstSubmit();
+    const { ratings, ...noRatings } = GOOD_BODY;
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: noRatings }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(submissionRepo.create).not.toHaveBeenCalled();
+    expect(ratingRepo.upsertForSubmission).not.toHaveBeenCalled();
+    expect(refusalRepo.create).toHaveBeenCalledWith(expect.objectContaining({ reasonCode: 'invalid' }));
+  });
+
+  it('a failed rating write never fails the saved submission', async () => {
+    firstSubmit();
+    ratingRepo.upsertForSubmission.mockRejectedValueOnce(new Error('db down'));
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: GOOD_BODY }, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(confirmationService.send).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('feedbackAggregate includes the per-category rating averages and what builders liked', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    submissionRepo.aggregateFeedback.mockResolvedValue({ total: 2, agentEnv: {} });
+    ratingRepo.aggregateByProgram.mockResolvedValue({ overall: { avg: 4.5, count: 2 } });
+    const liked = [{ projectTitle: 'Engine', text: 'The mentors', submittedAt: '2026-11-04T10:00:00Z' }];
+    submissionRepo.listEventLiked.mockResolvedValue(liked);
+    const res = mockRes();
+    await submissionController.feedbackAggregate({ params: { slug: 'bitrefill' } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      status: 'success',
+      data: { total: 2, agentEnv: {}, ratings: { overall: { avg: 4.5, count: 2 } }, liked },
+    });
+  });
+
+  it('stores what the builder liked about the event with the submission', async () => {
+    programService.findBySlug.mockResolvedValue(PROGRAM);
+    signupRepo.existsByEmail.mockResolvedValue(true);
+    submissionRepo.findByEmail.mockResolvedValue(null);
+    submissionRepo.create.mockResolvedValue({
+      submission: { id: 'engine-ab12', lumaEmail: 'ada@example.com', submitterName: 'Ada', projectTitle: 'Engine' },
+      duplicate: false,
+    });
+    confirmationService.send.mockResolvedValue({ ok: true });
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: 'bitrefill' }, body: { ...GOOD_BODY, eventLiked: '  The mentors  ' } }, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(submissionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ eventLiked: 'The mentors' }));
   });
 });

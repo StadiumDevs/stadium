@@ -17,7 +17,7 @@ describe('submissionsToCsv', () => {
   it('emits a header with all feedback columns', () => {
     const csv = submissionsToCsv([]);
     const header = csv.split('\n')[0];
-    for (const col of ['submitterName', 'lumaEmail', 'surfaces', 'surfacesPrimary', 'agentEnv', 'wouldKeepBuilding']) {
+    for (const col of ['submitterName', 'lumaEmail', 'surfaces', 'surfacesPrimary', 'agentEnv', 'wouldKeepBuilding', 'eventLiked']) {
       expect(header).toContain(col);
     }
   });
