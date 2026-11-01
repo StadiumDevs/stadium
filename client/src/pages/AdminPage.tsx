@@ -527,7 +527,7 @@ const AdminPage = () => {
           <div className="flex items-center gap-2 mb-3 pb-3 border-b border-hairline-subtle">
             <span className="label-hw text-display">·PROGRAMS</span>
           </div>
-          <ProgramsTable connectedAddress={auth.account?.address} />
+          <ProgramsTable connectedAddress={auth.account?.address} signAuthHeader={auth.getAdminBearerHeaders} />
         </section>
       </main>
 
