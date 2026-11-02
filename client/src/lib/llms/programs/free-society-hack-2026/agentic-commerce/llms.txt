@@ -6,7 +6,23 @@
 
 - Directions (inspiration, not categories): it pays for itself (no human checkout); works while you sleep (an event, schedule or rule triggers buying); shop from chat. Crypto payments and India-relevant products are encouraged.
 - The loop: user → trigger → guarantee (budgets, approvals, receipts) → fulfillment (Bitrefill: search, buy, pay, deliver) → ending (redeemed, installed, delivered, reconciled). Bitrefill already covers fulfillment, and the Bitrefill Assistant on Telegram already turns a chat into an order. Ideas that stand out add a new trigger, guarantee, ending or user.
-- Optional lanes to brainstorm from (not scored): 1 rails and guardrails, 2 close the loop, 3 no prompt required, 4 home-cooked commerce, 5 private by default (pay from shielded ZEC; can also enter the Privacy track).
+- Optional lanes to brainstorm from: see Lanes below.
+
+## Lanes (optional brainstorming help)
+
+The lanes aren't categories and aren't scored: pick one if it helps, or bring your own idea. When the builder has an idea, run it past its lane's test question before writing code.
+
+| Lane | What's new | Example ideas | Question to test your idea |
+| --- | --- | --- | --- |
+| **1. Rails and guardrails** | The guarantee: limits, approvals and receipts that work for any agent | Spend firewall: an MCP proxy that enforces caps and asks a human on Telegram for anything above them · Onchain allowance: a revocable weekly cap on x402 payments · Commerce agent gym: benchmarks models on real shopping tasks · Agent receipts: signed receipts that link the payment, the invoice and the agent | Does it work with an agent you didn't write? |
+| **2. Close the loop** | The ending: what was bought gets used, with nothing copied by hand | Auto-redeemer: applies the code in the user's own signed-in browser · Gift on claim: the purchase happens when the recipient picks a brand, and unclaimed funds go back to the sender · eSIM install link · Gift card vault | How many human steps are left between purchase and use? |
+| **3. No prompt required** | The trigger: a signal buys within rules set once | Back-in-stock auto-buyer · Contributor payouts: a merged PR or a DAO vote triggers a reward · Monsoon mode: a flood alert keeps volunteers' phones topped up · Subscription keeper | What stops it from firing twice? |
+| **4. Home-cooked commerce** | The user: households and shops | Family line keeper: renews prepaid plans before they lapse · Pocket money payday: chores earn credit, with caps set by parents · Recharge rewards: a café loyalty card that pays out phone recharges · Shagun pool | Could your parents run it from your README? |
+| **5. Private by default** (with Zcash) | The guarantee: no public trail from wallet to merchant | Pay for Bitrefill purchases from shielded ZEC · Private mutual aid turned into recharges and grocery credit · Anonymous thank-you gifts | What's visible at each hop? |
+
+**Lane 5 route:** Bitrefill doesn't take ZEC directly. The path is shielded ZEC → deshield to a transparent address → NEAR Intents 1Click (ZEC to USDC) → Bitrefill. NEAR Intents has no testnet, so the swap uses a few real dollars. Build the Zcash side with zcash-devtool, zingo-cli or WebZjs on testnet, use CipherPay to detect payments, and carry memos in ZIP-321 payment URIs. Ask the Zcash mentors which testnet and SDK builds to use. To enter the Privacy track too, meet its requirements as well (see the [Privacy llms.txt]({{ORIGIN}}/programs/free-society-hack-2026/privacy/llms.txt)).
+
+**Building blocks:** official MCP SDKs (for proxies) · Base spend permissions, ERC-7715 or session keys (for allowances) · EIP-712 and ERC-8004 (for receipts) · `webhook_url` on REST v2 invoices (for delivery events) · Playwright MCP or a computer-use agent (for redeeming) · GitHub, calendar and onchain webhooks, plus weather alert feeds (for triggers).
 
 ## Hour one
 
