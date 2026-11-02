@@ -51,15 +51,11 @@ export const FREE_SOCIETY_HACK_2026_CONTENT: ProgramContentSection[] = [
       { time: "Wed 4 Nov 20:00", label: "Evening judging (projects in by now)" },
       { time: "Thu 5 Nov 00:00", label: "Submissions close" },
       { time: "Thu 5 Nov 08:00", label: "Morning judging" },
-      // Demo day (Thu 5 Nov, 11:30–13:30). Mirrored in the llms.txt index.
-      { time: "Thu 5 Nov 11:00", label: "Doors open, top teams announced" },
-      { time: "Thu 5 Nov 11:30", label: "Kickoff (10 min)" },
-      { time: "Thu 5 Nov 11:40", label: "Zcash India (5 min)" },
-      { time: "Thu 5 Nov 11:45–12:15", label: "Privacy demos 1–6" },
-      { time: "Thu 5 Nov 12:15–12:30", label: "Bitrefill demos 1–3 (3 min on stage + 2 min changeover each)" },
-      { time: "Thu 5 Nov 12:30–13:00", label: "Judges rank winners" },
-      { time: "Thu 5 Nov 13:00–13:15", label: "Prize announcements" },
-      { time: "Thu 5 Nov 13:15–13:30", label: "Photos and close" },
+      // Public schedule only; the detailed run-of-show stays in the runbook.
+      // Mirrored in the llms.txt index.
+      { time: "Thu 5 Nov 11:00", label: "Top teams announced to demo" },
+      { time: "Thu 5 Nov 11:30", label: "Demos" },
+      { time: "Thu 5 Nov 13:00", label: "Prize announcements" },
     ],
   },
   {
