@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { llmsPath, llmsTrackFiles, llmsTrackPath, llmsTrackPrompt } from "@/lib/llms/llmsPrograms";
+import { llmsGuideUrl, llmsPath, llmsTrackFiles, llmsTrackPath, llmsTrackPrompt } from "@/lib/llms/llmsPrograms";
 
 const btn =
   "inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border px-3 py-1.5";
@@ -12,6 +12,7 @@ const btn =
 export function LlmsBrief({ slug, className = "" }: { slug: string; className?: string }) {
   const [copied, setCopied] = useState<string | null>(null);
   const tracks = llmsTrackFiles(slug);
+  const guideUrl = llmsGuideUrl(slug);
   const origin = window.location.origin;
 
   useEffect(() => {
@@ -81,15 +82,28 @@ export function LlmsBrief({ slug, className = "" }: { slug: string; className?: 
           );
         })}
       </div>
-      <a
-        href={llmsPath(slug)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-mono text-[10px] tracking-[0.14em] text-label-mid hover:text-display underline"
-        data-testid="llms-link"
-      >
-        EVENT INDEX · LLMS.TXT ↗
-      </a>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {guideUrl && (
+          <a
+            href={guideUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-[10px] tracking-[0.14em] text-display hover:text-label-mid underline"
+            data-testid="llms-guide-link"
+          >
+            HOW TO USE THESE FILES ↗
+          </a>
+        )}
+        <a
+          href={llmsPath(slug)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono text-[10px] tracking-[0.14em] text-label-mid hover:text-display underline"
+          data-testid="llms-link"
+        >
+          EVENT INDEX · LLMS.TXT ↗
+        </a>
+      </div>
     </div>
   );
 }
