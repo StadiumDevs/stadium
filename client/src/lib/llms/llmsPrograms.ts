@@ -39,9 +39,16 @@ export const LLMS_TRACK_FILES: Record<string, LlmsTrackFile[]> = {
   ],
 };
 
+/** External "how to use these files" guide, shown next to the briefs. */
+export const LLMS_GUIDE_URLS: Record<string, string> = {
+  "free-society-hack-2026":
+    "https://app.notion.com/p/Using-the-llms-txt-files-with-your-coding-agent-40c3e52aeb1580cf9974c8779e99dad2?source=copy_link",
+};
+
 export const hasLlms = (slug?: string | null) => !!slug && (LLMS_SLUGS as readonly string[]).includes(slug);
 /** The program's index (pick a track, start prompts, key times). */
 export const llmsPath = (slug: string) => `/programs/${slug}/llms.txt`;
+export const llmsGuideUrl = (slug: string): string | undefined => LLMS_GUIDE_URLS[slug];
 export const llmsTrackFiles = (slug: string): LlmsTrackFile[] => LLMS_TRACK_FILES[slug] ?? [];
 export const llmsTrackPath = (slug: string, id: string) => `/programs/${slug}/${id}/llms.txt`;
 /** The agent prompt for a track, with the brief's absolute URL filled in. */

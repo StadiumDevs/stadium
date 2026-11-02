@@ -1,32 +1,49 @@
 # Free Society Hack
 
-> A Zcash hackathon with a Bitrefill track, solo or in teams of up to 4, Mumbai, Wed 4 – Thu 5 Nov 2026 (IST, UTC+5:30), during Devcon week. Load only the track file you need: each one is self-contained.
+> A Zcash hackathon with a Bitrefill track, solo or in teams of up to 4, Mumbai (True Tramm Trunk, BKC), Wed 4 – Thu 5 Nov 2026 (IST, UTC+5:30), during Devcon week. Each track file below is self-contained: load the one you need, or both.
+
+Version: 2026-11-02. These files may be updated during the hack; when the hacker chat announces a new version, re-fetch them.
 
 ## Pick your track
 
-- [Privacy track (Zcash)]({{ORIGIN}}/programs/free-society-hack-2026/privacy/llms.txt): build private money on Zcash. Testnet only, shielded payments, no real money.
-- [Agentic Commerce track (Bitrefill)]({{ORIGIN}}/programs/free-society-hack-2026/agentic-commerce/llms.txt): an agent that finds, buys and pays through Bitrefill on its own. Real purchases with event credits.
-- Entering both: load both files and meet both sets of requirements. The two tracks have different money rules (testnet vs real), so keep each track's rules to its own part of the project.
+- [Privacy track (Zcash)](https://stadium.joinwebzero.com/programs/free-society-hack-2026/privacy/llms.txt): build private money on Zcash. Testnet only, shielded payments, no real money.
+- [Agentic Commerce track (Bitrefill)](https://stadium.joinwebzero.com/programs/free-society-hack-2026/agentic-commerce/llms.txt): an agent that finds, buys and pays through Bitrefill on its own. Real purchases with event credits.
+- Entering both: load both files and meet both sets of requirements. Testnet TAZ cannot pay Bitrefill; each track file has a "Both tracks" recipe (a shielded testnet payment authorises a purchase paid from event credits).
 
 ## Start (paste into your coding agent)
 
-- Privacy: `Read {{ORIGIN}}/programs/free-society-hack-2026/privacy/llms.txt, save it as AGENTS.md in a new repo, then scaffold the smallest version of my idea that makes one real shielded testnet payment.`
-- Agentic Commerce: `Read {{ORIGIN}}/programs/free-society-hack-2026/agentic-commerce/llms.txt, save it as AGENTS.md in a new repo, then scaffold the smallest version of my idea with a spend cap before any purchase.`
+- Privacy: `Read https://stadium.joinwebzero.com/programs/free-society-hack-2026/privacy/llms.txt and save it as AGENTS.md in a new repo. Follow its "First steps" section before writing any product code. If you pick a Rust tool (zkool_graphql, zingo-cli, zcash-devtool), start its build in a second terminal first: it takes 15–30 minutes. Get a utest1 address with an Ironwood receiver, claim TAZ, see one real shielded testnet payment land. Then scaffold the smallest version of my idea.`
+- Agentic Commerce: `Read https://stadium.joinwebzero.com/programs/free-society-hack-2026/agentic-commerce/llms.txt and save it as AGENTS.md in a new repo. Follow its "First steps" section: confirm the product IDs and prices with the CLI, write the spend cap, create one unpaid invoice on a zero-balance account. Then scaffold the smallest version of my idea.`
+- Both: paste both lines; the agent reads both files and keeps one repo.
 
-Save the file once into the repo (AGENTS.md or CLAUDE.md) so your agent reads it locally instead of fetching it every turn.
+Where this file and a track file disagree, the track file wins; where a track file and a mentor disagree, the mentor wins.
 
-## Key times
+## During the hack
 
-- Wed 4 Nov 11:00: hacking starts. All code is made at the hack: new repo on the day.
-- Wed 4 Nov 20:00: click **Finalize and submit** on Stadium to be in the first judging round (~20:30). Save drafts before that as often as you like (only your team sees them); drafts are not judged. The point person starts the submission and can give teammates edit access; the event feedback must be submitted before finalizing.
-- Thu 5 Nov 00:00: submissions close. A finalized submission stays editable until then; code after 00:00 isn't scored.
-- Thu 5 Nov 08:00: morning judging.
-- Thu 5 Nov 11:00: top teams announced to demo.
-- Thu 5 Nov 11:30: demos.
-- Thu 5 Nov 13:00: prize announcements.
+- Each track file lists "Stop and ask a mentor" moments. Post the question in the mentors chat and keep building the parts that don't depend on the answer. Mentor hours: 11:00–14:00, 15:00–18:00, 18:00–21:00.
+- Both tracks ask for a FEEDBACK.md (what broke, confused or slowed you down). Bitrefill pays $100 for the best one. It is easiest to write from notes kept from the first error onwards.
+
+## Key times (IST)
+
+- Wed 4 Nov 11:00: hacking starts. All code is made at the hack: new repo on the day, judges read the commit history. Ideas, research and sketches from before are fine.
+- Wed 4 Nov 20:00: click **Finalize and submit** on Stadium to be in the first Privacy judging session (20:00–22:00). Drafts are saved but not judged. The point person starts the submission with their Luma email and can give teammates edit access; the event feedback form must be submitted before finalizing. A finalized submission stays editable until 00:00.
+- Thu 5 Nov 00:00: submissions close. Code after 00:00 isn't scored.
+- Thu 5 Nov 08:00–10:00: second judging session.
+- Thu 5 Nov 11:00: top teams are contacted.
+- Thu 5 Nov 12:00: demos of top teams. Demoing isn't required to win; judges score every submission.
+- Thu 5 Nov 13:30: prize announcements.
+
+## Rules for everyone
+
+- Checked-in Luma guests only, solo or a team of up to 4. One point person per project receives any prize.
+- Privacy prizes are paid in USDC; Agentic Commerce prizes in Bitrefill gift cards. One hacker also receives a ZKSnarks NFT as the "MVP" prize.
+- Demo video: 2–3 minutes; judges watch only the first 3 minutes. Every step shown must be real.
+- You agree to the hack terms when you submit on Stadium. Organisers can remove anyone who isn't respectful.
 
 ## Help
 
-- Mentors at the venue (True Tramm Trunk, BKC) and the mentors chat: https://t.me/+QHbTGB6jFhllMDk6
-- Submit at: {{ORIGIN}}/programs/free-society-hack-2026
-- [Stadium]({{ORIGIN}}/llms.txt): other programs
+- Mentors at the venue; mentors chat: https://t.me/+QHbTGB6jFhllMDk6; general hacker chat: https://t.me/joinWebzero/8828; `#zechub` on the Zcash Discord https://discord.gg/zcash
+- TAZ (testnet coins): any Zcash mentor can send you some. Event credits for Bitrefill purchases: the Bitrefill team. Free Nym subscription credits: Max Hampshire (Nym), at the venue.
+- Submit at: https://stadium.joinwebzero.com/programs/free-society-hack-2026
+- Builder Pack (rules, judging, mentors): https://app.notion.com/p/3ff3e52aeb15807eace6f16f84a74c14
+- [Stadium](https://stadium.joinwebzero.com/llms.txt): other programs
