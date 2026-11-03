@@ -32,6 +32,7 @@ import { JudgingProgressTable } from "./JudgingProgressTable";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
 import { CriteriaCarousel, type CheckStep } from "./CriteriaCarousel";
 import { DemoVideo } from "./DemoVideo";
+import { formatSurvey } from "@/lib/submissionFeedback";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -105,6 +106,9 @@ const writePos = (key: string, pos: string) => {
 
 const NOTE_DEBOUNCE_MS = 700;
 const RETRY_MS = 15000;
+
+/** Short tag for a track in the jump list ("PRIVACY" → "P", "AGENTIC COMMERCE" → "AC"). */
+const trackTag = (shortLabel: string) => shortLabel.split(/\s+/).map((w) => w[0]).join("");
 
 const fmt = (n: number) => (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, "");
 const btn = "font-mono text-[10px] tracking-[0.14em] border px-3 py-1.5 disabled:opacity-50";
@@ -576,6 +580,10 @@ export function RubricJudgingSection({
     group: batchLabel(s.batch) ?? undefined,
     notFinal: isNotFinal(s),
     changed: changedFor(s, track),
+    // An entry in more than one track gets one box per track: tag each one.
+    ...(judgedTracksOf(s.details.track).length > 1
+      ? { tag: trackTag(trackById(profile, track).shortLabel), trackName: trackById(profile, track).label }
+      : {}),
   }));
   const currentIdx = Math.max(0, queue.findIndex((q) => draftId(q.s.id, q.track) === current));
   const currentItem = queue[currentIdx] ?? null;
@@ -729,7 +737,9 @@ export function RubricJudgingSection({
                       {currentIdx + 1} / {queue.length}
                     </span>
                     <span className="font-display text-lg uppercase tracking-tight text-display flex-1 min-w-[160px]">{s.projectTitle}</span>
-                    <span className="label-hw-dim">{trackById(profile, track).shortLabel}</span>
+                    <span className="label-hw text-display border border-display rounded-sm px-1.5 py-0.5" data-testid="card-track">
+                      {trackById(profile, track).shortLabel}
+                    </span>
                     {otherTracks.length > 0 && (
                       <span className="label-hw-dim border border-hairline rounded-sm px-1.5 py-0.5" data-testid="card-also-entered">
                         ALSO ENTERED IN {otherTracks.map((t) => trackById(profile, t).shortLabel).join(", ")}
@@ -831,11 +841,20 @@ export function RubricJudgingSection({
                         <p className="normal-case text-label-mid">Next milestone: {s.details.nextStep}</p>
                       </div>
                     </div>
-                    {show.agentic && s.details.bitrefillFeedback && (
+                    {show.agentic && (s.details.bitrefillFeedback || formatSurvey(s.feedback).length > 0) && (
                       <div className="text-[12px] space-y-0.5" data-testid="judge-bitrefill-feedback">
-                        <div className="label-hw-dim">BITREFILL FEEDBACK (BEST-FEEDBACK PRIZE, NOT SCORED HERE)</div>
-                        <p className="text-body"><span className="text-label-mid">Worked: </span>{s.details.bitrefillFeedback.worked}</p>
-                        <p className="text-body"><span className="text-label-mid">Didn't: </span>{s.details.bitrefillFeedback.didnt}</p>
+                        <div className="label-hw-dim">BITREFILL FEEDBACK + SURVEY (BEST-FEEDBACK PRIZE, NOT SCORED HERE)</div>
+                        {s.details.bitrefillFeedback && (
+                          <>
+                            <p className="text-body"><span className="text-label-mid">Worked: </span>{s.details.bitrefillFeedback.worked}</p>
+                            <p className="text-body"><span className="text-label-mid">Didn't: </span>{s.details.bitrefillFeedback.didnt}</p>
+                          </>
+                        )}
+                        {formatSurvey(s.feedback).map((r) => (
+                          <p key={r.label} className="text-body" data-testid="judge-bitrefill-survey">
+                            <span className="text-label-mid">{r.label}: </span>{r.value}
+                          </p>
+                        ))}
                       </div>
                     )}
                     {s.details.frictionNotes && (
@@ -845,6 +864,23 @@ export function RubricJudgingSection({
                       </div>
                     )}
 
+                    <div className="border-t-2 border-display pt-3 space-y-1" data-testid="scoring-track-header" data-track={track}>
+                      <div className="label-hw text-display">
+                        SCORING: {trackById(profile, track).label.toUpperCase()} RUBRIC · MAX {maxScore(rubric)}
+                      </div>
+                      {otherTracks.length > 0 && (
+                        <p className="label-hw-dim normal-case" data-testid="scoring-track-both">
+                          This entry is in both tracks, and each track is scored separately. This card is the {trackById(profile, track).label} score.{" "}
+                          {otherTracks
+                            .map((t) =>
+                              judge.tracks.includes(t)
+                                ? `Its ${trackById(profile, t).label} score is its own box in the list above (·${trackTag(trackById(profile, t).shortLabel)}).`
+                                : `Its ${trackById(profile, t).label} score is done by that track's judges.`,
+                            )
+                            .join(" ")}
+                        </p>
+                      )}
+                    </div>
                     <CriteriaCarousel
                       key={id}
                       rubric={rubric}

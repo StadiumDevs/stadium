@@ -17,6 +17,7 @@ import {
   validateSubmission,
   validateSubmissionDetails,
   validateExperienceRatings,
+  applyTrackedSurvey,
   EVENT_LIKED_MAX,
   videoOptionalFor,
   validateScore,
@@ -360,6 +361,14 @@ class SubmissionController {
           return refuse(res, program, body, 'invalid', 400, dv.error);
         }
         v.value.details = dv.value;
+        // Bitrefill survey (Agentic and Both): required to finalize; a save
+        // without it keeps the stored answers.
+        const sv = applyTrackedSurvey(tracked, dv.value.track, v.value, {
+          sent: body.feedback !== undefined && body.feedback !== null,
+          draft: asDraft,
+          stored: existing?.feedback ?? null,
+        });
+        if (!sv.ok) return refuse(res, program, body, 'invalid', 400, sv.error);
       }
       if (needsVerify) {
         return refuse(res, program, body, 'update_unverified', 401, 'Verify your email to update your submission.', {
@@ -626,6 +635,8 @@ class SubmissionController {
           lastEditedByName: s.lastEditedByName,
           lastEditedByEmail: s.lastEditedByEmail,
           eventLiked: s.eventLiked,
+          // The saved survey, so the form never asks for it again.
+          feedback: s.feedback ?? null,
           ratings: Object.keys(ratings || {}).length ? ratings : null,
           role: access.role,
           editors: editors.map((e) => e.email),

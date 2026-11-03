@@ -181,7 +181,7 @@ describe('GET submissions/mine', () => {
     await submissionController.mySubmission({ params: { slug: FSH.slug }, headers: { 'x-supabase-token': 'tok:nobody@x.com' } }, r2);
     expect(r2.status).toHaveBeenCalledWith(404);
     submissionRepo.findForEditor.mockResolvedValue({
-      submission: { id: 's', lumaEmail: 'priya@example.com', projectTitle: 'Chai', details, prizeAmount: 1, status: 'draft' },
+      submission: { id: 's', lumaEmail: 'priya@example.com', projectTitle: 'Chai', details, prizeAmount: 1, status: 'draft', feedback: { surfaces: ['CLI'], surfacesPrimary: 'CLI' } },
       role: 'owner',
     });
     const r3 = mockRes();
@@ -190,6 +190,8 @@ describe('GET submissions/mine', () => {
     const data = r3.json.mock.calls[0][0].data;
     expect(data).toMatchObject({ lumaEmail: 'priya@example.com', projectTitle: 'Chai', details, status: 'draft', role: 'owner', editors: [] });
     expect(data).not.toHaveProperty('prizeAmount');
+    // The saved Bitrefill survey comes back, so the form never asks for it again.
+    expect(data.feedback).toEqual({ surfaces: ['CLI'], surfacesPrimary: 'CLI' });
   });
 });
 

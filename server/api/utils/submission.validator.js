@@ -121,6 +121,56 @@ export function validateFeedback(feedback) {
   return { ok: true, value: out };
 }
 
+// The answers the Bitrefill survey must have to finalize (couldntHandle is
+// optional). Run on a feedback object already normalized by validateFeedback
+// (or one stored that way). Returns { ok } or { ok: false, error }.
+const SURVEY_REQUIRED_KEYS = [
+  ['agentEnv', 'which agent environment you used'],
+  ['deadlineStatus', 'where you landed by the deadline'],
+  ['biggestBlocker', 'your biggest blocker'],
+  ['wouldKeepBuilding', 'whether you would keep building on Bitrefill'],
+];
+const SURVEY_ERROR = 'Agentic Commerce entries need the Bitrefill survey';
+export function validateRequiredSurvey(feedback) {
+  const fb = feedback && typeof feedback === 'object' && !Array.isArray(feedback) ? feedback : {};
+  const surfaces = Array.isArray(fb.surfaces) ? fb.surfaces.filter((x) => typeof x === 'string' && x.trim()) : [];
+  if (surfaces.length === 0) return { ok: false, error: `${SURVEY_ERROR}: which Bitrefill surfaces you built with` };
+  if (!fb.surfacesPrimary || !surfaces.includes(fb.surfacesPrimary)) {
+    return { ok: false, error: `${SURVEY_ERROR}: star the surface you relied on most` };
+  }
+  for (const [key, what] of SURVEY_REQUIRED_KEYS) {
+    if (typeof fb[key] !== 'string' || !fb[key].trim()) return { ok: false, error: `${SURVEY_ERROR}: ${what}` };
+  }
+  return { ok: true };
+}
+
+// Tracked programs: the survey belongs to some tracks only (FSH: Agentic and
+// Both, `bitrefillSurveyTracks`). Mutates `value` (validateSubmission's output):
+// other tracks store no survey; a save that didn't send one keeps what's
+// stored (the key is dropped so the update leaves it alone); finalizing a
+// survey track needs a complete one (sent now, or `stored`).
+// `sent`: the request body had a feedback object. Returns { ok } or { ok: false, error }.
+const hasSurveyAnswers = (fb) =>
+  !!fb && ((Array.isArray(fb.surfaces) && fb.surfaces.length > 0) || Object.values(fb).some((v) => typeof v === 'string' && v.trim()));
+
+export function applyTrackedSurvey(config, track, value, { sent, draft = false, stored = null } = {}) {
+  const tracks = config?.bitrefillSurveyTracks;
+  if (!tracks) return { ok: true };
+  if (track && !tracks.includes(track)) {
+    value.feedback = null;
+    return { ok: true };
+  }
+  // A draft save with a blank survey (e.g. an older device copy restored
+  // without it) never wipes answers already stored.
+  if (sent && draft && !hasSurveyAnswers(value.feedback)) sent = false;
+  if (!sent) delete value.feedback;
+  if (!draft && track) {
+    const check = validateRequiredSurvey(sent ? value.feedback : stored);
+    if (!check.ok) return check;
+  }
+  return { ok: true };
+}
+
 // Validate the builder's event ratings: { overall: 4, organisation: 5, ... }.
 // Every category is required unless `required` is false (then an absent object
 // is fine, but a present one must still be complete and valid). Returns

@@ -49,3 +49,14 @@ describe('toPublicSubmission', () => {
     expect(JSON.stringify(list)).not.toContain('uviewtest');
   });
 });
+
+describe('toPublicSubmission — the Bitrefill survey', () => {
+  it('never shows the survey answers publicly, before or after results', () => {
+    const s = { ...row({ track: 'agentic' }), feedback: { surfaces: ['CLI'], surfacesPrimary: 'CLI', agentEnv: 'Cursor' } };
+    for (const published of [false, true]) {
+      const out = toPublicSubmission(s, { published });
+      expect(out).not.toHaveProperty('feedback');
+      expect(JSON.stringify(out)).not.toContain('Cursor');
+    }
+  });
+});

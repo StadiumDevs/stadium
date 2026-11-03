@@ -88,6 +88,8 @@ export type TrackedSubmitPayload = {
   githubUrl: string;
   late?: boolean;
   details: Omit<ApiSubmissionDetails, "txCheck" | "milestone">;
+  /** The program's feedback survey; absent = keep what's stored. */
+  feedback?: ApiTrackedSubmission["feedback"];
   /** Accepting a refused attempt keeps the attempt's time (and judging batch). */
   createdAt?: string;
 };
@@ -165,6 +167,7 @@ export const mockTracked = {
       githubUrl: payload.githubUrl,
       late: !!payload.late,
       updatedAt: at,
+      feedback: payload.feedback !== undefined ? payload.feedback : existing?.feedback ?? null,
     };
     let sub: ApiTrackedSubmission;
     if (existing) {

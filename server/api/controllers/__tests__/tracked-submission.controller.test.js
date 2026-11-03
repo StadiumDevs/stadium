@@ -100,6 +100,18 @@ const details = {
   txCheck: { status: 'verified' },
 };
 
+// A complete Bitrefill survey (required to finalize Agentic and Both entries).
+const SURVEY = {
+  surfaces: ['Hosted MCP', 'x402 payments'],
+  surfacesPrimary: 'x402 payments',
+  agentEnv: 'Cursor',
+  deadlineStatus: 'A purchase worked, but I handled (or mocked) the payment',
+  biggestBlocker: 'The x402 flow',
+  couldntHandle: '',
+  wouldKeepBuilding: 'Yes, already planning to',
+};
+const agentic = { ...details, track: 'agentic', themes: [], testnetTxid: null, privacyNote: null };
+
 beforeEach(() => {
   vi.clearAllMocks();
   signupRepo.existsByEmail.mockResolvedValue(true);
@@ -137,7 +149,7 @@ describe('SubmissionController.submit — tracked programs', () => {
 
   it('a resubmit replaces the details on the existing entry', async () => {
     programService.findBySlug.mockResolvedValue(FSH);
-    submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh' });
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh', feedback: SURVEY });
     submissionRepo.updateSubmission.mockImplementation(async (id, x) => ({ id, ...x }));
     const res = mockRes();
     await submissionController.submit(
@@ -221,6 +233,71 @@ describe('SubmissionController.submit — mobile fixes and viewing key', () => {
     );
     expect(res2.status).toHaveBeenCalledWith(400);
     expect(res2.json).toHaveBeenCalledWith({ status: 'error', message: 'The wallet birth height must be a whole number' });
+  });
+});
+
+describe('SubmissionController.submit — Bitrefill survey (Free Society Hack)', () => {
+  const priya = { 'x-supabase-token': 'tok:priya@example.com' };
+  const submit = async (body, headers = {}) => {
+    programService.findBySlug.mockResolvedValue(FSH);
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: FSH.slug }, headers, body }, res);
+    return res;
+  };
+
+  it('refuses an Agentic entry finalized without the survey', async () => {
+    const res = await submit({ ...base, details: agentic });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Bitrefill survey') }));
+    expect(submissionRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a Both entry with a half-answered survey', async () => {
+    const res = await submit({ ...base, feedback: { ...SURVEY, biggestBlocker: '' }, details: { ...details, track: 'both' } });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('biggest blocker') }));
+  });
+
+  it('stores the survey with a Both entry that answered it', async () => {
+    const res = await submit({ ...base, feedback: SURVEY, details: { ...details, track: 'both' } });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(submissionRepo.create.mock.calls[0][0].feedback).toEqual(SURVEY);
+  });
+
+  it('a Privacy entry needs no survey, and stores none even if sent', async () => {
+    const res = await submit({ ...base, feedback: SURVEY, details });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(submissionRepo.create.mock.calls[0][0].feedback).toBeNull();
+  });
+
+  it('an Agentic draft may skip the survey', async () => {
+    const res = await submit({ submitterName: 'Priya Nair', lumaEmail: 'priya@example.com', projectTitle: 'Chai', intent: 'draft', details: { track: 'agentic' } }, priya);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(submissionRepo.create.mock.calls[0][0].status).toBe('draft');
+  });
+
+  it('an update that does not resend the survey keeps the stored answers', async () => {
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh', status: 'submitted', feedbackSubmittedAt: '2026-11-04T10:00:00Z', feedback: SURVEY });
+    submissionRepo.updateSubmission.mockImplementation(async (id, x) => ({ id, ...x }));
+    const { ratings: _r, ...noRatings } = base;
+    const res = await submit({ ...noRatings, details: agentic }, priya);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.updateSubmission.mock.calls[0][1]).not.toHaveProperty('feedback');
+  });
+
+  it('an update with nothing stored and no survey is refused', async () => {
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh', status: 'submitted', feedbackSubmittedAt: '2026-11-04T10:00:00Z', feedback: null });
+    const { ratings: _r, ...noRatings } = base;
+    const res = await submit({ ...noRatings, details: agentic }, priya);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(submissionRepo.updateSubmission).not.toHaveBeenCalled();
+  });
+
+  it('the Bitrefill program (untracked) keeps its survey optional on the server', async () => {
+    programService.findBySlug.mockResolvedValue(BITREFILL);
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: BITREFILL.slug }, body: base }, res);
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 });
 
