@@ -23,6 +23,8 @@
   --led: 142 71% 58%;
   /* Light orange: a judge's "come back to this" mark. */
   --warn: 30 95% 70%;
+  /* Sky: a submission the team hasn't finalized yet, or one updated since a judge scored it. */
+  --info: 205 90% 66%;
 
   /* shadcn token aliases — pointed at our hardware tokens so all shadcn components inherit correctly */
   --background: var(--shell);

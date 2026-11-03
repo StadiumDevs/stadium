@@ -6,6 +6,9 @@ import { RUBRICS, RUBRIC_CHECKS } from '../constants/rubrics.js';
 import { EXPERIENCE_RATING_CATEGORIES, RATING_MIN, RATING_MAX } from '../constants/experienceRatings.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const CONTACT_APPS = ['telegram', 'whatsapp'];
+const TELEGRAM_RE = /^@?[A-Za-z0-9_]{5,32}$/;
+const WHATSAPP_RE = /^\+?\d[\d\s().-]{6,19}$/;
 
 // Max length of the project brief; mirrored by BRIEF_MAX in the client form.
 const BRIEF_MAX = 500;
@@ -29,6 +32,16 @@ export function prizeTiersFor(program) {
 }
 
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
+
+// A link typed without a scheme ("github.com/x", common on phones) gets
+// https:// in front; anything with a scheme is left for isHttpUrl to judge.
+export const withScheme = (v) => {
+  const s = str(v);
+  if (!s || /^[a-z][a-z0-9+.-]*:/i.test(s)) return s;
+  // Only something that looks like a domain ("github.com/…"); "not-a-url" stays invalid.
+  const bare = s.replace(/^\/+/, '');
+  return /^[^\s/.]+(\.[^\s/.]+)+(\/|$)/.test(bare) ? `https://${bare}` : s;
+};
 
 const isHttpUrl = (v) => {
   const s = str(v);
@@ -108,6 +121,56 @@ export function validateFeedback(feedback) {
   return { ok: true, value: out };
 }
 
+// The answers the Bitrefill survey must have to finalize (couldntHandle is
+// optional). Run on a feedback object already normalized by validateFeedback
+// (or one stored that way). Returns { ok } or { ok: false, error }.
+const SURVEY_REQUIRED_KEYS = [
+  ['agentEnv', 'which agent environment you used'],
+  ['deadlineStatus', 'where you landed by the deadline'],
+  ['biggestBlocker', 'your biggest blocker'],
+  ['wouldKeepBuilding', 'whether you would keep building on Bitrefill'],
+];
+const SURVEY_ERROR = 'Agentic Commerce entries need the Bitrefill survey';
+export function validateRequiredSurvey(feedback) {
+  const fb = feedback && typeof feedback === 'object' && !Array.isArray(feedback) ? feedback : {};
+  const surfaces = Array.isArray(fb.surfaces) ? fb.surfaces.filter((x) => typeof x === 'string' && x.trim()) : [];
+  if (surfaces.length === 0) return { ok: false, error: `${SURVEY_ERROR}: which Bitrefill surfaces you built with` };
+  if (!fb.surfacesPrimary || !surfaces.includes(fb.surfacesPrimary)) {
+    return { ok: false, error: `${SURVEY_ERROR}: star the surface you relied on most` };
+  }
+  for (const [key, what] of SURVEY_REQUIRED_KEYS) {
+    if (typeof fb[key] !== 'string' || !fb[key].trim()) return { ok: false, error: `${SURVEY_ERROR}: ${what}` };
+  }
+  return { ok: true };
+}
+
+// Tracked programs: the survey belongs to some tracks only (FSH: Agentic and
+// Both, `bitrefillSurveyTracks`). Mutates `value` (validateSubmission's output):
+// other tracks store no survey; a save that didn't send one keeps what's
+// stored (the key is dropped so the update leaves it alone); finalizing a
+// survey track needs a complete one (sent now, or `stored`).
+// `sent`: the request body had a feedback object. Returns { ok } or { ok: false, error }.
+const hasSurveyAnswers = (fb) =>
+  !!fb && ((Array.isArray(fb.surfaces) && fb.surfaces.length > 0) || Object.values(fb).some((v) => typeof v === 'string' && v.trim()));
+
+export function applyTrackedSurvey(config, track, value, { sent, draft = false, stored = null } = {}) {
+  const tracks = config?.bitrefillSurveyTracks;
+  if (!tracks) return { ok: true };
+  if (track && !tracks.includes(track)) {
+    value.feedback = null;
+    return { ok: true };
+  }
+  // A draft save with a blank survey (e.g. an older device copy restored
+  // without it) never wipes answers already stored.
+  if (sent && draft && !hasSurveyAnswers(value.feedback)) sent = false;
+  if (!sent) delete value.feedback;
+  if (!draft && track) {
+    const check = validateRequiredSurvey(sent ? value.feedback : stored);
+    if (!check.ok) return check;
+  }
+  return { ok: true };
+}
+
 // Validate the builder's event ratings: { overall: 4, organisation: 5, ... }.
 // Every category is required unless `required` is false (then an absent object
 // is fine, but a present one must still be complete and valid). Returns
@@ -149,8 +212,8 @@ export function validateSubmission(body = {}, { videoOptional = false, ratingsOp
   const lumaEmail = str(body.lumaEmail);
   const projectTitle = str(body.projectTitle);
   const projectBrief = str(body.projectBrief);
-  const videoUrl = str(body.videoUrl);
-  const githubUrl = str(body.githubUrl);
+  const videoUrl = withScheme(body.videoUrl);
+  const githubUrl = withScheme(body.githubUrl);
 
   if (!submitterName || submitterName.length > 200) {
     return { ok: false, error: 'Your name is required (max 200 characters)' };
@@ -312,6 +375,10 @@ export function validateRubricScore(track, body = {}) {
 // taken from the client.
 export const PITCH_MAX = 140;
 const TXID_RE = /^[0-9a-f]{64}$/i;
+// Optional unified full viewing key (testnet) and the wallet's birth height,
+// so judges can see the payment's amount and memo. Never public.
+const VIEWING_KEY_RE = /^uviewtest[0-9a-z]+$/i;
+export const VIEWING_KEY_MAX = 1000;
 const isApp = (appType) => /app/i.test(appType);
 const strList = (v) => (Array.isArray(v) ? v : []);
 export const PRIVACY_NOTE_MAX = 3000;
@@ -362,7 +429,7 @@ export function validateSubmissionDetails(config, details, { draft = false } = {
 
   const appType = str(d.appType);
   if (appType ? !config.appTypes.includes(appType) : need) return { ok: false, error: 'Say what kind of project it is' };
-  const publicUrl = str(d.publicUrl) || null;
+  const publicUrl = withScheme(d.publicUrl) || null;
   if (publicUrl && !isHttpUrl(publicUrl)) return { ok: false, error: 'The public URL must start with http:// or https://' };
   if (need && isApp(appType) && !publicUrl) return { ok: false, error: 'Apps need a public URL (http/https)' };
 
@@ -383,10 +450,22 @@ export function validateSubmissionDetails(config, details, { draft = false } = {
     return { ok: false, error: 'A testnet transaction id is 64 hex characters' };
   }
 
+  const viewingKey = txidTrack ? str(d.viewingKey) || null : null;
+  if (viewingKey && (viewingKey.length > VIEWING_KEY_MAX || !VIEWING_KEY_RE.test(viewingKey))) {
+    return { ok: false, error: 'The viewing key must start with uviewtest (a testnet unified full viewing key)' };
+  }
+  const rawBirth = txidTrack ? d.birthHeight : null;
+  let birthHeight = null;
+  if (rawBirth !== undefined && rawBirth !== null && rawBirth !== '') {
+    const b = typeof rawBirth === 'number' ? String(rawBirth) : str(rawBirth);
+    if (!/^\d{1,10}$/.test(b)) return { ok: false, error: 'The wallet birth height must be a whole number' };
+    birthHeight = Number(b);
+  }
+
   const nextStep = str(d.nextStep);
   if (need && !nextStep) return { ok: false, error: 'A next milestone for the 30 days is required' };
   if (nextStep.length > 1000) return { ok: false, error: 'The next milestone is max 1000 characters' };
-  const nextStepLinks = strList(d.nextStepLinks).map(str).filter(Boolean);
+  const nextStepLinks = strList(d.nextStepLinks).map(withScheme).filter(Boolean);
   if (nextStepLinks.length > 10) return { ok: false, error: 'At most 10 next-milestone links' };
   if (nextStepLinks.some((l) => !isHttpUrl(l))) {
     return { ok: false, error: 'Each next-milestone link must start with http:// or https://' };
@@ -422,6 +501,27 @@ export function validateSubmissionDetails(config, details, { draft = false } = {
     bitrefillFeedback = worked || didnt ? { worked, didnt } : null;
   }
 
+  // Telegram or WhatsApp, to reach the top teams on demo day. Admins only.
+  const rawContact = d.contact && typeof d.contact === 'object' && !Array.isArray(d.contact) ? d.contact : {};
+  const contactApp = str(rawContact.app);
+  let contactHandle = str(rawContact.handle);
+  let contact = null;
+  if (contactApp || contactHandle) {
+    if (!CONTACT_APPS.includes(contactApp)) return { ok: false, error: 'Choose Telegram or WhatsApp for the contact' };
+    if (!contactHandle) return { ok: false, error: 'A Telegram or WhatsApp contact is required' };
+    if (contactApp === 'telegram') {
+      if (!TELEGRAM_RE.test(contactHandle)) {
+        return { ok: false, error: 'A Telegram username is 5–32 letters, digits or _ (e.g. @username)' };
+      }
+      contactHandle = contactHandle.replace(/^@/, '');
+    } else if (!WHATSAPP_RE.test(contactHandle)) {
+      return { ok: false, error: 'A WhatsApp number needs the country code (e.g. +41 79 123 45 67)' };
+    }
+    contact = { app: contactApp, handle: contactHandle };
+  } else if (need) {
+    return { ok: false, error: 'A Telegram or WhatsApp contact is required' };
+  }
+
   if (d.anonymous !== undefined && typeof d.anonymous !== 'boolean') {
     return { ok: false, error: 'anonymous must be true or false' };
   }
@@ -440,11 +540,14 @@ export function validateSubmissionDetails(config, details, { draft = false } = {
       network: judgesPrivacy ? 'testnet (NU7)' : null,
       pool: judgesPrivacy ? 'shielded (Ironwood), unified addresses' : null,
       testnetTxid,
+      viewingKey,
+      birthHeight,
       nextStep,
       nextStepLinks,
       frictionNotes,
       privacyNote,
       bitrefillFeedback,
+      contact,
       anonymous: d.anonymous === true,
     },
   };

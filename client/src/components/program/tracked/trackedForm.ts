@@ -3,6 +3,8 @@ import { judgedTracksOf, trackById, type ProgramProfile } from "@/lib/programPro
 
 // State, validation and payload mapping for TrackedSubmissionFields.
 
+export type ContactApp = NonNullable<ApiSubmissionDetails["contact"]>["app"];
+
 export type TrackedFormState = {
   track: SubmissionTrack | "";
   themes: string[];
@@ -13,6 +15,10 @@ export type TrackedFormState = {
   demoVideoLength: string;
   technologies: string;
   testnetTxid: string;
+  /** Optional unified full viewing key (uviewtest…) of the wallet that received the payment. Judges only. */
+  viewingKey: string;
+  /** Optional wallet birth height (whole number). */
+  birthHeight: string;
   nextStep: string;
   /** Comma- or newline-separated links to anything already started. */
   nextStepLinks: string;
@@ -23,6 +29,9 @@ export type TrackedFormState = {
   /** Bitrefill feedback (Agentic and Both). */
   bitrefillWorked: string;
   bitrefillDidnt: string;
+  /** Telegram or WhatsApp, to reach the top teams on demo day (required, admins only). */
+  contactApp: ContactApp | "";
+  contactHandle: string;
   anonymous: boolean;
 };
 
@@ -36,12 +45,16 @@ export const emptyTrackedForm = (): TrackedFormState => ({
   demoVideoLength: "",
   technologies: "",
   testnetTxid: "",
+  viewingKey: "",
+  birthHeight: "",
   nextStep: "",
   nextStepLinks: "",
   frictionNotes: "",
   privacyNote: "",
   bitrefillWorked: "",
   bitrefillDidnt: "",
+  contactApp: "",
+  contactHandle: "",
   anonymous: false,
 });
 
@@ -54,8 +67,35 @@ export const judgesPrivacy = (track: TrackedFormState["track"]) => !!track && tr
 export const judgesAgentic = (track: TrackedFormState["track"]) => track === "agentic" || track === "both";
 /** The demo video is optional (strongly preferred) for Privacy-only entries. */
 export const videoOptional = (track: TrackedFormState["track"]) => track === "privacy";
-const splitLinks = (v: string) => v.split(/[\s,]+/).map((l) => l.trim()).filter(Boolean);
-const isHttpUrl = (v: string) => /^https?:\/\/.+/i.test(v.trim());
+/**
+ * A link typed without a scheme ("github.com/x", common on phones) gets
+ * https:// in front; one with a scheme is left as is. Same rule as the server
+ * (withScheme in submission.validator.js).
+ */
+export const withScheme = (v: string) => {
+  const s = v.trim();
+  if (!s || /^[a-z][a-z0-9+.-]*:/i.test(s)) return s;
+  // Only something that looks like a domain ("github.com/…"); "not-a-url" stays invalid.
+  const bare = s.replace(/^\/+/, "");
+  return /^[^\s/.]+(\.[^\s/.]+)+(\/|$)/.test(bare) ? `https://${bare}` : s;
+};
+export const isHttpUrl = (v: string) => /^https?:\/\/\S+$/i.test(withScheme(v));
+const splitLinks = (v: string) => v.split(/[\s,]+/).map((l) => withScheme(l)).filter(Boolean);
+export const VIEWING_KEY_MAX = 1000;
+const VIEWING_KEY_RE = /^uviewtest[0-9a-z]+$/i;
+// Same rules as the server (validateSubmissionDetails).
+const TELEGRAM_RE = /^@?[A-Za-z0-9_]{5,32}$/;
+const WHATSAPP_RE = /^\+?\d[\d\s().-]{6,19}$/;
+/** The problem with the demo-day contact, or null when it's fine. */
+export const contactIssue = (app: TrackedFormState["contactApp"], handle: string): string | null => {
+  const h = handle.trim();
+  if (!app && !h) return "Add a Telegram or WhatsApp contact for demo day.";
+  if (!app) return "Choose Telegram or WhatsApp.";
+  if (!h) return app === "telegram" ? "Add your Telegram username." : "Add your WhatsApp number.";
+  if (app === "telegram" && !TELEGRAM_RE.test(h)) return "A Telegram username is 5–32 letters, digits or _ (e.g. @username).";
+  if (app === "whatsapp" && !WHATSAPP_RE.test(h)) return "A WhatsApp number needs the country code (e.g. +41 79 123 45 67).";
+  return null;
+};
 export const isApp = (appType: string) => /app/i.test(appType);
 export const needsTxid = (profile: ProgramProfile, track: TrackedFormState["track"]) =>
   !!track && judgedTracksOf(track).some((t) => trackById(profile, t).requiresTxid);
@@ -93,6 +133,13 @@ export function validateTrackedForm(profile: ProgramProfile, f: TrackedFormState
       add("trk-txid", "A testnet transaction id is 64 hex characters (copy it from your wallet or the explorer).");
     }
   }
+  if (judgesPrivacy(f.track)) {
+    const vk = f.viewingKey.trim();
+    if (vk && (vk.length > VIEWING_KEY_MAX || !VIEWING_KEY_RE.test(vk))) {
+      add("trk-vk", "The viewing key must start with uviewtest (a testnet unified full viewing key).");
+    }
+    if (f.birthHeight.trim() && !/^\d{1,10}$/.test(f.birthHeight.trim())) add("trk-birth", "The wallet birth height must be a whole number.");
+  }
   if (judgesPrivacy(f.track) && !f.privacyNote.trim()) add("trk-privacy-note", "Write your privacy and trust note (judges score Private from it).");
   else if (f.privacyNote.trim().length > PRIVACY_NOTE_MAX) add("trk-privacy-note", `The privacy and trust note is max ${PRIVACY_NOTE_MAX} characters.`);
   if (!f.nextStep.trim()) add("trk-next", "Your next 30-day milestone is required.");
@@ -117,17 +164,22 @@ export function trackedFormToDetails(
       .filter((m) => m.name.trim())
       .map((m) => ({ name: m.name.trim(), email: m.email.trim() || null, role: m.role.trim() || null })),
     appType: f.appType,
-    publicUrl: f.publicUrl.trim() || null,
+    publicUrl: withScheme(f.publicUrl) || null,
     demoVideoLength: f.demoVideoLength.trim() || null,
     technologies: f.technologies.split(",").map((t) => t.trim()).filter(Boolean),
     network: privacy ? "testnet (NU7)" : null,
     pool: privacy ? "shielded (Ironwood), unified addresses" : null,
     testnetTxid: privacy ? f.testnetTxid.trim() || null : null,
+    viewingKey: privacy ? f.viewingKey.trim() || null : null,
+    birthHeight: privacy && f.birthHeight.trim() ? Number(f.birthHeight.trim()) : null,
     nextStep: f.nextStep.trim(),
     nextStepLinks: splitLinks(f.nextStepLinks),
     frictionNotes: f.frictionNotes.trim() || null,
     privacyNote: privacy ? f.privacyNote.trim() || null : null,
     bitrefillFeedback: judgesAgentic(track) ? { worked: f.bitrefillWorked.trim(), didnt: f.bitrefillDidnt.trim() } : null,
+    contact: f.contactApp && f.contactHandle.trim()
+      ? { app: f.contactApp, handle: f.contactApp === "telegram" ? f.contactHandle.trim().replace(/^@/, "") : f.contactHandle.trim() }
+      : null,
     anonymous: f.anonymous,
   };
 }
@@ -145,12 +197,16 @@ export function detailsToTrackedForm(d: Partial<ApiSubmissionDetails> | null | u
     demoVideoLength: d.demoVideoLength ?? "",
     technologies: (d.technologies ?? []).join(", "),
     testnetTxid: d.testnetTxid ?? "",
+    viewingKey: d.viewingKey ?? "",
+    birthHeight: d.birthHeight === null || d.birthHeight === undefined ? "" : String(d.birthHeight),
     nextStep: d.nextStep ?? "",
     nextStepLinks: (d.nextStepLinks ?? []).join("\n"),
     frictionNotes: d.frictionNotes ?? "",
     privacyNote: d.privacyNote ?? "",
     bitrefillWorked: d.bitrefillFeedback?.worked ?? "",
     bitrefillDidnt: d.bitrefillFeedback?.didnt ?? "",
+    contactApp: d.contact?.app ?? "",
+    contactHandle: d.contact?.handle ? (d.contact.app === "telegram" ? `@${d.contact.handle}` : d.contact.handle) : "",
     anonymous: !!d.anonymous,
   };
 }

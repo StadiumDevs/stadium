@@ -199,6 +199,7 @@ Judges score from the submission only. Every item is required unless marked.
 - [ ] One-line pitch: what it does and for whom. Works is scored against it.
 - [ ] Public repo (new on the day) with a README that lists every technology used and the design decisions.
 - [ ] One testnet transaction ID the project created (shielded, `utest1` addresses, public testnet, not Zakura). Stadium checks it and shows judges a badge; a failed check doesn't block you.
+- [ ] Optional: the viewing key (uviewtest…) and birth height of the wallet that received the payment, so judges can see the amount and memo. Use the demo wallet: the key reveals that wallet’s whole history but cannot spend. zkool_graphql: unifiedFullViewingKey; zingo-cli: see its README.
 - [ ] Public testnet URL if it's an app people use (web app, checkout, dashboard). SDKs, CLIs, bots, agents and backends skip it and show the transaction in the video or README (explorer link).
 - [ ] Privacy and trust note (template below).
 - [ ] Next step for the 30 days after, with links to anything started.
@@ -232,12 +233,14 @@ FEEDBACK.md skeleton (delete empty areas):
 For each item: what you tried, what happened, what you expected, a link or error message.
 ```
 
+Full README template (copy it into the repo as README.md): {{ORIGIN}}/programs/free-society-hack-2026/privacy/README-template.md
+
 README skeleton:
 
 ```
 # <Name>: <one-line pitch>
 ## Who it's for and the problem   (real evidence only: who you talked to, what they said)
-## Demo: <video link> · <public URL> · testnet tx: <txid + https://zexplorer.app/testnet/tx/...>
+## Demo: <video link> · <public URL> · testnet tx: <txid + https://zexplorer.app/testnet/tx/...> · viewing key (optional): <uviewtest…, birth height>
 ## Run it (under 15 minutes)
 ## How it works (core flow, step by step; mark any manual step)
 ## Privacy and trust note

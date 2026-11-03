@@ -17,6 +17,7 @@ import {
   validateSubmission,
   validateSubmissionDetails,
   validateExperienceRatings,
+  applyTrackedSurvey,
   EVENT_LIKED_MAX,
   videoOptionalFor,
   validateScore,
@@ -26,6 +27,7 @@ import {
 } from '../utils/submission.validator.js';
 import { submissionsToCsv } from '../utils/submissions-csv.js';
 import submissionConfirmationService from '../services/submission-confirmation.service.js';
+import { notifySubmissionEvent, submissionEventFor } from '../services/submission-webhook.service.js';
 import prizeAwardService from '../services/prize-award.service.js';
 import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
@@ -360,6 +362,14 @@ class SubmissionController {
           return refuse(res, program, body, 'invalid', 400, dv.error);
         }
         v.value.details = dv.value;
+        // Bitrefill survey (Agentic and Both): required to finalize; a save
+        // without it keeps the stored answers.
+        const sv = applyTrackedSurvey(tracked, dv.value.track, v.value, {
+          sent: body.feedback !== undefined && body.feedback !== null,
+          draft: asDraft,
+          stored: existing?.feedback ?? null,
+        });
+        if (!sv.ok) return refuse(res, program, body, 'invalid', 400, sv.error);
       }
       if (needsVerify) {
         return refuse(res, program, body, 'update_unverified', 401, 'Verify your email to update your submission.', {
@@ -430,6 +440,17 @@ class SubmissionController {
       // A finalized entry that is saved again is a resubmit (confirmation email says so).
       const resubmitted = !!existing && !finalizing;
       await saveRatings(submission, program.id, v.value.ratings);
+      // n8n (or any webhook): new draft / finalized / updated. Not awaited;
+      // never fails the save.
+      const webhookEvent = submissionEventFor({ existing, asDraft, finalizing });
+      if (webhookEvent) {
+        void notifySubmissionEvent(webhookEvent, {
+          program,
+          submission,
+          previousStatus: existing ? existing.status ?? 'submitted' : null,
+          editor,
+        }).catch(() => {});
+      }
       if (tracked) {
         if (!asDraft) await scheduleTxCheck(submission, existing);
         if (existing) await dropPrizesOutsideTrack(submission, tracked);
@@ -626,6 +647,8 @@ class SubmissionController {
           lastEditedByName: s.lastEditedByName,
           lastEditedByEmail: s.lastEditedByEmail,
           eventLiked: s.eventLiked,
+          // The saved survey, so the form never asks for it again.
+          feedback: s.feedback ?? null,
           ratings: Object.keys(ratings || {}).length ? ratings : null,
           role: access.role,
           editors: editors.map((e) => e.email),
@@ -638,7 +661,7 @@ class SubmissionController {
   }
 
   // Builder (point person or teammate, verified): submit the event feedback
-  // (ratings + "anything you liked"). Required once before finalizing; after
+  // (ratings + "any additional feedback or comments"). Required once before finalizing; after
   // that the answers can still be changed but are never asked for again.
   async submitFeedback(req, res) {
     try {
@@ -828,6 +851,7 @@ class SubmissionController {
         metadata: { refusalId: refusal.id, reasonCode: refusal.reasonCode, email: refusal.lumaEmail },
       });
       if (tracked) await scheduleTxCheck(submission);
+      void notifySubmissionEvent('submission.finalized', { program, submission, source: 'accepted_refusal' }).catch(() => {});
       res.status(200).json({ status: 'success', data: { refusal: updated, submission } });
     } catch (error) {
       console.error('❌ Error accepting a refused submission:', error);
@@ -888,17 +912,19 @@ class SubmissionController {
   }
 
   // Judge/admin: a tracked program's submissions with their details, track and
-  // judging batch (from when it was finalized; see trackedPrograms.js). Drafts
-  // stay out until the team clicks Finalize and submit.
+  // judging batch (from when it was finalized, or created for a draft; see
+  // trackedPrograms.js). Drafts with a track are included (`status: 'draft'`):
+  // judges may score them before the team clicks Finalize and submit.
   async listTracked(req, res) {
     try {
       const tracked = trackedProgramFor(req.params.slug);
       if (!tracked) return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      // Only finalized entries are ready to judge; the batch is from when the
-      // team finalized (older entries: their first submission).
-      const rows = await programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' });
+      // A draft with no track yet has nothing to score.
+      const rows = (await programSubmissionRepository.listByProgramId(program.id)).filter(
+        (s) => s.status !== 'draft' || !!s.details?.track,
+      );
       const isJudgeOnly = req.user?.role === 'judge';
       const data = rows.map((s) => ({
         ...s,
@@ -953,10 +979,7 @@ class SubmissionController {
       if (!submission || submission.programId !== programId) {
         return res.status(404).json({ status: 'error', message: 'Submission not found' });
       }
-      // Drafts aren't in any queue until the team finalizes them.
-      if (submission.status === 'draft') {
-        return res.status(409).json({ status: 'error', code: 'not_submitted', message: 'This project is still a draft.' });
-      }
+      // A draft (not finalized yet) can be scored; its track must still match below.
       // A score only counts for a track the project entered ("both" = each).
       if (!judgedTracksOf(submission.track ?? submission.details?.track).includes(track)) {
         return res.status(400).json({ status: 'error', code: 'track_not_entered', message: `This project didn't enter the ${track} track.` });

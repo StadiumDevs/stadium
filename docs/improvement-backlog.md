@@ -271,3 +271,15 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `client/src/components/program/SubmitProjectModal.tsx` (`readDraft` / `writeDraft`, localStorage)
 - **Observed during**: submit-form updates for Free Society Hack (PR #202)
 - **Suggestion**: Closing the form with ✕ keeps the draft and the verified email on that device only. On another device, verifying the email loads only an already submitted entry (the update flow). If builders need to start on a laptop and finish on a phone, save drafts on the server keyed by the verified email (a `submission_drafts` row, read by `GET /:slug/submissions/mine`).
+
+## [2026-11-03] Judges get full submission records from the API
+- **Severity**: major
+- **File(s)**: `server/api/controllers/submission.controller.js` (`listTracked`), `server/api/controllers/tracked-results.controller.js` (`recheckTx`)
+- **Observed during**: fixing the judges' RE-CHECK ("Missing SIWS auth header")
+- **Suggestion**: For a judge-only session, `listTracked` (and now `recheckTx`) return the whole row: point-person and teammate emails, the Telegram/WhatsApp `details.contact`, and the Bitrefill feedback. The client hides them (`toPublicSubmission` in `client/src/lib/trackedDisplay.ts`), but they are in the response. Add a server-side judge view (strip `lumaEmail`, team emails, `contact`, and `bitrefillFeedback` unless the judge is on that track) and use it in both endpoints.
+
+## [2026-11-04] Collapsing the event feedback after FINALIZE still auto-finalizes later
+- **Severity**: nit
+- **File(s)**: `client/src/components/program/SubmitProjectModal.tsx` (`finalizeAfterFeedback`, `askForFeedback`, `toggleFeedback`)
+- **Observed during**: making the FSH event feedback a collapsible section (stadium-reviewer pass)
+- **Suggestion**: Once FINALIZE is clicked, `finalizeAfterFeedback` stays true even if the builder collapses the section and keeps drafting, so submitting the feedback later finalizes without a second click. Consider resetting it on collapse, or labelling the feedback button "SUBMIT FEEDBACK AND FINALIZE" only while it's armed (it already is), and confirming that's the intended behaviour.

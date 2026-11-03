@@ -37,6 +37,14 @@ vi.mock('@polkadot/util-crypto', () => ({
 vi.mock('@polkadot/util', () => ({ u8aToHex: vi.fn() }));
 // Emails are best-effort; keep the run offline.
 vi.mock('../../api/services/submission-confirmation.service.js', () => ({ default: { send: vi.fn(async () => ({ ok: true })) } }));
+// The testnet check: stored as verified, no lightwalletd call.
+vi.mock('../../api/services/tx-check.service.js', async () => {
+  const repo = (await import('../../api/repositories/program-submission.repository.js')).default;
+  const checkAndStore = vi.fn(async (id) =>
+    repo.updateTracked(id, { txCheck: { status: 'verified', checkedAt: new Date().toISOString(), attempts: 1 } }),
+  );
+  return { checkAndStore, checkTestnetTx: vi.fn(), lookupOnce: vi.fn(), default: { checkAndStore } };
+});
 vi.mock('../../api/services/program-admin-invite.service.js', () => ({ default: { send: vi.fn(async () => ({ ok: true })) } }));
 
 const submissionController = (await import('../../api/controllers/submission.controller.js')).default;
@@ -85,12 +93,23 @@ const details = (over = {}) => ({
   technologies: ['WebZjs'],
   testnetTxid: TX1,
   nextStep: 'Pilot by 4 Dec.',
+  contact: { app: 'telegram', handle: 'arjun_builds' },
   nextStepLinks: [],
   frictionAreas: ['Faucet'],
   frictionNotes: 'Faucet was down.',
   anonymous: false,
   ...over,
 });
+// A complete Bitrefill survey (required to finalize Agentic and Both entries).
+const SURVEY = {
+  surfaces: ['Hosted MCP', 'CLI'],
+  surfacesPrimary: 'Hosted MCP',
+  agentEnv: 'Claude Code',
+  deadlineStatus: 'Agent bought and paid on its own, running in about an hour',
+  biggestBlocker: 'Nothing major, it was smooth',
+  couldntHandle: '',
+  wouldKeepBuilding: 'Maybe',
+};
 const submit = (email, title, d, token = null) =>
   call(submissionController.submit, {
     headers: token ? { 'x-supabase-token': token } : {},
@@ -102,6 +121,7 @@ const submit = (email, title, d, token = null) =>
       videoUrl: 'https://youtu.be/demo',
       githubUrl: 'https://github.com/x/' + title.toLowerCase().replace(/\W+/g, '-'),
       ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
+      feedback: SURVEY,
       details: d,
     },
   });
@@ -351,6 +371,27 @@ describe('Free Society Hack judging — data that lands in the database', () => 
       body: { criteria: { works: 3 } },
     });
     expect(r.denied).toBe(true);
+  });
+
+  it('a Privacy judge re-checks a txid on testnet; others are turned away', async () => {
+    const ok = await asJudge('judge-a@example.com', trackedResults.recheckTx, { params: { submissionId: chai.id } });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.details.txCheck.status).toBe('verified');
+    expect(store.program_submissions.find((x) => x.id === chai.id).tx_check.status).toBe('verified');
+
+    // A Bitrefill-only judge has no txid to judge.
+    const agentic = await asJudge('bitrefill-1@example.com', trackedResults.recheckTx, { params: { submissionId: chai.id } });
+    expect(agentic.status).toBe(403);
+    // Not invited: stopped by the middleware.
+    const nobody = await asJudge('nobody@example.com', trackedResults.recheckTx, { params: { submissionId: chai.id } });
+    expect(nobody.denied).toBe(true);
+    // No email session and no wallet header.
+    const anon = await asJudge('stranger@example.com', trackedResults.recheckTx, { params: { submissionId: chai.id } });
+    expect(anon.denied).toBe(true);
+    // An entry without a txid.
+    const tab = store.program_submissions.find((x) => x.project_title === 'Tab Settler');
+    const none = await asJudge('judge-a@example.com', trackedResults.recheckTx, { params: { submissionId: tab.id } });
+    expect(none.status).toBe(409);
   });
 });
 

@@ -90,6 +90,7 @@ const fullDetails = (over = {}) => ({
   technologies: ['WebZjs', 'Bitrefill MCP'],
   testnetTxid: TX1,
   nextStep: 'Pilot with a Mumbai shop by 4 Dec.',
+  contact: { app: 'telegram', handle: 'arjun_builds' },
   nextStepLinks: [],
   frictionNotes: null,
   privacyNote: 'Amounts are shielded; our server stores order ids next to phone numbers.',
@@ -97,6 +98,16 @@ const fullDetails = (over = {}) => ({
   anonymous: false,
   ...over,
 });
+// A complete Bitrefill survey (required to finalize Agentic and Both entries).
+const SURVEY = {
+  surfaces: ['Hosted MCP', 'CLI'],
+  surfacesPrimary: 'Hosted MCP',
+  agentEnv: 'Claude Code',
+  deadlineStatus: 'Agent bought and paid on its own, running in about an hour',
+  biggestBlocker: 'Nothing major, it was smooth',
+  couldntHandle: '',
+  wouldKeepBuilding: 'Maybe',
+};
 const base = {
   submitterName: 'Priya',
   lumaEmail: OWNER,
@@ -105,6 +116,7 @@ const base = {
   videoUrl: 'https://youtu.be/topup',
   githubUrl: 'https://github.com/priya/topup-agent',
   agreedToTerms: true,
+  feedback: SURVEY,
 };
 const row = () => store.program_submissions.find((s) => s.luma_email === OWNER);
 const queueFor = async (judge) => (await asJudge(judge, submissionController.listTracked)).body.data.submissions;
@@ -153,20 +165,36 @@ describe('Submission drafts: save on the server, come back, teammates, feedback,
     expect(confirmation.send).not.toHaveBeenCalled();
   });
 
-  it('drafts are in no judge queue, leaderboard, progress or public list, and cannot be scored', async () => {
-    expect(await queueFor('zec-judge@example.com')).toHaveLength(0);
-    expect(await queueFor('bit-judge@example.com')).toHaveLength(0);
+  it('a draft with a track is already in the judges\' queues, leaderboard and progress (marked draft), not public, and can be scored', async () => {
+    for (const judge of ['zec-judge@example.com', 'bit-judge@example.com']) {
+      const q = await queueFor(judge);
+      expect(q).toHaveLength(1);
+      expect(q[0]).toMatchObject({ projectTitle: 'Topup Agent', status: 'draft' });
+    }
     const board = await asJudge('zec-judge@example.com', trackedResults.leaderboard, { params: { track: 'privacy' } });
-    expect(board.body.data.rows).toHaveLength(0);
+    expect(board.body.data.rows).toHaveLength(1);
+    expect(board.body.data.rows[0]).toMatchObject({ projectTitle: 'Topup Agent', status: 'draft' });
     const progress = await asJudge('zec-judge@example.com', trackedResults.judgingProgress);
-    expect(progress.body.data.every((p) => p.total === 0)).toBe(true);
+    expect(progress.body.data.find((p) => p.isYou)).toMatchObject({ total: 1 });
+    // The public list still shows finalized entries only.
     const pub = await as(null, submissionController.publicSubmissions);
     expect(pub.body.data.submissions).toHaveLength(0);
     const score = await asJudge('zec-judge@example.com', submissionController.upsertRubricScore, {
       params: { submissionId: row().id, track: 'privacy' },
-      body: { criteria: { works: 3 } },
+      body: { criteria: { works: 2 } },
     });
-    expect(score.status).toBe(409);
+    expect(score.status).toBe(200);
+  });
+
+  it('a draft with no track yet is in no queue', async () => {
+    const r = await as(MATE, submissionController.submit, {
+      body: { submitterName: 'Arjun', lumaEmail: MATE, projectTitle: 'Untitled idea', intent: 'draft', details: {} },
+    });
+    expect(r.status).toBe(201);
+    const titles = (await queueFor('zec-judge@example.com')).map((s) => s.projectTitle);
+    expect(titles).toEqual(['Topup Agent']);
+    // Clean up so Arjun can join Priya's team below.
+    store.program_submissions = store.program_submissions.filter((s) => s.luma_email !== MATE);
   });
 
   it('the point person comes back later: the saved draft loads unchanged', async () => {
@@ -246,6 +274,9 @@ describe('Submission drafts: save on the server, come back, teammates, feedback,
       expect(q).toHaveLength(1);
       expect(q[0]).toMatchObject({ projectTitle: 'Topup Agent', status: 'submitted', batch: 'evening', lastEditedByName: 'Priya', lastEditedByEmail: OWNER });
     }
+    // The score given while it was a draft is kept.
+    const mine = await asJudge('zec-judge@example.com', submissionController.listMyRubricScores);
+    expect(mine.body.data.find((x) => x.submissionId === row().id)?.criteria.works).toBe(2);
     const score = await asJudge('zec-judge@example.com', submissionController.upsertRubricScore, {
       params: { submissionId: row().id, track: 'privacy' },
       body: { criteria: { works: 3 } },

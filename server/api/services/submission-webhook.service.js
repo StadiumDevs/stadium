@@ -1,0 +1,104 @@
+import { createHmac } from 'node:crypto';
+import logger from '../utils/logger.js';
+import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
+
+// Outbound webhook (e.g. an n8n Webhook node) for submission events:
+//   submission.draft_created  a team saved its first draft (tracked programs)
+//   submission.finalized      a new entry, or a draft moved to submitted
+//   submission.updated        a submitted entry was saved again
+// Off unless N8N_SUBMISSION_WEBHOOK_URL is set. Best-effort: it never throws
+// and never delays or fails a submission. Organisers only: the payload carries
+// the whole team (names, emails, roles) and the demo-day Telegram/WhatsApp
+// contact, with real names even for anonymous entries (`anonymous` says not to
+// post them publicly). Never the viewing key or the feedback.
+// Signed: X-Stadium-Signature = sha256=<HMAC-SHA256(N8N_WEBHOOK_SECRET, raw body)>.
+
+export const SUBMISSION_EVENTS = ['submission.draft_created', 'submission.finalized', 'submission.updated'];
+const TIMEOUT_MS = 3000;
+
+/** The demo-day contact with a tap-to-open link (t.me / wa.me), or null. */
+export function contactFor(contact) {
+  if (!contact?.app || !contact?.handle) return null;
+  const handle = String(contact.handle).trim();
+  if (contact.app === 'telegram') {
+    const user = handle.replace(/^@/, '');
+    return { app: 'telegram', handle: `@${user}`, url: `https://t.me/${user}` };
+  }
+  if (contact.app === 'whatsapp') {
+    return { app: 'whatsapp', handle, url: `https://wa.me/${handle.replace(/\D/g, '')}` };
+  }
+  return null;
+}
+
+/** Point person first, then every teammate on the entry. */
+function teamFor(submission) {
+  const mates = Array.isArray(submission?.details?.team) ? submission.details.team : [];
+  return [
+    { name: submission?.submitterName ?? null, email: submission?.lumaEmail ?? null, role: null, pointPerson: true },
+    ...mates
+      .filter((m) => m && m.name)
+      .map((m) => ({ name: m.name, email: m.email ?? null, role: m.role ?? null, pointPerson: false })),
+  ];
+}
+
+/** The payload sent for one event (exported for tests). */
+export function buildSubmissionEvent(event, { program, submission, previousStatus = null, editor = null, source = 'builder', now = new Date() }) {
+  const d = submission?.details || {};
+  const tracked = trackedProgramFor(program?.slug);
+  const frontend = process.env.FRONTEND_URL || 'https://stadium.joinwebzero.com';
+  return {
+    event,
+    occurredAt: now.toISOString(),
+    program: { slug: program?.slug ?? null, name: program?.name ?? null },
+    submission: {
+      id: submission?.id ?? null,
+      title: submission?.projectTitle ?? null,
+      track: d.track ?? null,
+      status: submission?.status ?? 'submitted',
+      previousStatus,
+      late: !!submission?.late,
+      batch: tracked ? batchFor(tracked.judgingBatches, submission?.finalizedAt ?? submission?.createdAt ?? now.toISOString()) : null,
+      anonymous: d.anonymous === true,
+      pointPerson: submission?.submitterName ?? null,
+      team: teamFor(submission),
+      contact: contactFor(d.contact),
+    },
+    editedBy: editor?.name ?? null,
+    source,
+    adminUrl: program?.slug ? `${frontend}/admin/programs/${program.slug}` : null,
+  };
+}
+
+/** Send one event. Resolves to true when the receiver answered 2xx; never rejects. */
+export async function notifySubmissionEvent(event, input) {
+  const url = process.env.N8N_SUBMISSION_WEBHOOK_URL;
+  if (!url || !SUBMISSION_EVENTS.includes(event)) return false;
+  try {
+    const body = JSON.stringify(buildSubmissionEvent(event, input));
+    const secret = process.env.N8N_WEBHOOK_SECRET;
+    const headers = { 'Content-Type': 'application/json', 'X-Stadium-Event': event };
+    if (secret) {
+      headers['X-Stadium-Signature'] = `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
+      headers['X-Stadium-Secret'] = secret;
+    }
+    const res = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) logger.warn(`submission webhook ${event} answered ${res.status}`);
+    return res.ok;
+  } catch (e) {
+    logger.warn(`submission webhook ${event} failed: ${e?.message ?? e}`);
+    return false;
+  }
+}
+
+/**
+ * Which event a submit produced, or null (a draft saved again sends nothing).
+ * `existing`: the entry before this save; `asDraft`: saved as a draft;
+ * `finalizing`: this save moved it to submitted (or created it submitted).
+ */
+export function submissionEventFor({ existing, asDraft, finalizing }) {
+  if (asDraft) return existing ? null : 'submission.draft_created';
+  if (finalizing) return 'submission.finalized';
+  return existing ? 'submission.updated' : 'submission.finalized';
+}
+
+export default { notifySubmissionEvent, buildSubmissionEvent, submissionEventFor };

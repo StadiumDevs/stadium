@@ -15,6 +15,7 @@ const good = (over = {}) => ({
   technologies: ['WebZjs', 'React'],
   testnetTxid: TXID,
   nextStep: 'Pilot with two cafés by 4 Dec.',
+  contact: { app: 'telegram', handle: 'arjun_builds' },
   nextStepLinks: ['https://github.com/zcash/zcash-sdk/issues/1'],
   frictionNotes: 'Faucet was down.',
   frictionAreas: ['Faucet'],
@@ -181,5 +182,129 @@ describe('validateSubmissionDetails / validateSubmission: drafts', () => {
   it('without draft, the same partial entry is refused', () => {
     expect(validateSubmissionDetails(cfg, { track: 'both' }).ok).toBe(false);
     expect(validateSubmission({ submitterName: 'P', lumaEmail: 'p@x.com', projectTitle: 'T' }).ok).toBe(false);
+  });
+});
+
+describe('validateSubmission / validateSubmissionDetails: links typed without https://', () => {
+  const base = { submitterName: 'P', lumaEmail: 'p@x.com', projectTitle: 'T' };
+
+  // Regression: phones send "github.com/x"; the draft save behind SUBMIT FEEDBACK was refused.
+  it('a draft with a scheme-less GitHub link is saved with https://', () => {
+    const v = validateSubmission({ ...base, githubUrl: 'github.com/team/app' }, { draft: true });
+    expect(v.ok).toBe(true);
+    expect(v.value.githubUrl).toBe('https://github.com/team/app');
+  });
+
+  it('a full submission normalises the GitHub and video links too', () => {
+    const v = validateSubmission(
+      { ...base, projectBrief: 'B', githubUrl: ' github.com/team/app ', videoUrl: 'youtu.be/abc' },
+      { ratingsOptional: true },
+    );
+    expect(v.ok).toBe(true);
+    expect(v.value).toMatchObject({ githubUrl: 'https://github.com/team/app', videoUrl: 'https://youtu.be/abc' });
+  });
+
+  it('keeps http:// links and still refuses other schemes and junk', () => {
+    expect(validateSubmission({ ...base, githubUrl: 'http://github.com/x' }, { draft: true }).value.githubUrl).toBe('http://github.com/x');
+    expect(validateSubmission({ ...base, githubUrl: 'ftp://github.com/x' }, { draft: true }).ok).toBe(false);
+    expect(validateSubmission({ ...base, githubUrl: 'not a link' }, { draft: true }).ok).toBe(false);
+  });
+
+  it('normalises the public URL and next-milestone links', () => {
+    const v = validateSubmissionDetails(cfg, good({ publicUrl: 'chai.example.com', nextStepLinks: ['github.com/zcash/x/issues/1'] }));
+    expect(v.ok).toBe(true);
+    expect(v.value.publicUrl).toBe('https://chai.example.com');
+    expect(v.value.nextStepLinks).toEqual(['https://github.com/zcash/x/issues/1']);
+  });
+});
+
+describe('validateSubmissionDetails: viewing key and wallet birth height', () => {
+  const UFVK = 'uviewtest1' + 'q'.repeat(200);
+
+  it('both are optional', () => {
+    const v = validateSubmissionDetails(cfg, good());
+    expect(v.ok).toBe(true);
+    expect(v.value).toMatchObject({ viewingKey: null, birthHeight: null });
+    expect(validateSubmissionDetails(cfg, good({ viewingKey: '  ', birthHeight: '' })).value).toMatchObject({ viewingKey: null, birthHeight: null });
+  });
+
+  it('accepts a uviewtest key and a whole-number height (string or number)', () => {
+    const v = validateSubmissionDetails(cfg, good({ viewingKey: ` ${UFVK} `, birthHeight: '3100000' }));
+    expect(v.ok).toBe(true);
+    expect(v.value).toMatchObject({ viewingKey: UFVK, birthHeight: 3100000 });
+    expect(validateSubmissionDetails(cfg, good({ birthHeight: 42 })).value.birthHeight).toBe(42);
+    expect(validateSubmissionDetails(cfg, good({ birthHeight: 0 })).value.birthHeight).toBe(0);
+  });
+
+  it('refuses a key that is not a testnet UFVK', () => {
+    const msg = /must start with uviewtest/;
+    expect(err(good({ viewingKey: 'uview1' + 'q'.repeat(50) }))).toMatch(msg); // mainnet
+    expect(err(good({ viewingKey: 'utest1abc' }))).toMatch(msg); // an address, not a key
+    expect(err(good({ viewingKey: 'uviewtest1 abc' }))).toMatch(msg);
+    expect(err(good({ viewingKey: 'uviewtest1' + 'q'.repeat(1000) }))).toMatch(msg);
+  });
+
+  it('refuses a height that is not a whole number', () => {
+    for (const h of ['-1', '1.5', 'abc', '3e6', -1, 1.5, true]) {
+      expect(err(good({ birthHeight: h }))).toBe('The wallet birth height must be a whole number');
+    }
+  });
+
+  it('kept for Both and for a draft with no track, dropped for Agentic', () => {
+    expect(validateSubmissionDetails(cfg, good({ track: 'both', viewingKey: UFVK, birthHeight: 5 })).value).toMatchObject({ viewingKey: UFVK, birthHeight: 5 });
+    expect(validateSubmissionDetails(cfg, { viewingKey: UFVK, birthHeight: '7' }, { draft: true }).value).toMatchObject({ viewingKey: UFVK, birthHeight: 7 });
+    const a = validateSubmissionDetails(cfg, good({ track: 'agentic', themes: [], viewingKey: UFVK, birthHeight: 5 }));
+    expect(a.ok).toBe(true);
+    expect(a.value).toMatchObject({ viewingKey: null, birthHeight: null });
+  });
+
+  it('a draft still checks a key that is present', () => {
+    expect(validateSubmissionDetails(cfg, { track: 'privacy', viewingKey: 'nope' }, { draft: true }).ok).toBe(false);
+  });
+});
+
+describe('withScheme', async () => {
+  const { withScheme } = await import('../submission.validator.js');
+  it('adds https:// only to something that looks like a domain', () => {
+    expect(withScheme('github.com/a/b')).toBe('https://github.com/a/b');
+    expect(withScheme('www.youtube.com')).toBe('https://www.youtube.com');
+    expect(withScheme('//github.com/a')).toBe('https://github.com/a');
+    expect(withScheme('not-a-url')).toBe('not-a-url');
+    expect(withScheme('hello world.com')).toBe('hello world.com');
+    expect(withScheme('https://x.io')).toBe('https://x.io');
+    expect(withScheme('javascript:alert(1)')).toBe('javascript:alert(1)');
+    expect(withScheme('')).toBe('');
+  });
+});
+
+describe('validateSubmissionDetails: Telegram / WhatsApp contact', () => {
+  it('is required on a final submission', () => {
+    expect(err(good({ contact: undefined }))).toMatch(/Telegram or WhatsApp contact is required/);
+    expect(err(good({ contact: { app: 'telegram', handle: '' } }))).toMatch(/Telegram or WhatsApp contact is required/);
+  });
+
+  it('is optional on a draft, but checked when filled in', () => {
+    const r = validateSubmissionDetails(cfg, good({ contact: undefined }), { draft: true });
+    expect(r.ok).toBe(true);
+    expect(r.value.contact).toBeNull();
+    expect(validateSubmissionDetails(cfg, { contact: { app: 'telegram', handle: 'ab' } }, { draft: true }).ok).toBe(false);
+  });
+
+  it('rejects an unknown app', () => {
+    expect(err(good({ contact: { app: 'signal', handle: '+41791234567' } }))).toMatch(/Choose Telegram or WhatsApp/);
+  });
+
+  it('checks a Telegram username and stores it without the @', () => {
+    expect(err(good({ contact: { app: 'telegram', handle: 'ab' } }))).toMatch(/Telegram username/);
+    expect(err(good({ contact: { app: 'telegram', handle: 'bad name!' } }))).toMatch(/Telegram username/);
+    const r = validateSubmissionDetails(cfg, good({ contact: { app: 'telegram', handle: ' @Arjun_Builds ' } }));
+    expect(r.value.contact).toEqual({ app: 'telegram', handle: 'Arjun_Builds' });
+  });
+
+  it('checks a WhatsApp number', () => {
+    expect(err(good({ contact: { app: 'whatsapp', handle: 'call me' } }))).toMatch(/WhatsApp number/);
+    expect(err(good({ contact: { app: 'whatsapp', handle: '123' } }))).toMatch(/WhatsApp number/);
+    const r = validateSubmissionDetails(cfg, good({ contact: { app: 'whatsapp', handle: '+41 79 123 45 67' } }));
+    expect(r.value.contact).toEqual({ app: 'whatsapp', handle: '+41 79 123 45 67' });
   });
 });

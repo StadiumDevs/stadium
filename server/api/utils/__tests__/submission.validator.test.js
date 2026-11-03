@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   validateSubmission,
   validateFeedback,
+  validateRequiredSurvey,
+  applyTrackedSurvey,
   validateExperienceRatings,
   validateScore,
   validatePrize,
@@ -58,7 +60,13 @@ describe('validateSubmission', () => {
   it('rejects non-http video / github urls', () => {
     expect(validateSubmission({ ...goodSubmission, videoUrl: 'javascript:alert(1)' }).ok).toBe(false);
     expect(validateSubmission({ ...goodSubmission, githubUrl: 'ftp://x/y' }).ok).toBe(false);
-    expect(validateSubmission({ ...goodSubmission, githubUrl: 'github.com/no-scheme' }).ok).toBe(false);
+    expect(validateSubmission({ ...goodSubmission, githubUrl: 'not a url' }).ok).toBe(false);
+  });
+
+  it('adds https:// to a link typed without a scheme (phones)', () => {
+    const v = validateSubmission({ ...goodSubmission, githubUrl: 'github.com/no-scheme' });
+    expect(v.ok).toBe(true);
+    expect(v.value.githubUrl).toBe('https://github.com/no-scheme');
   });
 
   it('defaults feedback to null and agreedToTerms to false when absent', () => {
@@ -125,6 +133,78 @@ describe('validateFeedback', () => {
 
   it('rejects an over-long free-text answer', () => {
     expect(validateFeedback({ couldntHandle: 'x'.repeat(1001) }).ok).toBe(false);
+  });
+});
+
+describe('validateRequiredSurvey', () => {
+  const full = {
+    surfaces: ['CLI', 'REST API'],
+    surfacesPrimary: 'CLI',
+    agentEnv: 'Claude Code',
+    deadlineStatus: 'Search/pricing worked, never completed a buy',
+    biggestBlocker: 'Access / keys / OAuth',
+    couldntHandle: '',
+    wouldKeepBuilding: 'No',
+  };
+
+  it('passes a complete survey (the one-line answer is optional)', () => {
+    expect(validateRequiredSurvey(full).ok).toBe(true);
+  });
+
+  it('fails when nothing was given', () => {
+    expect(validateRequiredSurvey(null).ok).toBe(false);
+    expect(validateRequiredSurvey(undefined).ok).toBe(false);
+  });
+
+  it('fails without surfaces, or without a starred one from the selection', () => {
+    expect(validateRequiredSurvey({ ...full, surfaces: [] }).ok).toBe(false);
+    expect(validateRequiredSurvey({ ...full, surfacesPrimary: null }).ok).toBe(false);
+    expect(validateRequiredSurvey({ ...full, surfacesPrimary: 'Hosted MCP' }).ok).toBe(false);
+  });
+
+  it.each(['agentEnv', 'deadlineStatus', 'biggestBlocker', 'wouldKeepBuilding'])('fails without %s', (key) => {
+    expect(validateRequiredSurvey({ ...full, [key]: '' }).ok).toBe(false);
+    expect(validateRequiredSurvey({ ...full, [key]: '   ' }).ok).toBe(false);
+  });
+});
+
+describe('applyTrackedSurvey', () => {
+  const config = { bitrefillSurveyTracks: ['agentic', 'both'] };
+  const fb = { surfaces: ['CLI'], surfacesPrimary: 'CLI', agentEnv: 'Cursor', deadlineStatus: 'x', biggestBlocker: 'y', couldntHandle: '', wouldKeepBuilding: 'Maybe' };
+
+  it('drops the survey for other tracks', () => {
+    const value = { feedback: fb };
+    expect(applyTrackedSurvey(config, 'privacy', value, { sent: true }).ok).toBe(true);
+    expect(value.feedback).toBeNull();
+  });
+
+  it('requires it to finalize a survey track; a stored one counts', () => {
+    expect(applyTrackedSurvey(config, 'agentic', { feedback: null }, { sent: false }).ok).toBe(false);
+    const value = { feedback: null };
+    expect(applyTrackedSurvey(config, 'both', value, { sent: false, stored: fb }).ok).toBe(true);
+    expect(value).not.toHaveProperty('feedback');
+  });
+
+  it('a draft save with a blank survey keeps the stored answers', () => {
+    const blank = { surfaces: [], surfacesPrimary: null, agentEnv: '', deadlineStatus: '', biggestBlocker: '', couldntHandle: '', wouldKeepBuilding: '' };
+    const value = { feedback: blank };
+    expect(applyTrackedSurvey(config, 'agentic', value, { sent: true, draft: true, stored: fb }).ok).toBe(true);
+    expect(value).not.toHaveProperty('feedback');
+    // A draft with real answers still replaces them.
+    const partial = { feedback: { ...blank, agentEnv: 'Cursor' } };
+    applyTrackedSurvey(config, 'agentic', partial, { sent: true, draft: true, stored: fb });
+    expect(partial.feedback.agentEnv).toBe('Cursor');
+  });
+
+  it('lets a draft (or an entry with no track yet) through', () => {
+    expect(applyTrackedSurvey(config, 'agentic', { feedback: null }, { sent: false, draft: true }).ok).toBe(true);
+    expect(applyTrackedSurvey(config, null, { feedback: null }, { sent: false, draft: true }).ok).toBe(true);
+  });
+
+  it('is a no-op for programs without survey tracks', () => {
+    const value = { feedback: fb };
+    expect(applyTrackedSurvey({}, 'agentic', value, { sent: true }).ok).toBe(true);
+    expect(value.feedback).toBe(fb);
   });
 });
 

@@ -161,6 +161,7 @@ export async function mockMySubmission(slug: string, email: string): Promise<{ s
       videoUrl: s.videoUrl,
       githubUrl: s.githubUrl,
       details,
+      ...(s.feedback ? { feedback: s.feedback } : {}),
     };
   }
   return {
