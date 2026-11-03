@@ -27,6 +27,7 @@ import {
 } from '../utils/submission.validator.js';
 import { submissionsToCsv } from '../utils/submissions-csv.js';
 import submissionConfirmationService from '../services/submission-confirmation.service.js';
+import { notifySubmissionEvent, submissionEventFor } from '../services/submission-webhook.service.js';
 import prizeAwardService from '../services/prize-award.service.js';
 import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
@@ -439,6 +440,17 @@ class SubmissionController {
       // A finalized entry that is saved again is a resubmit (confirmation email says so).
       const resubmitted = !!existing && !finalizing;
       await saveRatings(submission, program.id, v.value.ratings);
+      // n8n (or any webhook): new draft / finalized / updated. Not awaited;
+      // never fails the save.
+      const webhookEvent = submissionEventFor({ existing, asDraft, finalizing });
+      if (webhookEvent) {
+        void notifySubmissionEvent(webhookEvent, {
+          program,
+          submission,
+          previousStatus: existing ? existing.status ?? 'submitted' : null,
+          editor,
+        }).catch(() => {});
+      }
       if (tracked) {
         if (!asDraft) await scheduleTxCheck(submission, existing);
         if (existing) await dropPrizesOutsideTrack(submission, tracked);
@@ -839,6 +851,7 @@ class SubmissionController {
         metadata: { refusalId: refusal.id, reasonCode: refusal.reasonCode, email: refusal.lumaEmail },
       });
       if (tracked) await scheduleTxCheck(submission);
+      void notifySubmissionEvent('submission.finalized', { program, submission, source: 'accepted_refusal' }).catch(() => {});
       res.status(200).json({ status: 'success', data: { refusal: updated, submission } });
     } catch (error) {
       console.error('❌ Error accepting a refused submission:', error);
