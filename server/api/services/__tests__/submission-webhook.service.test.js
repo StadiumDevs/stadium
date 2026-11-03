@@ -4,6 +4,7 @@ import {
   notifySubmissionEvent,
   buildSubmissionEvent,
   submissionEventFor,
+  contactFor,
 } from '../submission-webhook.service.js';
 
 const program = { id: 'fsh', slug: 'free-society-hack-2026', name: 'Free Society Hack' };
@@ -14,7 +15,13 @@ const submission = {
   lumaEmail: 'priya@example.com',
   status: 'submitted',
   finalizedAt: '2026-11-04T13:00:00.000Z',
-  details: { track: 'both', anonymous: false, contact: { app: 'telegram', handle: 'priya_x' }, viewingKey: 'uviewtest1abc' },
+  details: {
+    track: 'both',
+    anonymous: false,
+    contact: { app: 'telegram', handle: 'priya_x' },
+    viewingKey: 'uviewtest1abc',
+    team: [{ name: 'Arjun', email: 'arjun@example.com', role: 'backend' }, { name: 'Nisha', email: null, role: null }],
+  },
   feedback: { agentEnv: 'Cursor' },
 };
 
@@ -73,17 +80,38 @@ describe('notifySubmissionEvent', () => {
     expect(body.adminUrl).toMatch(/\/admin\/programs\/free-society-hack-2026$/);
   });
 
-  it('never sends emails, contact, viewing key or feedback', async () => {
+  it('sends the whole team (point person first) and the Telegram contact', async () => {
     await notifySubmissionEvent('submission.updated', { program, submission });
-    const raw = fetchMock.mock.calls[0][1].body;
-    for (const secret of ['priya@example.com', 'priya_x', 'uviewtest', 'Cursor']) expect(raw).not.toContain(secret);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.submission.team).toEqual([
+      { name: 'Priya', email: 'priya@example.com', role: null, pointPerson: true },
+      { name: 'Arjun', email: 'arjun@example.com', role: 'backend', pointPerson: false },
+      { name: 'Nisha', email: null, role: null, pointPerson: false },
+    ]);
+    expect(body.submission.contact).toEqual({ app: 'telegram', handle: '@priya_x', url: 'https://t.me/priya_x' });
   });
 
-  it('hides names for anonymous entries', async () => {
+  it('never sends the viewing key or the feedback', async () => {
+    await notifySubmissionEvent('submission.updated', { program, submission });
+    const raw = fetchMock.mock.calls[0][1].body;
+    for (const secret of ['uviewtest', 'Cursor']) expect(raw).not.toContain(secret);
+  });
+
+  it('keeps real names for anonymous entries, flagged anonymous', () => {
     const anon = { ...submission, details: { ...submission.details, anonymous: true } };
     const body = buildSubmissionEvent('submission.finalized', { program, submission: anon, editor: { name: 'Arjun' } });
-    expect(body.submission.pointPerson).toBe('Anonymous');
-    expect(body.editedBy).toBe('Anonymous');
+    expect(body.submission.anonymous).toBe(true);
+    expect(body.submission.pointPerson).toBe('Priya');
+    expect(body.editedBy).toBe('Arjun');
+  });
+
+  it('formats WhatsApp contacts and handles a missing one', () => {
+    expect(contactFor({ app: 'whatsapp', handle: '+41 79 123 45 67' })).toEqual({ app: 'whatsapp', handle: '+41 79 123 45 67', url: 'https://wa.me/41791234567' });
+    expect(contactFor({ app: 'telegram', handle: '@arjun_builds' }).url).toBe('https://t.me/arjun_builds');
+    expect(contactFor(null)).toBeNull();
+    const body = buildSubmissionEvent('submission.draft_created', { program, submission: { ...submission, details: { track: 'privacy' } } });
+    expect(body.submission.contact).toBeNull();
+    expect(body.submission.team).toHaveLength(1);
   });
 
   it('never throws when the receiver is down or slow', async () => {

@@ -7,18 +7,43 @@ import { trackedProgramFor, batchFor } from '../constants/trackedPrograms.js';
 //   submission.finalized      a new entry, or a draft moved to submitted
 //   submission.updated        a submitted entry was saved again
 // Off unless N8N_SUBMISSION_WEBHOOK_URL is set. Best-effort: it never throws
-// and never delays or fails a submission. The payload carries no emails, no
-// demo-day contact, no viewing key and no feedback.
+// and never delays or fails a submission. Organisers only: the payload carries
+// the whole team (names, emails, roles) and the demo-day Telegram/WhatsApp
+// contact, with real names even for anonymous entries (`anonymous` says not to
+// post them publicly). Never the viewing key or the feedback.
 // Signed: X-Stadium-Signature = sha256=<HMAC-SHA256(N8N_WEBHOOK_SECRET, raw body)>.
 
 export const SUBMISSION_EVENTS = ['submission.draft_created', 'submission.finalized', 'submission.updated'];
 const TIMEOUT_MS = 3000;
-const ANONYMOUS = 'Anonymous';
+
+/** The demo-day contact with a tap-to-open link (t.me / wa.me), or null. */
+export function contactFor(contact) {
+  if (!contact?.app || !contact?.handle) return null;
+  const handle = String(contact.handle).trim();
+  if (contact.app === 'telegram') {
+    const user = handle.replace(/^@/, '');
+    return { app: 'telegram', handle: `@${user}`, url: `https://t.me/${user}` };
+  }
+  if (contact.app === 'whatsapp') {
+    return { app: 'whatsapp', handle, url: `https://wa.me/${handle.replace(/\D/g, '')}` };
+  }
+  return null;
+}
+
+/** Point person first, then every teammate on the entry. */
+function teamFor(submission) {
+  const mates = Array.isArray(submission?.details?.team) ? submission.details.team : [];
+  return [
+    { name: submission?.submitterName ?? null, email: submission?.lumaEmail ?? null, role: null, pointPerson: true },
+    ...mates
+      .filter((m) => m && m.name)
+      .map((m) => ({ name: m.name, email: m.email ?? null, role: m.role ?? null, pointPerson: false })),
+  ];
+}
 
 /** The payload sent for one event (exported for tests). */
 export function buildSubmissionEvent(event, { program, submission, previousStatus = null, editor = null, source = 'builder', now = new Date() }) {
   const d = submission?.details || {};
-  const anon = d.anonymous === true;
   const tracked = trackedProgramFor(program?.slug);
   const frontend = process.env.FRONTEND_URL || 'https://stadium.joinwebzero.com';
   return {
@@ -33,10 +58,12 @@ export function buildSubmissionEvent(event, { program, submission, previousStatu
       previousStatus,
       late: !!submission?.late,
       batch: tracked ? batchFor(tracked.judgingBatches, submission?.finalizedAt ?? submission?.createdAt ?? now.toISOString()) : null,
-      anonymous: anon,
-      pointPerson: anon ? ANONYMOUS : submission?.submitterName ?? null,
+      anonymous: d.anonymous === true,
+      pointPerson: submission?.submitterName ?? null,
+      team: teamFor(submission),
+      contact: contactFor(d.contact),
     },
-    editedBy: anon ? ANONYMOUS : editor?.name ?? null,
+    editedBy: editor?.name ?? null,
     source,
     adminUrl: program?.slug ? `${frontend}/admin/programs/${program.slug}` : null,
   };
