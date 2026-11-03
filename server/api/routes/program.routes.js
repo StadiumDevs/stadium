@@ -277,7 +277,9 @@ router.patch(
   submissionLimiter,
   trackedResultsController.updateMilestoneBuilder,
 );
-router.post('/:slug/submissions/:submissionId/tx-check', requireProgramAdmin('slug'), trackedResultsController.recheckTx);
+// Re-run the testnet tx check: judges (email sign-in) and admins. It only reads
+// the chain and updates details.txCheck; the controller limits track-scoped judges.
+router.post('/:slug/submissions/:submissionId/tx-check', requireProgramJudge('slug'), trackedResultsController.recheckTx);
 router.get('/:slug/submissions/:submissionId/public', trackedResultsController.publicWinner);
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);

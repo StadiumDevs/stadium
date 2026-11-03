@@ -245,17 +245,25 @@ class TrackedResultsController {
     return updateMilestone(req, res, 'builder');
   }
 
-  // Program admin: re-run the testnet transaction check now.
+  // Judge or program admin: re-run the testnet transaction check now.
   async recheckTx(req, res) {
     try {
       const ctx = await loadTracked(req, res);
       if (!ctx) return;
+      const isJudgeOnly = req.user?.role === 'judge';
+      // A judge limited to some tracks re-checks only if one of them takes a txid (Privacy).
+      const judgeTracks = isJudgeOnly ? req.user.tracks : null;
+      if (Array.isArray(judgeTracks) && !judgeTracks.some((t) => ctx.tracked.txidTracks.includes(t))) {
+        return fail(res, 403, 'Only Privacy judges can re-check a testnet transaction');
+      }
       const s = await loadSubmission(req, res, ctx.program);
       if (!s) return;
       if (!s.details.testnetTxid) return fail(res, 409, 'This submission has no testnet transaction id');
       const updated = await checkAndStore(s.id, s.details.testnetTxid);
       if (!updated) return fail(res, 502, "Couldn't save the check. Try again.");
-      res.status(200).json({ status: 'success', data: updated });
+      // Same shape judges get from listTracked: anonymous entries hide who edited them.
+      const data = isJudgeOnly && updated.details?.anonymous ? { ...updated, lastEditedByName: null, lastEditedByEmail: null } : updated;
+      res.status(200).json({ status: 'success', data });
     } catch (error) {
       console.error('❌ Error re-checking a transaction:', error);
       fail(res, 500, 'Failed to re-check the transaction');
