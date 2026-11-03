@@ -653,6 +653,10 @@ export type ApiSubmissionDetails = {
   network?: string | null;
   pool?: string | null;
   testnetTxid: string | null;
+  /** Optional unified full viewing key (uviewtest…) of the receiving wallet. Judges only, never public. */
+  viewingKey?: string | null;
+  /** Optional wallet birth height for the viewing key. Judges only. */
+  birthHeight?: number | null;
   txCheck: ApiTxCheck | null;
   nextStep: string;
   /** Links to anything already started toward the next milestone. */
@@ -664,6 +668,8 @@ export type ApiSubmissionDetails = {
   privacyNote?: string | null;
   /** Bitrefill feedback (Agentic and Both): never shown publicly. */
   bitrefillFeedback?: { worked: string; didnt: string } | null;
+  /** Telegram or WhatsApp to reach the top teams on demo day (Telegram stored without @). Admins only, never public. */
+  contact?: { app: "telegram" | "whatsapp"; handle: string } | null;
   /** No longer collected (feedback is free text); kept optional for older records. */
   frictionAreas?: string[];
   milestone: ApiSubmissionMilestone | null;
@@ -726,6 +732,8 @@ export type ApiRubricLeaderboardRow = {
   projectTitle: string;
   submitterName: string;
   track: SubmissionTrack;
+  /** "draft" = the team hasn't finalized yet (ranked and awarded the same way). */
+  status?: SubmissionStatus;
   avgTotal: number;
   avgByCriterion: Record<string, number>;
   bonusCount: number;
@@ -2714,7 +2722,8 @@ export const api = {
       return {
         status: "success",
         data: {
-          submissions: mockTracked.list(slug).map((x) => ({ ...x, status: "submitted" as const, ...stamps[x.lumaEmail.trim().toLowerCase()] })),
+          // Seeded drafts keep their status; drafts saved in the playground stay out (no full details yet).
+          submissions: mockTracked.list(slug).map((x) => ({ ...x, status: x.status ?? ("submitted" as const), ...stamps[x.lumaEmail.trim().toLowerCase()] })),
           resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
         },
       };

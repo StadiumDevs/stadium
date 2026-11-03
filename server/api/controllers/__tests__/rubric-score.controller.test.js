@@ -102,12 +102,19 @@ describe('SubmissionController.upsertRubricScore', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
-  it('refuses to score a draft', async () => {
+  it('scores a draft that has a track (judges may score before the team finalizes)', async () => {
     submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'fsh', track: 'privacy', status: 'draft' });
     const res = mockRes();
     await submissionController.upsertRubricScore(judgeReq(), res);
-    expect(res.status).toHaveBeenCalledWith(409);
-    expect(res.json.mock.calls[0][0].code).toBe('not_submitted');
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('refuses a draft with no track yet', async () => {
+    submissionRepo.findById.mockResolvedValue({ id: 's1', programId: 'fsh', track: null, details: {}, status: 'draft' });
+    const res = mockRes();
+    await submissionController.upsertRubricScore(judgeReq(), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].code).toBe('track_not_entered');
   });
 
   it('autosaves a partial score for the verified judge, ignoring a body judgeEmail', async () => {

@@ -59,6 +59,8 @@ export function computeLeaderboard({ track, submissions, scores, judges }) {
       projectTitle: s.projectTitle,
       submitterName: s.submitterName,
       track: s.details.track,
+      // 'draft' = the team hasn't finalized yet (judged and awarded the same way).
+      status: s.status ?? 'submitted',
       avgTotal: mean(counted.map((x) => total(track, x.criteria))),
       avgByCriterion,
       bonusCount: ranking.bonusId ? counted.filter((x) => (x.criteria[ranking.bonusId] ?? 0) > 0).length : 0,

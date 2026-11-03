@@ -6,14 +6,17 @@ export const ANONYMOUS = "Anonymous";
  * The public view of a submission: no emails, and
  * anonymous entries hide every name. Used by the public page and by judges
  * (only admins read the full record). Prizes show only when `showPrizes`;
- * `showNames` keeps anonymous builders' names (admin views only).
+ * `showNames` keeps anonymous builders' names (admin views only). The viewing
+ * key and birth height (they reveal the wallet's whole history) stay only in
+ * judge and admin views (`forJudges`), never on the public page.
  */
 export const toPublicSubmission = (
   s: ApiTrackedSubmission,
-  { showPrizes, showNames = false }: { showPrizes: boolean; showNames?: boolean },
+  { showPrizes, showNames = false, forJudges = false }: { showPrizes: boolean; showNames?: boolean; forJudges?: boolean },
 ): ApiPublicSubmission => {
   // The Bitrefill feedback stays in admin views (showNames) and the judge card.
-  const { team, bitrefillFeedback, ...rest } = s.details;
+  // The Telegram/WhatsApp contact is admins only (showNames), like the Bitrefill feedback.
+  const { team, bitrefillFeedback, viewingKey, birthHeight, contact, ...rest } = s.details;
   const anon = !!s.details.anonymous && !showNames;
   return {
     id: s.id,
@@ -26,7 +29,8 @@ export const toPublicSubmission = (
     createdAt: s.createdAt,
     details: {
       ...rest,
-      ...(showNames ? { bitrefillFeedback } : {}),
+      ...(showNames ? { bitrefillFeedback, contact } : {}),
+      ...(forJudges ? { viewingKey, birthHeight } : {}),
       team: team.map((m) => ({ name: anon ? "Teammate" : m.name, role: m.role ?? null })),
     },
     prizes: showPrizes ? s.prizes : {},

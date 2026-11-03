@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { llmsGuideUrl, llmsPath, llmsTrackFiles, llmsTrackPath, llmsTrackPrompt } from "@/lib/llms/llmsPrograms";
+import { llmsGuideUrl, llmsPath, llmsTrackFiles, llmsTrackPath, llmsTrackPrompt, readmeTemplatePath } from "@/lib/llms/llmsPrograms";
 
 const btn =
   "inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.14em] border px-3 py-1.5";
@@ -38,6 +38,11 @@ export function LlmsBrief({ slug, className = "" }: { slug: string; className?: 
           Load only your track's brief: each one is self-contained (rules, what to submit, how it's judged, the stack). Paste
           the prompt into your coding agent: it saves the brief as AGENTS.md in your new repo, so it reads it locally instead
           of fetching it every turn. Entering both tracks? Load both.
+        </p>
+        <p className="text-body text-[13px] leading-relaxed">
+          README templates: copy your track's into your repo as README.md. Its sections follow the judging rubric, so judges
+          find every answer without searching. Entering both tracks? Start from the Privacy one and add the Agentic Commerce
+          section.
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -94,6 +99,18 @@ export function LlmsBrief({ slug, className = "" }: { slug: string; className?: 
             HOW TO USE THESE FILES ↗
           </a>
         )}
+        {tracks.map((t) => (
+          <a
+            key={t.id}
+            href={readmeTemplatePath(slug, t.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-[10px] tracking-[0.14em] text-label-mid hover:text-display underline"
+            data-testid={`llms-readme-${t.id}`}
+          >
+            README TEMPLATE: {t.short} ↗
+          </a>
+        ))}
         <a
           href={llmsPath(slug)}
           target="_blank"

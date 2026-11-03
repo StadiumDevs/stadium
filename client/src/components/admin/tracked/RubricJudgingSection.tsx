@@ -25,6 +25,7 @@ import {
 } from "@/lib/programProfiles";
 import { buildRankedCsv, buildSubmissionsCsv, downloadCsv } from "@/lib/trackedCsv";
 import { toPublicSubmission } from "@/lib/trackedDisplay";
+import { ViewingKeyLine } from "@/components/program/tracked/ViewingKeyLine";
 import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadge";
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
@@ -59,6 +60,28 @@ const writeDrafts = (key: string, drafts: Record<string, Draft>) => {
     // Storage unavailable — drafts live only in memory this session.
   }
 };
+
+// When the judge last looked at each project's latest edit (submission id → its
+// lastEditedAt), so "updated since you scored" can be dismissed. This device only.
+const readSeen = (key: string): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(`${key}_seen`) || "{}");
+  } catch {
+    return {};
+  }
+};
+const writeSeen = (key: string, seen: Record<string, string>) => {
+  try {
+    localStorage.setItem(`${key}_seen`, JSON.stringify(seen));
+  } catch {
+    // Storage unavailable: the marks reset next visit.
+  }
+};
+/** The team's latest save of a project. */
+const editedAt = (s: ApiTrackedSubmission) => s.lastEditedAt ?? s.updatedAt ?? s.createdAt;
+const isNotFinal = (s: { status?: string | null }) => s.status === "draft";
+/** New submissions refresh this often (and when the tab comes back into view). */
+const REFRESH_MS = 60_000;
 
 // The open project lives in the URL hash (#p=<submission>:<track>) and in
 // localStorage, so a refresh reopens it. The hash wins (it survives a copied link).
@@ -150,6 +173,8 @@ export function RubricJudgingSection({
   const [current, setCurrent] = useState<string | null>(null);
   const [progressToken, setProgressToken] = useState(0);
   const [unscoredOnly, setUnscoredOnly] = useState(false);
+  const [changedOnly, setChangedOnly] = useState(false);
+  const [seen, setSeen] = useState<Record<string, string>>({});
   const [boardTrack, setBoardTrack] = useState<JudgedTrack>(profile.tracks[0].id);
   const [board, setBoard] = useState<ApiRubricLeaderboard | null>(null);
   const [openRow, setOpenRow] = useState<string | null>(null);
@@ -177,11 +202,58 @@ export function RubricJudgingSection({
       .finally(() => setLoading(false));
   }, [loadAll, toast]);
 
+  // Keep the list live: new entries and team updates come in without a reload.
+  // Background refreshes never open the wallet (getPollAuth).
+  const submissionsRef = useRef(submissions);
+  submissionsRef.current = submissions;
+  useEffect(() => {
+    if (loading) return;
+    let stopped = false;
+    const refresh = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const auth = await (getPollAuth ?? getAuth)();
+        const list = await api.listTrackedSubmissions(programSlug, auth);
+        if (stopped) return;
+        const before = new Map(submissionsRef.current.map((s) => [s.id, editedAt(s)]));
+        const next = list.data.submissions;
+        const added = next.filter((s) => !before.has(s.id));
+        const updated = next.filter((s) => before.has(s.id) && before.get(s.id) !== editedAt(s));
+        setSubmissions(next);
+        setUnsubmittedDrafts(list.data.draftCount ?? null);
+        const names = [...added, ...updated].map((s) => s.projectTitle);
+        if (names.length > 0) {
+          const parts = [
+            added.length ? `${added.length} new` : "",
+            updated.length ? `${updated.length} updated` : "",
+          ].filter(Boolean);
+          toast({
+            title: names.length === 1 ? `${names[0]}: ${added.length ? "new submission" : "updated by the team"}` : `Submissions: ${parts.join(", ")}`,
+            description: names.length === 1 ? undefined : names.slice(0, 5).join(", ") + (names.length > 5 ? "…" : ""),
+          });
+        }
+      } catch {
+        // A missed refresh is fine; the next one tries again.
+      }
+    };
+    const id = window.setInterval(refresh, REFRESH_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [loading, getAuth, getPollAuth, programSlug, toast]);
+
   useEffect(() => {
     if (!judgeEmail) return;
     const pending = readDrafts(draftKey);
     draftsRef.current = pending;
     setDrafts(pending);
+    setSeen(readSeen(draftKey));
     setCurrent(readPos(draftKey));
     getAuth()
       .then((auth) => api.listMyRubricScores(programSlug, judgeEmail, auth))
@@ -223,6 +295,20 @@ export function RubricJudgingSection({
 
   const savedFor = (submissionId: string, track: JudgedTrack) =>
     myScores.find((x) => x.submissionId === submissionId && x.track === track) ?? null;
+
+  // Updated by the team after this judge scored it (and not marked as seen since).
+  const changedFor = (s: ApiTrackedSubmission, track: JudgedTrack) => {
+    const saved = savedFor(s.id, track);
+    if (!saved) return false;
+    const edit = Date.parse(editedAt(s));
+    const base = Math.max(Date.parse(saved.updatedAt) || 0, Date.parse(seen[s.id] ?? "") || 0);
+    return edit > base;
+  };
+  const markSeen = (s: ApiTrackedSubmission) => {
+    const next = { ...seen, [s.id]: editedAt(s) };
+    setSeen(next);
+    writeSeen(draftKey, next);
+  };
 
   const draftFor = (submissionId: string, track: JudgedTrack): Draft => {
     const d = drafts[draftId(submissionId, track)];
@@ -475,8 +561,11 @@ export function RubricJudgingSection({
   const batchLabel = (b: string | null | undefined) => profile.judgingSessions.find((x) => x.id === b)?.short ?? null;
   const visibleQueue = queue.filter(
     ({ s, track }) =>
-      (!unscoredOnly || itemState(s.id, track) !== "saved") && (batchFilter === "all" || s.batch === batchFilter),
+      (!unscoredOnly || itemState(s.id, track) !== "saved") &&
+      (!changedOnly || changedFor(s, track)) &&
+      (batchFilter === "all" || s.batch === batchFilter),
   );
+  const changedCount = queue.filter(({ s, track }) => changedFor(s, track)).length;
   const draftCount = queue.filter(({ s, track }) => itemState(s.id, track) === "draft").length;
   const revisitCount = queue.filter(({ s, track }) => itemState(s.id, track) === "revisit").length;
   const navItems: ScoringNavItem[] = visibleQueue.map(({ s, track }) => ({
@@ -485,12 +574,14 @@ export function RubricJudgingSection({
     title: s.projectTitle,
     state: itemState(s.id, track),
     group: batchLabel(s.batch) ?? undefined,
+    notFinal: isNotFinal(s),
+    changed: changedFor(s, track),
   }));
   const currentIdx = Math.max(0, queue.findIndex((q) => draftId(q.s.id, q.track) === current));
   const currentItem = queue[currentIdx] ?? null;
   const detailsRecord = detailsId ? submissions.find((x) => x.id === detailsId) ?? null : null;
   // Judges get the public view (anonymous names hidden); admins see the names.
-  const detailsSubmission = detailsRecord ? toPublicSubmission(detailsRecord, { showPrizes: true, showNames: !isJudge }) : null;
+  const detailsSubmission = detailsRecord ? toPublicSubmission(detailsRecord, { showPrizes: true, showNames: !isJudge, forJudges: true }) : null;
   const guideTrack = judge?.tracks.find((t) => trackById(profile, t).rubric.guideUrl);
 
   return (
@@ -514,7 +605,7 @@ export function RubricJudgingSection({
 
       {!isJudge && unsubmittedDrafts !== null && unsubmittedDrafts > 0 && (
         <p className="label-hw-dim" data-testid="draft-count">
-          {unsubmittedDrafts} DRAFT{unsubmittedDrafts === 1 ? "" : "S"} NOT YET SUBMITTED (NOT IN ANY JUDGE'S QUEUE)
+          {unsubmittedDrafts} DRAFT{unsubmittedDrafts === 1 ? "" : "S"} NOT FINALIZED YET · JUDGES ALREADY SEE THOSE WITH A TRACK, MARKED NOT FINAL
         </p>
       )}
       <JudgingProgressTable
@@ -571,6 +662,12 @@ export function RubricJudgingSection({
               <input type="checkbox" checked={unscoredOnly} onChange={(e) => setUnscoredOnly(e.target.checked)} />
               TO DO ONLY
             </label>
+            {(changedCount > 0 || changedOnly) && (
+              <label className="flex items-center gap-1.5 label-hw text-info cursor-pointer" data-testid="changed-filter">
+                <input type="checkbox" checked={changedOnly} onChange={(e) => setChangedOnly(e.target.checked)} />
+                UPDATED SINCE SCORED ({changedCount})
+              </label>
+            )}
             <div className="flex items-center gap-1" role="group" aria-label="Batch">
               {[{ id: "all", label: "ALL" }, ...profile.judgingSessions.map((b) => ({ id: b.id, label: b.id.toUpperCase() }))].map((b) => (
                 <button
@@ -621,7 +718,12 @@ export function RubricJudgingSection({
               const prev = queue[(currentIdx - 1 + queue.length) % queue.length];
               const next = queue[(currentIdx + 1) % queue.length];
               return (
-                <article className="lcd" data-testid="score-card" data-submission={s.projectTitle}>
+                <article
+                  className={cn("lcd", isNotFinal(s) && "border-2 border-info")}
+                  data-testid="score-card"
+                  data-submission={s.projectTitle}
+                  data-not-final={isNotFinal(s) || undefined}
+                >
                   <header className="p-3 flex flex-wrap items-center gap-2 border-b border-hairline-subtle">
                     <span className="label-hw-dim">
                       {currentIdx + 1} / {queue.length}
@@ -636,6 +738,11 @@ export function RubricJudgingSection({
                     {batchLabel(s.batch) && (
                       <span className="label-hw-dim border border-hairline rounded-sm px-1.5 py-0.5" data-testid="card-batch">
                         {batchLabel(s.batch)}
+                      </span>
+                    )}
+                    {isNotFinal(s) && (
+                      <span className="label-hw border border-info bg-info text-shell rounded-sm px-1.5 py-0.5 font-bold" data-testid="card-not-final">
+                        NOT FINAL
                       </span>
                     )}
                     {track === "privacy" && <TxCheckBadge check={s.details.txCheck} />}
@@ -672,6 +779,23 @@ export function RubricJudgingSection({
                     </span>
                   </header>
                   <div className="p-3 space-y-4">
+                    {isNotFinal(s) && (
+                      <p className="border border-info bg-info/10 text-display text-[12px] p-2 normal-case" data-testid="not-final-banner">
+                        <span className="label-hw text-info font-bold">NOT FINAL · </span>
+                        The team hasn't clicked Finalize yet and may still change it. Your score counts as usual.
+                      </p>
+                    )}
+                    {changedFor(s, track) && (
+                      <div className="border border-info bg-info/10 text-display text-[12px] p-2 flex flex-wrap items-center gap-2" data-testid="changed-banner">
+                        <span className="label-hw text-info font-bold">UPDATED {formatEditedAt(editedAt(s))}</span>
+                        <span className="normal-case flex-1 min-w-[180px]">
+                          {s.lastEditedByName ? `${s.lastEditedByName} saved` : "The team saved"} changes after you scored it. Check the project, then adjust your score if needed.
+                        </span>
+                        <button type="button" onClick={() => markSeen(s)} className={btnGhost} data-testid="mark-seen">
+                          MARK AS SEEN
+                        </button>
+                      </div>
+                    )}
                     {(s.lastEditedAt || s.updatedAt) && (
                       <p className="label-hw-dim" data-testid="last-edited">
                         LAST EDITED {formatEditedAt(s.lastEditedAt ?? s.updatedAt)}
@@ -703,6 +827,7 @@ export function RubricJudgingSection({
                             </button>
                           </div>
                         )}
+                        {show.privacy && s.details.viewingKey && <ViewingKeyLine viewingKey={s.details.viewingKey} birthHeight={s.details.birthHeight} />}
                         <p className="normal-case text-label-mid">Next milestone: {s.details.nextStep}</p>
                       </div>
                     </div>
@@ -793,6 +918,8 @@ export function RubricJudgingSection({
                 {boardTrack === profile.milestone.track &&
                   ` Award the podium, then flag ${profile.milestone.maxFlags} podium projects (any prize level) for the ${profile.milestone.flagLabel} (${ecosystemCount}/${profile.milestone.maxFlags} flagged).`}
                 {publishedAt ? " Results are published." : " Results are not published yet."}
+                {board.rows.some((r) => isNotFinal(r)) &&
+                  " NOT FINAL entries rank and can be awarded like the others, but show on the public results only once the team finalizes."}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] text-[12px] text-body border-collapse" data-testid="leaderboard">
@@ -823,6 +950,11 @@ export function RubricJudgingSection({
                             >
                               {r.projectTitle}
                             </button>
+                            {isNotFinal(r) && (
+                              <span className="ml-1.5 label-hw border border-info text-info rounded-sm px-1 py-0.5 align-middle" data-testid="leaderboard-not-final">
+                                NOT FINAL
+                              </span>
+                            )}
                             <div className="flex flex-wrap gap-1 mt-1">
                               <button
                                 type="button"

@@ -15,6 +15,7 @@ import {
   needsTxid,
   PITCH_MAX,
   PRIVACY_NOTE_MAX,
+  withScheme,
   type TrackedFormState,
 } from "./trackedForm";
 
@@ -37,21 +38,20 @@ export type TeamEditAccess = {
 };
 
 /**
- * Extra submission fields for a tracked program (tracks, themes, txid, next milestone, feedback, anonymity).
- * `invalid` holds the ids of fields to mark red (see validateTrackedForm).
+ * Extra submission fields for a tracked program (tracks, themes, txid, viewing key, next milestone, feedback).
+ * Teammates and anonymity are in TrackedTeamFields. `invalid` holds the ids of
+ * fields to mark red (see validateTrackedForm).
  */
 export function TrackedSubmissionFields({
   profile,
   value: f,
   onChange,
   invalid = new Set<string>(),
-  editAccess,
 }: {
   profile: ProgramProfile;
   value: TrackedFormState;
   onChange: (next: TrackedFormState) => void;
   invalid?: Set<string>;
-  editAccess?: TeamEditAccess;
 }) {
   const set = <K extends keyof TrackedFormState>(k: K, v: TrackedFormState[K]) => onChange({ ...f, [k]: v });
   const privacy = !!f.track && f.track !== "agentic";
@@ -134,83 +134,6 @@ export function TrackedSubmissionFields({
         <Input id="trk-pitch" maxLength={PITCH_MAX} value={f.pitch} onChange={(e) => set("pitch", e.target.value)} aria-invalid={bad("trk-pitch") || undefined} className={"font-mono text-sm" + invalidBorder(bad("trk-pitch"))} />
       </div>
 
-      <fieldset className="space-y-2">
-        <legend className="label-hw-dim">
-          TEAMMATES (OPTIONAL){profile.maxTeammates !== undefined ? ` · SOLO OR A TEAM OF UP TO ${profile.maxTeammates + 1}, INCLUDING YOU` : ""}
-        </legend>
-        {editAccess && (
-          <p className="label-hw-dim normal-case">
-            {editAccess.canManage
-              ? "Give a teammate edit access and they can open and update this submission with their own email. Their email must be checked in on Luma."
-              : "The point person decides who can edit."}
-          </p>
-        )}
-        {f.team.map((m, i) => {
-          const email = m.email.trim().toLowerCase();
-          const canEdit = !!email && (editAccess?.editors.includes(email) ?? false);
-          const showAccess = !!editAccess && EMAIL_RE.test(email) && email !== editAccess.ownerEmail.trim().toLowerCase();
-          const busy = editAccess?.busy === email;
-          const accessError = email ? editAccess?.errors[email] : "";
-          return (
-          <div key={i} className="space-y-1" data-testid={`team-row-${i}`}>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px_auto] gap-2">
-            <Input id={`trk-team-${i}-name`} aria-label={`Teammate ${i + 1} name`} aria-invalid={bad(`trk-team-${i}-name`) || undefined} placeholder="Name" value={m.name} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} className={"font-mono text-sm" + invalidBorder(bad(`trk-team-${i}-name`))} />
-            <Input aria-label={`Teammate ${i + 1} email`} placeholder="Email" type="email" value={m.email} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} className="font-mono text-sm" />
-            <Input aria-label={`Teammate ${i + 1} role`} placeholder="Role" value={m.role} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))} className="font-mono text-sm" />
-            <button type="button" onClick={() => set("team", f.team.filter((_, j) => j !== i))} className="font-mono text-[10px] tracking-[0.12em] text-label-mid hover:text-display px-2">
-              REMOVE
-            </button>
-          </div>
-          {showAccess && (
-            <div className="flex flex-wrap items-center gap-2 pl-0.5">
-              {canEdit ? (
-                <>
-                  <span className="label-hw text-led" data-testid={`can-edit-${i}`}>✓ CAN EDIT</span>
-                  {editAccess.canManage && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => editAccess.onChange(email, false)}
-                      className="font-mono text-[10px] tracking-[0.12em] text-label-mid hover:text-display underline disabled:opacity-50"
-                      data-testid={`revoke-edit-${i}`}
-                    >
-                      REMOVE ACCESS
-                    </button>
-                  )}
-                </>
-              ) : editAccess.canManage ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => editAccess.onChange(email, true)}
-                  className="font-mono text-[10px] tracking-[0.12em] border border-hairline text-display hover:bg-panel-deep px-2.5 py-1 disabled:opacity-50"
-                  data-testid={`grant-edit-${i}`}
-                >
-                  {busy ? "CHECKING LUMA…" : "GIVE EDIT ACCESS"}
-                </button>
-              ) : null}
-              {accessError && (
-                <span className="label-hw text-destructive normal-case" role="alert" data-testid={`edit-error-${i}`}>
-                  {accessError}
-                </span>
-              )}
-            </div>
-          )}
-          </div>
-          );
-        })}
-        {(profile.maxTeammates === undefined || f.team.length < profile.maxTeammates) && (
-          <button type="button" onClick={() => set("team", [...f.team, { name: "", email: "", role: "" }])} className="font-mono text-[10px] tracking-[0.12em] text-display hover:underline">
-            + ADD TEAMMATE
-          </button>
-        )}
-        <div className="flex items-start gap-2 pt-1">
-          <Checkbox id="trk-anon" checked={f.anonymous} onCheckedChange={(v) => set("anonymous", v === true)} className="mt-0.5" />
-          <label htmlFor="trk-anon" className="text-body text-sm cursor-pointer">
-            I want to be anonymous: hide my name and my teammates' names on the public page. Admins can still see them.
-          </label>
-        </div>
-      </fieldset>
 
       <fieldset id="trk-apptype" tabIndex={-1} className="space-y-2" aria-invalid={bad("trk-apptype") || undefined}>
         <legend className={"label-hw-dim" + invalidText(bad("trk-apptype"))}>WHAT IS IT?<RequiredMark /></legend>
@@ -228,7 +151,7 @@ export function TrackedSubmissionFields({
         <Label htmlFor="trk-url" className={"label-hw-dim" + invalidText(bad("trk-url"))}>
           {isApp(f.appType) ? "PUBLIC URL" : "PUBLIC URL (APPS ONLY)"}<RequiredMark show={isApp(f.appType)} />
         </Label>
-        <Input id="trk-url" placeholder="https://…" value={f.publicUrl} onChange={(e) => set("publicUrl", e.target.value)} aria-invalid={bad("trk-url") || undefined} className={"font-mono text-sm" + invalidBorder(bad("trk-url"))} />
+        <Input id="trk-url" type="url" inputMode="url" autoCapitalize="none" placeholder="https://…" value={f.publicUrl} onChange={(e) => set("publicUrl", e.target.value)} onBlur={() => f.publicUrl.trim() && set("publicUrl", withScheme(f.publicUrl))} aria-invalid={bad("trk-url") || undefined} className={"font-mono text-sm" + invalidBorder(bad("trk-url"))} />
         {privacy && !isApp(f.appType) && f.appType && (
           <p className="label-hw-dim normal-case">For non-apps the video must show it working with Zcash.</p>
         )}
@@ -245,6 +168,46 @@ export function TrackedSubmissionFields({
           <Input id="trk-txid" placeholder="One shielded testnet txid your project created" value={f.testnetTxid} onChange={(e) => set("testnetTxid", e.target.value)} aria-invalid={bad("trk-txid") || undefined} className={"font-mono text-sm" + invalidBorder(bad("trk-txid"))} />
           <p className="label-hw-dim normal-case">
             Stadium checks it exists and is shielded. A failed check never blocks your submission; amounts and memos stay private.
+          </p>
+        </div>
+      )}
+
+      {privacy && (
+        <div className="space-y-1.5" data-testid="viewing-key-field">
+          <Label htmlFor="trk-vk" className={"label-hw-dim" + invalidText(bad("trk-vk"))}>VIEWING KEY (OPTIONAL)</Label>
+          <Input
+            id="trk-vk"
+            placeholder="uviewtest…"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={f.viewingKey}
+            onChange={(e) => set("viewingKey", e.target.value)}
+            aria-invalid={bad("trk-vk") || undefined}
+            className={"font-mono text-sm" + invalidBorder(bad("trk-vk"))}
+          />
+          <p className="label-hw-dim normal-case">
+            The unified full viewing key (uviewtest…) of the testnet wallet that received your payment. It lets judges see the
+            payment, amount and memo. It cannot spend funds. It shows the whole history of that wallet, so use your demo wallet.
+          </p>
+        </div>
+      )}
+
+      {privacy && (
+        <div className="space-y-1.5" data-testid="birth-height-field">
+          <Label htmlFor="trk-birth" className={"label-hw-dim" + invalidText(bad("trk-birth"))}>WALLET BIRTH HEIGHT (OPTIONAL)</Label>
+          <Input
+            id="trk-birth"
+            inputMode="numeric"
+            placeholder="3100000"
+            value={f.birthHeight}
+            onChange={(e) => set("birthHeight", e.target.value)}
+            aria-invalid={bad("trk-birth") || undefined}
+            className={"font-mono text-sm" + invalidBorder(bad("trk-birth"))}
+          />
+          <p className="label-hw-dim normal-case">
+            A block height at or before the first payment to that wallet. The block height of your transaction ID, shown in the
+            explorer, works. Without it, the viewing key shows no history.
           </p>
         </div>
       )}
@@ -327,5 +290,146 @@ export function TrackedSubmissionFields({
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Teammates (and anonymity) for a tracked program. Rendered by the submission
+ * form right under the point person's email.
+ */
+/** Telegram or WhatsApp to reach the top teams on demo day. Admins only. */
+export function TrackedContactField({
+  value: f,
+  onChange,
+  invalid = new Set<string>(),
+}: {
+  value: TrackedFormState;
+  onChange: (next: TrackedFormState) => void;
+  invalid?: Set<string>;
+}) {
+  const bad = invalid.has("trk-contact");
+  return (
+    <fieldset id="trk-contact" tabIndex={-1} className="space-y-1.5" aria-invalid={bad || undefined} data-testid="contact-field">
+      <legend className={"label-hw-dim" + invalidText(bad)}>TELEGRAM OR WHATSAPP (FOR DEMO DAY)<RequiredMark /></legend>
+      <p className="label-hw-dim normal-case">We use it to reach the top teams on demo day. Never shown publicly.</p>
+      <RadioGroup
+        value={f.contactApp}
+        onValueChange={(v) => onChange({ ...f, contactApp: v as TrackedFormState["contactApp"] })}
+        className="flex gap-4"
+      >
+        {([["telegram", "Telegram"], ["whatsapp", "WhatsApp"]] as const).map(([id, label]) => (
+          <div key={id} className="flex items-center gap-2">
+            <RadioGroupItem id={`trk-contact-${id}`} value={id} />
+            <label htmlFor={`trk-contact-${id}`} className="text-body text-sm cursor-pointer">{label}</label>
+          </div>
+        ))}
+      </RadioGroup>
+      <Input
+        id="trk-contact-handle"
+        aria-label={f.contactApp === "whatsapp" ? "WhatsApp number" : "Telegram username"}
+        aria-invalid={bad || undefined}
+        type={f.contactApp === "whatsapp" ? "tel" : "text"}
+        placeholder={f.contactApp === "whatsapp" ? "+41 79 123 45 67" : "@username"}
+        value={f.contactHandle}
+        onChange={(e) => onChange({ ...f, contactHandle: e.target.value })}
+        className={"font-mono text-sm" + invalidBorder(bad)}
+      />
+    </fieldset>
+  );
+}
+
+export function TrackedTeamFields({
+  profile,
+  value: f,
+  onChange,
+  invalid = new Set<string>(),
+  editAccess,
+}: {
+  profile: ProgramProfile;
+  value: TrackedFormState;
+  onChange: (next: TrackedFormState) => void;
+  invalid?: Set<string>;
+  editAccess?: TeamEditAccess;
+}) {
+  const set = <K extends keyof TrackedFormState>(k: K, v: TrackedFormState[K]) => onChange({ ...f, [k]: v });
+  const bad = (id: string) => invalid.has(id);
+  return (
+      <fieldset className="space-y-2" data-testid="team-fields">
+        <legend className="label-hw-dim">
+          TEAMMATES (OPTIONAL){profile.maxTeammates !== undefined ? ` · SOLO OR A TEAM OF UP TO ${profile.maxTeammates + 1}, INCLUDING YOU` : ""}
+        </legend>
+        {editAccess && (
+          <p className="label-hw-dim normal-case">
+            {editAccess.canManage
+              ? "Give a teammate edit access and they can open and update this submission with their own email. Their email must be checked in on Luma."
+              : "The point person decides who can edit."}
+          </p>
+        )}
+        {f.team.map((m, i) => {
+          const email = m.email.trim().toLowerCase();
+          const canEdit = !!email && (editAccess?.editors.includes(email) ?? false);
+          const showAccess = !!editAccess && EMAIL_RE.test(email) && email !== editAccess.ownerEmail.trim().toLowerCase();
+          const busy = editAccess?.busy === email;
+          const accessError = email ? editAccess?.errors[email] : "";
+          return (
+          <div key={i} className="space-y-1" data-testid={`team-row-${i}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px_auto] gap-2">
+            <Input id={`trk-team-${i}-name`} aria-label={`Teammate ${i + 1} name`} aria-invalid={bad(`trk-team-${i}-name`) || undefined} placeholder="Name" value={m.name} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} className={"font-mono text-sm" + invalidBorder(bad(`trk-team-${i}-name`))} />
+            <Input aria-label={`Teammate ${i + 1} email`} placeholder="Email" type="email" value={m.email} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} className="font-mono text-sm" />
+            <Input aria-label={`Teammate ${i + 1} role`} placeholder="Role" value={m.role} onChange={(e) => set("team", f.team.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))} className="font-mono text-sm" />
+            <button type="button" onClick={() => set("team", f.team.filter((_, j) => j !== i))} className="font-mono text-[10px] tracking-[0.12em] text-label-mid hover:text-display px-2">
+              REMOVE
+            </button>
+          </div>
+          {showAccess && (
+            <div className="flex flex-wrap items-center gap-2 pl-0.5">
+              {canEdit ? (
+                <>
+                  <span className="label-hw text-led" data-testid={`can-edit-${i}`}>✓ CAN EDIT</span>
+                  {editAccess.canManage && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => editAccess.onChange(email, false)}
+                      className="font-mono text-[10px] tracking-[0.12em] text-label-mid hover:text-display underline disabled:opacity-50"
+                      data-testid={`revoke-edit-${i}`}
+                    >
+                      REMOVE ACCESS
+                    </button>
+                  )}
+                </>
+              ) : editAccess.canManage ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => editAccess.onChange(email, true)}
+                  className="font-mono text-[10px] tracking-[0.12em] border border-hairline text-display hover:bg-panel-deep px-2.5 py-1 disabled:opacity-50"
+                  data-testid={`grant-edit-${i}`}
+                >
+                  {busy ? "CHECKING LUMA…" : "GIVE EDIT ACCESS"}
+                </button>
+              ) : null}
+              {accessError && (
+                <span className="label-hw text-destructive normal-case" role="alert" data-testid={`edit-error-${i}`}>
+                  {accessError}
+                </span>
+              )}
+            </div>
+          )}
+          </div>
+          );
+        })}
+        {(profile.maxTeammates === undefined || f.team.length < profile.maxTeammates) && (
+          <button type="button" onClick={() => set("team", [...f.team, { name: "", email: "", role: "" }])} className="font-mono text-[10px] tracking-[0.12em] text-display hover:underline">
+            + ADD TEAMMATE
+          </button>
+        )}
+        <div className="flex items-start gap-2 pt-1">
+          <Checkbox id="trk-anon" checked={f.anonymous} onCheckedChange={(v) => set("anonymous", v === true)} className="mt-0.5" />
+          <label htmlFor="trk-anon" className="text-body text-sm cursor-pointer">
+            I want to be anonymous: hide my name and my teammates' names on the public page. Admins can still see them.
+          </label>
+        </div>
+      </fieldset>
   );
 }

@@ -51,11 +51,17 @@ export const llmsPath = (slug: string) => `/programs/${slug}/llms.txt`;
 export const llmsGuideUrl = (slug: string): string | undefined => LLMS_GUIDE_URLS[slug];
 export const llmsTrackFiles = (slug: string): LlmsTrackFile[] => LLMS_TRACK_FILES[slug] ?? [];
 export const llmsTrackPath = (slug: string, id: string) => `/programs/${slug}/${id}/llms.txt`;
+/** A track's README template for builders: its sections follow the judging rubric. */
+export const readmeTemplatePath = (slug: string, id: string) => `/programs/${slug}/${id}/README-template.md`;
 /** The agent prompt for a track, with the brief's absolute URL filled in. */
 export const llmsTrackPrompt = (t: LlmsTrackFile, origin: string, slug: string) =>
   t.prompt.replace("{url}", `${origin}${llmsTrackPath(slug, t.id)}`);
-/** Source files to publish, relative to client/src/lib/llms (index first). */
+/** Source files to publish, relative to client/src/lib/llms (index first, then briefs, then README templates). */
 export const llmsSources = (slug: string): { source: string; path: string }[] => [
   { source: `programs/${slug}/llms.txt`, path: llmsPath(slug) },
   ...llmsTrackFiles(slug).map((t) => ({ source: `programs/${slug}/${t.id}/llms.txt`, path: llmsTrackPath(slug, t.id) })),
+  ...llmsTrackFiles(slug).map((t) => ({
+    source: `programs/${slug}/${t.id}/README-template.md`,
+    path: readmeTemplatePath(slug, t.id),
+  })),
 ];
