@@ -137,6 +137,8 @@ Judges score from the repo and video only. Every item is required.
 - [ ] FEEDBACK.md: what broke, confused or slowed the builder down. The builder writes the final version (the $100 prize favours the human's own words).
 - [ ] Entering the Zcash track too: which parts are for which track, plus everything the [Privacy track](https://stadium.joinwebzero.com/programs/free-society-hack-2026/privacy/llms.txt) requires (testnet txid, privacy and trust note).
 
+Full README template (copy it into the repo as README.md): {{ORIGIN}}/programs/free-society-hack-2026/agentic-commerce/README-template.md
+
 README skeleton:
 
 ```

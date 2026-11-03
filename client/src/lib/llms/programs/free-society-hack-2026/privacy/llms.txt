@@ -233,6 +233,8 @@ FEEDBACK.md skeleton (delete empty areas):
 For each item: what you tried, what happened, what you expected, a link or error message.
 ```
 
+Full README template (copy it into the repo as README.md): {{ORIGIN}}/programs/free-society-hack-2026/privacy/README-template.md
+
 README skeleton:
 
 ```
