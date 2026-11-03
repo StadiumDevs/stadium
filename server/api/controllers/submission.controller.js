@@ -888,17 +888,19 @@ class SubmissionController {
   }
 
   // Judge/admin: a tracked program's submissions with their details, track and
-  // judging batch (from when it was finalized; see trackedPrograms.js). Drafts
-  // stay out until the team clicks Finalize and submit.
+  // judging batch (from when it was finalized, or created for a draft; see
+  // trackedPrograms.js). Drafts with a track are included (`status: 'draft'`):
+  // judges may score them before the team clicks Finalize and submit.
   async listTracked(req, res) {
     try {
       const tracked = trackedProgramFor(req.params.slug);
       if (!tracked) return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      // Only finalized entries are ready to judge; the batch is from when the
-      // team finalized (older entries: their first submission).
-      const rows = await programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' });
+      // A draft with no track yet has nothing to score.
+      const rows = (await programSubmissionRepository.listByProgramId(program.id)).filter(
+        (s) => s.status !== 'draft' || !!s.details?.track,
+      );
       const isJudgeOnly = req.user?.role === 'judge';
       const data = rows.map((s) => ({
         ...s,
@@ -953,10 +955,7 @@ class SubmissionController {
       if (!submission || submission.programId !== programId) {
         return res.status(404).json({ status: 'error', message: 'Submission not found' });
       }
-      // Drafts aren't in any queue until the team finalizes them.
-      if (submission.status === 'draft') {
-        return res.status(409).json({ status: 'error', code: 'not_submitted', message: 'This project is still a draft.' });
-      }
+      // A draft (not finalized yet) can be scored; its track must still match below.
       // A score only counts for a track the project entered ("both" = each).
       if (!judgedTracksOf(submission.track ?? submission.details?.track).includes(track)) {
         return res.status(400).json({ status: 'error', code: 'track_not_entered', message: `This project didn't enter the ${track} track.` });

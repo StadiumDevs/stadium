@@ -812,6 +812,12 @@ const scoredAt = (session: string, i: number) =>
 // Ecosystem Prize flags: one second prize (milestone in progress) and one third
 // prize (milestone delivered, confirmed, shared, paid out).
 const ECOSYSTEM = new Set(["hushbox", "tip-jar-sdk"]);
+// Not finalized yet (judges can already score them). ZecSplit was saved again
+// after the judges scored it, so it shows "updated since you scored".
+const NOT_FINAL = new Set(["zecsplit", "bill-pilot"]);
+const EDITED_AFTER_SCORING: Record<string, { at: string; by: string }> = {
+  zecsplit: { at: "2026-11-05T09:40:00+05:30", by: "Tanvi Shah (mock)" },
+};
 
 const PRIZES: Record<string, Partial<Record<JudgedTrack, ApiPrizeTier>>> = {
   "chai-ledger": { privacy: tier("Privacy: top prize") },
@@ -912,6 +918,10 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
       },
       prizes,
       ecosystemPrize: ECOSYSTEM.has(p.key),
+      ...(NOT_FINAL.has(p.key) ? { status: "draft" as const, finalizedAt: null } : {}),
+      ...(EDITED_AFTER_SCORING[p.key]
+        ? { lastEditedAt: new Date(EDITED_AFTER_SCORING[p.key].at).toISOString(), lastEditedByName: EDITED_AFTER_SCORING[p.key].by }
+        : {}),
     };
   });
 

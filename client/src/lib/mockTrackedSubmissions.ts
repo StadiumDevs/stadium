@@ -279,6 +279,7 @@ export const mockTracked = {
         projectTitle: s.projectTitle,
         submitterName: s.submitterName,
         track: s.details.track,
+        status: s.status ?? "submitted",
         avgTotal: mean(counted.map((x) => weightedTotal(rubric, x.criteria))),
         avgByCriterion,
         bonusCount: bonus ? counted.filter((x) => (x.criteria[bonus.id] ?? 0) > 0).length : 0,

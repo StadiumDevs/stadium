@@ -732,6 +732,8 @@ export type ApiRubricLeaderboardRow = {
   projectTitle: string;
   submitterName: string;
   track: SubmissionTrack;
+  /** "draft" = the team hasn't finalized yet (ranked and awarded the same way). */
+  status?: SubmissionStatus;
   avgTotal: number;
   avgByCriterion: Record<string, number>;
   bonusCount: number;
@@ -2720,7 +2722,8 @@ export const api = {
       return {
         status: "success",
         data: {
-          submissions: mockTracked.list(slug).map((x) => ({ ...x, status: "submitted" as const, ...stamps[x.lumaEmail.trim().toLowerCase()] })),
+          // Seeded drafts keep their status; drafts saved in the playground stay out (no full details yet).
+          submissions: mockTracked.list(slug).map((x) => ({ ...x, status: x.status ?? ("submitted" as const), ...stamps[x.lumaEmail.trim().toLowerCase()] })),
           resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
         },
       };

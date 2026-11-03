@@ -259,8 +259,17 @@ describe('SubmissionController.listTracked', () => {
     expect(data.submissions.map((s) => [s.id, s.batch])).toEqual([['a', 'evening'], ['b', 'morning']]);
     expect(data.batches.map((b) => b.id)).toEqual(['evening', 'morning']);
     expect(data.resultsPublishedAt).toBeNull();
-    // Drafts never reach the judges.
-    expect(submissionRepo.listByProgramId).toHaveBeenCalledWith('fsh', { status: 'submitted' });
+  });
+  it('includes drafts that have a track (status kept), not drafts with no track yet', async () => {
+    programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: null });
+    submissionRepo.listByProgramId.mockResolvedValue([
+      { id: 'final', status: 'submitted', createdAt: '2026-11-04T14:00:00.000Z', details: { track: 'privacy' } },
+      { id: 'draft', status: 'draft', createdAt: '2026-11-04T14:00:00.000Z', details: { track: 'agentic' } },
+      { id: 'empty', status: 'draft', createdAt: '2026-11-04T14:00:00.000Z', details: { track: null } },
+    ]);
+    const res = mockRes();
+    await submissionController.listTracked({ params: { slug: 'free-society-hack-2026' }, user: { email: 'j@x.com', programId: 'fsh', role: 'judge' } }, res);
+    expect(res.json.mock.calls[0][0].data.submissions.map((s) => [s.id, s.status])).toEqual([['final', 'submitted'], ['draft', 'draft']]);
   });
   it('batches by when the team finalized, not when the draft was opened', async () => {
     programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: null });
