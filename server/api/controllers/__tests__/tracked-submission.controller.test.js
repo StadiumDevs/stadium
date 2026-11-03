@@ -31,6 +31,10 @@ vi.mock('../../repositories/submission-editor.repository.js', () => ({
 vi.mock('../../repositories/program-submission.repository.js', () => ({
   default: { findForEditor: vi.fn(async () => null), countDrafts: vi.fn(async () => 0), markFeedbackSubmitted: vi.fn(), create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), setPaid: vi.fn(), setPrize: vi.fn(), listByProgramId: vi.fn(), countByProgramId: vi.fn(), delete: vi.fn() },
 }));
+vi.mock('../../services/submission-webhook.service.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  notifySubmissionEvent: vi.fn(async () => true),
+}));
 vi.mock('../../services/submission-confirmation.service.js', () => ({
   default: { send: vi.fn() },
 }));
@@ -63,6 +67,7 @@ const signupRepo = (await import('../../repositories/program-signup.repository.j
 const confirmationService = (await import('../../services/submission-confirmation.service.js')).default;
 const adminEmailRepo = (await import('../../repositories/program-admin-email.repository.js')).default;
 const submissionController = (await import('../submission.controller.js')).default;
+const { notifySubmissionEvent } = await import('../../services/submission-webhook.service.js');
 
 const mockRes = () => {
   const res = {};
@@ -297,6 +302,54 @@ describe('SubmissionController.submit — Bitrefill survey (Free Society Hack)',
     programService.findBySlug.mockResolvedValue(BITREFILL);
     const res = mockRes();
     await submissionController.submit({ params: { slug: BITREFILL.slug }, body: base }, res);
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+});
+
+describe('SubmissionController.submit — n8n webhook events', () => {
+  const priya = { 'x-supabase-token': 'tok:priya@example.com' };
+  const save = async (body) => {
+    programService.findBySlug.mockResolvedValue(FSH);
+    submissionRepo.updateSubmission.mockImplementation(async (id, x) => ({ id, ...x }));
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: FSH.slug }, headers: priya, body }, res);
+    return res;
+  };
+  const draftBody = { submitterName: 'Priya Nair', lumaEmail: 'priya@example.com', projectTitle: 'Chai', intent: 'draft', details: { track: 'privacy' } };
+
+  it('a first draft sends submission.draft_created', async () => {
+    const res = await save(draftBody);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(notifySubmissionEvent).toHaveBeenCalledWith('submission.draft_created', expect.objectContaining({ previousStatus: null, program: FSH }));
+  });
+
+  it('a draft saved again sends nothing', async () => {
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh', status: 'draft' });
+    const res = await save(draftBody);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(notifySubmissionEvent).not.toHaveBeenCalled();
+  });
+
+  it('finalizing a draft sends submission.finalized with previousStatus draft', async () => {
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh', status: 'draft' });
+    const res = await save({ ...base, details, intent: 'finalize' });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(notifySubmissionEvent).toHaveBeenCalledWith(
+      'submission.finalized',
+      expect.objectContaining({ previousStatus: 'draft', submission: expect.objectContaining({ status: 'submitted' }) }),
+    );
+  });
+
+  it('saving a submitted entry again sends submission.updated', async () => {
+    submissionRepo.findByEmail.mockResolvedValue({ id: 'old', programId: 'fsh', status: 'submitted', feedbackSubmittedAt: '2026-11-04T10:00:00Z' });
+    const res = await save({ ...base, details });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(notifySubmissionEvent).toHaveBeenCalledWith('submission.updated', expect.objectContaining({ previousStatus: 'submitted' }));
+  });
+
+  it('a failing webhook never fails the save', async () => {
+    notifySubmissionEvent.mockRejectedValueOnce(new Error('down'));
+    const res = await save(draftBody);
     expect(res.status).toHaveBeenCalledWith(201);
   });
 });
