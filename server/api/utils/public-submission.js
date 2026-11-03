@@ -1,7 +1,8 @@
 // The public, email-free view of a tracked submission (mirrors
 // client/src/lib/trackedDisplay.ts toPublicSubmission). No emails; an
 // anonymous entry hides the point person's and teammates' names, and the
-// Bitrefill feedback is never public.
+// Bitrefill feedback and the viewing key (it reveals the wallet's whole
+// history) are never public.
 // Prizes, the Ecosystem Prize flag and the milestone show only once results
 // are published (`published`).
 export const ANONYMOUS = 'Anonymous';
@@ -9,8 +10,16 @@ export const ANONYMOUS = 'Anonymous';
 export function toPublicSubmission(s, { published = false } = {}) {
   const d = s.details || {};
   const anon = d.anonymous === true;
-  // Bitrefill feedback goes to Bitrefill, not the public page.
-  const { team = [], bitrefillFeedback: _bitrefillFeedback, ...rest } = d;
+  // Bitrefill feedback goes to Bitrefill, not the public page; the viewing key
+  // and birth height are for judges only; the Telegram/WhatsApp contact is admins only.
+  const {
+    team = [],
+    bitrefillFeedback: _bitrefillFeedback,
+    viewingKey: _viewingKey,
+    birthHeight: _birthHeight,
+    contact: _contact,
+    ...rest
+  } = d;
   return {
     id: s.id,
     projectTitle: s.projectTitle,

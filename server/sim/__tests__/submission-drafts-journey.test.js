@@ -90,6 +90,7 @@ const fullDetails = (over = {}) => ({
   technologies: ['WebZjs', 'Bitrefill MCP'],
   testnetTxid: TX1,
   nextStep: 'Pilot with a Mumbai shop by 4 Dec.',
+  contact: { app: 'telegram', handle: 'arjun_builds' },
   nextStepLinks: [],
   frictionNotes: null,
   privacyNote: 'Amounts are shielded; our server stores order ids next to phone numbers.',

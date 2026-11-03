@@ -92,6 +92,7 @@ const details = {
   technologies: ['WebZjs'],
   testnetTxid: 'b'.repeat(64),
   nextStep: 'Pilot by 4 Dec.',
+  contact: { app: 'telegram', handle: 'arjun_builds' },
   nextStepLinks: [],
   frictionAreas: [],
   frictionNotes: null,
@@ -161,6 +162,65 @@ describe('SubmissionController.submit — tracked programs', () => {
     const res = mockRes();
     await submissionController.submit({ params: { slug: FSH.slug }, body: { ...base, details } }, res);
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+});
+
+describe('SubmissionController.submit — mobile fixes and viewing key', () => {
+  const priya = { 'x-supabase-token': 'tok:priya@example.com' };
+
+  // Regression: SUBMIT FEEDBACK saves a draft first; on phones the GitHub link
+  // came without https:// and the draft was refused ("A valid GitHub URL...").
+  it('a draft with a GitHub link typed without https:// is saved, with https://', async () => {
+    programService.findBySlug.mockResolvedValue(FSH);
+    const res = mockRes();
+    await submissionController.submit(
+      {
+        params: { slug: FSH.slug },
+        headers: priya,
+        body: { submitterName: 'Priya Nair', lumaEmail: 'priya@example.com', projectTitle: 'Chai Ledger', githubUrl: 'github.com/x/chai', intent: 'draft', details: { track: 'privacy' } },
+      },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    const arg = submissionRepo.create.mock.calls[0][0];
+    expect(arg.githubUrl).toBe('https://github.com/x/chai');
+    expect(arg.status).toBe('draft');
+  });
+
+  it('finalizing without the event feedback is still refused', async () => {
+    programService.findBySlug.mockResolvedValue(FSH);
+    const { ratings: _r, ...noRatings } = base;
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: FSH.slug }, headers: priya, body: { ...noRatings, details, intent: 'finalize' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'feedback_required' }));
+    expect(submissionRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('stores the viewing key and birth height with the details', async () => {
+    programService.findBySlug.mockResolvedValue(FSH);
+    const key = 'uviewtest1' + 'q'.repeat(120);
+    const res = mockRes();
+    await submissionController.submit(
+      { params: { slug: FSH.slug }, body: { ...base, details: { ...details, viewingKey: key, birthHeight: '3100000' } } },
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(submissionRepo.create.mock.calls[0][0].details).toMatchObject({ viewingKey: key, birthHeight: 3100000 });
+  });
+
+  it('400s a viewing key that is not a testnet UFVK (draft or full)', async () => {
+    programService.findBySlug.mockResolvedValue(FSH);
+    const res = mockRes();
+    await submissionController.submit({ params: { slug: FSH.slug }, body: { ...base, details: { ...details, viewingKey: 'uview1abc' } } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    const res2 = mockRes();
+    await submissionController.submit(
+      { params: { slug: FSH.slug }, headers: priya, body: { submitterName: 'P', lumaEmail: 'priya@example.com', projectTitle: 'T', intent: 'draft', details: { track: 'privacy', birthHeight: '1.5' } } },
+      res2,
+    );
+    expect(res2.status).toHaveBeenCalledWith(400);
+    expect(res2.json).toHaveBeenCalledWith({ status: 'error', message: 'The wallet birth height must be a whole number' });
   });
 });
 

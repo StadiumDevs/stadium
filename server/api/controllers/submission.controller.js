@@ -638,7 +638,7 @@ class SubmissionController {
   }
 
   // Builder (point person or teammate, verified): submit the event feedback
-  // (ratings + "anything you liked"). Required once before finalizing; after
+  // (ratings + "any additional feedback or comments"). Required once before finalizing; after
   // that the answers can still be changed but are never asked for again.
   async submitFeedback(req, res) {
     try {

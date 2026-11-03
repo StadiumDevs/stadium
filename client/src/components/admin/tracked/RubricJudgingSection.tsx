@@ -25,6 +25,7 @@ import {
 } from "@/lib/programProfiles";
 import { buildRankedCsv, buildSubmissionsCsv, downloadCsv } from "@/lib/trackedCsv";
 import { toPublicSubmission } from "@/lib/trackedDisplay";
+import { ViewingKeyLine } from "@/components/program/tracked/ViewingKeyLine";
 import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadge";
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
@@ -490,7 +491,7 @@ export function RubricJudgingSection({
   const currentItem = queue[currentIdx] ?? null;
   const detailsRecord = detailsId ? submissions.find((x) => x.id === detailsId) ?? null : null;
   // Judges get the public view (anonymous names hidden); admins see the names.
-  const detailsSubmission = detailsRecord ? toPublicSubmission(detailsRecord, { showPrizes: true, showNames: !isJudge }) : null;
+  const detailsSubmission = detailsRecord ? toPublicSubmission(detailsRecord, { showPrizes: true, showNames: !isJudge, forJudges: true }) : null;
   const guideTrack = judge?.tracks.find((t) => trackById(profile, t).rubric.guideUrl);
 
   return (
@@ -703,6 +704,7 @@ export function RubricJudgingSection({
                             </button>
                           </div>
                         )}
+                        {show.privacy && s.details.viewingKey && <ViewingKeyLine viewingKey={s.details.viewingKey} birthHeight={s.details.birthHeight} />}
                         <p className="normal-case text-label-mid">Next milestone: {s.details.nextStep}</p>
                       </div>
                     </div>

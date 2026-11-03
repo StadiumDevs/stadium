@@ -905,6 +905,9 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
         frictionNotes: p.friction,
         privacyNote: isPrivacy ? PRIVACY_NOTES[h(p.key, 3) % PRIVACY_NOTES.length] : null,
         bitrefillFeedback: p.track !== "privacy" ? BITREFILL_FEEDBACK[h(p.key, 5) % BITREFILL_FEEDBACK.length] : null,
+        contact: h(p.key, 7) % 2
+          ? { app: "telegram", handle: p.key.replace(/-/g, "_") }
+          : { app: "whatsapp", handle: `+91 98${String(h(p.key, 11) % 100000000).padStart(8, "0")}` },
         milestone,
       },
       prizes,

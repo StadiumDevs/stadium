@@ -85,6 +85,7 @@ const details = (over = {}) => ({
   technologies: ['WebZjs'],
   testnetTxid: TX1,
   nextStep: 'Pilot by 4 Dec.',
+  contact: { app: 'telegram', handle: 'arjun_builds' },
   nextStepLinks: [],
   frictionAreas: ['Faucet'],
   frictionNotes: 'Faucet was down.',

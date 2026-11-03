@@ -653,6 +653,10 @@ export type ApiSubmissionDetails = {
   network?: string | null;
   pool?: string | null;
   testnetTxid: string | null;
+  /** Optional unified full viewing key (uviewtest…) of the receiving wallet. Judges only, never public. */
+  viewingKey?: string | null;
+  /** Optional wallet birth height for the viewing key. Judges only. */
+  birthHeight?: number | null;
   txCheck: ApiTxCheck | null;
   nextStep: string;
   /** Links to anything already started toward the next milestone. */
@@ -664,6 +668,8 @@ export type ApiSubmissionDetails = {
   privacyNote?: string | null;
   /** Bitrefill feedback (Agentic and Both): never shown publicly. */
   bitrefillFeedback?: { worked: string; didnt: string } | null;
+  /** Telegram or WhatsApp to reach the top teams on demo day (Telegram stored without @). Admins only, never public. */
+  contact?: { app: "telegram" | "whatsapp"; handle: string } | null;
   /** No longer collected (feedback is free text); kept optional for older records. */
   frictionAreas?: string[];
   milestone: ApiSubmissionMilestone | null;

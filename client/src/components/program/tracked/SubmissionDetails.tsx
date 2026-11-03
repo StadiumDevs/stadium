@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ApiPublicSubmission, JudgedTrack } from "@/lib/api";
 import { trackFieldsFor, trackLabel, type ProgramProfile } from "@/lib/programProfiles";
 import { TxCheckBadge, TxidLink } from "./TxCheckBadge";
+import { ViewingKeyLine } from "./ViewingKeyLine";
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid grid-cols-1 sm:grid-cols-[150px_1fr] gap-1 sm:gap-3 py-2 border-b border-hairline-subtle">
@@ -10,9 +11,9 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   </div>
 );
 
-const ExtLink = ({ href }: { href: string }) => (
+const ExtLink = ({ href, label }: { href: string; label?: string }) => (
   <a href={href} target="_blank" rel="noopener noreferrer" className="text-display underline underline-offset-2 break-all">
-    {href}
+    {label ?? href}
   </a>
 );
 
@@ -52,6 +53,15 @@ export function SubmissionDetails({
         </Row>
       )}
       <Row label="POINT PERSON">{s.submitterName}</Row>
+      {d.contact && (
+        <Row label="DEMO-DAY CONTACT">
+          {d.contact.app === "telegram" ? (
+            <ExtLink href={`https://t.me/${d.contact.handle}`} label={`Telegram @${d.contact.handle}`} />
+          ) : (
+            <ExtLink href={`https://wa.me/${d.contact.handle.replace(/\D/g, "")}`} label={`WhatsApp ${d.contact.handle}`} />
+          )}
+        </Row>
+      )}
       <Row label="TEAM">
         {d.team.length === 0 ? (
           <span className="text-label-mid">Solo</span>
@@ -93,6 +103,7 @@ export function SubmissionDetails({
                 <TxidLink txid={d.testnetTxid} explorerUrl={profile.txExplorerUrl} />
               </div>
             )}
+            {d.viewingKey && <ViewingKeyLine viewingKey={d.viewingKey} birthHeight={d.birthHeight} />}
             {(d.network || d.pool) && (
               <div className="text-label-mid text-[12px]">{[d.network, d.pool].filter(Boolean).join(" · ")}</div>
             )}

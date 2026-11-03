@@ -53,6 +53,7 @@ const details = {
   technologies: ['WebZjs'],
   testnetTxid: 'a'.repeat(64),
   nextStep: 'Pilot.',
+  contact: { app: 'telegram', handle: 'arjun_builds' },
   nextStepLinks: [],
   frictionAreas: [],
   anonymous: false,

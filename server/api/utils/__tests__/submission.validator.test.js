@@ -58,7 +58,13 @@ describe('validateSubmission', () => {
   it('rejects non-http video / github urls', () => {
     expect(validateSubmission({ ...goodSubmission, videoUrl: 'javascript:alert(1)' }).ok).toBe(false);
     expect(validateSubmission({ ...goodSubmission, githubUrl: 'ftp://x/y' }).ok).toBe(false);
-    expect(validateSubmission({ ...goodSubmission, githubUrl: 'github.com/no-scheme' }).ok).toBe(false);
+    expect(validateSubmission({ ...goodSubmission, githubUrl: 'not a url' }).ok).toBe(false);
+  });
+
+  it('adds https:// to a link typed without a scheme (phones)', () => {
+    const v = validateSubmission({ ...goodSubmission, githubUrl: 'github.com/no-scheme' });
+    expect(v.ok).toBe(true);
+    expect(v.value.githubUrl).toBe('https://github.com/no-scheme');
   });
 
   it('defaults feedback to null and agreedToTerms to false when absent', () => {
