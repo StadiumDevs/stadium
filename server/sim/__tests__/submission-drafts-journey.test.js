@@ -98,6 +98,16 @@ const fullDetails = (over = {}) => ({
   anonymous: false,
   ...over,
 });
+// A complete Bitrefill survey (required to finalize Agentic and Both entries).
+const SURVEY = {
+  surfaces: ['Hosted MCP', 'CLI'],
+  surfacesPrimary: 'Hosted MCP',
+  agentEnv: 'Claude Code',
+  deadlineStatus: 'Agent bought and paid on its own, running in about an hour',
+  biggestBlocker: 'Nothing major, it was smooth',
+  couldntHandle: '',
+  wouldKeepBuilding: 'Maybe',
+};
 const base = {
   submitterName: 'Priya',
   lumaEmail: OWNER,
@@ -106,6 +116,7 @@ const base = {
   videoUrl: 'https://youtu.be/topup',
   githubUrl: 'https://github.com/priya/topup-agent',
   agreedToTerms: true,
+  feedback: SURVEY,
 };
 const row = () => store.program_submissions.find((s) => s.luma_email === OWNER);
 const queueFor = async (judge) => (await asJudge(judge, submissionController.listTracked)).body.data.submissions;

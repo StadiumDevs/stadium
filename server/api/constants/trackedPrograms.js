@@ -12,6 +12,9 @@ export const TRACKED_PROGRAMS = {
     privacyNoteTracks: ['privacy', 'both'],
     // Tracks whose entries need the Bitrefill feedback (what worked, what didn't).
     bitrefillFeedbackTracks: ['agentic', 'both'],
+    // Tracks whose entries must answer the Bitrefill survey (submissionFeedback.ts
+    // on the client) to finalize.
+    bitrefillSurveyTracks: ['agentic', 'both'],
     // Tracks where the demo video is optional (strongly preferred). Agentic
     // needs a video or a live link showing the agent make a purchase.
     videoOptionalTracks: ['privacy'],

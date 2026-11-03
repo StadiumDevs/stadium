@@ -100,6 +100,7 @@ export function TrackedSubmissionFields({
                 <ul className="list-disc pl-5 text-body text-[12px] leading-relaxed">
                   <li>Demo video or a live link showing the agent make a purchase (required)</li>
                   <li>Bitrefill feedback: what worked, what didn't</li>
+                  <li>Bitrefill survey: six quick questions (below the form)</li>
                   <li>Repo README with the demo URL</li>
                 </ul>
               </div>

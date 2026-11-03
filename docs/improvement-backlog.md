@@ -277,3 +277,9 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/controllers/submission.controller.js` (`listTracked`), `server/api/controllers/tracked-results.controller.js` (`recheckTx`)
 - **Observed during**: fixing the judges' RE-CHECK ("Missing SIWS auth header")
 - **Suggestion**: For a judge-only session, `listTracked` (and now `recheckTx`) return the whole row: point-person and teammate emails, the Telegram/WhatsApp `details.contact`, and the Bitrefill feedback. The client hides them (`toPublicSubmission` in `client/src/lib/trackedDisplay.ts`), but they are in the response. Add a server-side judge view (strip `lumaEmail`, team emails, `contact`, and `bitrefillFeedback` unless the judge is on that track) and use it in both endpoints.
+
+## [2026-11-04] Collapsing the event feedback after FINALIZE still auto-finalizes later
+- **Severity**: nit
+- **File(s)**: `client/src/components/program/SubmitProjectModal.tsx` (`finalizeAfterFeedback`, `askForFeedback`, `toggleFeedback`)
+- **Observed during**: making the FSH event feedback a collapsible section (stadium-reviewer pass)
+- **Suggestion**: Once FINALIZE is clicked, `finalizeAfterFeedback` stays true even if the builder collapses the section and keeps drafting, so submitting the feedback later finalizes without a second click. Consider resetting it on collapse, or labelling the feedback button "SUBMIT FEEDBACK AND FINALIZE" only while it's armed (it already is), and confirming that's the intended behaviour.

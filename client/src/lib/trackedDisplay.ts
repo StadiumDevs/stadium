@@ -35,6 +35,8 @@ export const toPublicSubmission = (
     },
     prizes: showPrizes ? s.prizes : {},
     ecosystemPrize: showPrizes && s.ecosystemPrize,
+    // The Bitrefill survey: admin views only, like the Bitrefill feedback.
+    ...(showNames ? { feedback: s.feedback ?? null } : {}),
   };
 };
 

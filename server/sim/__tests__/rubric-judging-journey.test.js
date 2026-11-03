@@ -100,6 +100,16 @@ const details = (over = {}) => ({
   anonymous: false,
   ...over,
 });
+// A complete Bitrefill survey (required to finalize Agentic and Both entries).
+const SURVEY = {
+  surfaces: ['Hosted MCP', 'CLI'],
+  surfacesPrimary: 'Hosted MCP',
+  agentEnv: 'Claude Code',
+  deadlineStatus: 'Agent bought and paid on its own, running in about an hour',
+  biggestBlocker: 'Nothing major, it was smooth',
+  couldntHandle: '',
+  wouldKeepBuilding: 'Maybe',
+};
 const submit = (email, title, d, token = null) =>
   call(submissionController.submit, {
     headers: token ? { 'x-supabase-token': token } : {},
@@ -111,6 +121,7 @@ const submit = (email, title, d, token = null) =>
       videoUrl: 'https://youtu.be/demo',
       githubUrl: 'https://github.com/x/' + title.toLowerCase().replace(/\W+/g, '-'),
       ratings: { overall: 4, organisation: 5, support: 4, tools: 3 },
+      feedback: SURVEY,
       details: d,
     },
   });

@@ -348,6 +348,8 @@ export type ApiSubmission = {
   lastEditedAt?: string | null;
   lastEditedByName?: string | null;
   lastEditedByEmail?: string | null;
+  /** The program's feedback survey (submissionFeedback.ts), e.g. the Bitrefill survey. Never public. */
+  feedback?: SubmissionPayload["feedback"] | null;
 };
 
 /** A prize tier configurable per program; awarded amount snapshots one of these. */
@@ -707,6 +709,8 @@ export type ApiPublicSubmission = {
   prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
   /** Only true once results are published. */
   ecosystemPrize: boolean;
+  /** The Bitrefill survey answers: admin views only (like the Bitrefill feedback), never public. */
+  feedback?: SubmissionPayload["feedback"] | null;
 };
 
 export type ApiPublicSubmissions = { published: boolean; submissions: ApiPublicSubmission[] };

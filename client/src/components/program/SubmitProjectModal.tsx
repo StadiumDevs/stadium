@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Star } from "lucide-react";
+import { ChevronDown, Loader2, Star } from "lucide-react";
 import { api, type ApiProgram, type MySubmission, type SubmissionPayload, type SubmissionState, type SubmitResult, ApiError, USE_MOCK_DATA } from "@/lib/api";
 import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import { mockVerifiedEmails } from "@/lib/mockVerifiedEmails";
@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MarkdownBody } from "@/components/program/MarkdownBody";
 import { getSubmissionTerms } from "@/lib/submissionTerms";
 import {
+  feedbackAppliesTo,
   getSubmissionFeedback,
   type FeedbackAnswers,
 } from "@/lib/submissionFeedback";
@@ -181,6 +182,8 @@ export function SubmitProjectModal({
   // Tracked programs: drafts on Stadium, opened by the point person or a
   // teammate with edit access after verifying their email.
   const trackedFlow = !!profile;
+  // Tracked programs ask the survey only of some tracks (FSH: Agentic and Both).
+  const surveyActive = !!feedbackConfig && (!trackedFlow || feedbackAppliesTo(feedbackConfig, tracked.track));
   const [gateEmail, setGateEmail] = useState("");
   const [entry, setEntry] = useState<Entry | null>(null);
   const [entryLoaded, setEntryLoaded] = useState(false);
@@ -189,6 +192,9 @@ export function SubmitProjectModal({
   // Tracked: the event feedback shows once they click FINALIZE AND SUBMIT (or
   // once it's been given). `finalizeAfterFeedback`: submitting it finalizes.
   const [showFeedback, setShowFeedback] = useState(false);
+  // Tracked: FINALIZE clicked before the event feedback was given. The
+  // collapsed section is highlighted until they open it.
+  const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   const finalizeAfterFeedback = useRef(false);
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [accessBusy, setAccessBusy] = useState<string | null>(null);
@@ -293,6 +299,7 @@ export function SubmitProjectModal({
         setRestoredFromDevice(false);
         setFeedbackAttempted(false);
         setShowFeedback(false);
+        setFeedbackPrompt(false);
         finalizeAfterFeedback.current = false;
         setAccessErrors({});
         loadStarted.current = false;
@@ -375,6 +382,19 @@ export function SubmitProjectModal({
       setVideo(d.videoUrl ?? "");
       setGithub(d.githubUrl ?? "");
       if (d.details) setTracked(detailsToTrackedForm(d.details));
+      // Saved survey answers come back so the team never has to answer again.
+      if (d.feedback) {
+        const fb = d.feedback;
+        setSurfaces(fb.surfaces ?? []);
+        setSurfacesPrimary(fb.surfacesPrimary ?? null);
+        setSingles({
+          agentEnv: fb.agentEnv ?? "",
+          deadlineStatus: fb.deadlineStatus ?? "",
+          biggestBlocker: fb.biggestBlocker ?? "",
+          wouldKeepBuilding: fb.wouldKeepBuilding ?? "",
+        });
+        setTexts({ couldntHandle: fb.couldntHandle ?? "" });
+      }
       if (d.ratings) setRatings(d.ratings);
       setEventLiked(d.eventLiked ?? "");
       // Agreed when it was first saved; the box stays ticked.
@@ -565,7 +585,7 @@ export function SubmitProjectModal({
 
     if (profile) issues.push(...validateTrackedForm(profile, tracked));
 
-    if (feedbackConfig) {
+    if (feedbackConfig && surveyActive) {
       for (const q of feedbackConfig.questions) {
         if (q.kind === "multi-primary") {
           if (surfaces.length === 0) add(`fb-${q.id}`, `Please answer: ${q.label}`);
@@ -619,12 +639,18 @@ export function SubmitProjectModal({
     el.focus({ preventScroll: true });
   };
 
-  // Tracked: show the event feedback (the last step before finalizing) and bring it into view.
+  // Tracked: FINALIZE without the event feedback. Highlight the collapsed
+  // section and bring it into view so they open it and fill it in; submitting
+  // it then finalizes.
   const askForFeedback = () => {
     finalizeAfterFeedback.current = true;
-    setShowFeedback(true);
+    if (!showFeedback) setFeedbackPrompt(true);
     setError(null);
-    window.setTimeout(() => showFirstIssue("sub-feedback"), 0);
+    window.setTimeout(() => showFirstIssue(showFeedback ? "sub-feedback" : "sub-feedback-toggle"), 0);
+  };
+  const toggleFeedback = () => {
+    setShowFeedback((v) => !v);
+    setFeedbackPrompt(false);
   };
 
   // `intent` (tracked programs): "draft" saves the team's entry on Stadium
@@ -655,7 +681,7 @@ export function SubmitProjectModal({
     setError(null);
     setSubmitting(true);
     try {
-      const feedback: FeedbackAnswers | undefined = feedbackConfig
+      const feedback: FeedbackAnswers | undefined = feedbackConfig && surveyActive
         ? {
             surfaces,
             surfacesPrimary,
@@ -841,6 +867,7 @@ export function SubmitProjectModal({
     setLinkSentTo(null);
     setDraftSaved(false);
     setShowFeedback(false);
+    setFeedbackPrompt(false);
     finalizeAfterFeedback.current = false;
   };
   // ✕ is the only way out of an unfinished form; the draft (and a verified
@@ -1176,9 +1203,10 @@ export function SubmitProjectModal({
                   />
                 )}
 
-                {feedbackConfig && (
-                  <div className="space-y-4 border-t border-hairline-subtle pt-4">
-                    <div className="label-hw text-display">·FEEDBACK</div>
+                {feedbackConfig && surveyActive && (
+                  <div className="space-y-4 border-t border-hairline-subtle pt-4" data-testid="survey-section">
+                    <div className="label-hw text-display">·{feedbackConfig.title ?? "FEEDBACK"}</div>
+                    {feedbackConfig.note && <p className="label-hw-dim normal-case">{feedbackConfig.note}</p>}
                     {feedbackConfig.questions.map((q) => {
                       if (q.kind === "multi-primary") {
                         return (
@@ -1257,11 +1285,44 @@ export function SubmitProjectModal({
                   </div>
                 )}
 
-                {(!trackedFlow || showFeedback || feedbackDone) && (
-                <div id="sub-feedback" tabIndex={-1} className="space-y-3 border-t border-hairline-subtle pt-4" data-testid="feedback-step">
-                  <div className="label-hw text-display">
-                    {!trackedFlow ? "·RATE THE EVENT" : feedbackDone ? "·EVENT FEEDBACK" : "·ONE LAST STEP: RATE THE EVENT, THEN SUBMIT"}
+                {trackedFlow && (
+                  <div
+                    className={
+                      "border-t border-hairline-subtle pt-4" +
+                      (feedbackPrompt ? " -mx-2 px-2 pb-2 border-2 border-warn bg-warn/10 rounded-sm" : "")
+                    }
+                    data-testid="feedback-collapsible"
+                    data-prompt={feedbackPrompt || undefined}
+                    data-open={showFeedback || undefined}
+                  >
+                    <button
+                      type="button"
+                      id="sub-feedback-toggle"
+                      onClick={toggleFeedback}
+                      aria-expanded={showFeedback}
+                      aria-controls="sub-feedback"
+                      className="w-full flex items-center justify-between gap-2 text-left"
+                      data-testid="feedback-toggle"
+                    >
+                      <span className={"label-hw " + (feedbackPrompt ? "text-warn" : "text-display")}>
+                        {feedbackDone ? "·EVENT FEEDBACK · ✓ SUBMITTED" : "·EVENT FEEDBACK (REQUIRED BEFORE YOU FINALIZE)"}
+                        {!feedbackDone && <RequiredMark />}
+                      </span>
+                      <ChevronDown className={"h-4 w-4 shrink-0 transition-transform " + (showFeedback ? "rotate-180" : "")} aria-hidden="true" />
+                    </button>
+                    {feedbackPrompt && (
+                      <p className="label-hw text-warn normal-case pt-1.5" role="alert" data-testid="feedback-prompt">
+                        One last step: open this, rate the event, then submit it to finalize.
+                      </p>
+                    )}
+                    {!showFeedback && !feedbackPrompt && !feedbackDone && (
+                      <p className="label-hw-dim normal-case pt-1">Four quick ratings. Not needed to save a draft.</p>
+                    )}
                   </div>
+                )}
+                {(!trackedFlow || showFeedback) && (
+                <div id="sub-feedback" tabIndex={-1} className={"space-y-3 " + (trackedFlow ? "pt-1" : "border-t border-hairline-subtle pt-4")} data-testid="feedback-step">
+                  {!trackedFlow && <div className="label-hw text-display">·RATE THE EVENT</div>}
                   <p className="label-hw-dim normal-case">1 is poor, 5 is excellent. Only the organisers see this.</p>
                   {EXPERIENCE_RATING_CATEGORIES.map(({ id, label }) => (
                     <ExperienceRatingField

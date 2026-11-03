@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { ApiPublicSubmission, JudgedTrack } from "@/lib/api";
 import { trackFieldsFor, trackLabel, type ProgramProfile } from "@/lib/programProfiles";
+import { formatSurvey } from "@/lib/submissionFeedback";
 import { TxCheckBadge, TxidLink } from "./TxCheckBadge";
 import { ViewingKeyLine } from "./ViewingKeyLine";
 
@@ -136,6 +137,13 @@ export function SubmissionDetails({
         <Row label="BITREFILL FEEDBACK">
           <p><span className="text-label-mid">Worked: </span>{d.bitrefillFeedback.worked}</p>
           <p><span className="text-label-mid">Didn't: </span>{d.bitrefillFeedback.didnt}</p>
+        </Row>
+      )}
+      {show.agentic && formatSurvey(s.feedback).length > 0 && (
+        <Row label="BITREFILL SURVEY">
+          {formatSurvey(s.feedback).map((r) => (
+            <p key={r.label}><span className="text-label-mid">{r.label}: </span>{r.value}</p>
+          ))}
         </Row>
       )}
     </dl>
