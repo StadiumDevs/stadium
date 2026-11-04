@@ -273,15 +273,56 @@ export function RubricJudgingSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [judgeEmail, draftKey, getAuth, programSlug]);
 
+  // Admin "both tracks" view: every judged track's board, while it's open.
+  const [showBoth, setShowBoth] = useState(false);
+  const [bothBoards, setBothBoards] = useState<Partial<Record<JudgedTrack, ApiRubricLeaderboard | null>>>({});
+  const showBothRef = useRef(showBoth);
+  showBothRef.current = showBoth;
+
+  const loadBothBoards = useCallback(async () => {
+    const auth = await getAuth();
+    const entries = await Promise.all(
+      profile.tracks.map(async (t) => {
+        try {
+          return [t.id, (await api.getRubricLeaderboard(programSlug, t.id, auth)).data] as const;
+        } catch {
+          return [t.id, null] as const;
+        }
+      }),
+    );
+    setBothBoards(Object.fromEntries(entries));
+  }, [getAuth, programSlug, profile.tracks]);
+
   const loadBoard = useCallback(async () => {
     const auth = await getAuth();
     const r = await api.getRubricLeaderboard(programSlug, boardTrack, auth);
     setBoard(r.data);
-  }, [getAuth, programSlug, boardTrack]);
+    if (showBothRef.current) await loadBothBoards();
+  }, [getAuth, programSlug, boardTrack, loadBothBoards]);
+
+  useEffect(() => {
+    if (showBoth) loadBothBoards().catch(() => setBothBoards({}));
+  }, [showBoth, loadBothBoards]);
 
   useEffect(() => {
     if (tab === "leaderboard") loadBoard().catch(() => setBoard(null));
   }, [tab, loadBoard]);
+
+  const bothEntries = useMemo(() => submissions.filter((s) => s.details?.track === "both"), [submissions]);
+  const bothRows = useMemo(() => {
+    const rows = bothEntries.map((s) => {
+      const cells = profile.tracks.map((t) => {
+        const b = bothBoards[t.id];
+        const row = b?.rows.find((r) => r.submissionId === s.id);
+        if (!b) return { track: t.id, state: "missing" as const };
+        if (!row || row.judgeCount === 0) return { track: t.id, state: "unscored" as const };
+        return { track: t.id, state: "ranked" as const, rank: row.rank, avg: row.avgTotal, max: maxScore(t.rubric), judges: row.judgeCount };
+      });
+      const best = Math.min(...cells.map((c) => (c.state === "ranked" ? c.rank : Infinity)));
+      return { s, cells, best };
+    });
+    return rows.sort((a, b) => a.best - b.best || a.s.projectTitle.localeCompare(b.s.projectTitle));
+  }, [bothEntries, bothBoards, profile.tracks]);
 
   // The judge's queue: one card per (submission, track) the judge may score.
   const queue = useMemo(() => {
@@ -971,6 +1012,17 @@ export function RubricJudgingSection({
                   {t.shortLabel}
                 </button>
               ))}
+              {!isJudge && bothEntries.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBoth((v) => !v)}
+                  aria-pressed={showBoth}
+                  className={showBoth ? btnSolid : btnGhost}
+                  data-testid="both-tracks-toggle"
+                >
+                  BOTH TRACKS ({bothEntries.length})
+                </button>
+              )}
             </div>
             <div className="flex flex-wrap gap-1">
             {!isJudge && board && (
@@ -995,6 +1047,58 @@ export function RubricJudgingSection({
             )}
             </div>
           </div>
+          {!isJudge && showBoth && bothEntries.length > 0 && (
+            <div className="border border-hairline rounded-sm p-2 flex flex-col gap-2" data-testid="both-tracks">
+              <p className="label-hw-dim normal-case">
+                Entered both tracks: judged and ranked in each. A project can win in both.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-[12px] text-body border-collapse">
+                  <thead>
+                    <tr className="label-hw-dim text-left">
+                      <th className="py-1.5 pr-2">PROJECT</th>
+                      {profile.tracks.map((t) => (
+                        <th key={t.id} className="py-1.5 pr-2">{t.shortLabel.toUpperCase()}</th>
+                      ))}
+                      <th className="py-1.5 pr-2">PRIZES</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bothRows.map(({ s, cells }) => (
+                      <tr key={s.id} className="border-t border-hairline-subtle align-top" data-testid="both-tracks-row">
+                        <td className="py-2 pr-2">
+                          <button
+                            type="button"
+                            onClick={() => setDetailsId(s.id)}
+                            className="text-left text-display underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                            title="Show project details"
+                          >
+                            {s.projectTitle}
+                          </button>
+                          {isNotFinal(s) && (
+                            <span className="ml-1.5 label-hw border border-info text-info rounded-sm px-1 py-0.5 align-middle">NOT FINAL</span>
+                          )}
+                        </td>
+                        {cells.map((c) => (
+                          <td key={c.track} className="py-2 pr-2 font-mono" data-testid={`both-tracks-${c.track}`}>
+                            {c.state === "missing"
+                              ? "—"
+                              : c.state === "unscored"
+                                ? <span className="label-hw-dim">NOT SCORED YET</span>
+                                : `#${c.rank} · ${c.avg.toFixed(1)} / ${c.max} · ${c.judges}J`}
+                          </td>
+                        ))}
+                        <td className="py-2 pr-2">
+                          {profile.tracks.map((t) => s.prizes?.[t.id]).filter(Boolean).map((p) => p!.label).join(" · ") || "—"}
+                          {s.ecosystemPrize && <span className="ml-1.5 label-hw">★ {profile.milestone.flagLabel.toUpperCase()}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {board && (
             <>
               <p className="label-hw-dim normal-case">
