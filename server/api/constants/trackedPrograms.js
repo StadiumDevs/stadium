@@ -32,9 +32,6 @@ export const TRACKED_PROGRAMS = {
     appTypes: ['web app', 'mobile app', 'SDK or library', 'CLI', 'agent', 'other'],
     // Teammates besides the point person: solo or a team of up to 4.
     maxTeam: 3,
-    // Builders can't create or save submissions after this (Thu 5 Nov 00:00
-    // IST). Judges and admins keep working after it.
-    submissionsCloseAt: '2026-11-04T18:30:00Z',
     // Judging batches, in order. A submission joins the first batch whose
     // `until` is at or after its first submission time; the last batch takes
     // the rest. "Evening judging: projects in by Wed 4 Nov 20:00 IST".
@@ -47,10 +44,11 @@ export const TRACKED_PROGRAMS = {
 
 export const trackedProgramFor = (slug) => TRACKED_PROGRAMS[slug] ?? null;
 
-// Builder writes (submit, drafts, feedback, edit access) are closed once the
-// tracked program's submissionsCloseAt has passed.
-export const submissionsClosed = (config, now = Date.now()) =>
-  !!config?.submissionsCloseAt && now >= Date.parse(config.submissionsCloseAt);
+// Builder writes (submit, drafts, feedback, edit access) on a tracked program
+// close at the program's eventEndsAt ("Event ends at" in the admin UI). No end
+// date set means open. Judges and admins keep working after it.
+export const submissionsClosed = (config, program, now = Date.now()) =>
+  !!config && !!program?.eventEndsAt && now >= Date.parse(program.eventEndsAt);
 
 // The batch a submission belongs to, from its first submission time.
 export function batchFor(batches, createdAt) {
