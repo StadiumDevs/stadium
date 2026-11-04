@@ -259,7 +259,7 @@ async function builderAccess(req, res, { ownerOnly = false } = {}) {
     res.status(404).json({ status: 'error', message: 'No submission for this email yet. Save a draft first.' });
     return null;
   }
-  if (submissionsClosed(tracked)) {
+  if (submissionsClosed(tracked, program)) {
     closedResponse(res);
     return null;
   }
@@ -294,7 +294,7 @@ class SubmissionController {
       const tracked = trackedProgramFor(program.slug);
       // Submissions close at the program's deadline: no new entries or saves
       // (drafts included) after it. Judges and admins aren't affected.
-      if (submissionsClosed(tracked)) return closedResponse(res);
+      if (submissionsClosed(tracked, program)) return closedResponse(res);
       const wantsDraft = !!tracked && req.body?.intent === 'draft';
 
       // Who is saving: the email proven with the sign-in link (Supabase magic link).
