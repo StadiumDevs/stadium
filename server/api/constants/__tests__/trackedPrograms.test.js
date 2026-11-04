@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { batchFor, trackedProgramFor } from '../trackedPrograms.js';
+import { batchFor, trackedProgramFor, submissionsClosed } from '../trackedPrograms.js';
 
 const batches = trackedProgramFor('free-society-hack-2026').judgingBatches;
 
@@ -30,5 +30,28 @@ describe('batchFor (evening = in by Wed 4 Nov 20:00 IST, morning = after)', () =
 
   it('only knows tracked programs', () => {
     expect(trackedProgramFor('bitrefill-2026')).toBeNull();
+  });
+});
+
+describe('submissionsClosed', () => {
+  const fsh = trackedProgramFor('free-society-hack-2026');
+  const now = Date.parse('2026-11-05T12:00:00Z');
+
+  it('stays open before the admin eventEndsAt', () => {
+    expect(submissionsClosed(fsh, { eventEndsAt: '2026-11-06T00:00:00Z' }, now)).toBe(false);
+  });
+
+  it('closes once eventEndsAt has passed', () => {
+    expect(submissionsClosed(fsh, { eventEndsAt: '2026-11-05T11:59:59Z' }, now)).toBe(true);
+    expect(submissionsClosed(fsh, { eventEndsAt: '2026-11-05T12:00:00Z' }, now)).toBe(true);
+  });
+
+  it('stays open when no end date is set', () => {
+    expect(submissionsClosed(fsh, { eventEndsAt: null }, now)).toBe(false);
+    expect(submissionsClosed(fsh, null, now)).toBe(false);
+  });
+
+  it('never closes an untracked program', () => {
+    expect(submissionsClosed(null, { eventEndsAt: '2000-01-01T00:00:00Z' }, now)).toBe(false);
   });
 });
