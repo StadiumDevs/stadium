@@ -573,16 +573,29 @@ describe('SubmissionController.programStats (judge/admin)', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('returns confirmed participants + submissions count', async () => {
+  it('returns confirmed participants + finalized submissions count + drafts', async () => {
     programService.findBySlug.mockResolvedValue(PROGRAM);
     signupRepo.countByProgramId.mockResolvedValue(42);
-    submissionRepo.countByProgramId.mockResolvedValue(7);
+    submissionRepo.countByProgramId.mockImplementation(async (_id, { status } = {}) => (status === 'draft' ? 0 : 7));
     const res = mockRes();
     await submissionController.programStats({ params: { slug: 'bitrefill' } }, res);
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.countByProgramId).toHaveBeenCalledWith(PROGRAM.id, { status: 'submitted' });
     expect(res.json).toHaveBeenCalledWith({
       status: 'success',
-      data: { confirmedParticipants: 42, submissionsCount: 7 },
+      data: { confirmedParticipants: 42, submissionsCount: 7, draftsCount: 0, submissionsClosed: false },
+    });
+  });
+
+  it('after the deadline, a tracked program reports its drafts as abandoned (not submitted)', async () => {
+    programService.findBySlug.mockResolvedValue({ id: 'fsh', slug: 'free-society-hack-2026', eventEndsAt: '2000-01-01T00:00:00Z' });
+    signupRepo.countByProgramId.mockResolvedValue(100);
+    submissionRepo.countByProgramId.mockImplementation(async (_id, { status } = {}) => (status === 'draft' ? 3 : 61));
+    const res = mockRes();
+    await submissionController.programStats({ params: { slug: 'free-society-hack-2026' } }, res);
+    expect(res.json).toHaveBeenCalledWith({
+      status: 'success',
+      data: { confirmedParticipants: 100, submissionsCount: 61, draftsCount: 3, submissionsClosed: true },
     });
   });
 });

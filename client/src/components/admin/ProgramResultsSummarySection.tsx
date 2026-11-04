@@ -246,6 +246,11 @@ export function ProgramResultsSummarySection({
           <LCDStat size="sm" value={leaderboard ? winners.length : "—"} label="Winners" />
           <LCDStat size="sm" value={hours ?? "—"} label="Hours of hacking" />
         </div>
+        {stats?.submissionsClosed && (stats.draftsCount ?? 0) > 0 && (
+          <p className="label-hw-dim -mt-2 mb-4" data-testid="summary-abandoned">
+            {stats.draftsCount} ABANDONED DRAFT{stats.draftsCount === 1 ? "" : "S"} NOT COUNTED (NOT FINALIZED BY THE DEADLINE)
+          </p>
+        )}
 
         {loading && (
           <div className="flex items-center gap-2 label-hw-dim py-4">

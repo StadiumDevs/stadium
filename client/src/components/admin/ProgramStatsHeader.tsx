@@ -59,11 +59,25 @@ export function ProgramStatsHeader({
   }, []);
 
   const remaining = formatRemaining(eventEndsAt, nowMs);
+  // Unfinalized drafts: "in progress" while open, abandoned (not counted) after.
+  const drafts = stats?.draftsCount ?? 0;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+    <div className={`grid grid-cols-1 gap-2 mb-4 ${drafts > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
       <LCDStat size="sm" value={stats ? stats.confirmedParticipants : "—"} label="Confirmed participants" />
       <LCDStat size="sm" value={stats ? stats.submissionsCount : "—"} label="Projects submitted" />
+      {drafts > 0 && (
+        <div
+          title={
+            stats?.submissionsClosed
+              ? "Drafts not finalized by the deadline: not judged, not public, not counted"
+              : "Drafts not finalized yet"
+          }
+          data-testid="stats-drafts"
+        >
+          <LCDStat size="sm" value={drafts} label={stats?.submissionsClosed ? "Abandoned (not counted)" : "Drafts in progress"} />
+        </div>
+      )}
       <div title={remaining.minutes != null ? `${remaining.minutes} minutes remaining` : undefined}>
         <LCDStat size="sm" value={remaining.text} label="Submissions close in" />
       </div>

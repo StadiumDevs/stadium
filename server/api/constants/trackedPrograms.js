@@ -50,6 +50,11 @@ export const trackedProgramFor = (slug) => TRACKED_PROGRAMS[slug] ?? null;
 export const submissionsClosed = (config, program, now = Date.now()) =>
   !!config && !!program?.eventEndsAt && now >= Date.parse(program.eventEndsAt);
 
+// A draft still unfinalized once submissions have closed: abandoned. It isn't
+// judged, public or counted in any final list (the row is kept).
+export const isAbandoned = (submission, config, program, now = Date.now()) =>
+  submission?.status === 'draft' && submissionsClosed(config, program, now);
+
 // The batch a submission belongs to, from its first submission time.
 export function batchFor(batches, createdAt) {
   if (!Array.isArray(batches) || batches.length === 0) return null;
