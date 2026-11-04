@@ -14,6 +14,7 @@ import type {
   ApiSubmissionMilestone,
   ApiTrackedSubmission,
   JudgedTrack,
+  SubmissionTrack,
 } from "./api";
 import {
   batchFor,
@@ -389,6 +390,19 @@ export const mockTracked = {
           }
         : null);
     const next: ApiTrackedSubmission = { ...target, ecosystemPrize: flagged, details: { ...target.details, milestone } };
+    state.submissions = state.submissions.map((s) => (s.id === id ? next : s));
+    save(slug, state);
+    return next;
+  },
+
+  setTrack(slug: string, id: string, track: SubmissionTrack): ApiTrackedSubmission {
+    const state = load(slug);
+    const target = state.submissions.find((s) => s.id === id);
+    if (!target) throw new Error("Submission not found");
+    const keeps = judgedTracksOf(track);
+    const lost = (Object.keys(target.prizes || {}) as JudgedTrack[]).filter((t) => target.prizes[t] && !keeps.includes(t));
+    if (lost.length) throw new Error(`Remove the ${lost.join(" and ")} prize first.`);
+    const next: ApiTrackedSubmission = { ...target, details: { ...target.details, track } };
     state.submissions = state.submissions.map((s) => (s.id === id ? next : s));
     save(slug, state);
     return next;

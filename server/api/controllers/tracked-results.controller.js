@@ -217,6 +217,40 @@ class TrackedResultsController {
     }
   }
 
+  // Platform admin: set an entry's track (e.g. a draft finalized with none).
+  // Works after the deadline and doesn't require the track's other fields.
+  // Refused while the entry holds a prize in a track it would leave; rubric
+  // scores are kept (they only count on the entry's current tracks).
+  async setTrack(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) return fail(res, 403, 'Only platform admins can change a track');
+      const ctx = await loadTracked(req, res);
+      if (!ctx) return;
+      const track = req.body?.track;
+      if (!ctx.tracked.submissionTracks.includes(track)) return fail(res, 400, `Unknown track: ${track}`);
+      const s = await loadSubmission(req, res, ctx.program);
+      if (!s) return;
+      const from = s.details.track ?? s.track ?? null;
+      if (from === track) return res.status(200).json({ status: 'success', data: s });
+      const keeps = judgedTracksOf(track);
+      const lost = Object.keys(s.prizes || {}).filter((t) => s.prizes[t] && !keeps.includes(t));
+      if (lost.length) return fail(res, 409, `Remove the ${lost.join(' and ')} prize first.`);
+      const updated = await programSubmissionRepository.setTrack(s.id, track);
+      res.status(200).json({ status: 'success', data: updated });
+      auditLog.logSafe({
+        programId: ctx.program.id,
+        actor: actorOf(req),
+        action: 'tracked.set_track',
+        targetType: 'submission',
+        targetId: s.id,
+        metadata: { from, to: track },
+      });
+    } catch (error) {
+      console.error('❌ Error setting the track:', error);
+      fail(res, 500, 'Failed to update the track');
+    }
+  }
+
   // Public: a winner's page, only once results are published.
   async publicWinner(req, res) {
     try {

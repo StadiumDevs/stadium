@@ -9,7 +9,7 @@ const EPS = 1e-9;
 const mean = (ns) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
 
 /** The judged tracks a submission takes part in ("both" = privacy and agentic). */
-export const judgedTracksOf = (track) => (track === 'both' ? ['privacy', 'agentic'] : [track]);
+export const judgedTracksOf = (track) => (!track ? [] : track === 'both' ? ['privacy', 'agentic'] : [track]);
 
 export const isFullyScored = (track, criteria) =>
   RUBRICS[track].every((c) => typeof criteria?.[c.id] === 'number');

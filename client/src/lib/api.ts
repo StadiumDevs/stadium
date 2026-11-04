@@ -2938,6 +2938,28 @@ export const api = {
     });
   },
 
+  /** Platform admin: set a submission's track (e.g. one finalized with none). */
+  setSubmissionTrack: async (
+    slug: string,
+    submissionId: string,
+    track: SubmissionTrack,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      try {
+        return { status: "success", data: mockTracked.setTrack(slug, submissionId, track) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, 409);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/track`, {
+      method: "PATCH",
+      headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ track }),
+    });
+  },
+
   /** Platform admin: publish / unpublish tracked results. */
   setTrackedResultsPublished: async (
     slug: string,

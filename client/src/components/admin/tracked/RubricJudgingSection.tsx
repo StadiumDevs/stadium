@@ -8,6 +8,7 @@ import {
   type ApiRubricScore,
   type ApiTrackedSubmission,
   type JudgedTrack,
+  type SubmissionTrack,
 } from "@/lib/api";
 import {
   batchFor,
@@ -15,6 +16,7 @@ import {
   judgedTracksOf,
   maxScore,
   rubricDraftKey,
+  submissionTrackOptions,
   tiersForTrack,
   trackById,
   trackFieldsFor,
@@ -524,6 +526,21 @@ export function RubricJudgingSection({
     }
   };
 
+  const setEntryTrack = async (submissionId: string, track: SubmissionTrack) => {
+    setBusy(`track:${submissionId}`);
+    try {
+      const auth = await getAuth();
+      const r = await api.setSubmissionTrack(programSlug, submissionId, track, auth);
+      setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? r.data : s)));
+      await loadBoard();
+      toast({ title: "Track updated", description: `${r.data.projectTitle}: ${trackLabel(profile, track)}` });
+    } catch (e) {
+      toast({ title: "Couldn't change the track", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const togglePublished = async () => {
     setBusy("publish");
     try {
@@ -616,6 +633,38 @@ export function RubricJudgingSection({
           {unsubmittedDrafts} DRAFT{unsubmittedDrafts === 1 ? "" : "S"} NOT FINALIZED YET · JUDGES ALREADY SEE THOSE WITH A TRACK, MARKED NOT FINAL
         </p>
       )}
+      {canSelectWinners && !isJudge && submissions.length > 0 && (() => {
+        const noTrack = submissions.filter((s) => !s.details?.track);
+        const rows = [...noTrack, ...submissions.filter((s) => !!s.details?.track)];
+        return (
+          <details className="border border-hairline rounded-sm p-2" open={noTrack.length > 0} data-testid="entry-tracks">
+            <summary className="label-hw cursor-pointer">
+              ENTRY TRACKS{noTrack.length > 0 ? ` · ${noTrack.length} WITHOUT A TRACK (NOT JUDGED UNTIL SET)` : ""}
+            </summary>
+            <ul className="mt-2 flex flex-col gap-1">
+              {rows.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center gap-2 text-[12px]" data-testid="entry-track-row">
+                  <span className={cn("text-display", !s.details?.track && "text-destructive")}>{s.projectTitle}</span>
+                  <select
+                    aria-label={`Track for ${s.projectTitle}`}
+                    value={s.details?.track ?? ""}
+                    disabled={busy === `track:${s.id}`}
+                    onChange={(e) => e.target.value && setEntryTrack(s.id, e.target.value as SubmissionTrack)}
+                    className="bg-panel-deep border border-hairline rounded-sm px-1 py-0.5 text-display"
+                    data-testid="entry-track-select"
+                  >
+                    {!s.details?.track && <option value="">No track</option>}
+                    {submissionTrackOptions(profile).map((o) => (
+                      <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                  </select>
+                  {busy === `track:${s.id}` && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+                </li>
+              ))}
+            </ul>
+          </details>
+        );
+      })()}
       <JudgingProgressTable
         profile={profile}
         programSlug={programSlug}

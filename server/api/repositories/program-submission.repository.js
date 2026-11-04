@@ -281,6 +281,21 @@ class ProgramSubmissionRepository {
     return transform(data);
   }
 
+  // Platform admin: set a tracked entry's track. Writes the track column and
+  // details.track together, as updateSubmission does. Nothing else changes.
+  async setTrack(id, track) {
+    const { data: row, error: readError } = await supabase.from('program_submissions').select('details').eq('id', id).single();
+    if (readError) throw readError;
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .update({ track, details: { ...(row.details || {}), track }, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transform(data);
+  }
+
   // Winners (have a prize) not yet emailed about it. Drives the publish-time
   // prize notification so each winner is mailed exactly once.
   async listWinnersToNotify(programId) {
