@@ -28,6 +28,7 @@ import {
 } from "./programProfiles";
 import { buildFreeSocietyHackSeed, FSH_JUDGES, type TrackedSeed } from "./mocks/freeSocietyHack.seed";
 import { checkTestnetTx } from "./txCheck";
+import { mockPrograms } from "./mockPrograms";
 import { toPublicSubmission } from "./trackedDisplay";
 
 const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }> = {
@@ -35,6 +36,14 @@ const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }
 };
 
 const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v7`;
+
+// Mirrors the server: submissions close at the program's eventEndsAt, and a
+// draft still unfinalized after that is abandoned (out of every final list).
+const closedFor = (slug: string) => {
+  const end = mockPrograms.find((p) => p.slug === slug)?.eventEndsAt;
+  return !!end && Date.now() >= Date.parse(end);
+};
+const isAbandonedIn = (slug: string, s: { status?: string | null }) => s.status === "draft" && closedFor(slug);
 
 const read = <T,>(key: string, fallback: T): T => {
   try {
@@ -139,7 +148,9 @@ export const mockTracked = {
   publicList(slug: string): ApiPublicSubmissions {
     const state = load(slug);
     const published = !!state.resultsPublishedAt;
+    // Like the server: only finalized entries are public (drafts are the team's own).
     const submissions = state.submissions
+      .filter((s) => s.status !== "draft")
       .map((s) => toPublic(s, published))
       .sort((a, b) => (published ? bestPrize(b) - bestPrize(a) : 0) || a.createdAt.localeCompare(b.createdAt));
     return { published, submissions };
@@ -250,6 +261,7 @@ export const mockTracked = {
       let scored = 0;
       let total = 0;
       for (const s of state.submissions) {
+        if (isAbandonedIn(slug, s)) continue;
         for (const t of judgedTracksOf(s.details.track)) {
           if (!j.tracks.includes(t)) continue;
           total += 1;
@@ -269,7 +281,7 @@ export const mockTracked = {
     const bonus = rubric.criteria.find((c) => c.isBonus);
     const state = load(slug);
     const judges = this.judges(slug).filter((j) => j.tracks.includes(track)).map((j) => j.email);
-    const entries = state.submissions.filter((s) => judgedTracksOf(s.details.track).includes(track));
+    const entries = state.submissions.filter((s) => !isAbandonedIn(slug, s) && judgedTracksOf(s.details.track).includes(track));
 
     const rows: ApiRubricLeaderboardRow[] = entries.map((s) => {
       const counted = state.scores.filter(
@@ -429,7 +441,18 @@ export const mockTracked = {
 
   /** Mock "send": records the send time and returns how many point people it would email. */
   stats(slug: string) {
-    return { submissionsCount: load(slug).submissions.length };
+    const all = load(slug).submissions;
+    const draftsCount = all.filter((s) => s.status === "draft").length;
+    return { submissionsCount: all.length - draftsCount, draftsCount, submissionsClosed: closedFor(slug) };
+  },
+
+  /** Submissions have closed (the program's eventEndsAt passed). */
+  submissionsClosed(slug: string): boolean {
+    return closedFor(slug);
+  },
+
+  isAbandoned(slug: string, s: { status?: string | null }): boolean {
+    return isAbandonedIn(slug, s);
   },
 
   reset(slug: string) {

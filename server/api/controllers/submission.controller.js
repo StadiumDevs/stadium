@@ -526,7 +526,9 @@ class SubmissionController {
       if (!programId) return res.status(404).json({ status: 'error', message: 'Program not found' });
       const { slug } = req.params;
       const submissions = await programSubmissionRepository.listByProgramId(programId);
-      const csv = submissionsToCsv(submissions, { programSlug: slug });
+      const program = await programService.findBySlug(slug);
+      const closed = submissionsClosed(trackedProgramFor(slug), program);
+      const csv = submissionsToCsv(submissions, { programSlug: slug, submissionsClosed: closed });
       const filename = `${slug}-submissions-${new Date().toISOString().slice(0, 10)}.csv`;
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -921,9 +923,11 @@ class SubmissionController {
       if (!tracked) return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      // A draft with no track yet has nothing to score.
+      // A draft with no track yet has nothing to score; after the deadline an
+      // unfinalized draft is abandoned and leaves every list.
+      const closed = submissionsClosed(tracked, program);
       const rows = (await programSubmissionRepository.listByProgramId(program.id)).filter(
-        (s) => s.status !== 'draft' || !!s.details?.track,
+        (s) => s.status !== 'draft' || (!!s.details?.track && !closed),
       );
       const isJudgeOnly = req.user?.role === 'judge';
       const data = rows.map((s) => ({
@@ -935,7 +939,13 @@ class SubmissionController {
       const draftCount = isJudgeOnly ? undefined : await programSubmissionRepository.countDrafts(program.id);
       res.status(200).json({
         status: 'success',
-        data: { submissions: data, batches: tracked.judgingBatches, resultsPublishedAt: program.resultsPublishedAt ?? null, ...(draftCount !== undefined ? { draftCount } : {}) },
+        data: {
+          submissions: data,
+          batches: tracked.judgingBatches,
+          resultsPublishedAt: program.resultsPublishedAt ?? null,
+          submissionsClosed: closed,
+          ...(draftCount !== undefined ? { draftCount } : {}),
+        },
       });
     } catch (error) {
       console.error('❌ Error listing tracked submissions:', error);
@@ -1246,11 +1256,18 @@ class SubmissionController {
     try {
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
-      const [confirmedParticipants, submissionsCount] = await Promise.all([
+      // Submitted = finalized only. Drafts are counted apart (abandoned once
+      // submissions have closed).
+      const [confirmedParticipants, submissionsCount, draftsCount] = await Promise.all([
         programSignupRepository.countByProgramId(program.id),
-        programSubmissionRepository.countByProgramId(program.id),
+        programSubmissionRepository.countByProgramId(program.id, { status: 'submitted' }),
+        programSubmissionRepository.countByProgramId(program.id, { status: 'draft' }),
       ]);
-      res.status(200).json({ status: 'success', data: { confirmedParticipants, submissionsCount } });
+      const closed = submissionsClosed(trackedProgramFor(program.slug), program);
+      res.status(200).json({
+        status: 'success',
+        data: { confirmedParticipants, submissionsCount, draftsCount, submissionsClosed: closed },
+      });
     } catch (error) {
       console.error('❌ Error building program stats:', error);
       res.status(500).json({ status: 'error', message: 'Failed to load stats' });

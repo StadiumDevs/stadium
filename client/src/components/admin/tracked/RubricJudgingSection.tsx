@@ -161,6 +161,8 @@ export function RubricJudgingSection({
   const isJudge = !!judgeEmail;
   // Organisers: entries still drafts (not in any queue until the team finalizes).
   const [unsubmittedDrafts, setUnsubmittedDrafts] = useState<number | null>(null);
+  // After the deadline, unfinalized drafts are abandoned (out of every list).
+  const [submissionsClosed, setSubmissionsClosed] = useState(false);
   const [tab, setTab] = useState<"score" | "leaderboard">(isJudge ? "score" : "leaderboard");
   const [judges, setJudges] = useState<ProgramJudge[]>([]);
   // Scores are saved under the batch being judged now (evening until 20:00 on
@@ -200,6 +202,7 @@ export function RubricJudgingSection({
     setSubmissions(list.data.submissions);
     setPublishedAt(list.data.resultsPublishedAt);
     setUnsubmittedDrafts(list.data.draftCount ?? null);
+    setSubmissionsClosed(!!list.data.submissionsClosed);
   }, [getAuth, programSlug, profile]);
 
   useEffect(() => {
@@ -227,6 +230,7 @@ export function RubricJudgingSection({
         const updated = next.filter((s) => before.has(s.id) && before.get(s.id) !== editedAt(s));
         setSubmissions(next);
         setUnsubmittedDrafts(list.data.draftCount ?? null);
+        setSubmissionsClosed(!!list.data.submissionsClosed);
         const names = [...added, ...updated].map((s) => s.projectTitle);
         if (names.length > 0) {
           const parts = [
@@ -671,7 +675,9 @@ export function RubricJudgingSection({
 
       {!isJudge && unsubmittedDrafts !== null && unsubmittedDrafts > 0 && (
         <p className="label-hw-dim" data-testid="draft-count">
-          {unsubmittedDrafts} DRAFT{unsubmittedDrafts === 1 ? "" : "S"} NOT FINALIZED YET · JUDGES ALREADY SEE THOSE WITH A TRACK, MARKED NOT FINAL
+          {submissionsClosed
+            ? `${unsubmittedDrafts} ABANDONED DRAFT${unsubmittedDrafts === 1 ? "" : "S"} · NOT FINALIZED BY THE DEADLINE · NOT JUDGED, NOT PUBLIC, NOT COUNTED`
+            : `${unsubmittedDrafts} DRAFT${unsubmittedDrafts === 1 ? "" : "S"} NOT FINALIZED YET · JUDGES ALREADY SEE THOSE WITH A TRACK, MARKED NOT FINAL`}
         </p>
       )}
       {canSelectWinners && !isJudge && submissions.length > 0 && (() => {

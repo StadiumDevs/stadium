@@ -37,8 +37,17 @@ describe('submissionsToCsv', () => {
     const csv = submissionsToCsv([{ ...base, feedback: null }]);
     const row = csv.split('\n')[1];
     expect(row).toContain('Engine');
-    // trailing feedback columns are empty, so the row ends with commas
-    expect(row.endsWith(',,,,,,,')).toBe(true);
+    // trailing feedback columns are empty, then the status column
+    expect(row.endsWith(',,,,,,,submitted')).toBe(true);
+  });
+
+  it('adds a status column: submitted, draft, or abandoned once closed', () => {
+    const rows = (closed) =>
+      submissionsToCsv([{ ...base }, { ...base, status: 'draft' }], { submissionsClosed: closed }).split('\n');
+    expect(rows(false)[0].endsWith(',status')).toBe(true);
+    expect(rows(false)[1].endsWith(',submitted')).toBe(true);
+    expect(rows(false)[2].endsWith(',draft')).toBe(true);
+    expect(rows(true)[2].endsWith(',abandoned')).toBe(true);
   });
 
   it('neutralizes spreadsheet formula injection in feedback text', () => {

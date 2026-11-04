@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { batchFor, trackedProgramFor, submissionsClosed } from '../trackedPrograms.js';
+import { batchFor, trackedProgramFor, submissionsClosed, isAbandoned } from '../trackedPrograms.js';
 
 const batches = trackedProgramFor('free-society-hack-2026').judgingBatches;
 
@@ -53,5 +53,25 @@ describe('submissionsClosed', () => {
 
   it('never closes an untracked program', () => {
     expect(submissionsClosed(null, { eventEndsAt: '2000-01-01T00:00:00Z' }, now)).toBe(false);
+  });
+});
+
+describe('isAbandoned', () => {
+  const fsh = trackedProgramFor('free-society-hack-2026');
+  const program = { eventEndsAt: '2026-11-04T19:00:00Z' };
+  const before = Date.parse('2026-11-04T18:00:00Z');
+  const after = Date.parse('2026-11-04T19:00:01Z');
+
+  it('a draft is abandoned only once submissions have closed', () => {
+    expect(isAbandoned({ status: 'draft' }, fsh, program, before)).toBe(false);
+    expect(isAbandoned({ status: 'draft' }, fsh, program, after)).toBe(true);
+  });
+
+  it('a finalized entry is never abandoned', () => {
+    expect(isAbandoned({ status: 'submitted' }, fsh, program, after)).toBe(false);
+  });
+
+  it('untracked programs have no abandoned entries', () => {
+    expect(isAbandoned({ status: 'draft' }, null, program, after)).toBe(false);
   });
 });

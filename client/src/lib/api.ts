@@ -574,7 +574,14 @@ export type ProgramGuestSyncResult = {
 };
 
 /** At-a-glance counts for the program admin/judge header (no PII). */
-export type ApiProgramStats = { confirmedParticipants: number; submissionsCount: number };
+export type ApiProgramStats = {
+  confirmedParticipants: number;
+  /** Finalized entries only. */
+  submissionsCount: number;
+  /** Unfinalized drafts (abandoned once `submissionsClosed`). */
+  draftsCount?: number;
+  submissionsClosed?: boolean;
+};
 
 /** Aggregated feedback survey counts for the completed-program results panel. */
 export type ApiResultsFeedbackAggregate = {
@@ -2718,29 +2725,42 @@ export const api = {
   listTrackedSubmissions: async (
     slug: string,
     _authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null; draftCount?: number | null } }> => {
+  ): Promise<{
+    status: string;
+    data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt: string | null; draftCount?: number | null; submissionsClosed?: boolean };
+  }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       const { mockEditStamps } = await import("./mockSubmissionFlow");
       const stamps = mockEditStamps(slug);
+      const all = mockTracked.list(slug);
       return {
         status: "success",
         data: {
-          // Seeded drafts keep their status; drafts saved in the playground stay out (no full details yet).
-          submissions: mockTracked.list(slug).map((x) => ({ ...x, status: x.status ?? ("submitted" as const), ...stamps[x.lumaEmail.trim().toLowerCase()] })),
+          // Seeded drafts keep their status (abandoned ones drop out after the
+          // deadline); drafts saved in the playground stay out (no full details yet).
+          submissions: all
+            .filter((x) => !mockTracked.isAbandoned(slug, x))
+            .map((x) => ({ ...x, status: x.status ?? ("submitted" as const), ...stamps[x.lumaEmail.trim().toLowerCase()] })),
           resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
+          draftCount: all.filter((x) => x.status === "draft").length,
+          submissionsClosed: mockTracked.submissionsClosed(slug),
         },
       };
     }
     const r = (await request(`/programs/${encodeURIComponent(slug)}/tracked-submissions`, {
       headers: adminAuthHeaders(_authHeader),
-    })) as { status: string; data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt?: string | null; draftCount?: number } };
+    })) as {
+      status: string;
+      data: { submissions: ApiTrackedSubmission[]; resultsPublishedAt?: string | null; draftCount?: number; submissionsClosed?: boolean };
+    };
     return {
       status: r.status,
       data: {
         submissions: r.data.submissions.map((x) => ({ ...x, prizes: x.prizes ?? {}, ecosystemPrize: x.ecosystemPrize ?? false })),
         resultsPublishedAt: r.data.resultsPublishedAt ?? null,
         draftCount: r.data.draftCount ?? null,
+        submissionsClosed: r.data.submissionsClosed ?? false,
       },
     };
   },

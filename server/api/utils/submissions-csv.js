@@ -17,12 +17,16 @@ const HEADER = [
   'surfacesPrimary',
   ...FEEDBACK_KEYS,
   'eventLiked',
+  'status',
 ];
 
 // Flatten program submissions (including the post-submit feedback survey) to a
 // CSV an admin/judge can download. Every cell routes through csvCell, which adds
 // the formula-injection guard required for any user-submitted content.
-export function submissionsToCsv(submissions, { programSlug } = {}) {
+// status: submitted, draft, or abandoned (a draft once submissions have closed).
+const statusOf = (s, closed) => (s.status === 'draft' ? (closed ? 'abandoned' : 'draft') : 'submitted');
+
+export function submissionsToCsv(submissions, { programSlug, submissionsClosed = false } = {}) {
   const lines = [HEADER.map(csvCell).join(',')];
   for (const s of submissions || []) {
     const fb = s.feedback && typeof s.feedback === 'object' ? s.feedback : {};
@@ -42,6 +46,7 @@ export function submissionsToCsv(submissions, { programSlug } = {}) {
         fb.surfacesPrimary ?? '',
         ...FEEDBACK_KEYS.map((k) => fb[k] ?? ''),
         s.eventLiked ?? '',
+        statusOf(s, submissionsClosed),
       ]),
     );
   }

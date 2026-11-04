@@ -8,7 +8,7 @@ import programService from '../services/program.service.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
-import { trackedProgramFor } from '../constants/trackedPrograms.js';
+import { trackedProgramFor, isAbandoned } from '../constants/trackedPrograms.js';
 import { RUBRIC_TRACKS } from '../constants/rubrics.js';
 import {
   computeJudgingProgress,
@@ -67,12 +67,14 @@ class TrackedResultsController {
       if (Array.isArray(req.user?.tracks) && !req.user.tracks.includes(track)) {
         return fail(res, 403, `You are not a judge for the ${track} track.`);
       }
-      const [submissions, scores, judges] = await Promise.all([
-        // Drafts count too: judges may score an entry before the team finalizes it.
+      const [all, scores, judges] = await Promise.all([
+        // Drafts count too while submissions are open (judges may score an entry
+        // before the team finalizes it); abandoned ones don't.
         programSubmissionRepository.listByProgramId(ctx.program.id),
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
+      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
       const board = computeLeaderboard({ track, submissions, scores, judges });
       if (isJudgeOnly(req)) {
         const me = req.user.email.toLowerCase();
@@ -94,12 +96,13 @@ class TrackedResultsController {
     try {
       const ctx = await loadTracked(req, res);
       if (!ctx) return;
-      const [submissions, scores, judges] = await Promise.all([
-        // Drafts count too: judges may score an entry before the team finalizes it.
+      const [all, scores, judges] = await Promise.all([
+        // Drafts count too while submissions are open; abandoned ones don't.
         programSubmissionRepository.listByProgramId(ctx.program.id),
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
+      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
       const me = (req.user?.email || '').toLowerCase();
       const data = computeJudgingProgress({ submissions, scores, judges }).map(({ email, ...row }) => ({
         ...row,

@@ -321,11 +321,10 @@ class ProgramSubmissionRepository {
     return transform(data);
   }
 
-  async countByProgramId(programId) {
-    const { count, error } = await supabase
-      .from('program_submissions')
-      .select('*', { count: 'exact', head: true })
-      .eq('program_id', programId);
+  async countByProgramId(programId, { status } = {}) {
+    let q = supabase.from('program_submissions').select('*', { count: 'exact', head: true }).eq('program_id', programId);
+    if (status) q = q.eq('status', status);
+    const { count, error } = await q;
     if (error) throw error;
     return count ?? 0;
   }

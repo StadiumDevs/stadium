@@ -4,8 +4,8 @@ vi.mock('../../services/program.service.js', () => ({ default: { findBySlug: vi.
 vi.mock('../../repositories/program-submission.repository.js', () => ({
   default: { findById: vi.fn(), setTrack: vi.fn(), listByProgramId: vi.fn(), updateTracked: vi.fn() },
 }));
-vi.mock('../../repositories/submission-rubric-score.repository.js', () => ({ default: {} }));
-vi.mock('../../repositories/program-admin-email.repository.js', () => ({ default: {} }));
+vi.mock('../../repositories/submission-rubric-score.repository.js', () => ({ default: { listByProgram: vi.fn(async () => []) } }));
+vi.mock('../../repositories/program-admin-email.repository.js', () => ({ default: { listJudges: vi.fn(async () => []) } }));
 vi.mock('../../services/tx-check.service.js', () => ({ checkAndStore: vi.fn() }));
 vi.mock('../../auth/supabaseUser.js', () => ({ extractSupabaseToken: vi.fn(), getSupabaseUser: vi.fn() }));
 vi.mock('../../services/program-audit-log.service.js', () => ({ default: { logSafe: vi.fn() } }));
@@ -92,5 +92,27 @@ describe('setTrack (platform admin)', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(submissionRepo.setTrack).not.toHaveBeenCalled();
     expect(auditLog.logSafe).not.toHaveBeenCalled();
+  });
+});
+
+describe('leaderboard leaves abandoned drafts out', () => {
+  const rows = [
+    { id: 'f', programId: 'fsh', status: 'submitted', projectTitle: 'Final', details: { track: 'privacy' }, prizes: {} },
+    { id: 'd', programId: 'fsh', status: 'draft', projectTitle: 'Draft', details: { track: 'privacy' }, prizes: {} },
+  ];
+  const board = async (program) => {
+    programService.findBySlug.mockResolvedValue(program);
+    submissionRepo.listByProgramId.mockResolvedValue(rows);
+    const res = mockRes();
+    await controller.leaderboard({ params: { slug: FSH.slug, track: 'privacy' }, user: ADMIN }, res);
+    return res.json.mock.calls[0][0].data.rows.map((r) => r.submissionId);
+  };
+
+  it('keeps a draft while submissions are open', async () => {
+    expect((await board({ ...FSH, eventEndsAt: '2099-01-01T00:00:00Z' })).sort()).toEqual(['d', 'f']);
+  });
+
+  it('drops it once they have closed', async () => {
+    expect(await board({ ...FSH, eventEndsAt: '2000-01-01T00:00:00Z' })).toEqual(['f']);
   });
 });
