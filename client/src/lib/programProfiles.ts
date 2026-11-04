@@ -276,9 +276,9 @@ export const getProgramProfile = (slug?: string | null): ProgramProfile | null =
 export const trackById = (profile: ProgramProfile, id: JudgedTrack) =>
   profile.tracks.find((t) => t.id === id) as ProgramTrack;
 
-/** The judged tracks a submission takes part in. */
-export const judgedTracksOf = (track: SubmissionTrack): JudgedTrack[] =>
-  track === "both" ? ["privacy", "agentic"] : [track];
+/** The judged tracks a submission takes part in (none without a track). */
+export const judgedTracksOf = (track: SubmissionTrack | null | undefined): JudgedTrack[] =>
+  !track ? [] : track === "both" ? ["privacy", "agentic"] : [track];
 
 /**
  * Which track-specific fields to show. With `view` (a judge scoring one track,
@@ -294,10 +294,18 @@ export const trackFieldsFor = (entry: SubmissionTrack | null | undefined, view?:
 export const tiersForTrack = (tiers: ApiPrizeTier[] | null | undefined, track: ProgramTrack) =>
   (tiers ?? []).filter((t) => t.label.startsWith(track.prizePrefix));
 
-export const trackLabel = (profile: ProgramProfile, track: SubmissionTrack) =>
-  track === "both"
-    ? profile.tracks.map((t) => t.shortLabel).join(" + ")
-    : trackById(profile, track).shortLabel;
+export const trackLabel = (profile: ProgramProfile, track: SubmissionTrack | null | undefined) =>
+  !track
+    ? "No track"
+    : track === "both"
+      ? profile.tracks.map((t) => t.shortLabel).join(" + ")
+      : trackById(profile, track).shortLabel;
+
+/** Submission tracks an admin can pick, with labels ("both" = every judged track). */
+export const submissionTrackOptions = (profile: ProgramProfile): { id: SubmissionTrack; label: string }[] => [
+  ...profile.tracks.map((t) => ({ id: t.id as SubmissionTrack, label: t.shortLabel })),
+  { id: "both", label: trackLabel(profile, "both") },
+];
 
 /** True when the project carries the Ecosystem Prize flag (tracked milestone + payout). */
 export const isEcosystem = (s: { ecosystemPrize?: boolean }) => !!s.ecosystemPrize;

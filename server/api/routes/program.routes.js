@@ -266,6 +266,12 @@ router.put(
   requireProgramAdmin('slug'),
   trackedResultsController.setEcosystemPrize,
 );
+// Platform admin: set an entry's track (the controller checks platform admin).
+router.patch(
+  '/:slug/submissions/:submissionId/track',
+  requireProgramAdmin('slug'),
+  trackedResultsController.setTrack,
+);
 router.patch(
   '/:slug/submissions/:submissionId/milestone',
   requireProgramAdmin('slug'),

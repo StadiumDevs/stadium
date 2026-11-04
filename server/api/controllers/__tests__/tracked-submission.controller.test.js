@@ -377,6 +377,20 @@ describe('SubmissionController.listJudges', () => {
 });
 
 describe('SubmissionController.listTracked', () => {
+  it('after the deadline drops every draft (abandoned) and reports submissionsClosed', async () => {
+    programService.findBySlug.mockResolvedValue({ ...FSH, eventEndsAt: '2000-01-01T00:00:00Z', resultsPublishedAt: null });
+    submissionRepo.listByProgramId.mockResolvedValue([
+      { id: 'final', status: 'submitted', createdAt: '2026-11-04T14:00:00.000Z', details: { track: 'privacy' } },
+      { id: 'draft', status: 'draft', createdAt: '2026-11-04T14:00:00.000Z', details: { track: 'agentic' } },
+      { id: 'empty', status: 'draft', createdAt: '2026-11-04T14:00:00.000Z', details: { track: null } },
+    ]);
+    const res = mockRes();
+    await submissionController.listTracked({ params: { slug: 'free-society-hack-2026' }, user: { email: 'a@x.com', programId: 'fsh', role: 'admin' } }, res);
+    const data = res.json.mock.calls[0][0].data;
+    expect(data.submissions.map((s) => s.id)).toEqual(['final']);
+    expect(data.submissionsClosed).toBe(true);
+  });
+
   it('returns each submission with its judging batch', async () => {
     programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: null });
     submissionRepo.listByProgramId.mockResolvedValue([
