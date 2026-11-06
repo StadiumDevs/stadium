@@ -1,0 +1,149 @@
+name: Deps autofix
+
+# Runs the security/dependency checks and then APPLIES the non-breaking fixes:
+#   1. npm audit fix   (no --force → never jumps a major)
+#   2. npm update      (minor/patch within package.json ranges)
+#   3. re-runs audit + tests/build/lint
+# and opens/updates one DRAFT PR per directory against develop.
+# Never merges — a CODEOWNER reviews (CLAUDE.md §6). Majors are left to Dependabot.
+#
+# Note: PRs opened with the default GITHUB_TOKEN don't trigger other workflows
+# (so CI won't run on them automatically). The checks below run here and their
+# results go in the PR body. Set a DEPS_BOT_TOKEN secret (fine-grained PAT:
+# contents + pull-requests write) if you want CI to run on these PRs too.
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays 07:00 UTC, after the Security audit run
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Security]
+    types: [completed]
+    branches: [develop]
+
+permissions:
+  contents: read
+
+env:
+  # Lockfiles were written by npm 11.6.2. Newer npm (11.19, bundled with Node 24
+  # on runners) rejects them in `npm ci` (optional peer deps are recorded differently).
+  # Bump together with a relock.
+  NPM_VERSION: 11.6.2
+
+concurrency:
+  group: deps-autofix
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    # On workflow_run, only react to a failed Security run (i.e. a new advisory).
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        dir: [client, server]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Pin npm to the version that wrote the lockfiles
+        run: npm install -g npm@${{ env.NPM_VERSION }}
+
+      - name: Audit before
+        id: before
+        working-directory: ${{ matrix.dir }}
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/before.json" || true
+          echo "summary=$(jq -c '.metadata.vulnerabilities' "$RUNNER_TEMP/before.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Apply non-breaking fixes and updates
+        working-directory: ${{ matrix.dir }}
+        run: |
+          npm ci --ignore-scripts
+          npm audit fix --ignore-scripts || true
+          npm update --ignore-scripts
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "CHANGED=false" >> "$GITHUB_ENV"
+          else
+            echo "CHANGED=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Re-run checks
+        if: env.CHANGED == 'true'
+        id: checks
+        working-directory: ${{ matrix.dir }}
+        run: |
+          set +e
+          log="$RUNNER_TEMP/checks.log"
+          npm ci >"$log" 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            if [ "${{ matrix.dir }}" = "server" ]; then
+              npm test >>"$log" 2>&1; status=$?
+            else
+              npm run build >>"$log" 2>&1 && npm run lint >>"$log" 2>&1; status=$?
+            fi
+          fi
+          npm audit --omit=dev --json > "$RUNNER_TEMP/after.json"
+          npm audit --omit=dev --audit-level=high >/dev/null 2>&1; audit_status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "Automated non-breaking dependency fixes for \`${{ matrix.dir }}/\` (\`npm audit fix\` + \`npm update\`, no majors)."
+            echo
+            echo "| | Production-dep advisories |"
+            echo "|---|---|"
+            echo "| Before | \`${{ steps.before.outputs.summary }}\` |"
+            echo "| After | \`$(jq -c '.metadata.vulnerabilities' "$RUNNER_TEMP/after.json")\` |"
+            echo
+            echo "**Checks** ($([ "${{ matrix.dir }}" = server ] && echo 'npm test' || echo 'npm run build && npm run lint')): $([ $status -eq 0 ] && echo '✅ pass' || echo '❌ FAIL — needs attention, do not merge as-is')"
+            echo
+            echo "**High+ audit clean after fix:** $([ $audit_status -eq 0 ] && echo yes || echo 'no — remaining items need a major bump (see Dependabot PRs)')"
+            echo
+            echo "<details><summary>Updated packages</summary>"
+            echo
+            echo '```diff'
+            git diff -U0 -- package-lock.json | grep -E '^[-+]\s+"version"|^@@|^[-+]\s+"node_modules/' | head -300
+            echo '```'
+            echo "</details>"
+            if [ "$status" -ne 0 ]; then
+              echo
+              echo "<details><summary>Check output (last 150 lines)</summary>"
+              echo
+              echo '```'
+              tail -150 "$log"
+              echo '```'
+              echo "</details>"
+            fi
+            echo
+            echo "Generated by \`.github/workflows/deps-autofix.yml\`. Never auto-merged — CODEOWNER review required."
+          } > "$RUNNER_TEMP/pr-body.md"
+          # never fail this step — the PR is opened either way, labelled if broken
+          exit 0
+
+      - name: Open / update draft PR
+        if: env.CHANGED == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.DEPS_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          base: develop
+          branch: chore/deps-autofix-${{ matrix.dir }}
+          delete-branch: true
+          draft: true
+          add-paths: |
+            ${{ matrix.dir }}/package.json
+            ${{ matrix.dir }}/package-lock.json
+          commit-message: "chore(deps-${{ matrix.dir }}): npm audit fix + non-breaking updates"
+          title: "chore(deps-${{ matrix.dir }}): automated audit fix + non-breaking updates"
+          body-path: ${{ runner.temp }}/pr-body.md
+          labels: |
+            dependencies
+            ${{ steps.checks.outputs.status != '0' && 'needs-attention' || '' }}

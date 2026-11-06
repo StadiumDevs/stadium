@@ -1,0 +1,62 @@
+name: Security
+
+# - audit: known advisories in production deps (what Vercel/Railway ship).
+#   Runs weekly too, so new advisories against unchanged code are caught.
+#   Non-blocking until the existing backlog is cleared — then delete
+#   `continue-on-error` below to make it a hard gate.
+# - dependency-review: blocks PRs that ADD a dependency with a high+ advisory.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Lockfiles were written by npm 11.6.2. Newer npm (11.19, bundled with Node 24
+  # on runners) rejects them in `npm ci` (optional peer deps are recorded differently).
+  # Bump together with a relock.
+  NPM_VERSION: 11.6.2
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true # TODO: remove once `npm audit --omit=dev --audit-level=high` is clean
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [client, server]
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Pin npm to the version that wrote the lockfiles
+        run: npm install -g npm@${{ env.NPM_VERSION }}
+      - name: npm audit (production deps, high+)
+        run: npm audit --omit=dev --audit-level=high
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
