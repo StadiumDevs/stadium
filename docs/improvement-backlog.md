@@ -290,8 +290,8 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: adding CI security + dependency-update checks
 - **Suggestion**: `${{ github.event.inputs.issue_number }}` and `${{ secrets.* }}` are expanded inside shell scripts, which is the GitHub Actions script-injection pattern (only maintainers can trigger it today). Pass them through `env:` and reference `"$ISSUE_NUMBER"`; pin `actions/checkout`, `actions/setup-node` and `anthropics/claude-code-action` to commit SHAs like the new workflows do.
 
-## [2026-11-06] No `.nvmrc`; CI hardcodes Node 20
-- **Severity**: nit
-- **File(s)**: repo root; `.github/workflows/*.yml` (`node-version: 20`)
+## [2026-11-06] No `.nvmrc`; Node/npm version not pinned anywhere
+- **Severity**: minor
+- **File(s)**: repo root; `.github/workflows/*.yml`; `client/package.json`, `server/package.json` (no `engines`)
 - **Observed during**: adding CI security + dependency-update checks
-- **Suggestion**: Add `.nvmrc` matching Railway/Vercel and switch the workflows to `node-version-file: .nvmrc` so local, CI and deploys use the same Node version.
+- **Suggestion**: The lockfiles were written by npm 11, and `npm ci` on npm 10 (Node 20/22) rejects them ("Missing: smoldot@2.0.26 from lock file"). The new workflows use Node 24 for that reason, but `claude.yml` still uses Node 20 and will fail at `npm ci`. Add `.nvmrc` (24) plus `engines`, check that Railway/Vercel match, and switch every workflow to `node-version-file: .nvmrc`.

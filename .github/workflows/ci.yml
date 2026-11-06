@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 20
+          node-version: 24 # ships npm 11, which wrote the lockfiles (npm 10 rejects them in `npm ci`)
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm ci
@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 20
+          node-version: 24 # ships npm 11, which wrote the lockfiles (npm 10 rejects them in `npm ci`)
           cache: npm
           cache-dependency-path: client/package-lock.json
       - run: npm ci
