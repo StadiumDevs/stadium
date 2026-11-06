@@ -283,3 +283,15 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `client/src/components/program/SubmitProjectModal.tsx` (`finalizeAfterFeedback`, `askForFeedback`, `toggleFeedback`)
 - **Observed during**: making the FSH event feedback a collapsible section (stadium-reviewer pass)
 - **Suggestion**: Once FINALIZE is clicked, `finalizeAfterFeedback` stays true even if the builder collapses the section and keeps drafting, so submitting the feedback later finalizes without a second click. Consider resetting it on collapse, or labelling the feedback button "SUBMIT FEEDBACK AND FINALIZE" only while it's armed (it already is), and confirming that's the intended behaviour.
+
+## [2026-11-06] `claude.yml` interpolates workflow inputs straight into `run:`
+- **Severity**: minor
+- **File(s)**: `.github/workflows/claude.yml` (steps "Fail fast if ANTHROPIC_API_KEY missing", "Determine issue number")
+- **Observed during**: adding CI security + dependency-update checks
+- **Suggestion**: `${{ github.event.inputs.issue_number }}` and `${{ secrets.* }}` are expanded inside shell scripts, which is the GitHub Actions script-injection pattern (only maintainers can trigger it today). Pass them through `env:` and reference `"$ISSUE_NUMBER"`; pin `actions/checkout`, `actions/setup-node` and `anthropics/claude-code-action` to commit SHAs like the new workflows do.
+
+## [2026-11-06] No `.nvmrc`; CI hardcodes Node 20
+- **Severity**: nit
+- **File(s)**: repo root; `.github/workflows/*.yml` (`node-version: 20`)
+- **Observed during**: adding CI security + dependency-update checks
+- **Suggestion**: Add `.nvmrc` matching Railway/Vercel and switch the workflows to `node-version-file: .nvmrc` so local, CI and deploys use the same Node version.
