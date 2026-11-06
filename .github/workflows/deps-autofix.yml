@@ -23,6 +23,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # Lockfiles were written by npm 11.6.2. Newer npm (11.19, bundled with Node 24
+  # on runners) rejects them in `npm ci` (optional peer deps are recorded differently).
+  # Bump together with a relock.
+  NPM_VERSION: 11.6.2
+
 concurrency:
   group: deps-autofix
   cancel-in-progress: false
@@ -47,7 +53,9 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24 # ships npm 11, which wrote the lockfiles (npm 10 rejects them in `npm ci`)
+          node-version: 24
+      - name: Pin npm to the version that wrote the lockfiles
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Audit before
         id: before
