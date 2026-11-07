@@ -117,6 +117,12 @@ code, pre { @apply font-mono; }
     box-shadow: 0 0 3px hsl(var(--led)), inset 0 0 1px rgba(0, 0, 0, 0.5);
   }
 
+  /* Orange LED: "judging in progress". Reuses the --warn token. */
+  .led-warn {
+    background: hsl(var(--warn));
+    box-shadow: 0 0 4px hsl(var(--warn)), inset 0 0 1px rgba(0, 0, 0, 0.5);
+  }
+
   /* === Hardware labels: mono caps with wide tracking === */
   .label-hw {
     font-family: 'JetBrains Mono', monospace;

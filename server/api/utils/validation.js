@@ -599,6 +599,9 @@ export const validateProgram = (data, { partial = false } = {}) => {
       }
     }
   }
+  if (has('judgingInProgress') && typeof data.judgingInProgress !== 'boolean') {
+    return { valid: false, error: 'judgingInProgress must be a boolean' };
+  }
   if (has('content')) {
     const c = validateProgramContent(data.content);
     if (!c.valid) return c;

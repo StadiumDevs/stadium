@@ -116,6 +116,8 @@ export const mockPrograms: ApiProgram[] = [
     description:
       "A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.",
     status: "completed",
+    // Shows the JUDGING IN PROGRESS badge on the mock-mode preview.
+    judgingInProgress: true,
     owner: "webzero",
     applicationsOpenAt: "2026-10-12T00:00:00+05:30",
     applicationsCloseAt: "2026-10-30T23:59:00+05:30",
