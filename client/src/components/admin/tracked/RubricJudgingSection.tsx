@@ -181,6 +181,8 @@ export function RubricJudgingSection({
   const [current, setCurrent] = useState<string | null>(null);
   const [progressToken, setProgressToken] = useState(0);
   const [unscoredOnly, setUnscoredOnly] = useState(false);
+  // Project-name search in the scoring bar: rings matching boxes.
+  const [navQuery, setNavQuery] = useState("");
   const [changedOnly, setChangedOnly] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>({});
   const [boardTrack, setBoardTrack] = useState<JudgedTrack>(profile.tracks[0].id);
@@ -748,6 +750,8 @@ export function RubricJudgingSection({
             revisits={revisitCount}
             total={queue.length}
             onJump={goTo}
+            query={navQuery}
+            onQueryChange={setNavQuery}
           >
             <label className="flex items-center gap-1.5">
               <span className="label-hw-dim">SESSION</span>

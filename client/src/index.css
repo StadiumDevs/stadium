@@ -25,6 +25,8 @@
   --warn: 30 95% 70%;
   /* Sky: a submission the team hasn't finalized yet, or one updated since a judge scored it. */
   --info: 205 90% 66%;
+  /* Magenta: a square matching the judge's project search. */
+  --find: 300 85% 72%;
 
   /* shadcn token aliases — pointed at our hardware tokens so all shadcn components inherit correctly */
   --background: var(--shell);
