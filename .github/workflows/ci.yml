@@ -10,12 +10,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # Lockfiles were written by npm 11.6.2. Newer npm (11.19, bundled with Node 24
-  # on runners) rejects them in `npm ci` (optional peer deps are recorded differently).
-  # Bump together with a relock.
-  NPM_VERSION: 11.6.2
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -23,39 +17,26 @@ concurrency:
 jobs:
   server:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/npm-setup
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: server/package-lock.json
-      - name: Pin npm to the version that wrote the lockfiles
-        run: npm install -g npm@${{ env.NPM_VERSION }}
-      - run: npm ci
+          dir: server
       - run: npm test
+        working-directory: server
 
   client:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/npm-setup
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-      - name: Pin npm to the version that wrote the lockfiles
-        run: npm install -g npm@${{ env.NPM_VERSION }}
-      - run: npm ci
+          dir: client
       - run: npm run build
+        working-directory: client
       - run: npm run lint
+        working-directory: client
