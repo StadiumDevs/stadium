@@ -181,6 +181,10 @@ class ProgramController {
       if (!valid) {
         return res.status(422).json({ status: 'error', message: validationError });
       }
+      // Only a platform admin (app/global/env) may flip the public judging badge.
+      if ('judgingInProgress' in patch && req.user?.isGlobalAdmin !== true) {
+        return res.status(403).json({ status: 'error', message: 'Only platform admins can set judging in progress' });
+      }
 
       const existing = await programService.findBySlug(slug);
       if (!existing) {

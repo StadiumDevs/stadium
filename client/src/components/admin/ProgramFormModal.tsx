@@ -10,6 +10,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -106,6 +107,7 @@ export function ProgramFormModal({
   const [eventEndsAt, setEventEndsAt] = useState("");
   const [prizeTierRows, setPrizeTierRows] = useState<PrizeTierRow[]>([]);
   const [galleryUrl, setGalleryUrl] = useState("");
+  const [judgingInProgress, setJudgingInProgress] = useState(false);
   type HonoraryMentionRow = { name: string; videoUrl: string; githubUrl: string };
   const [honoraryMentionRows, setHonoraryMentionRows] = useState<HonoraryMentionRow[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -133,6 +135,7 @@ export function ProgramFormModal({
       setEventEndsAt(isoToLocal(program.eventEndsAt));
       setPrizeTierRows(tierRowsFromProgram(program));
       setGalleryUrl(program.galleryUrl || "");
+      setJudgingInProgress(program.judgingInProgress === true);
       setHonoraryMentionRows(
         (program.honoraryMentions ?? []).map((m) => ({
           name: m.name,
@@ -157,6 +160,7 @@ export function ProgramFormModal({
       setEventEndsAt("");
       setPrizeTierRows(tierRowsFromProgram(null));
       setGalleryUrl("");
+      setJudgingInProgress(false);
       setHonoraryMentionRows([]);
     }
     setErrors({});
@@ -280,6 +284,8 @@ export function ProgramFormModal({
             videoUrl: m.videoUrl.trim() || null,
             githubUrl: m.githubUrl.trim() || null,
           })),
+        // Platform admins only: the server refuses this key from event admins.
+        ...(editing && isGlobalAdmin ? { judgingInProgress } : {}),
       };
 
       const res = editing
@@ -379,6 +385,20 @@ export function ProgramFormModal({
               </SelectContent>
             </Select>
           </div>
+
+          {editing && isGlobalAdmin && (
+            <div className="sm:col-span-2 flex items-start gap-2" data-testid="judging-in-progress-toggle">
+              <Checkbox
+                id="pf-judging"
+                checked={judgingInProgress}
+                onCheckedChange={(v) => setJudgingInProgress(v === true)}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="pf-judging" className="label-hw-dim cursor-pointer">·JUDGING IN PROGRESS</Label>
+                <p className="label-hw-dim">Shows an orange JUDGING IN PROGRESS badge next to the status on the public program page.</p>
+              </div>
+            </div>
+          )}
 
           {status === "completed" && (
             <div className="sm:col-span-2 space-y-1">

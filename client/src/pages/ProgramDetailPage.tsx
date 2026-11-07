@@ -493,6 +493,12 @@ const ProgramDetailPage = () => {
                 <span className={`led led-sm ${program.status === "open" ? "led-pulse" : ""}`} aria-hidden="true" />
                 <span className="label-hw text-display">{program.status.toUpperCase()}</span>
               </div>
+              {program.judgingInProgress && (
+                <div className="lcd inline-flex items-center gap-2 px-3 py-1.5" data-testid="judging-badge">
+                  <span className="led led-sm led-warn led-pulse" aria-hidden="true" />
+                  <span className="label-hw text-display">JUDGING IN PROGRESS</span>
+                </div>
+              )}
               {program.location && (
                 <span className="label-hw-dim">{program.location.toUpperCase()}</span>
               )}

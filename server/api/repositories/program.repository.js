@@ -27,6 +27,7 @@ const transformProgram = (row) => {
     lastGuestSyncStatus: row.last_guest_sync_status ?? null,
     honoraryMentions: row.honorary_mentions ?? null,
     galleryUrl: row.gallery_url ?? null,
+    judgingInProgress: row.judging_in_progress ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -58,6 +59,7 @@ const toSnakeCase = (data) => {
   }
   if ('honoraryMentions' in data) row.honorary_mentions = data.honoraryMentions ?? null;
   if ('galleryUrl' in data) row.gallery_url = data.galleryUrl ?? null;
+  if ('judgingInProgress' in data) row.judging_in_progress = !!data.judgingInProgress;
   return row;
 };
 
