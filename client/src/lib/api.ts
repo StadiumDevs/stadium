@@ -551,6 +551,8 @@ export type ApiProgram = {
   honoraryMentions?: { name: string; videoUrl?: string | null; githubUrl?: string | null }[] | null;
   /** Link to an event photo gallery (e.g. Google Drive folder). */
   galleryUrl?: string | null;
+  /** Platform-admin switch: shows a JUDGING IN PROGRESS badge on the public page. */
+  judgingInProgress?: boolean;
   /** Luma event id (evt-…). When set + server has LUMA_API_KEY, the submit gate
    *  verifies emails against the event's checked-in guests synced from Luma. */
   lumaEventId?: string | null;
