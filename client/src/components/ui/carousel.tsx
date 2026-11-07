@@ -85,6 +85,10 @@ const Carousel = React.forwardRef<
 
     const handleKeyDown = React.useCallback(
       (event: React.KeyboardEvent<HTMLDivElement>) => {
+        // Capture phase sees keys from every field inside: let arrows move the
+        // text cursor in inputs/textareas instead of switching slides.
+        const target = event.target as HTMLElement
+        if (target.closest("input, textarea, select, [contenteditable='true']")) return
         if (event.key === "ArrowLeft") {
           event.preventDefault()
           scrollPrev()
