@@ -31,6 +31,8 @@ import { ViewingKeyLine } from "@/components/program/tracked/ViewingKeyLine";
 import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadge";
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
+import { SubmissionBreakdownPanel } from "./SubmissionBreakdownPanel";
+import { classifySubmission, NO_THEME, themesOf } from "@/lib/submissionCategories";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
 import { CriteriaCarousel, type CheckStep } from "./CriteriaCarousel";
 import { DemoVideo } from "./DemoVideo";
@@ -189,6 +191,8 @@ export function RubricJudgingSection({
   const [board, setBoard] = useState<ApiRubricLeaderboard | null>(null);
   // Ranked table: normalized (per-judge z-scores) or raw averages.
   const [rankMode, setRankMode] = useState<"norm" | "raw">("norm");
+  // Ranked table: one list, or grouped under each category / theme (ranks stay overall).
+  const [groupBy, setGroupBy] = useState<"none" | "category" | "theme">("none");
   const [openRow, setOpenRow] = useState<string | null>(null);
   // Leaderboard row whose project details are open (a reminder of what it was).
   const [detailsId, setDetailsId] = useState<string | null>(null);
@@ -635,6 +639,28 @@ export function RubricJudgingSection({
     : board.normalization?.enabled
       ? [...board.rows].sort((a, b) => (normMode ? (a.normRank ?? 0) - (b.normRank ?? 0) : (a.rawRank ?? 0) - (b.rawRank ?? 0)))
       : board.rows;
+  // Category (automatic, from the project's text) and themes (picked on the form) per row.
+  const categoryOf = (submissionId: string, projectTitle: string) =>
+    profile.categories?.length
+      ? classifySubmission(profile.categories, submissions.find((x) => x.id === submissionId) ?? { projectTitle })
+      : null;
+  const groups: { key: string; label: string | null; rows: typeof shownRows }[] = (() => {
+    if (groupBy === "none") return [{ key: "all", label: null, rows: shownRows }];
+    // Groups keep the overall rank order inside; config order for the group list.
+    const order =
+      groupBy === "category"
+        ? [...(profile.categories ?? []).map((c) => c.label), "Other"]
+        : [...profile.themes, NO_THEME];
+    const byKey = new Map<string, typeof shownRows>();
+    for (const r of shownRows) {
+      const keys =
+        groupBy === "category"
+          ? [categoryOf(r.submissionId, r.projectTitle)?.label ?? "Other"]
+          : themesOf(submissions.find((x) => x.id === r.submissionId) ?? {});
+      for (const k of keys) byKey.set(k, [...(byKey.get(k) ?? []), r]);
+    }
+    return order.filter((k) => byKey.has(k)).map((k) => ({ key: k, label: k, rows: byKey.get(k)! }));
+  })();
   const batchLabel = (b: string | null | undefined) => profile.judgingSessions.find((x) => x.id === b)?.short ?? null;
   const visibleQueue = queue.filter(
     ({ s, track }) =>
@@ -731,6 +757,7 @@ export function RubricJudgingSection({
         youName={judge?.name}
         refreshToken={progressToken}
       />
+      {!isJudge && <SubmissionBreakdownPanel profile={profile} submissions={submissions} board={board} />}
 
       {isJudge && !judge && (
         <p className="label-hw text-destructive normal-case" data-testid="judge-not-invited">
@@ -1044,6 +1071,21 @@ export function RubricJudgingSection({
               )}
             </div>
             <div className="flex flex-wrap gap-1">
+            {board && (
+              <label className="flex items-center gap-1 label-hw-dim">
+                GROUP
+                <select
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
+                  className="bg-panel-deep border border-hairline rounded-sm px-1 py-1 text-display font-mono text-[11px]"
+                  data-testid="leaderboard-group-by"
+                >
+                  <option value="none">None</option>
+                  {!!profile.categories?.length && <option value="category">By category</option>}
+                  <option value="theme">By theme</option>
+                </select>
+              </label>
+            )}
             {board?.normalization?.enabled && (
               <div className="flex gap-1" role="group" aria-label="Ranking">
                 <button type="button" onClick={() => setRankMode("norm")} aria-pressed={normMode} className={normMode ? btnSolid : btnGhost} data-testid="rank-mode-norm">
@@ -1160,7 +1202,16 @@ export function RubricJudgingSection({
                     </tr>
                   </thead>
                   <tbody>
-                    {shownRows.map((r) => (
+                    {groups.map((g) => (
+                      <Fragment key={g.key}>
+                      {g.label && (
+                        <tr className="border-t border-hairline" data-testid="leaderboard-group">
+                          <td colSpan={99} className="pt-3 pb-1 label-hw text-display">
+                            {g.label.toUpperCase()} · {g.rows.length}
+                          </td>
+                        </tr>
+                      )}
+                      {g.rows.map((r) => (
                       <Fragment key={r.submissionId}>
                         <tr className="border-t border-hairline-subtle align-top" data-testid="leaderboard-row">
                           <td className="py-2 pr-2 font-mono">
@@ -1200,6 +1251,18 @@ export function RubricJudgingSection({
                                 {openRow === r.submissionId ? "HIDE SCORES ▴" : "JUDGES' SCORES ▾"}
                               </button>
                               {r.track === "both" && <span className="label-hw-dim">BOTH TRACKS</span>}
+                              {(() => {
+                                const cat = categoryOf(r.submissionId, r.projectTitle);
+                                return cat ? (
+                                  <span
+                                    className="label-hw-dim"
+                                    data-testid="leaderboard-category"
+                                    title={`Category matched on: ${cat.matched.join(", ") || "no keyword"}`}
+                                  >
+                                    {cat.label.toUpperCase()}
+                                  </span>
+                                ) : null;
+                              })()}
                               {boardTrack === "privacy" && <TxCheckBadge check={r.txCheck} />}
                               {r.tieBrokenBy && normMode === !!board.normalization?.enabled && <span className="label-hw text-display">TIE · BROKEN BY {r.tieBrokenBy.toUpperCase()}</span>}
                               {r.ecosystemPrize && (
@@ -1287,6 +1350,8 @@ export function RubricJudgingSection({
                             </td>
                           </tr>
                         )}
+                      </Fragment>
+                      ))}
                       </Fragment>
                     ))}
                   </tbody>

@@ -1,3 +1,4 @@
+import { classifySubmission } from "./submissionCategories";
 import type { ApiRubricLeaderboard, ApiTrackedSubmission, JudgedTrack } from "./api";
 import { trackById, trackLabel, type ProgramJudge, type ProgramProfile } from "./programProfiles";
 
@@ -166,6 +167,8 @@ export function buildRankedCsv(
     "rankChange",
     "tieBrokenBy",
     "projectTitle",
+    "category",
+    "themes",
     "normTotal",
     "avgTotal",
     ...criteria.filter((c) => !c.isBonus).map((c) => `${c.id}.norm`),
@@ -203,6 +206,8 @@ export function buildRankedCsv(
       r.rankChange ?? "",
       r.tieBrokenBy ?? "",
       r.projectTitle,
+      profile.categories?.length ? classifySubmission(profile.categories, s ?? { projectTitle: r.projectTitle }).label : "",
+      (d?.themes ?? []).join("; "),
       r.normTotal == null ? "" : fmt(r.normTotal),
       fmt(r.avgTotal),
       ...criteria.filter((c) => !c.isBonus).map((c) => (r.normByCriterion?.[c.id] == null ? "" : fmt(r.normByCriterion[c.id]))),
