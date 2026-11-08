@@ -753,7 +753,29 @@ export type ApiRubricLeaderboardRow = {
   judgeCount: number;
   /** Set when this row's order against the row above was decided by a tie-break. */
   tieBrokenBy: string | null;
-  judgeScores: { judgeEmail: string; total: number; criteria: Record<string, number | null>; notes: string; session: string }[];
+  judgeScores: {
+    judgeEmail: string;
+    total: number;
+    criteria: Record<string, number | null>;
+    notes: string;
+    session: string;
+    /** This score after per-judge normalization, in rubric points (organizers only). */
+    normContribution?: number | null;
+    /** How this judge was normalized: z-scores, or mean-centering below the minimum (organizers only). */
+    method?: "zscore" | "center" | null;
+  }[];
+  /** Rank by raw average total. */
+  rawRank?: number;
+  /** Rank by normalized total. `rank` is this one when normalization is on. */
+  normRank?: number;
+  /** rawRank − normRank: positive = moved up after normalization. */
+  rankChange?: number;
+  /** Normalized total (null = no scores yet). */
+  normTotal?: number | null;
+  normByCriterion?: Record<string, number> | null;
+  /** Per-judge z-score result and judge-offset model result (the check). */
+  zTotal?: number | null;
+  offsetTotal?: number | null;
   txCheck: ApiTxCheck | null;
   prize: ApiPrizeTier | null;
   ecosystemPrize: boolean;
@@ -766,6 +788,11 @@ export type ApiRubricLeaderboard = {
   judges: string[];
   submissionsTotal: number;
   submissionsFullyScored: number;
+  normalization?: { enabled: boolean; method: "zscore" | "offset"; minScoresForZ: number };
+  /** Per judge: scores counted, mean, SD, method and bias vs the panel in rubric points (organizers only). */
+  judgeStats?: { judgeEmail: string; n: number; mean: number; sd: number; method: "zscore" | "center"; bias: number }[];
+  /** When the board was computed (every request recomputes the whole track). */
+  computedAt?: string;
   rows: ApiRubricLeaderboardRow[];
 };
 

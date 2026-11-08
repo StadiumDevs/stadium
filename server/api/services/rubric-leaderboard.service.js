@@ -4,6 +4,7 @@
 // playground and production rank the same way.
 
 import { RUBRICS, RUBRIC_RANKING } from '../constants/rubrics.js';
+import { DEFAULT_NORMALIZATION, normalizeTrack } from './score-normalization.service.js';
 
 const EPS = 1e-9;
 const mean = (ns) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
@@ -43,18 +44,36 @@ export const judgesForTrack = (judges, track) =>
  * @param {object[]} args.submissions  repository rows (with details, prizes, ecosystemPrize)
  * @param {object[]} args.scores       rubric score rows for the program
  * @param {object[]} args.judges       program_admin_emails judge rows ({ email, name, tracks })
+ * @param {Date} [args.now]             when the board is computed (the "Last recalculated" time)
  */
-export function computeLeaderboard({ track, submissions, scores, judges }) {
+export function computeLeaderboard({ track, submissions, scores, judges, now = new Date() }) {
   const ranking = RUBRIC_RANKING[track];
+  const normalization = { ...DEFAULT_NORMALIZATION, ...(ranking.normalization ?? {}) };
   const trackJudges = judgesForTrack(judges, track).map((j) => j.email);
   const entries = submissions.filter((s) => s.details && judgedTracksOf(s.details.track).includes(track));
+  const entryIds = new Set(entries.map((s) => s.id));
+
+  // Every counted score in the track feeds the normalization: one judge's new
+  // score moves that judge's mean and SD, and so every project they scored.
+  const trackScores = scores.filter((x) => x.track === track && entryIds.has(x.submissionId) && isFullyScored(track, x.criteria));
+  const norm = normalizeTrack({
+    criteria: RUBRICS[track],
+    bonusIds: ranking.bonusId ? [ranking.bonusId] : [],
+    scores: trackScores,
+    config: normalization,
+  });
 
   const rows = entries.map((s) => {
-    const counted = countedScores(scores, s.id, track);
+    const counted = countedScores(trackScores, s.id, track);
     const avgByCriterion = {};
     for (const c of RUBRICS[track]) avgByCriterion[c.id] = mean(counted.map((x) => x.criteria[c.id] ?? 0));
+    const n = norm.projects.get(s.id);
+    const contributionOf = new Map((n?.contributions ?? []).map((c) => [c.judgeEmail, c]));
     return {
       rank: 0,
+      rawRank: 0,
+      normRank: 0,
+      rankChange: 0,
       submissionId: s.id,
       projectTitle: s.projectTitle,
       submitterName: s.submitterName,
@@ -63,6 +82,11 @@ export function computeLeaderboard({ track, submissions, scores, judges }) {
       status: s.status ?? 'submitted',
       avgTotal: mean(counted.map((x) => total(track, x.criteria))),
       avgByCriterion,
+      // No scores yet: the normalized values stay null (missing, not zero).
+      normTotal: n ? (normalization.method === 'offset' ? n.offsetTotal : n.normTotal) : null,
+      normByCriterion: n ? n.normByCriterion : null,
+      zTotal: n ? n.normTotal : null,
+      offsetTotal: n ? n.offsetTotal : null,
       bonusCount: ranking.bonusId ? counted.filter((x) => (x.criteria[ranking.bonusId] ?? 0) > 0).length : 0,
       judgeCount: counted.length,
       tieBrokenBy: null,
@@ -72,42 +96,72 @@ export function computeLeaderboard({ track, submissions, scores, judges }) {
         criteria: x.criteria,
         notes: x.notes ?? '',
         session: x.session ?? '',
+        normContribution: contributionOf.get(x.judgeEmail)?.value ?? null,
+        method: contributionOf.get(x.judgeEmail)?.method ?? null,
       })),
       txCheck: s.details.txCheck ?? null,
       prize: s.prizes?.[track] ?? null,
       ecosystemPrize: !!s.ecosystemPrize,
+      // Eligibility reads the raw average: a raw Works 0 means it doesn't work.
       winnerBlocked: winnerBlockedReason(track, scores, s.id),
     };
   });
 
-  const tieValue = (r, i) => {
-    const tb = ranking.tieBreaks[i];
-    return tb.kind === 'bonusCount' ? r.bonusCount : r.avgByCriterion[tb.id] ?? 0;
-  };
-  rows.sort((a, b) => {
-    if (Math.abs(b.avgTotal - a.avgTotal) > EPS) return b.avgTotal - a.avgTotal;
-    for (let i = 0; i < ranking.tieBreaks.length; i += 1) {
-      const d = tieValue(b, i) - tieValue(a, i);
-      if (Math.abs(d) > EPS) return d;
-    }
-    return 0;
+  const rawOrder = rankBy(rows, ranking, (r) => r.avgTotal, (r) => r.avgByCriterion);
+  const normOrder = rankBy(rows, ranking, (r) => r.normTotal ?? -Infinity, (r) => r.normByCriterion ?? {});
+  rawOrder.forEach(({ row }, i) => {
+    row.rawRank = i + 1;
   });
-  rows.forEach((r, i) => {
-    r.rank = i + 1;
-    const prev = rows[i - 1];
-    if (prev && Math.abs(prev.avgTotal - r.avgTotal) <= EPS) {
-      const decider = ranking.tieBreaks.findIndex((_, t) => Math.abs(tieValue(prev, t) - tieValue(r, t)) > EPS);
-      r.tieBrokenBy = decider >= 0 ? ranking.tieBreaks[decider].label : 'unresolved';
-    }
+  normOrder.forEach(({ row }, i) => {
+    row.normRank = i + 1;
   });
+  const primary = normalization.enabled ? normOrder : rawOrder;
+  for (const { row, tieBrokenBy } of primary) {
+    row.rank = normalization.enabled ? row.normRank : row.rawRank;
+    row.rankChange = row.rawRank - row.normRank;
+    row.tieBrokenBy = tieBrokenBy;
+  }
 
   return {
     track,
     judges: trackJudges,
     submissionsTotal: entries.length,
     submissionsFullyScored: rows.filter((r) => r.judgeCount === trackJudges.length).length,
-    rows,
+    normalization,
+    judgeStats: norm.judgeStats,
+    computedAt: now.toISOString(),
+    rows: primary.map((x) => x.row),
   };
+}
+
+/**
+ * Sorts rows by a total, then the track's tie-breaks (criterion averages or the
+ * bonus count). Returns each row with the tie-break that decided it against the
+ * row above, or 'unresolved' when every tie-break is equal.
+ */
+function rankBy(rows, ranking, totalOf, critOf) {
+  const tieValue = (r, i) => {
+    const tb = ranking.tieBreaks[i];
+    return tb.kind === 'bonusCount' ? r.bonusCount : critOf(r)[tb.id] ?? 0;
+  };
+  const sameTotal = (a, b) => totalOf(a) === totalOf(b) || Math.abs(totalOf(a) - totalOf(b)) <= EPS;
+  const sorted = [...rows].sort((a, b) => {
+    if (!sameTotal(a, b)) return totalOf(b) - totalOf(a);
+    for (let i = 0; i < ranking.tieBreaks.length; i += 1) {
+      const d = tieValue(b, i) - tieValue(a, i);
+      if (Math.abs(d) > EPS) return d;
+    }
+    return 0;
+  });
+  return sorted.map((row, i) => {
+    const prev = sorted[i - 1];
+    let tieBrokenBy = null;
+    if (prev && sameTotal(prev, row)) {
+      const decider = ranking.tieBreaks.findIndex((_, t) => Math.abs(tieValue(prev, t) - tieValue(row, t)) > EPS);
+      tieBrokenBy = decider >= 0 ? ranking.tieBreaks[decider].label : 'unresolved';
+    }
+    return { row, tieBrokenBy };
+  });
 }
 
 /** Per judge: fully scored (submission, track) pairs out of everything in their tracks. */

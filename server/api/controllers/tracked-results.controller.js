@@ -81,7 +81,13 @@ class TrackedResultsController {
         const nameOf = new Map(judges.map((j) => [j.email, j.name || j.email.split('@')[0]]));
         const mask = (e) => (e === me ? e : nameOf.get(e) ?? 'Judge');
         board.judges = board.judges.map(mask);
-        for (const r of board.rows) r.judgeScores = r.judgeScores.map((x) => ({ ...x, judgeEmail: mask(x.judgeEmail) }));
+        // Judge calibration (each judge's mean, SD, bias and per-score
+        // contribution) is for organizers only, so judges don't adjust toward
+        // the panel mid-round.
+        delete board.judgeStats;
+        for (const r of board.rows) {
+          r.judgeScores = r.judgeScores.map(({ normContribution, method, ...x }) => ({ ...x, judgeEmail: mask(x.judgeEmail) }));
+        }
       }
       res.status(200).json({ status: 'success', data: board });
     } catch (error) {

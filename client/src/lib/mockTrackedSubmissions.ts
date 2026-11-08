@@ -30,6 +30,7 @@ import { buildFreeSocietyHackSeed, FSH_JUDGES, type TrackedSeed } from "./mocks/
 import { checkTestnetTx } from "./txCheck";
 import { mockPrograms } from "./mockPrograms";
 import { toPublicSubmission } from "./trackedDisplay";
+import { DEFAULT_NORMALIZATION, normalizeTrack } from "./scoreNormalization";
 
 const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }> = {
   "free-society-hack-2026": { build: buildFreeSocietyHackSeed, judges: FSH_JUDGES },
@@ -283,14 +284,30 @@ export const mockTracked = {
     const judges = this.judges(slug).filter((j) => j.tracks.includes(track)).map((j) => j.email);
     const entries = state.submissions.filter((s) => !isAbandonedIn(slug, s) && judgedTracksOf(s.details.track).includes(track));
 
+    const normalization = { ...DEFAULT_NORMALIZATION, ...(rubric.normalization ?? {}) };
+    const entryIds = new Set(entries.map((s) => s.id));
+    // Every counted score in the track feeds the normalization (mirrors the server).
+    const trackScores = state.scores.filter(
+      (x) => x.track === track && entryIds.has(x.submissionId) && isFullyScored(rubric, x.criteria),
+    );
+    const norm = normalizeTrack({
+      criteria: rubric.criteria,
+      bonusIds: bonus ? [bonus.id] : [],
+      scores: trackScores,
+      config: normalization,
+    });
+
     const rows: ApiRubricLeaderboardRow[] = entries.map((s) => {
-      const counted = state.scores.filter(
-        (x) => x.submissionId === s.id && x.track === track && isFullyScored(rubric, x.criteria),
-      );
+      const counted = trackScores.filter((x) => x.submissionId === s.id);
       const avgByCriterion: Record<string, number> = {};
       for (const c of rubric.criteria) avgByCriterion[c.id] = mean(counted.map((x) => x.criteria[c.id] ?? 0));
+      const n = norm.projects.get(s.id);
+      const contributionOf = new Map((n?.contributions ?? []).map((c) => [c.judgeEmail, c]));
       return {
         rank: 0,
+        rawRank: 0,
+        normRank: 0,
+        rankChange: 0,
         submissionId: s.id,
         projectTitle: s.projectTitle,
         submitterName: s.submitterName,
@@ -298,6 +315,10 @@ export const mockTracked = {
         status: s.status ?? "submitted",
         avgTotal: mean(counted.map((x) => weightedTotal(rubric, x.criteria))),
         avgByCriterion,
+        normTotal: n ? (normalization.method === "offset" ? n.offsetTotal : n.normTotal) : null,
+        normByCriterion: n ? n.normByCriterion : null,
+        zTotal: n ? n.normTotal : null,
+        offsetTotal: n ? n.offsetTotal : null,
         bonusCount: bonus ? counted.filter((x) => (x.criteria[bonus.id] ?? 0) > 0).length : 0,
         judgeCount: counted.length,
         tieBrokenBy: null,
@@ -307,6 +328,8 @@ export const mockTracked = {
           criteria: x.criteria,
           notes: x.notes,
           session: x.session,
+          normContribution: contributionOf.get(x.judgeEmail)?.value ?? null,
+          method: contributionOf.get(x.judgeEmail)?.method ?? null,
         })),
         txCheck: s.details.txCheck,
         prize: s.prizes[track] ?? null,
@@ -315,33 +338,55 @@ export const mockTracked = {
       };
     });
 
-    const tieValue = (r: ApiRubricLeaderboardRow, i: number) => {
-      const tb = rubric.tieBreaks[i];
-      return tb.kind === "bonusCount" ? r.bonusCount : r.avgByCriterion[tb.id] ?? 0;
+    const rankBy = (totalOf: (r: ApiRubricLeaderboardRow) => number, critOf: (r: ApiRubricLeaderboardRow) => Record<string, number>) => {
+      const tieValue = (r: ApiRubricLeaderboardRow, i: number) => {
+        const tb = rubric.tieBreaks[i];
+        return tb.kind === "bonusCount" ? r.bonusCount : critOf(r)[tb.id] ?? 0;
+      };
+      const sameTotal = (a: ApiRubricLeaderboardRow, b: ApiRubricLeaderboardRow) =>
+        totalOf(a) === totalOf(b) || Math.abs(totalOf(a) - totalOf(b)) <= EPS;
+      const sorted = [...rows].sort((a, b) => {
+        if (!sameTotal(a, b)) return totalOf(b) - totalOf(a);
+        for (let i = 0; i < rubric.tieBreaks.length; i += 1) {
+          const d = tieValue(b, i) - tieValue(a, i);
+          if (Math.abs(d) > EPS) return d;
+        }
+        return 0;
+      });
+      return sorted.map((row, i) => {
+        const prev = sorted[i - 1];
+        let tieBrokenBy: string | null = null;
+        if (prev && sameTotal(prev, row)) {
+          const decider = rubric.tieBreaks.findIndex((_, t) => Math.abs(tieValue(prev, t) - tieValue(row, t)) > EPS);
+          tieBrokenBy = decider >= 0 ? rubric.tieBreaks[decider].label : "unresolved";
+        }
+        return { row, tieBrokenBy };
+      });
     };
-    rows.sort((a, b) => {
-      if (Math.abs(b.avgTotal - a.avgTotal) > EPS) return b.avgTotal - a.avgTotal;
-      for (let i = 0; i < rubric.tieBreaks.length; i += 1) {
-        const d = tieValue(b, i) - tieValue(a, i);
-        if (Math.abs(d) > EPS) return d;
-      }
-      return 0;
+    const rawOrder = rankBy((r) => r.avgTotal, (r) => r.avgByCriterion);
+    const normOrder = rankBy((r) => r.normTotal ?? -Infinity, (r) => r.normByCriterion ?? {});
+    rawOrder.forEach(({ row }, i) => {
+      row.rawRank = i + 1;
     });
-    rows.forEach((r, i) => {
-      r.rank = i + 1;
-      const prev = rows[i - 1];
-      if (prev && Math.abs(prev.avgTotal - r.avgTotal) <= EPS) {
-        const decider = rubric.tieBreaks.findIndex((_, t) => Math.abs(tieValue(prev, t) - tieValue(r, t)) > EPS);
-        r.tieBrokenBy = decider >= 0 ? rubric.tieBreaks[decider].label : "unresolved";
-      }
+    normOrder.forEach(({ row }, i) => {
+      row.normRank = i + 1;
     });
+    const primary = normalization.enabled ? normOrder : rawOrder;
+    for (const { row, tieBrokenBy } of primary) {
+      row.rank = (normalization.enabled ? row.normRank : row.rawRank) ?? 0;
+      row.rankChange = (row.rawRank ?? 0) - (row.normRank ?? 0);
+      row.tieBrokenBy = tieBrokenBy;
+    }
 
     return {
       track,
       judges,
       submissionsTotal: entries.length,
       submissionsFullyScored: rows.filter((r) => r.judgeCount === judges.length).length,
-      rows,
+      normalization,
+      judgeStats: norm.judgeStats,
+      computedAt: new Date().toISOString(),
+      rows: primary.map((x) => x.row),
     };
   },
 

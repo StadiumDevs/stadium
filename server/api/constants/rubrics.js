@@ -31,6 +31,9 @@ export const RUBRIC_RANKING = {
     ],
     bonusId: 'bonus',
     // An average Works score of 0 can't win.
+    // Per-judge normalization (score-normalization.service.js). method:
+    // 'zscore' (default) or 'offset' (additive judge-offset model).
+    normalization: { enabled: true, method: 'zscore', minScoresForZ: 8 },
     winnerGate: {
       criterionId: 'works',
       maxAvg: 0,
@@ -41,6 +44,7 @@ export const RUBRIC_RANKING = {
     // Bitrefill's rule: ties go to the higher How innovative score.
     tieBreaks: [{ kind: 'criterion', id: 'innovation', label: 'How innovative' }],
     bonusId: null,
+    normalization: { enabled: true, method: 'zscore', minScoresForZ: 8 },
     winnerGate: null,
   },
 };
