@@ -5,8 +5,11 @@ import { cn } from "@/lib/utils";
 
 
 // Chart primitives for the stats page. Every bar and segment is a real
-// <button>: hovering, focusing or clicking it lists the projects in it under
-// the chart (names link to the project page when the project has one).
+// <button>: hovering or focusing it previews the projects in it under the
+// chart; clicking pins that list so the mouse can move down to it without
+// crossing other bars (click again or Esc to unpin). Every name is a link:
+// winners to their project page, everyone else to their details on the
+// program page.
 // Values are printed on the bars, so colour is never the only signal. Each
 // chart scrolls sideways inside its own box at phone width.
 
@@ -16,8 +19,13 @@ export function ProjectNames({ slug, projects, empty = "None" }: { slug: string;
     <ul className="flex flex-wrap gap-x-3 gap-y-1" data-testid="project-names">
       {projects.map((p, i) => (
         <li key={`${p.id}-${i}`}>
-          {p.linkable ? (
-            <Link to={`/programs/${slug}/projects/${p.id}`} className="text-display underline decoration-dotted underline-offset-2 hover:decoration-solid" data-testid="project-link">
+          {p.linkable || !p.id.startsWith("review:") ? (
+            <Link
+              to={p.linkable ? `/programs/${slug}/projects/${p.id}` : `/programs/${slug}?project=${encodeURIComponent(p.id)}`}
+              className="text-display underline decoration-dotted underline-offset-2 hover:decoration-solid"
+              data-testid="project-link"
+              data-kind={p.linkable ? "page" : "details"}
+            >
               {p.title}
             </Link>
           ) : (
@@ -33,13 +41,31 @@ export function ProjectNames({ slug, projects, empty = "None" }: { slug: string;
 
 type Active = { key: string; title: string; projects: StatsProject[]; empty?: string } | null;
 
-/** The projects behind the bar last hovered, focused or clicked. */
-function ChartDetail({ slug, active, hint }: { slug: string; active: Active; hint: string }) {
+/** Hover/focus previews a bar's projects; click pins them until clicked again (or Esc). */
+function useChartSelection() {
+  const [preview, setPreview] = useState<Active>(null);
+  const [pinned, setPinned] = useState<Active>(null);
+  return {
+    shown: pinned ?? preview,
+    pinned,
+    preview: (a: NonNullable<Active>) => setPreview(a),
+    toggle: (a: NonNullable<Active>) => setPinned((p) => (p?.key === a.key ? null : a)),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Escape") setPinned(null);
+    },
+  };
+}
+
+/** The projects behind the bar pinned, or else last hovered or focused. */
+function ChartDetail({ slug, active, pinned, hint }: { slug: string; active: Active; pinned: boolean; hint: string }) {
   return (
-    <div className="mt-2 min-h-[2.5rem] border-t border-hairline-subtle pt-2 text-[12px]" aria-live="polite" data-testid="chart-detail">
+    <div className="mt-2 min-h-[2.5rem] border-t border-hairline-subtle pt-2 text-[12px]" aria-live="polite" data-testid="chart-detail" data-pinned={pinned ? "true" : "false"}>
       {active ? (
         <>
-          <div className="label-hw-dim mb-1">{active.title}</div>
+          <div className="label-hw-dim mb-1">
+            {active.title}
+            <span className="ml-2 text-label-dim normal-case">{pinned ? "· pinned (click the bar again or press Esc to unpin)" : "· click the bar to pin"}</span>
+          </div>
           <ProjectNames slug={slug} projects={active.projects} empty={active.empty} />
         </>
       ) : (
@@ -92,7 +118,7 @@ export function BarList({
   items,
   max,
   testId,
-  hint = "Hover or focus a bar to list its projects.",
+  hint = "Hover or focus a bar to list its projects; click to pin.",
   wideLabels = false,
 }: {
   slug: string;
@@ -103,9 +129,9 @@ export function BarList({
   /** A wider label column (long labels such as "ZIP 321 · Payment request URIs"). */
   wideLabels?: boolean;
 }) {
-  const [active, setActive] = useState<Active>(null);
+  const sel = useChartSelection();
   const top = max ?? Math.max(1, ...items.map((i) => i.value));
-  const show = (i: BarItem) => setActive({ key: i.key, title: `${i.label} · ${i.valueLabel ?? i.value}`, projects: i.projects, empty: i.empty });
+  const entry = (i: BarItem) => ({ key: i.key, title: `${i.label} · ${i.valueLabel ?? i.value}`, projects: i.projects, empty: i.empty });
   return (
     <div data-testid={testId}>
       <div className="overflow-x-auto">
@@ -118,10 +144,11 @@ export function BarList({
               </span>
               <button
                 type="button"
-                onMouseEnter={() => show(i)}
-                onFocus={() => show(i)}
-                onClick={() => show(i)}
-                aria-pressed={active?.key === i.key}
+                onMouseEnter={() => sel.preview(entry(i))}
+                onFocus={() => sel.preview(entry(i))}
+                onClick={() => sel.toggle(entry(i))}
+                onKeyDown={sel.onKeyDown}
+                aria-pressed={sel.pinned?.key === i.key}
                 aria-label={`${i.label}: ${i.valueLabel ?? i.value}. List the projects.`}
                 className="group flex items-center gap-2 h-6 text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-display"
                 data-testid="chart-bar"
@@ -136,7 +163,7 @@ export function BarList({
           ))}
         </ul>
       </div>
-      <ChartDetail slug={slug} active={active} hint={hint} />
+      <ChartDetail slug={slug} active={sel.shown} pinned={!!sel.pinned} hint={hint} />
     </div>
   );
 }
@@ -160,7 +187,7 @@ export function StackedBars({
   legend: { label: string; color: string }[];
   testId?: string;
 }) {
-  const [active, setActive] = useState<Active>(null);
+  const sel = useChartSelection();
   const top = Math.max(1, ...rows.map((r) => r.total));
   return (
     <div data-testid={testId}>
@@ -177,15 +204,16 @@ export function StackedBars({
                   {r.segments
                     .filter((s) => s.count > 0)
                     .map((s) => {
-                      const show = () => setActive({ key: `${r.key}:${s.key}`, title: `${r.label} · ${s.label} · ${s.count}`, projects: s.projects });
+                      const entry = { key: `${r.key}:${s.key}`, title: `${r.label} · ${s.label} · ${s.count}`, projects: s.projects };
                       return (
                         <button
                           key={s.key}
                           type="button"
-                          onMouseEnter={show}
-                          onFocus={show}
-                          onClick={show}
-                          aria-pressed={active?.key === `${r.key}:${s.key}`}
+                          onMouseEnter={() => sel.preview(entry)}
+                          onFocus={() => sel.preview(entry)}
+                          onClick={() => sel.toggle(entry)}
+                          onKeyDown={sel.onKeyDown}
+                          aria-pressed={sel.pinned?.key === entry.key}
                           aria-label={`${r.label}, ${s.label}: ${s.count}. List the projects.`}
                           className="h-full flex items-center justify-center font-mono text-[10px] text-shell border-r border-panel-deep last:border-r-0 hover:opacity-80 focus:outline-none focus-visible:ring-1 focus-visible:ring-display"
                           style={{ width: `${(100 * s.count) / r.total}%`, background: s.color }}
@@ -202,7 +230,7 @@ export function StackedBars({
           ))}
         </ul>
       </div>
-      <ChartDetail slug={slug} active={active} hint="Hover or focus a segment to list its projects." />
+      <ChartDetail slug={slug} active={sel.shown} pinned={!!sel.pinned} hint="Hover or focus a segment to list its projects; click to pin." />
     </div>
   );
 }

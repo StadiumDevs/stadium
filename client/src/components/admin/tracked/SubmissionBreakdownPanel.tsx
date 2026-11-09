@@ -136,7 +136,7 @@ export function SubmissionBreakdownPanel({
           )}
           <div className="grid gap-4 md:grid-cols-2">
             <HBarChart title="BY CATEGORY" data={byCategory} testId="chart-by-category" />
-            <HBarChart title="BY THEME" data={byTheme} testId="chart-by-theme" />
+            <HBarChart title="BY HACKATHON THEME" data={byTheme} testId="chart-by-theme" />
             {track && (
               <HBarChart
                 title={`${track.shortLabel.toUpperCase()} · AVG ${normalized ? "NORMALIZED " : ""}SCORE BY CATEGORY (/ ${maxScore(track.rubric)})`}

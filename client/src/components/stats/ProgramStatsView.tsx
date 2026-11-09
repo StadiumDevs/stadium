@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ProgramStats, StatsCompositeRow } from "@/lib/programStats";
 import { TRACK_LABELS } from "@/lib/programStats";
 import { cn } from "@/lib/utils";
@@ -19,9 +19,24 @@ const JUDGED_TRACKS: { id: string; label: string }[] = [
   { id: "agentic", label: "Agentic Commerce" },
 ];
 
+/** The slide on show and the direction it came from (for the slide-in). */
+const SlideContext = createContext<{ active: string; dir: 1 | -1 }>({ active: "", dir: 1 });
+
+/** One slide: only the active section renders. */
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  const { active, dir } = useContext(SlideContext);
+  if (id !== active) return null;
   return (
-    <section id={`stats-${id}`} className="panel p-4 mb-4 scroll-mt-24" aria-labelledby={`stats-${id}-title`} data-testid={`stats-section-${id}`}>
+    <section
+      id={`stats-${id}`}
+      role="tabpanel"
+      aria-labelledby={`stats-tab-${id}`}
+      className={cn(
+        "panel p-4 mb-4 animate-in fade-in duration-300 ease-out motion-reduce:animate-none",
+        dir === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
+      )}
+      data-testid={`stats-section-${id}`}
+    >
       <h2 id={`stats-${id}-title`} className="label-hw text-display mb-3">
         ·{title.toUpperCase()}
       </h2>
@@ -54,6 +69,51 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
   const fb = stats.feedback.groups.find((g) => g.id === fbGroup) ?? stats.feedback.groups[0];
   const trackLegend = Object.entries(TRACK_LABELS).map(([id, label]) => ({ label, color: TRACK_COLORS[id] }));
 
+  // Slides: one section at a time. The hash (#stats-<id>) picks the slide, so
+  // links from the program page land on the right one.
+  const sections = STATS_SECTIONS.filter((s) => s.id !== "privacy-review" || stats.privacyReview);
+  const fromHash = () => {
+    const id = typeof window === "undefined" ? "" : window.location.hash.replace(/^#stats-/, "");
+    return sections.some((s) => s.id === id) ? id : sections[0].id;
+  };
+  const [active, setActive] = useState(fromHash);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const slideRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const index = sections.findIndex((s) => s.id === active);
+
+  const select = (id: string, { focus = false }: { focus?: boolean } = {}) => {
+    if (id === active) return;
+    setDir(sections.findIndex((s) => s.id === id) > index ? 1 : -1);
+    setActive(id);
+    window.history.replaceState(null, "", `#stats-${id}`);
+    const tab = tabRefs.current[id];
+    tab?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    if (focus) tab?.focus({ preventScroll: true });
+    // The new slide's top sits right under the sticky nav.
+    requestAnimationFrame(() => slideRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  };
+
+  // Hash links within the page (or back/forward) pick their slide.
+  useEffect(() => {
+    const onHash = () => {
+      const id = window.location.hash.replace(/^#stats-/, "");
+      if (sections.some((s) => s.id === id)) select(id);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  });
+
+  const onTabKey = (e: React.KeyboardEvent) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    const to = e.key === "Home" ? 0 : e.key === "End" ? sections.length - 1 : step ? (index + step + sections.length) % sections.length : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    select(sections[to].id, { focus: true });
+  };
+  const prev = sections[index - 1];
+  const next = sections[index + 1];
+
   return (
     <div data-testid="program-stats">
       <nav
@@ -61,16 +121,32 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
         aria-label="Stats sections"
         data-testid="stats-nav"
       >
-        <ul className="flex gap-1 whitespace-nowrap">
-          {STATS_SECTIONS.filter((s) => s.id !== "privacy-review" || stats.privacyReview).map((s) => (
-            <li key={s.id}>
-              <a href={`#stats-${s.id}`} className="label-hw-dim hover:text-display px-2 py-1 inline-block">
-                {s.label.toUpperCase()}
-              </a>
-            </li>
+        <div role="tablist" aria-label="Stats sections" className="flex gap-1 whitespace-nowrap" onKeyDown={onTabKey}>
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              ref={(el) => (tabRefs.current[s.id] = el)}
+              id={`stats-tab-${s.id}`}
+              type="button"
+              role="tab"
+              aria-selected={s.id === active}
+              aria-controls={`stats-${s.id}`}
+              tabIndex={s.id === active ? 0 : -1}
+              onClick={() => select(s.id)}
+              className={cn(
+                "font-mono text-[10px] tracking-[0.12em] px-2.5 py-1 border transition-colors duration-200",
+                s.id === active ? "border-display bg-display text-shell" : "border-transparent text-label-dim hover:text-display",
+              )}
+              data-testid="stats-tab"
+            >
+              {s.label.toUpperCase()}
+            </button>
           ))}
-        </ul>
+        </div>
       </nav>
+
+      <div ref={slideRef} className={cn(sticky ? "scroll-mt-16" : "scroll-mt-14")} data-testid="stats-slide" data-active={active}>
+      <SlideContext.Provider value={{ active, dir }}>
 
       <Section id="winners" title="Prize winners">
         <div className="grid gap-4 md:grid-cols-2">
@@ -135,7 +211,7 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
 
       <Section id="ranking" title="Projects ranked by likelihood to continue and get support">
         <p className="label-hw-dim normal-case mb-2">
-          Composite score out of 100: normalized judge total (Privacy rubric) 45, Ecosystem Prize or a milestone partner 20, a
+          Composite score out of 100: judge score (Privacy rubric) 45, Ecosystem Prize or a milestone partner 20, a
           milestone / next step stated 20, shipped evidence 15 (public URL, demo video, repo, 5 each). Projects without a judge score
           are ranked on the other signals scaled to 100. Hover or focus a row for its breakdown.
         </p>
@@ -229,7 +305,7 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
                   projects: [x.project],
                   highlight: x.winner,
                 }))}
-                hint={`Normalized judge total${stats.normalized ? "" : " (raw: not enough judges to normalize)"}. ★ = prize winner.`}
+                hint={`Judge score out of ${stats.scoreMax}. ★ = prize winner.`}
               />
             ) : (
               <p className="text-label-dim text-[12px]">No scored projects in this category.</p>
@@ -339,6 +415,27 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
           )}
         </div>
       </Section>
+      </SlideContext.Provider>
+      <div className="flex items-center justify-between gap-2" data-testid="stats-pager">
+        {prev ? (
+          <button type="button" onClick={() => select(prev.id)} className="font-mono text-[10px] tracking-[0.12em] border border-hairline text-display px-3 py-1.5 hover:bg-panel-deep" data-testid="stats-prev">
+            ◂ {prev.label.toUpperCase()}
+          </button>
+        ) : (
+          <span />
+        )}
+        <span className="label-hw-dim">
+          {index + 1} / {sections.length}
+        </span>
+        {next ? (
+          <button type="button" onClick={() => select(next.id)} className="font-mono text-[10px] tracking-[0.12em] border border-hairline text-display px-3 py-1.5 hover:bg-panel-deep" data-testid="stats-next">
+            {next.label.toUpperCase()} ▸
+          </button>
+        ) : (
+          <span />
+        )}
+      </div>
+      </div>
     </div>
   );
 }

@@ -733,6 +733,8 @@ export type ApiPublicSubmission = {
   prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
   /** Only true once results are published. */
   ecosystemPrize: boolean;
+  /** Once published: the final score per judged track (the score the track was ranked on). Only tracks with scoring judges. */
+  scores?: Partial<Record<JudgedTrack, { score: number; max: number }>>;
   /** The Bitrefill survey answers: admin views only (like the Bitrefill feedback), never public. */
   feedback?: SubmissionPayload["feedback"] | null;
 };
@@ -745,6 +747,8 @@ export type ApiPublicSubmissions = {
   submissions: ApiPublicSubmission[];
   /** Set once published: the ranking mode stored at publish time, per track. */
   ranking?: ApiResultsRanking | null;
+  /** Set once published: how many judges scored each track (counts only). */
+  judgesByTrack?: Partial<Record<JudgedTrack, number>> | null;
 };
 
 /** One judge's rubric score for one submission in one track. Null = unscored. */
@@ -3073,6 +3077,10 @@ export const api = {
       body: JSON.stringify({ normalized }),
     });
   },
+
+  /** Public: the hosted llms.txt for the published stats page (null in mock mode, which has no API). */
+  getProgramStatsLlmsUrl: (slug: string): string | null =>
+    USE_MOCK_DATA ? null : `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/stats/llms.txt`,
 
   /** Public: the published prize winners and submission stats page (the snapshot), or null before publishing. */
   getProgramStats: async (slug: string): Promise<{ stats: ProgramStats; publishedAt: string } | null> => {

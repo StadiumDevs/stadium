@@ -285,7 +285,8 @@ export function ProgramFormModal({
             githubUrl: m.githubUrl.trim() || null,
           })),
         // Platform admins only: the server refuses this key from event admins.
-        ...(editing && isGlobalAdmin ? { judgingInProgress } : {}),
+        // Completing or closing the program ends judging.
+        ...(editing && isGlobalAdmin ? { judgingInProgress: status === "completed" || status === "closed" ? false : judgingInProgress } : {}),
       };
 
       const res = editing

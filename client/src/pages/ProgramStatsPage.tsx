@@ -4,6 +4,7 @@ import { Navigation } from "@/components/Navigation";
 import { api, type ApiProgram } from "@/lib/api";
 import type { ProgramStats } from "@/lib/programStats";
 import { ProgramStatsView, UpdatedAt } from "@/components/stats/ProgramStatsView";
+import { StatsLlmsButtons } from "@/components/stats/StatsLlmsButtons";
 import NotFound from "./NotFound";
 
 /**
@@ -67,6 +68,7 @@ const ProgramStatsPage = () => {
           <h1 className="font-display text-3xl md:text-5xl uppercase tracking-tight text-display leading-[0.95] break-words">
             Prize winners and submission stats
           </h1>
+          <StatsLlmsButtons program={{ name: program.name, slug: program.slug }} stats={data.stats} publishedAt={data.publishedAt} />
         </header>
         <ProgramStatsView stats={data.stats} slug={program.slug} />
       </main>

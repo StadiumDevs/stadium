@@ -13,6 +13,10 @@ import { trackedProgramFor, isAbandoned, isCountedEntry } from '../constants/tra
 import { programStatsFor } from '../constants/programStats.js';
 import { computeChecks, computeStats, statsFingerprint } from '../services/program-stats.service.js';
 import { loadPrivacyReview } from '../services/privacy-review.service.js';
+import { renderStatsLlms } from '../services/stats-llms.service.js';
+
+/** Where the public stats page lives (linked from the llms.txt). */
+const siteOrigin = () => (process.env.PUBLIC_SITE_URL || 'https://stadium.joinwebzero.com').replace(/\/+$/, '');
 import auditLog from '../services/program-audit-log.service.js';
 
 const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
@@ -61,6 +65,29 @@ class ProgramStatsController {
     } catch (error) {
       console.error('❌ Error loading published stats:', error);
       fail(res, 500, 'Failed to load the stats');
+    }
+  }
+
+  // Public: the published snapshot as llms.txt, or 404 before publishing.
+  async getLlms(req, res) {
+    try {
+      const ctx = await loadContext(req, res);
+      if (!ctx) return;
+      const snapshot = ctx.program.statsPublishedAt ? await programRepository.getStatsSnapshot(ctx.program.slug) : null;
+      if (!snapshot) return fail(res, 404, 'Stats are not published yet');
+      const text = renderStatsLlms({
+        program: { name: ctx.program.name, slug: ctx.program.slug },
+        stats: snapshot,
+        publishedAt: ctx.program.statsPublishedAt,
+        url: `${siteOrigin()}/programs/${ctx.program.slug}/stats`,
+      });
+      const date = String(ctx.program.statsPublishedAt).slice(0, 10);
+      res.set('Content-Type', 'text/plain; charset=utf-8');
+      res.set('Content-Disposition', `inline; filename="${ctx.program.slug}-stats-llms-${date}.txt"`);
+      res.status(200).send(text);
+    } catch (error) {
+      console.error('❌ Error rendering stats llms.txt:', error);
+      fail(res, 500, 'Failed to render the stats');
     }
   }
 

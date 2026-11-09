@@ -114,3 +114,39 @@ describe('ProgramStatsController', () => {
     expect(res.json.mock.calls[0][0].data.stats).toBe(snapshot);
   });
 });
+
+describe('GET stats/llms.txt', () => {
+  const textRes = () => {
+    const res = mockRes();
+    res.set = vi.fn(() => res);
+    res.send = vi.fn(() => res);
+    return res;
+  };
+
+  it('404 before publishing', async () => {
+    const res = textRes();
+    await controller.getLlms({ params: { slug: SLUG } }, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('serves the published snapshot as plain text, without emails', async () => {
+    const pub = mockRes();
+    await controller.publish(admin, pub);
+    const snapshot = pub.json.mock.calls[0][0].data.stats;
+    programService.findBySlug.mockResolvedValue({ id: 'p1', slug: SLUG, name: 'Free Society Hack', statsPublishedAt: '2026-11-09T10:00:00.000Z' });
+    programRepo.getStatsSnapshot.mockResolvedValue(snapshot);
+    const res = textRes();
+    await controller.getLlms({ params: { slug: SLUG } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.set).toHaveBeenCalledWith('Content-Type', 'text/plain; charset=utf-8');
+    expect(res.set).toHaveBeenCalledWith('Content-Disposition', `inline; filename="${SLUG}-stats-llms-2026-11-09.txt"`);
+    const text = res.send.mock.calls[0][0];
+    expect(text).toContain('Format: stats-llms v1');
+    expect(text).toContain('Snapshot published: 2026-11-09T10:00:00.000Z');
+    expect(text).toContain('/programs/free-society-hack-2026/stats');
+    // Package names (@noir-wallet/sdk) and X handles may appear; emails never.
+    expect(text).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+    expect(text).not.toContain('x.io');
+    expect(text).not.toContain('Example Project');
+  });
+});

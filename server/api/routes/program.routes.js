@@ -109,6 +109,8 @@ router.get('/:slug/projects', programController.listProjects);
 router.get('/:slug/results', submissionController.publicResults);
 // Public: the prize winners and submission stats page (the published snapshot only).
 router.get('/:slug/stats', programStatsController.getPublished);
+// Public: the published stats page as llms.txt (plain text, versioned, no emails).
+router.get('/:slug/stats/llms.txt', programStatsController.getLlms);
 // Platform admin: live stats with data checks, and publish / republish the snapshot.
 router.get('/:slug/stats/preview', requireProgramAdmin('slug'), programStatsController.preview);
 router.post('/:slug/stats/publish', requireProgramAdmin('slug'), programStatsController.publish);

@@ -173,7 +173,32 @@ export const mockTracked = {
       .filter((s) => s.status !== "draft" && !s.isTestEntry)
       .map((s) => toPublic(s, published))
       .sort((a, b) => (published ? bestPrize(b) - bestPrize(a) : 0) || a.createdAt.localeCompare(b.createdAt));
-    return { published, submissions, ranking: published ? state.resultsRanking ?? null : null };
+    if (!published) return { published, submissions, ranking: null, judgesByTrack: null };
+    // Like server public-scores.service.js: the score each track was ranked on at publish.
+    const profile = getProgramProfile(slug);
+    const ranking = state.resultsRanking ?? null;
+    const bySubmission = new Map<string, Partial<Record<JudgedTrack, { score: number; max: number }>>>();
+    const judgesByTrack: Partial<Record<JudgedTrack, number>> = {};
+    // A track judged outside Stadium (FSH Agentic Commerce, by Bitrefill) never shows a score.
+    const unscored = programStatsFor(slug)?.unscoredTrack.track ?? null;
+    for (const t of profile?.tracks ?? []) {
+      if (t.id === unscored) continue;
+      const scored = this.leaderboard(slug, t.id).rows.filter((r) => r.judgeCount > 0);
+      if (!scored.length) continue;
+      judgesByTrack[t.id] = new Set(scored.flatMap((r) => r.judgeScores.map((j) => j.judgeEmail))).size;
+      const normalized = !!ranking?.[t.id]?.normalized;
+      for (const r of scored) {
+        const value = normalized && r.normTotal != null ? r.normTotal : r.avgTotal;
+        if (value == null) continue;
+        bySubmission.set(r.submissionId, { ...bySubmission.get(r.submissionId), [t.id]: { score: Math.round(value * 10) / 10, max: maxScore(t.rubric) } });
+      }
+    }
+    return {
+      published,
+      submissions: submissions.map((s) => (bySubmission.has(s.id) ? { ...s, scores: bySubmission.get(s.id) } : s)),
+      ranking,
+      judgesByTrack,
+    };
   },
 
   /** Public: a winner's project page. Null for non-winners or before publishing. */

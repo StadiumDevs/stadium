@@ -48,6 +48,8 @@ export type ProgramTrack = {
   rubric: Rubric;
   /** Requires a testnet transaction id on submit. */
   requiresTxid: boolean;
+  /** Public caption for the final scores on the project cards; {n} = judges who scored the track. */
+  judgesNote?: string;
 };
 
 /** A judge's profile. `email` is null for other judges (the server shows a judge only their own). */
@@ -242,6 +244,7 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
       prizePrefix: "Privacy:",
       rubric: PRIVACY_RUBRIC,
       requiresTxid: true,
+      judgesNote: "Ranked by {n} human judges across the Zcash ecosystem",
     },
     {
       id: "agentic",

@@ -80,6 +80,21 @@ export function SubmissionCard({
         {isEcosystem(s) && <EcosystemBadge label={profile.milestone.flagLabel} />}
       </div>
 
+      {s.scores && Object.keys(s.scores).length > 0 && (
+        <dl className="flex flex-wrap gap-x-4 gap-y-1" data-testid="card-scores">
+          {profile.tracks
+            .filter((t) => s.scores?.[t.id])
+            .map((t) => (
+              <div key={t.id} className="flex items-baseline gap-1.5" data-testid="card-score" data-track={t.id}>
+                <dt className="label-hw-dim">{t.shortLabel}</dt>
+                <dd className="font-mono text-display text-[13px]">
+                  {s.scores![t.id]!.score} <span className="text-label-dim text-[11px]">/ {s.scores![t.id]!.max}</span>
+                </dd>
+              </div>
+            ))}
+        </dl>
+      )}
+
       {prizes.length > 0 && (
         <ul className="space-y-0.5">
           {prizes.map(([t, p]) => (

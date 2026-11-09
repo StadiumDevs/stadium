@@ -618,7 +618,8 @@ const ProgramDetailPage = () => {
                 <span className={`led led-sm ${program.status === "open" ? "led-pulse" : ""}`} aria-hidden="true" />
                 <span className="label-hw text-display">{program.status.toUpperCase()}</span>
               </div>
-              {program.judgingInProgress && (
+              {/* Judging is over once the program is completed or closed. */}
+              {program.judgingInProgress && program.status !== "completed" && program.status !== "closed" && (
                 <div className="lcd inline-flex items-center gap-2 px-3 py-1.5" data-testid="judging-badge">
                   <span className="led led-sm led-warn led-pulse" aria-hidden="true" />
                   <span className="label-hw text-display">JUDGING IN PROGRESS</span>
@@ -641,7 +642,7 @@ const ProgramDetailPage = () => {
                 programSlug={program.slug}
                 submissions={tracked.submissions}
                 published={tracked.published}
-                ranking={tracked.ranking}
+                judgesByTrack={tracked.judgesByTrack}
               />
             </div>
           )}
@@ -911,7 +912,7 @@ const ProgramDetailPage = () => {
                 programSlug={program.slug}
                 submissions={tracked.submissions}
                 published={tracked.published}
-                ranking={tracked.ranking}
+                judgesByTrack={tracked.judgesByTrack}
               />
             </div>
           )}
