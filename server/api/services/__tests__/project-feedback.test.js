@@ -69,8 +69,20 @@ describe('matching to submissions', () => {
   it('the payload carries the text and version only', () => {
     const zeno = fb.projects.find((p) => p.title === 'Zeno Wallet');
     const got = feedbackBySubmission(fb, [sub('z', 'Zeno Wallet', zeno.repo)]).get('z');
-    expect(Object.keys(got).sort()).toEqual(['basis', 'facts', 'generatedBy', 'generatedDate', 'improve', 'summary', 'version', 'worked']);
+    expect(Object.keys(got).sort()).toEqual(['about', 'basis', 'facts', 'generatedBy', 'generatedDate', 'improve', 'summary', 'version', 'worked']);
     expect(got.version).toBe('1.0.1');
+    // The "AI-generated" popup: facts from the fixture's version block, nothing about normalization.
+    expect(got.about).toEqual({
+      model: 'claude-opus-5-5',
+      generatedDate: '9 Nov 2026',
+      projectCount: 48,
+      projectsWithNotes: 42,
+      notesCount: 72,
+      factCheckSources: ['public git histories and READMEs', 'the Privacy Track Tech Review v1.0', "the event's Bitrefill developer docs", 'zips.z.cash'],
+      version: '1.0.1',
+      latestChange: 'Zec Start and Mirage prize lines corrected to match the awarded prizes (Zec Start: third prize; Mirage: second prize).',
+    });
+    expect(JSON.stringify(got.about).toLowerCase()).not.toContain('normaliz');
   });
 
   it('client mirror gives the same result', () => {

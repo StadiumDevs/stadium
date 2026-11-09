@@ -1,7 +1,58 @@
-import type { ApiPublicSubmission } from "@/lib/api";
+import type { ApiProjectFeedback, ApiPublicSubmission } from "@/lib/api";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { criterionName, type ProgramProfile } from "@/lib/programProfiles";
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+/** "a, b, c and d" */
+const listText = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+/** The "AI-generated" link and its popup: how the feedback was written, from the fixture's facts. */
+function AiGeneratedInfo({ about }: { about: ApiProjectFeedback["about"] }) {
+  const withoutNotes = about.projectCount - about.projectsWithNotes;
+  return (
+    <Popover>
+      <PopoverTrigger
+        className="underline decoration-dotted underline-offset-2 hover:text-display-dim focus:outline-none focus-visible:ring-1 focus-visible:ring-display"
+        aria-label="How this feedback was AI-generated"
+        data-testid="ai-generated-link"
+      >
+        AI-GENERATED
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="z-[200] w-[min(22rem,calc(100vw-2rem))] border border-hairline bg-panel-deep shadow-lg p-3 text-[12px] leading-relaxed text-body normal-case tracking-normal font-sans space-y-2"
+        data-testid="ai-generated-popup"
+      >
+        <div className="label-hw text-display">How this feedback was written</div>
+        <p>
+          Written by Claude{about.model ? ` (${about.model})` : ""}, Anthropic's AI model, on {about.generatedDate} for the Free Society
+          Hack organisers, after judging closed and results were published. It did not affect any score or prize.
+        </p>
+        <p>
+          It was given each project's submission (pitch, description, repository and next milestone), its judge scores on every rubric
+          criterion compared with the track median, and the judges' notes.
+        </p>
+        <p>
+          Judges could leave optional written notes while scoring: {about.notesCount} notes on {about.projectsWithNotes} of the{" "}
+          {about.projectCount} projects. For those projects the feedback mostly summarises what the judges actually wrote, paraphrased
+          rather than quoted, with no judge named; vague notes (for example a single word) were left out.
+          {withoutNotes > 0 && ` The other ${withoutNotes} projects had no notes, so their feedback comes from the scores alone and says so.`}
+        </p>
+        {about.factCheckSources.length > 0 && (
+          <p>
+            Every factual claim in a judge's note was checked first, against {listText(about.factCheckSources)}. Claims that couldn't be
+            checked were dropped or worded as what a judge observed; checked ones are listed under "Checked facts" with their source.
+          </p>
+        )}
+        <p className="text-label-dim">
+          Feedback v{about.version} · {about.generatedDate}
+          {about.latestChange ? ` · ${about.latestChange}` : ""}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 /**
  * A project's published scores: per judged track, the normalized average total
@@ -52,7 +103,9 @@ export function ProjectScores({ profile, submission: s }: { profile: ProgramProf
 
       {fb && (
         <section data-testid="project-feedback">
-          <div className="label-hw text-display mb-2">·JUDGES' FEEDBACK (AI-GENERATED)</div>
+          <div className="label-hw text-display mb-2">
+            ·JUDGES' FEEDBACK (<AiGeneratedInfo about={fb.about} />)
+          </div>
           <p className="text-body text-[13px] leading-relaxed mb-3" data-testid="feedback-summary">
             {fb.summary}
           </p>
@@ -97,9 +150,7 @@ export function ProjectScores({ profile, submission: s }: { profile: ProgramProf
             </p>
           )}
           <p className="label-hw-dim normal-case mt-3" data-testid="feedback-note">
-            Written by {fb.generatedBy.split(" in a ")[0].replace(", configured model", "")} from the normalized judge scores and the judges' notes, anonymised and
-            paraphrased; facts checked against public sources. Judges are not named or quoted. Feedback v{fb.version},{" "}
-            {fb.generatedDate}.
+            AI-generated from the judges' scores and notes · v{fb.version} · {fb.generatedDate}
           </p>
         </section>
       )}

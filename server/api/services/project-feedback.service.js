@@ -26,11 +26,24 @@ const asReview = (fb) => ({
   projects: fb.projects.map((p) => ({ shortName: p.title, title: p.title, repo: p.repo })),
 });
 
+/** How the feedback was written (for the page's "AI-generated" popup); from the fixture's version block. */
+const aboutOf = (v) => ({
+  model: (v.generatedBy.match(/\((claude-[\w-]+)/) ?? [])[1] ?? null,
+  generatedDate: v.generatedDate,
+  projectCount: v.projectCount,
+  projectsWithNotes: v.projectsWithNotes,
+  notesCount: v.notesCount,
+  factCheckSources: v.factCheckSources ?? [],
+  version: v.version,
+  latestChange: v.changelog?.[0] && v.changelog[0].version === v.version ? v.changelog[0].text : null,
+});
+
 /** submissionId → the public feedback payload, for rows that matched exactly one submission. */
 export function feedbackBySubmission(fb, submissions) {
   const out = new Map();
   if (!fb) return out;
   const byTitle = new Map(fb.projects.map((p) => [p.title, p]));
+  const about = aboutOf(fb.version);
   for (const m of matchReviewRows(asReview(fb), submissions)) {
     if (m.status !== 'matched') continue;
     const p = byTitle.get(m.shortName);
@@ -43,6 +56,7 @@ export function feedbackBySubmission(fb, submissions) {
       version: fb.version.version,
       generatedDate: fb.version.generatedDate,
       generatedBy: fb.version.generatedBy,
+      about,
     });
   }
   return out;

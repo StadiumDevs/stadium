@@ -738,6 +738,17 @@ export type ApiProjectFeedback = {
   version: string;
   generatedDate: string;
   generatedBy: string;
+  /** How the feedback was written (the "AI-generated" popup). */
+  about: {
+    model: string | null;
+    generatedDate: string;
+    projectCount: number;
+    projectsWithNotes: number;
+    notesCount: number;
+    factCheckSources: string[];
+    version: string;
+    latestChange: string | null;
+  };
 };
 
 /** Public, email-free projection of a tracked submission. */

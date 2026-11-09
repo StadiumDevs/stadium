@@ -1,6 +1,15 @@
 {
   "version": {
     "version": "1.0.1",
+    "projectCount": 48,
+    "notesCount": 72,
+    "projectsWithNotes": 42,
+    "factCheckSources": [
+      "public git histories and READMEs",
+      "the Privacy Track Tech Review v1.0",
+      "the event's Bitrefill developer docs",
+      "zips.z.cash"
+    ],
     "generated": "9 Nov 2026, 21:30 CET (20:30 UTC)",
     "generatedDate": "9 Nov 2026",
     "generatedBy": "Claude (claude-opus-5-5, configured model) in a Claude session for the Free Society Hack organisers",
