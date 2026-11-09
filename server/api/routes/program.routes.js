@@ -4,6 +4,7 @@ import multer from 'multer';
 import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
 import trackedResultsController from '../controllers/tracked-results.controller.js';
+import programStatsController from '../controllers/program-stats.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
@@ -106,6 +107,11 @@ router.get('/:slug', programController.getBySlug);
 router.get('/:slug/projects', programController.listProjects);
 // Public, PII-free: all submissions + winners, only once results are published.
 router.get('/:slug/results', submissionController.publicResults);
+// Public: the prize winners and submission stats page (the published snapshot only).
+router.get('/:slug/stats', programStatsController.getPublished);
+// Platform admin: live stats with data checks, and publish / republish the snapshot.
+router.get('/:slug/stats/preview', requireProgramAdmin('slug'), programStatsController.preview);
+router.post('/:slug/stats/publish', requireProgramAdmin('slug'), programStatsController.publish);
 
 // --- Phase 1 revamp: admin create/edit (#46) ---
 router.post('/', requireAdmin, programController.createProgram);

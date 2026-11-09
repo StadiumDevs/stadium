@@ -1,60 +1,38 @@
-// Automatic submission categories (agents, rewards, wallets…) for programs
-// with `categories` in their profile. Derived on every render from the
-// submission's own text, never stored: editing a pitch re-files the project.
-import type { ApiTrackedSubmission } from "./api";
-import type { SubmissionCategory } from "./programProfiles";
+// Submission categories for programs with `categories` in their profile (Free
+// Society Hack: the curated map in programStatsConfig.ts). A project is
+// matched by id or title (programStats.ts categorize); anything unmatched is
+// Uncategorized, with a keyword-based suggestion for the admin preview. The
+// judging table, the ranked CSV, the admin chart and the stats page all use this.
+import type { SubmissionCategory } from "./programStatsConfig";
+import { UNCATEGORIZED } from "./programStatsConfig";
+import { categorize, suggestCategory } from "./programStats";
 
-export const OTHER_CATEGORY = { id: "other", label: "Other" } as const;
+export { UNCATEGORIZED };
 
-export type CategoryMatch = { id: string; label: string; matched: string[] };
+export type CategoryMatch = { id: string; label: string; by: "id" | "title" | null; suggested: string | null };
 
-type Classifiable = Pick<ApiTrackedSubmission, "projectTitle"> & {
+type Classifiable = {
+  id?: string;
+  projectTitle: string;
   projectBrief?: string | null;
-  details?: { pitch?: string | null; appType?: string | null } | null;
+  details?: { pitch?: string | null } | null;
 };
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// A keyword matches at the start of a word, so "agent" also matches "agents"
-// and "agentic", but "age" doesn't match "page".
-const hits = (text: string, kw: string) => (text.match(new RegExp(`\\b${escape(kw.toLowerCase())}`, "g")) ?? []).length;
-
-/**
- * The best-matching category: title hits count 3, pitch / brief / app type 1.
- * Ties go to the category listed first; no hit at all is "Other".
- */
 export function classifySubmission(categories: SubmissionCategory[], s: Classifiable): CategoryMatch {
-  const title = s.projectTitle.toLowerCase();
-  const body = [s.details?.pitch, s.projectBrief, s.details?.appType].filter(Boolean).join(" \n ").toLowerCase();
-  let best: CategoryMatch | null = null;
-  let bestScore = 0;
-  for (const c of categories) {
-    let score = 0;
-    const matched: string[] = [];
-    for (const kw of c.keywords) {
-      const n = 3 * hits(title, kw) + hits(body, kw);
-      if (n > 0) {
-        score += n;
-        matched.push(kw);
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      best = { id: c.id, label: c.label, matched };
-    }
-  }
-  return best ?? { ...OTHER_CATEGORY, matched: [] };
+  const hit = categorize(categories, { id: s.id ?? "", projectTitle: s.projectTitle });
+  return { ...hit, suggested: hit.by ? null : suggestCategory(categories, s) };
 }
 
-/** Counts per category in config order (Other last, only when used), largest first. */
+/** Counts per category in config order (Uncategorized last, only when used), largest first. */
 export function countByCategory(categories: SubmissionCategory[], subs: Classifiable[]) {
   const counts = new Map<string, number>();
   for (const s of subs) {
     const c = classifySubmission(categories, s);
     counts.set(c.id, (counts.get(c.id) ?? 0) + 1);
   }
-  return [...categories, OTHER_CATEGORY]
+  return [...categories, UNCATEGORIZED]
     .map((c) => ({ id: c.id, label: c.label, count: counts.get(c.id) ?? 0 }))
-    .filter((c) => c.count > 0 || c.id !== OTHER_CATEGORY.id)
+    .filter((c) => c.count > 0 || c.id !== UNCATEGORIZED.id)
     .sort((a, b) => b.count - a.count);
 }
 

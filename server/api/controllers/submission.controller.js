@@ -781,7 +781,8 @@ class SubmissionController {
         status: 'success',
         data: {
           published: !!program.resultsPublishedAt,
-          submissions: toPublicList(rows, !!program.resultsPublishedAt),
+          // Test entries (an organiser trying the form) are never public.
+          submissions: toPublicList(rows.filter((s) => !s.isTestEntry), !!program.resultsPublishedAt),
           // How each track was ranked when published (null until then).
           ranking: program.resultsPublishedAt ? program.resultsRanking ?? null : null,
         },
@@ -940,8 +941,9 @@ class SubmissionController {
       // A draft with no track yet has nothing to score; after the deadline an
       // unfinalized draft is abandoned and leaves every list.
       const closed = submissionsClosed(tracked, program);
+      // Test entries (an organiser trying the form) are never judged.
       const rows = (await programSubmissionRepository.listByProgramId(program.id)).filter(
-        (s) => s.status !== 'draft' || (!!s.details?.track && !closed),
+        (s) => !s.isTestEntry && (s.status !== 'draft' || (!!s.details?.track && !closed)),
       );
       const isJudgeOnly = req.user?.role === 'judge';
       const data = rows.map((s) => ({

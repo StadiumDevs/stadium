@@ -16,6 +16,7 @@ import { useBrightness } from "@/hooks/use-brightness";
 import WinnersPage from "./pages/WinnersPage";
 import ProgramsPage from "./pages/ProgramsPage";
 import ProgramDetailPage from "./pages/ProgramDetailPage";
+import ProgramStatsPage from "./pages/ProgramStatsPage";
 import AdminProgramPage from "./pages/AdminProgramPage";
 import AppAdminsPage from "./pages/AppAdminsPage";
 import ProgramWinnerPage from "./pages/ProgramWinnerPage";
@@ -54,6 +55,7 @@ const App = () => {
               <Route path="m2-program/:id" element={<ProjectDetailsPage />} />
               <Route path="programs/:slug" element={<ProgramDetailPage />} />
               <Route path="programs/:slug/projects/:submissionId" element={<ProgramWinnerPage />} />
+              <Route path="programs/:slug/stats" element={<ProgramStatsPage />} />
               <Route path="admin/programs/:slug" element={<AdminProgramPage />} />
               <Route path="admin/app-admins" element={<AppAdminsPage />} />
               <Route path="winners/:hackathon" element={<WinnersPage />} />

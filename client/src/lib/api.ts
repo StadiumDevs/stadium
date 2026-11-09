@@ -1,5 +1,6 @@
 import type { ExperienceRatingCategory, ExperienceRatings } from "./experienceRatings";
 import type { NormalizationConfig } from "./scoreNormalization";
+import type { ProgramStats, ProgramStatsChecks } from "./programStats";
 
 // Fallbacks: production so Vercel deploy works without env; dev so local works without .env
 const PRODUCTION_API = 'https://stadium-production-996a.up.railway.app/api';
@@ -548,6 +549,8 @@ export type ApiProgram = {
   prizeTiers?: ApiPrizeTier[] | null;
   /** Set when a platform admin publishes results to the public program page. */
   resultsPublishedAt?: string | null;
+  /** When the prize winners and submission stats page was last published (null = not yet). */
+  statsPublishedAt?: string | null;
   /** Honorary mentions for the completed-program results panel. */
   honoraryMentions?: { name: string; videoUrl?: string | null; githubUrl?: string | null }[] | null;
   /** Link to an event photo gallery (e.g. Google Drive folder). */
@@ -692,6 +695,8 @@ export type ApiJudgingProgressRow = { name: string; tracks: JudgedTrack[]; score
 
 /** Admin/judge view of a tracked submission (includes emails). */
 export type ApiTrackedSubmission = ApiSubmission & {
+  /** A test entry (an organiser trying the form): excluded from judging, the leaderboard, the public list and the stats. */
+  isTestEntry?: boolean;
   details: ApiSubmissionDetails;
   /** Judging batch (e.g. evening / morning), from the first submission time. */
   batch?: string | null;
@@ -2800,7 +2805,7 @@ export const api = {
           // Seeded drafts keep their status (abandoned ones drop out after the
           // deadline); drafts saved in the playground stay out (no full details yet).
           submissions: all
-            .filter((x) => !mockTracked.isAbandoned(slug, x))
+            .filter((x) => !mockTracked.isAbandoned(slug, x) && !x.isTestEntry)
             .map((x) => ({ ...x, status: x.status ?? ("submitted" as const), ...stamps[x.lumaEmail.trim().toLowerCase()] })),
           resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
           draftCount: all.filter((x) => x.status === "draft").length,
@@ -3058,6 +3063,51 @@ export const api = {
       headers: adminAuthHeaders(_authHeader),
       body: JSON.stringify({ normalized }),
     });
+  },
+
+  /** Public: the published prize winners and submission stats page (the snapshot), or null before publishing. */
+  getProgramStats: async (slug: string): Promise<{ stats: ProgramStats; publishedAt: string } | null> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return mockTracked.statsPublished(slug);
+    }
+    try {
+      const r = await request(`/programs/${encodeURIComponent(slug)}/stats`);
+      return r.data;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+
+  /** Platform admin: live stats with the data checks, and whether they differ from the published snapshot. */
+  previewProgramStats: async (
+    slug: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ stats: ProgramStats; checks: ProgramStatsChecks; publishedAt: string | null; changedSincePublish: boolean }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const r = mockTracked.statsPreview(slug);
+      if (!r) throw new ApiError("This program has no stats page", 404);
+      return r;
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/stats/preview`, { headers: adminAuthHeaders(_authHeader) });
+    return r.data;
+  },
+
+  /** Platform admin: publish (or republish) the stats snapshot. */
+  publishProgramStats: async (slug: string, _authHeader: AdminAuthArg): Promise<{ stats: ProgramStats; publishedAt: string }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const r = mockTracked.statsPublish(slug);
+      if (!r) throw new ApiError("This program has no stats page", 404);
+      return r;
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/stats/publish`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
+    });
+    return r.data;
   },
 
   /** Admin: re-run the testnet transaction check for one submission. */
