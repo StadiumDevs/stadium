@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
 import { ProgramSpaces } from "@/components/program-spaces";
+import { FeaturedProgramCard } from "@/components/FeaturedProgramCard";
+import { FREE_SOCIETY_HACK_SLUG } from "@/lib/programProfiles";
 import { api, type ApiProgram } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,7 +36,8 @@ const HomePage = () => {
 
       <main className="container mx-auto px-4">
         {/* Hero */}
-        <section className="pt-8 pb-10">
+        <section className="pt-8 pb-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
+          <div className="min-w-0">
           <div className="label-hw-dim mb-3">·DIRECTORY / NOW SHOWING</div>
           <div className="flex items-center gap-3 md:gap-4 mb-4">
             <img
@@ -57,8 +60,20 @@ const HomePage = () => {
               <img src="/logos/arkiv.png" alt="Arkiv" className="h-6 md:h-7 w-auto" />
               <img src="/logos/hyperbridge.png" alt="Hyperbridge" className="h-6 md:h-7 w-auto" />
               <img src="/logos/superteam-germany.png" alt="Superteam Germany" className="h-6 md:h-7 w-auto" />
+              <span className="inline-flex items-center gap-2" title="Zcash Community Grants (ZCG)">
+                <img src="/logos/zcash-white.svg" alt="Zcash Community Grants" className="h-5 md:h-6 w-auto" />
+                <span className="font-mono text-[9px] tracking-[0.14em] text-display leading-tight">
+                  COMMUNITY
+                  <br />
+                  GRANTS
+                </span>
+              </span>
             </div>
           </div>
+          </div>
+
+          {/* Featured event, top right on desktop (below the intro on phones). */}
+          <FeaturedProgramCard programs={allPrograms} slug={FREE_SOCIETY_HACK_SLUG} />
         </section>
 
         {/* Programs — entry point to all WebZero program types */}
@@ -76,7 +91,7 @@ const HomePage = () => {
               <span className="led led-sm" aria-hidden="true" /> READY
             </span>
           </div>
-          <span>POLKADOT · SUPERTEAM · HYPERBRIDGE · ARKIV</span>
+          <span>POLKADOT · SUPERTEAM · HYPERBRIDGE · ARKIV · ZCASH COMMUNITY GRANTS</span>
         </div>
       </footer>
     </div>
