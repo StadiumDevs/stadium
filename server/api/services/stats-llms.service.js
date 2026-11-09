@@ -73,7 +73,6 @@ export function renderStatsLlms({ program, stats, publishedAt, url }) {
   line(`- Privacy: ${h.byTrack.privacy ?? 0}`);
   line(`- Both tracks: ${h.byTrack.both ?? 0}`);
   line(`- Agentic Commerce only: ${h.byTrack.agentic ?? 0}`);
-  line(`- On more than one team: ${h.multiTeamHackers}`);
   line();
 
   // Tracks and categories
@@ -102,12 +101,6 @@ export function renderStatsLlms({ program, stats, publishedAt, url }) {
 
   // Privacy track tech review
   if (review) renderReview(review, line);
-
-  // Multiple teams
-  line('## Hackers on multiple teams');
-  line(`Count: ${stats.multiTeam.count}`);
-  for (const x of stats.multiTeam.hackers) line(`- ${x.name ?? 'Name withheld'}: ${list(x.projects)}`);
-  line();
 
   // Feedback
   line('## Event feedback (anonymized)');

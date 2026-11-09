@@ -187,7 +187,6 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
             ["Privacy", stats.headline.byTrack.privacy ?? 0],
             ["Both tracks", stats.headline.byTrack.both ?? 0],
             ["Agentic Commerce only", stats.headline.byTrack.agentic ?? 0],
-            ["On more than one team", stats.headline.multiTeamHackers],
           ].map(([label, value]) => (
             <div key={label} className="border border-hairline p-2">
               <dt className="label-hw-dim normal-case">{label}</dt>
@@ -282,33 +281,6 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
         </Section>
       )}
 
-      <Section id="multi-team" title="Hackers on multiple teams">
-        <p className="text-display font-mono text-xl mb-2" data-testid="multi-team-count">
-          {stats.multiTeam.count}
-        </p>
-        {stats.multiTeam.count > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[320px] text-[12px] text-body border-collapse" data-testid="multi-team-table">
-              <thead>
-                <tr className="label-hw-dim text-left">
-                  <th className="py-1 pr-2">HACKER</th>
-                  <th className="py-1 pr-2">PROJECTS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.multiTeam.hackers.map((h, i) => (
-                  <tr key={i} className="border-t border-hairline-subtle align-top">
-                    <td className="py-1.5 pr-2 text-display">{h.name ?? <span className="text-label-dim">Name withheld</span>}</td>
-                    <td className="py-1.5 pr-2">
-                      <ProjectNames slug={slug} projects={h.projects} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
 
       <Section id="feedback" title="Event feedback (anonymized)">
         <p className="label-hw-dim normal-case mb-2">
