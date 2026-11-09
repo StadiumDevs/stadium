@@ -42,7 +42,7 @@ export function ProgramStatsHeader({
     (async () => {
       try {
         const auth = await getAuth();
-        const res = await api.getProgramStats(programSlug, auth);
+        const res = await api.getProgramHeaderStats(programSlug, auth);
         if (active) setStats(res.data);
       } catch {
         if (active) setStats(null);

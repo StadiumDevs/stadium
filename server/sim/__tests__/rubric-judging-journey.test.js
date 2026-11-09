@@ -428,6 +428,11 @@ describe('Free Society Hack results — leaderboard, awards, Ecosystem Prize, pu
 
     const asJudgeA = await asJudge('judge-a@example.com', trackedResults.leaderboard, { params: { track: 'privacy' } });
     expect(asJudgeA.body.data.judges).toEqual(['judge-a@example.com', 'Judge B']);
+    // Judge calibration is organizer-only.
+    expect(asAdmin.body.data.judgeStats).toHaveLength(2);
+    expect(asJudgeA.body.data.judgeStats).toBeUndefined();
+    expect(asJudgeA.body.data.rows[0].judgeScores[0].normContribution).toBeUndefined();
+    expect(asJudgeA.body.data.rows[0].normTotal).toEqual(expect.any(Number));
     const wrongTrack = await asJudge('judge-a@example.com', trackedResults.leaderboard, { params: { track: 'agentic' } });
     expect(wrongTrack.status).toBe(403);
 

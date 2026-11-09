@@ -8,7 +8,7 @@ import programService from '../services/program.service.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
-import { trackedProgramFor, isAbandoned } from '../constants/trackedPrograms.js';
+import { trackedProgramFor, isCountedEntry } from '../constants/trackedPrograms.js';
 import { RUBRIC_TRACKS } from '../constants/rubrics.js';
 import {
   computeJudgingProgress,
@@ -74,14 +74,20 @@ class TrackedResultsController {
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
-      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
+      const submissions = all.filter((s) => isCountedEntry(s, ctx.tracked, ctx.program));
       const board = computeLeaderboard({ track, submissions, scores, judges });
       if (isJudgeOnly(req)) {
         const me = req.user.email.toLowerCase();
         const nameOf = new Map(judges.map((j) => [j.email, j.name || j.email.split('@')[0]]));
         const mask = (e) => (e === me ? e : nameOf.get(e) ?? 'Judge');
         board.judges = board.judges.map(mask);
-        for (const r of board.rows) r.judgeScores = r.judgeScores.map((x) => ({ ...x, judgeEmail: mask(x.judgeEmail) }));
+        // Judge calibration (each judge's mean, SD, bias and per-score
+        // contribution) is for organizers only, so judges don't adjust toward
+        // the panel mid-round.
+        delete board.judgeStats;
+        for (const r of board.rows) {
+          r.judgeScores = r.judgeScores.map(({ normContribution, method, ...x }) => ({ ...x, judgeEmail: mask(x.judgeEmail) }));
+        }
       }
       res.status(200).json({ status: 'success', data: board });
     } catch (error) {
@@ -102,7 +108,7 @@ class TrackedResultsController {
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
-      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
+      const submissions = all.filter((s) => isCountedEntry(s, ctx.tracked, ctx.program));
       const me = (req.user?.email || '').toLowerCase();
       const data = computeJudgingProgress({ submissions, scores, judges }).map(({ email, ...row }) => ({
         ...row,

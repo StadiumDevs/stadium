@@ -1,4 +1,7 @@
 import type { ApiPrizeTier, JudgedTrack, SubmissionTrack } from "./api";
+import { DEFAULT_NORMALIZATION, type NormalizationConfig } from "./scoreNormalization";
+import { FSH_CATEGORIES, type SubmissionCategory } from "./programStatsConfig";
+import { withMockTitles } from "./mocks/fshMockCategoryTitles";
 
 /**
  * Per-program configuration for hackathons that go beyond the Bitrefill shape:
@@ -30,6 +33,8 @@ export type Rubric = {
   tieBreaks: TieBreak[];
   /** A project whose average on this criterion is at or below `maxAvg` can't win a prize. */
   winnerGate?: { criterionId: string; maxAvg: number; message: string };
+  /** Per-judge normalization (scoreNormalization.ts). Mirrors server RUBRIC_RANKING. */
+  normalization?: NormalizationConfig;
   /** Full judge instructions, linked from the judge view. */
   guideUrl?: string;
 };
@@ -43,6 +48,8 @@ export type ProgramTrack = {
   rubric: Rubric;
   /** Requires a testnet transaction id on submit. */
   requiresTxid: boolean;
+  /** Public caption for the final scores on the project cards; {n} = judges who scored the track. */
+  judgesNote?: string;
 };
 
 /** A judge's profile. `email` is null for other judges (the server shows a judge only their own). */
@@ -58,6 +65,9 @@ export const batchFor = (profile: ProgramProfile, createdAt: string): string | n
   return (batches.find((b) => b.until && at <= Date.parse(b.until)) ?? batches[batches.length - 1]).id;
 };
 
+/** An automatic submission category: matched by keyword prefixes in the title, pitch and brief. */
+export type { SubmissionCategory } from "./programStatsConfig";
+
 export type MilestoneStep = { id: "agree" | "checkin" | "deliver" | "share" | "payout"; label: string; due: string };
 
 export type ProgramProfile = {
@@ -67,6 +77,11 @@ export type ProgramProfile = {
   /** Teammates besides the point person (server: trackedPrograms.js maxTeam). */
   maxTeammates?: number;
   themes: string[];
+  /**
+   * Categories that submissions are sorted into automatically, by keyword
+   * (submissionCategories.ts), in priority order for ties. Not chosen by teams.
+   */
+  categories?: SubmissionCategory[];
   appTypes: string[];
   /** Show submitted projects on the public page immediately, not only after results. */
   showSubmissionsLive: boolean;
@@ -191,6 +206,7 @@ const PRIVACY_RUBRIC: Rubric = {
     maxAvg: 0,
     message: "Average Works score is 0: this project can't be selected as a winner.",
   },
+  normalization: DEFAULT_NORMALIZATION,
   guideUrl: PRIVACY_JUDGING_GUIDE_URL,
 };
 
@@ -203,6 +219,7 @@ const AGENTIC_RUBRIC: Rubric = {
     { id: "innovation", label: "How innovative the submission is", weight: 1, min: 1, max: 5 },
   ],
   tieBreaks: [{ kind: "criterion", id: "innovation", label: "How innovative" }],
+  normalization: DEFAULT_NORMALIZATION,
 };
 
 export const FREE_SOCIETY_HACK_SLUG = "free-society-hack-2026";
@@ -227,6 +244,7 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
       prizePrefix: "Privacy:",
       rubric: PRIVACY_RUBRIC,
       requiresTxid: true,
+      judgesNote: "Ranked by {n} human judges across the Zcash ecosystem",
     },
     {
       id: "agentic",
@@ -241,6 +259,9 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
   // Solo or a team of up to 4, including the point person.
   maxTeammates: 3,
   themes: ["1. Private payment rails", "2. The first five minutes", "3. Privacy beyond the transaction"],
+  // Free Society Hack categories (both tracks): the curated map from the stats
+  // brief, matched by project id or title (programStatsConfig.ts).
+  categories: withMockTitles(FSH_CATEGORIES),
   appTypes: ["web app", "mobile app", "SDK or library", "CLI", "agent", "other"],
   showSubmissionsLive: true,
   timeZone: { id: "Asia/Kolkata", label: "IST" },

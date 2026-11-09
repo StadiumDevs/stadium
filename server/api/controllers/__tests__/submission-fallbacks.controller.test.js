@@ -213,5 +213,37 @@ describe('GET submissions/public', () => {
     const r404 = mockRes();
     await submissionController.publicSubmissions({ params: { slug: 'bitrefill-2026' } }, r404);
     expect(r404.status).toHaveBeenCalledWith(404);
+    // Before publish: no scores and no judge counts.
+    expect(data.judgesByTrack).toBeNull();
+    expect(data.submissions.every((s) => !s.scores)).toBe(true);
+  });
+
+  it('once published, cards carry the final track score and the judge count (no emails)', async () => {
+    const rubricRepo = (await import('../../repositories/submission-rubric-score.repository.js')).default;
+    const judgeRepo = (await import('../../repositories/program-admin-email.repository.js')).default;
+    programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: '2026-11-06T10:00:00Z', resultsRanking: { privacy: { normalized: false, method: null } } });
+    submissionRepo.listByProgramId.mockResolvedValue([
+      { id: 'a', submitterName: 'Priya', lumaEmail: 'priya@example.com', projectTitle: 'Chai', status: 'submitted', details },
+      { id: 'b', submitterName: 'Sid', lumaEmail: 'sid@example.com', projectTitle: 'Memo', status: 'submitted', details },
+    ]);
+    const crit = (v) => ({ works: v, private: v, easy: v, needed: v, continuing: v, bonus: 0 });
+    const s1 = vi.spyOn(rubricRepo, 'listByProgram').mockResolvedValue([
+      { submissionId: 'a', judgeEmail: 'j1@x.io', track: 'privacy', criteria: crit(3) },
+      { submissionId: 'a', judgeEmail: 'j2@x.io', track: 'privacy', criteria: crit(2) },
+    ]);
+    const s2 = vi.spyOn(judgeRepo, 'listJudges').mockResolvedValue([
+      { email: 'j1@x.io', tracks: ['privacy'] },
+      { email: 'j2@x.io', tracks: ['privacy'] },
+    ]);
+    const res = mockRes();
+    await submissionController.publicSubmissions({ params: { slug: FSH.slug } }, res);
+    const data = res.json.mock.calls[0][0].data;
+    expect(data.judgesByTrack).toEqual({ privacy: 2 });
+    expect(data.submissions.find((s) => s.id === 'a').scores).toEqual({ privacy: { score: 12.5, max: 16 } });
+    expect(data.submissions.find((s) => s.id === 'b').scores).toBeUndefined();
+    expect(JSON.stringify(data)).not.toMatch(/@/);
+    s1.mockRestore();
+    s2.mockRestore();
+    programService.findBySlug.mockResolvedValue(FSH);
   });
 });

@@ -1,4 +1,6 @@
+import { classifySubmission } from "./submissionCategories";
 import type { ApiRubricLeaderboard, ApiTrackedSubmission, JudgedTrack } from "./api";
+import type { StatsCompositeRow } from "./programStats";
 import { trackById, trackLabel, type ProgramJudge, type ProgramProfile } from "./programProfiles";
 
 const cell = (v: string | number | null | undefined) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -145,10 +147,30 @@ export function buildSubmissionsCsv(
 /** Judge name for a judge email (falls back to the email). */
 const judgeName = (judges: ProgramJudge[], email: string) => judges.find((j) => j.email === email)?.name ?? email;
 
+/** How the normalized columns relate (tooltip in the table, note in the CSV). */
+export const NORMALIZATION_NOTE =
+  "Judge-offset model: score = project quality + judge leniency, with the leniencies summing to 0 across the judges who have scored this track. " +
+  "Projects scored by every one of those judges keep their raw average; only projects some judges missed move. " +
+  "normTotal is fitted on the total. The criterion columns are fitted separately (clipped to each criterion's range, bonus raw) and used for display and tie-breaks only, " +
+  "so they add up to normTotal except where a criterion was clipped or for the bonus.";
+
+const Z_SCORE_NOTE =
+  "Per-judge z-scores rescaled to the rubric (judges below the minimum number of scores are mean-centered). This rescales every judge, so projects every judge scored move too.";
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** <slug>-<track>-ranked-normalized-<YYYY-MM-DD>.csv or …-ranked-raw-<date>.csv */
+export const rankedCsvName = (slug: string, track: JudgedTrack, normalized: boolean, date = today()) =>
+  `${slug}-${track}-ranked-${normalized ? "normalized" : "raw"}-${date}.csv`;
+
 /**
- * One track's projects in leaderboard order, with the averages, prize, links,
- * the builder's feedback, and then every judge (by name): total, each
- * criterion, their note (feedback) and the session they scored in.
+ * One track's projects, ranked the way the table shows them. Normalized: in
+ * normalized-rank order with the raw rank, rank change, coverage and the
+ * normalized total and criteria. Raw: in raw-rank order with the raw tie-break
+ * and no normalized columns. Both keep the project, links, team lead and
+ * members, prize, Ecosystem Prize and testnet status, the builder's feedback,
+ * and then every judge (by name): total, each criterion, note and session.
+ * Normalized is ignored (raw) when the track can't normalize yet.
  */
 export function buildRankedCsv(
   profile: ProgramProfile,
@@ -156,14 +178,24 @@ export function buildRankedCsv(
   board: ApiRubricLeaderboard,
   submissions: ApiTrackedSubmission[],
   judges: ProgramJudge[],
+  { normalized = true }: { normalized?: boolean } = {},
 ): string {
   const rubric = trackById(profile, track).rubric;
   const criteria = rubric.criteria;
+  const norm = normalized && !!board.normalization?.enabled && board.normalization.available !== false;
+  const rows = [...board.rows].sort((a, b) =>
+    norm ? (a.normRank ?? Infinity) - (b.normRank ?? Infinity) || a.rank - b.rank : (a.rawRank ?? a.rank) - (b.rawRank ?? b.rank),
+  );
   const header: string[] = [
     "rank",
+    ...(norm ? ["rawRank", "rankChange", "coverage", "fullyScored"] : []),
     "tieBrokenBy",
     "projectTitle",
+    "category",
+    "themes",
+    ...(norm ? ["normTotal"] : []),
     "avgTotal",
+    ...(norm ? criteria.filter((c) => !c.isBonus).map((c) => `${c.id}.norm`) : []),
     ...criteria.map((c) => (c.isBonus ? `${c.id}.judgesGiving` : `${c.id}.avg`)),
     "prize",
     "ecosystemPrize",
@@ -172,6 +204,7 @@ export function buildRankedCsv(
     "pointPersonEmail",
     "contactApp",
     "contactHandle",
+    "teamMembers",
     "publicUrl",
     "demoVideoUrl",
     "repoUrl",
@@ -189,14 +222,22 @@ export function buildRankedCsv(
     const n = judgeName(judges, email);
     header.push(`${n} · total`, ...criteria.map((c) => `${n} · ${c.id}`), `${n} · note`, `${n} · session`);
   }
-  const rows = board.rows.map((r) => {
+  if (norm) header.push("normalizationNote");
+  const body = rows.map((r, i) => {
     const s = submissions.find((x) => x.id === r.submissionId);
     const d = s?.details;
     const row: (string | number | null)[] = [
-      r.rank,
-      r.tieBrokenBy ?? "",
+      norm ? r.normRank ?? "" : r.rawRank ?? r.rank,
+      ...(norm
+        ? [r.rawRank ?? "", r.rankChange ?? "", r.coverage ? `${r.coverage.scored}/${r.coverage.of}` : "", r.fullyScored ? "yes" : "no"]
+        : []),
+      (norm ? r.normTieBrokenBy : r.rawTieBrokenBy) ?? r.tieBrokenBy ?? "",
       r.projectTitle,
+      profile.categories?.length ? classifySubmission(profile.categories, s ?? { projectTitle: r.projectTitle }).label : "",
+      (d?.themes ?? []).join("; "),
+      ...(norm ? [r.normTotal == null ? "" : fmt(r.normTotal)] : []),
       fmt(r.avgTotal),
+      ...(norm ? criteria.filter((c) => !c.isBonus).map((c) => (r.normByCriterion?.[c.id] == null ? "" : fmt(r.normByCriterion[c.id]))) : []),
       ...criteria.map((c) => (c.isBonus ? r.bonusCount : fmt(r.avgByCriterion[c.id] ?? 0))),
       r.prize ? `${r.prize.label} (${r.prize.amount} ${r.prize.currency})` : "",
       r.ecosystemPrize ? "yes" : "no",
@@ -205,6 +246,7 @@ export function buildRankedCsv(
       s?.lumaEmail ?? "",
       d?.contact?.app ?? "",
       d?.contact?.handle ?? "",
+      (d?.team ?? []).map((m) => m.name).filter(Boolean).join("; "),
       d?.publicUrl ?? "",
       s?.videoUrl ?? "",
       s?.githubUrl ?? "",
@@ -222,9 +264,10 @@ export function buildRankedCsv(
       const js = r.judgeScores.find((x) => x.judgeEmail === email);
       row.push(js ? js.total : "", ...criteria.map((c) => (js ? js.criteria[c.id] ?? "" : "")), js?.notes ?? "", js?.session ?? "");
     }
+    if (norm) row.push(i === 0 ? (board.normalization?.method === "zscore" ? Z_SCORE_NOTE : NORMALIZATION_NOTE) : "");
     return row;
   });
-  return toCsv([header, ...rows]);
+  return toCsv([header, ...body]);
 }
 
 /** Builder feedback (free text), newest first, for the admin list and its CSV. */
@@ -248,3 +291,24 @@ export const buildFeedbackCsv = (items: FeedbackItem[]) =>
     ["submittedAt", "projectTitle", "track", "pointPerson", "feedback"],
     ...items.map((i) => [i.submittedAt, i.projectTitle, i.track, i.pointPerson, i.note]),
   ]);
+
+/** Admin only: the "likely to continue and get support" ranking from the live stats (never published). */
+export function buildCompositeCsv(rows: StatsCompositeRow[]): string {
+  const header = ["rank", "project", "track", "score", "noJudgeScore", "judge", "support", "milestone", "shippedPublicUrl", "shippedDemoVideo", "shippedRepo"];
+  return toCsv([
+    header,
+    ...rows.map((r) => [
+      r.rank,
+      r.project.title,
+      r.project.track ?? "",
+      r.score,
+      r.noJudgeScore ? "yes" : "no",
+      r.breakdown.judge ?? "",
+      r.breakdown.support,
+      r.breakdown.milestone,
+      r.breakdown.shipped.publicUrl,
+      r.breakdown.shipped.demoVideo,
+      r.breakdown.shipped.repo,
+    ]),
+  ]);
+}

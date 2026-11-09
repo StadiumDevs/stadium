@@ -11,7 +11,11 @@ import submissionRefusalRepository from '../repositories/submission-refusal.repo
 import experienceRatingRepository from '../repositories/submission-experience-rating.repository.js';
 import submissionEditorRepository from '../repositories/submission-editor.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
-import { trackedProgramFor, batchFor, submissionsClosed } from '../constants/trackedPrograms.js';
+import { trackedProgramFor, batchFor, submissionsClosed, isCountedEntry } from '../constants/trackedPrograms.js';
+import { RUBRIC_TRACKS } from '../constants/rubrics.js';
+import { computeLeaderboard } from '../services/rubric-leaderboard.service.js';
+import { publicScores } from '../services/public-scores.service.js';
+import { programStatsFor } from '../constants/programStats.js';
 import { toPublicList } from '../utils/public-submission.js';
 import {
   validateSubmission,
@@ -33,6 +37,7 @@ import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
 import { checkAndStore as checkTxAndStore } from '../services/tx-check.service.js';
 import { judgedTracksOf } from '../services/rubric-leaderboard.service.js';
+import { snapshotForProgram } from '../services/results-ranking.service.js';
 
 // On a Luma-gated cache-miss we lazily re-sync, but only if the last sync is
 // older than this floor. Bounds Luma calls when not-on-list emails retry, while
@@ -91,11 +96,19 @@ async function setResultsPublished(req, res, publish) {
     if (!program) {
       return res.status(404).json({ status: 'error', message: 'Program not found' });
     }
-    const updated = await programRepository.setResultsPublished(
-      slug,
-      publish ? new Date().toISOString() : null,
-    );
-    res.status(200).json({ status: 'success', data: { resultsPublishedAt: updated.resultsPublishedAt } });
+    // Tracked programs: store how each track was ranked (the admin's APPLY
+    // NORMALIZATION toggle, sent as `normalized`, default on), so a later
+    // toggle change doesn't change what's public.
+    const tracked = trackedProgramFor(slug);
+    const ranking =
+      publish && tracked
+        ? await snapshotForProgram({ program, tracked, normalized: req.body?.normalized !== false })
+        : null;
+    const updated = await programRepository.setResultsPublished(slug, publish ? new Date().toISOString() : null, ranking);
+    res.status(200).json({
+      status: 'success',
+      data: { resultsPublishedAt: updated.resultsPublishedAt, resultsRanking: updated.resultsRanking ?? null },
+    });
     auditLog.logSafe({
       programId: program.id,
       actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
@@ -761,16 +774,43 @@ class SubmissionController {
   // hidden for anonymous entries). Prizes appear with the awards slice.
   async publicSubmissions(req, res) {
     try {
-      if (!trackedProgramFor(req.params.slug)) {
+      const tracked = trackedProgramFor(req.params.slug);
+      if (!tracked) {
         return res.status(404).json({ status: 'error', message: 'Not a tracked program' });
       }
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
+      const published = !!program.resultsPublishedAt;
       // Drafts are the team's own until finalized.
       const rows = await programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' });
+      // Test entries (an organiser trying the form) are never public.
+      let submissions = toPublicList(rows.filter((s) => !s.isTestEntry), published);
+      let judgesByTrack = null;
+      if (published) {
+        // Final scores on the cards: the score each track was ranked on at publish.
+        const [all, scores, judges] = await Promise.all([
+          programSubmissionRepository.listByProgramId(program.id),
+          submissionRubricScoreRepository.listByProgram(program.id),
+          programAdminEmailRepository.listJudges(program.id),
+        ]);
+        const counted = all.filter((s) => isCountedEntry(s, tracked, program));
+        const boards = Object.fromEntries(RUBRIC_TRACKS.map((t) => [t, computeLeaderboard({ track: t, submissions: counted, scores, judges })]));
+        // A track judged outside Stadium (FSH Agentic Commerce, by Bitrefill) never shows a score.
+        const unscoredTrack = programStatsFor(program.slug)?.unscoredTrack?.track ?? null;
+        const result = publicScores({ boards, ranking: program.resultsRanking ?? null, unscoredTrack });
+        judgesByTrack = result.judgesByTrack;
+        submissions = submissions.map((s) => (result.bySubmission.has(s.id) ? { ...s, scores: result.bySubmission.get(s.id) } : s));
+      }
       res.status(200).json({
         status: 'success',
-        data: { published: !!program.resultsPublishedAt, submissions: toPublicList(rows, !!program.resultsPublishedAt) },
+        data: {
+          published,
+          submissions,
+          // How each track was ranked when published (null until then).
+          ranking: published ? program.resultsRanking ?? null : null,
+          // Judges who scored each track (counts only), once published.
+          judgesByTrack,
+        },
       });
     } catch (error) {
       console.error('❌ Error listing public submissions:', error);
@@ -926,8 +966,9 @@ class SubmissionController {
       // A draft with no track yet has nothing to score; after the deadline an
       // unfinalized draft is abandoned and leaves every list.
       const closed = submissionsClosed(tracked, program);
+      // Test entries (an organiser trying the form) are never judged.
       const rows = (await programSubmissionRepository.listByProgramId(program.id)).filter(
-        (s) => s.status !== 'draft' || (!!s.details?.track && !closed),
+        (s) => !s.isTestEntry && (s.status !== 'draft' || (!!s.details?.track && !closed)),
       );
       const isJudgeOnly = req.user?.role === 'judge';
       const data = rows.map((s) => ({

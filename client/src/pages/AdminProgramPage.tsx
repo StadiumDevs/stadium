@@ -29,6 +29,8 @@ import { RubricJudgingSection } from "@/components/admin/tracked/RubricJudgingSe
 import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdminSection";
 import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
 import { MockPlaygroundBar } from "@/components/admin/tracked/MockPlaygroundBar";
+import { StatsPublishPanel } from "@/components/admin/StatsPublishPanel";
+import { programStatsFor } from "@/lib/programStatsConfig";
 import { RefusedSubmissionsSection } from "@/components/admin/RefusedSubmissionsSection";
 import { getProgramProfile } from "@/lib/programProfiles";
 import { useToast } from "@/hooks/use-toast";
@@ -105,6 +107,14 @@ const AdminProgramPage = () => {
   );
 
   const [program, setProgram] = useState<ApiProgram | null>(null);
+  // Stats page (programs with a stats config): saving the status as completed
+  // opens the preview, where a platform admin publishes the snapshot (or cancels).
+  const [statsPreviewOpen, setStatsPreviewOpen] = useState(false);
+  const hasStatsPage = !!slug && !!programStatsFor(slug);
+  const onProgramSaved = (p: ApiProgram) => {
+    if (hasStatsPage && isGlobalAdmin && p.status === "completed" && program?.status !== "completed") setStatsPreviewOpen(true);
+    setProgram(p);
+  };
   const [applications, setApplications] = useState<ApiProgramApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -352,7 +362,7 @@ const AdminProgramPage = () => {
                   if (!v) setAdminsReload((n) => n + 1); // refresh the read-only list
                 }}
                 program={program}
-                onSaved={(p) => setProgram(p)}
+                onSaved={onProgramSaved}
                 signAuthHeader={isAdminWallet ? getAdminAuth : getJudgeAuth}
                 isGlobalAdmin={isAdminWallet && isGlobalAdmin}
               />
@@ -417,7 +427,16 @@ const AdminProgramPage = () => {
                 </div>
               ) : (
               <>
-                {profile && <MockPlaygroundBar program={program} onProgramChange={setProgram} />}
+                {profile && <MockPlaygroundBar program={program} onProgramChange={onProgramSaved} />}
+
+                {hasStatsPage && isGlobalAdmin && program.status === "completed" && (
+                  <StatsPublishPanel
+                    slug={program.slug}
+                    getAuth={getAdminAuth}
+                    previewOpen={statsPreviewOpen}
+                    onPreviewOpenChange={setStatsPreviewOpen}
+                  />
+                )}
 
                 <ProgramStatsHeader
                   programSlug={program.slug}

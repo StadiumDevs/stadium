@@ -50,6 +50,9 @@ const transform = (row) => {
     acceptedFromRefusalId: row.accepted_from_refusal_id ?? null,
     // Tracked drafts: 'draft' is visible only to the team; 'submitted' is judged.
     status: row.status ?? 'submitted',
+    // A test entry (e.g. an organiser trying the form): excluded from judging,
+    // the leaderboard, the public list and the stats.
+    isTestEntry: row.is_test_entry === true,
     finalizedAt: row.finalized_at ?? null,
     feedbackSubmittedAt: row.feedback_submitted_at ?? null,
     lastEditedAt: row.last_edited_at ?? null,
