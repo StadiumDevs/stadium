@@ -555,7 +555,24 @@ export function RubricJudgingSection({
     setBusy(`prize:${submissionId}`);
     try {
       const auth = await getAuth();
-      const r = await api.awardTrackPrize(programSlug, submissionId, boardTrack, prize, auth);
+      let r;
+      try {
+        r = await api.awardTrackPrize(programSlug, submissionId, boardTrack, prize, auth);
+      } catch (e) {
+        // Not (fully) scored or behind the winner gate: a platform admin can award anyway.
+        const code = (e as { code?: string }).code;
+        if (!prize || (code !== "NOT_FULLY_SCORED" && code !== "WINNER_BLOCKED")) throw e;
+        const title = submissions.find((s) => s.id === submissionId)?.projectTitle ?? "this project";
+        const ok = window.confirm(
+          `${(e as Error).message}\n\nAward "${prize.label}" to ${title} anyway? As a platform admin you can override this; it is recorded in the audit log.`,
+        );
+        if (!ok) {
+          await loadBoard();
+          return;
+        }
+        r = await api.awardTrackPrize(programSlug, submissionId, boardTrack, prize, auth, { override: true });
+        toast({ title: "Prize awarded (override)", description: `${prize.label} → ${title}` });
+      }
       setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? r.data : s)));
       await loadBoard();
     } catch (e) {
@@ -1343,7 +1360,7 @@ export function RubricJudgingSection({
                                 aria-label={`Prize for ${r.projectTitle}`}
                                 value={r.prize ? String(r.prize.amount) : ""}
                                 onChange={(e) => award(r.submissionId, e.target.value)}
-                                disabled={busy === `prize:${r.submissionId}` || (!!r.winnerBlocked && !r.prize)}
+                                disabled={busy === `prize:${r.submissionId}`}
                                 className="bg-panel-deep border border-hairline text-display font-mono text-[11px] px-1 py-1 max-w-[220px]"
                               >
                                 <option value="">No prize</option>

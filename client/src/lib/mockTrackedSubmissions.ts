@@ -454,11 +454,15 @@ export const mockTracked = {
     };
   },
 
-  awardPrize(slug: string, id: string, track: JudgedTrack, prize: ApiPrizeTier | null): ApiTrackedSubmission | null {
+  awardPrize(slug: string, id: string, track: JudgedTrack, prize: ApiPrizeTier | null, override = false): ApiTrackedSubmission | null {
     const state = load(slug);
-    if (prize) {
+    if (prize && !override) {
+      // Like the server: refused (with a code the admin UI can override) when unscored or gated.
+      const coded = (message: string, code: string) => Object.assign(new Error(message), { code });
+      const row = this.leaderboard(slug, track).rows.find((r) => r.submissionId === id);
+      if (!row || row.judgeCount === 0) throw coded("No judge has fully scored this project in this track yet.", "NOT_FULLY_SCORED");
       const blocked = winnerBlockedReason(state, slug, id, track);
-      if (blocked) throw new Error(blocked);
+      if (blocked) throw coded(blocked, "WINNER_BLOCKED");
     }
     let next: ApiTrackedSubmission | null = null;
     state.submissions = state.submissions.map((s) => {
