@@ -174,6 +174,25 @@ describe('computeStats', () => {
     ]);
   });
 
+  it('top per criterion: 6 rubric criteria, highest first, raw or normalized values, no Agentic-only', () => {
+    const w = (id, title, track = 'privacy') => ({ id, projectTitle: title, submitterName: id, lumaEmail: `${id}@x.io`, prizes: id === 'b' ? { privacy: { label: 'Privacy: top prize', amount: 1300, currency: 'USDC' } } : {}, details: { track, pitch: 'p', team: [] } });
+    const subs = [w('a', 'Alpha'), w('b', 'Beta'), w('c', 'Gamma'), w('g', 'Agent', 'agentic'), w('u', 'Unscored')];
+    const row = (id, works, total, normWorks) => ({
+      submissionId: id, judgeCount: 2, avgTotal: total, normTotal: total + 1,
+      avgByCriterion: { works, private: 1, easy: 1, needed: 1, continuing: 1, bonus: 0 },
+      normByCriterion: { works: normWorks, private: 1, easy: 1, needed: 1, continuing: 1, bonus: 0 },
+    });
+    const rows = [row('a', 2, 9, 1.0), row('b', 3, 12, 2.0), row('c', 2, 11, 3.0)];
+    const raw = buildStats({ program, submissions: subs, board: { rows, normalization: null }, ratings: [], config, now: NOW });
+    expect(raw.topByCriterion.map((c) => c.id)).toEqual(['works', 'private', 'easy', 'needed', 'continuing', 'bonus']);
+    const works = raw.topByCriterion[0];
+    expect(works.max).toBe(3);
+    // Raw: Beta 3, then the 2s tie-broken by total (Gamma 11 before Alpha 9); winners flagged; no Agentic-only, no unscored.
+    expect(works.rows.map((x) => [x.project.id, x.score, x.winner])).toEqual([['b', 3, true], ['c', 2, false], ['a', 2, false]]);
+    const norm = buildStats({ program, submissions: subs, board: { rows, normalization: { enabled: true, available: true } }, ratings: [], config, now: NOW });
+    expect(norm.topByCriterion[0].rows.map((x) => [x.project.id, x.score])).toEqual([['c', 3], ['b', 2], ['a', 1]]);
+  });
+
   it('Agentic-only projects: no score anywhere, but in counts and categories', () => {
     const s = run();
     const agentOnly = ['agent-d', 'agent-e'];

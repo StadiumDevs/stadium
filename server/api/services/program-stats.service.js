@@ -228,6 +228,20 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     };
   });
 
+  // 6. Top projects per rubric criterion (judged track only): the values the
+  // track was ranked on (normalized when the board is), every scored project.
+  const rowOf = new Map(board.rows.filter((r) => r.judgeCount > 0).map((r) => [r.submissionId, r]));
+  const criterionValue = (r, id) => (normalized && r.normByCriterion ? r.normByCriterion[id] : r.avgByCriterion?.[id]) ?? 0;
+  const topByCriterion = (RUBRICS[judgeTrack] ?? []).map((c) => ({
+    id: c.id,
+    max: c.max,
+    rows: subs
+      .filter((s) => !onlyUnscored(s) && rowOf.has(s.id) && judged.has(s.id))
+      .map((s) => ({ project: projectRef(s), score: round1(criterionValue(rowOf.get(s.id), c.id)), total: judged.get(s.id), winner: hasPrize(s) }))
+      .sort((a, b) => b.score - a.score || b.total - a.total || a.project.title.localeCompare(b.project.title))
+      .map(({ total: _total, ...x }) => x),
+  }));
+
   // 7. Event feedback: numeric questions only, per track and overall.
   const trackOf = new Map(subs.map((s) => [s.id, s.details.track]));
   const ratingRows = ratings.filter((r) => trackOf.has(r.submissionId) && Number.isFinite(Number(r.score)));
@@ -267,6 +281,7 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     perTrack,
     perCategory,
     topByCategory,
+    topByCriterion,
     feedback,
     // 8. Privacy track tech review (from the versioned fixture).
     ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),

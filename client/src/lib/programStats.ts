@@ -6,6 +6,7 @@
 
 import type { ApiRubricLeaderboard } from "./api";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
+import { getProgramProfile } from "./programProfiles";
 import { UNCATEGORIZED, type ProgramStatsConfig, type SubmissionCategory } from "./programStatsConfig";
 import { buildPrivacyReview, privacyReviewChecks, type PrivacyReview, type PrivacyReviewChecks, type PrivacyReviewData } from "./privacyReview";
 
@@ -58,6 +59,8 @@ export type ProgramStats = {
     unscored: StatsProject[];
     notJudged: StatsProject[];
   }[];
+  /** Per rubric criterion of the judged track: every scored project, highest first. */
+  topByCriterion?: { id: string; max: number; rows: { project: StatsProject; score: number; winner: boolean }[] }[];
   feedback: { minResponses: number; groups: { id: string; label: string; none: boolean; questions: StatsFeedbackQuestion[] }[] };
   /** Privacy track tech review (from the versioned fixture), when the program has one. */
   privacyReview?: PrivacyReview | null;
@@ -285,6 +288,20 @@ export function buildStats({
     };
   });
 
+  const rowOf = new Map(board.rows.filter((r) => r.judgeCount > 0).map((r) => [r.submissionId, r]));
+  const criterionValue = (r: (typeof board.rows)[number], id: string) =>
+    (normalized && r.normByCriterion ? r.normByCriterion[id] : r.avgByCriterion?.[id]) ?? 0;
+  const rubricCriteria = getProgramProfile(program.slug)?.tracks.find((t) => t.id === judgeTrack)?.rubric.criteria ?? [];
+  const topByCriterion = rubricCriteria.map((c) => ({
+    id: c.id,
+    max: c.max,
+    rows: subs
+      .filter((s) => !onlyUnscored(s) && rowOf.has(s.id) && judged.has(s.id))
+      .map((s) => ({ project: projectRef(s), score: round1(criterionValue(rowOf.get(s.id)!, c.id)), total: judged.get(s.id)!, winner: hasPrize(s) }))
+      .sort((a, b) => b.score - a.score || b.total - a.total || a.project.title.localeCompare(b.project.title))
+      .map(({ total: _total, ...x }) => x),
+  }));
+
   const trackOf = new Map(subs.map((s) => [s.id, s.details.track]));
   const ratingRows = ratings.filter((r) => trackOf.has(r.submissionId) && Number.isFinite(Number(r.score)));
   const summarize = (rows: typeof ratingRows): StatsFeedbackQuestion[] =>
@@ -323,6 +340,7 @@ export function buildStats({
     perTrack,
     perCategory,
     topByCategory,
+    topByCriterion,
     feedback,
     // 8. Privacy track tech review (from the versioned fixture).
     ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),
