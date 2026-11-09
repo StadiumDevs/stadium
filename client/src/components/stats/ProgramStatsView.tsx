@@ -4,6 +4,8 @@ import { TRACK_LABELS } from "@/lib/programStats";
 import { cn } from "@/lib/utils";
 import { BarList, ChartFrame, ProjectNames, StackedBars } from "./StatsCharts";
 import { PrivacyReviewSection } from "./PrivacyReviewSection";
+import { getProgramProfile } from "@/lib/programProfiles";
+import { criterionName } from "@/lib/projectReview";
 import { formatIst, STATS_SECTIONS, TRACK_COLORS } from "@/lib/statsDisplay";
 
 export function UpdatedAt({ at }: { at: string }) {
@@ -54,12 +56,22 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
   const [cat, setCat] = useState(stats.topByCategory[0]?.id ?? "");
   const [fbGroup, setFbGroup] = useState("all");
   const top = stats.topByCategory.find((c) => c.id === cat) ?? stats.topByCategory[0];
+  // Top per rubric criterion (judged track): labels from the program's rubric.
+  const byCriterion = stats.topByCriterion ?? [];
+  const [crit, setCrit] = useState(byCriterion[0]?.id ?? "");
+  const [allCrit, setAllCrit] = useState(false);
+  const critTop = byCriterion.find((c) => c.id === crit) ?? byCriterion[0];
+  const rubricCriteria = getProgramProfile(slug)?.tracks.flatMap((t) => t.rubric.criteria) ?? [];
+  const critLabel = (id: string) => rubricCriteria.find((c) => c.id === id)?.label ?? id;
+  const CRIT_TOP = 10;
   const fb = stats.feedback.groups.find((g) => g.id === fbGroup) ?? stats.feedback.groups[0];
   const trackLegend = Object.entries(TRACK_LABELS).map(([id, label]) => ({ label, color: TRACK_COLORS[id] }));
 
   // Slides: one section at a time. The hash (#stats-<id>) picks the slide, so
   // links from the program page land on the right one.
-  const sections = STATS_SECTIONS.filter((s) => s.id !== "privacy-review" || stats.privacyReview);
+  const sections = STATS_SECTIONS.filter(
+    (s) => (s.id !== "privacy-review" || stats.privacyReview) && (s.id !== "top-criterion" || byCriterion.some((c) => c.rows.length)),
+  );
   const fromHash = () => {
     const id = typeof window === "undefined" ? "" : window.location.hash.replace(/^#stats-/, "");
     return sections.some((s) => s.id === id) ? id : sections[0].id;
@@ -187,7 +199,6 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
             ["Privacy", stats.headline.byTrack.privacy ?? 0],
             ["Both tracks", stats.headline.byTrack.both ?? 0],
             ["Agentic Commerce only", stats.headline.byTrack.agentic ?? 0],
-            ["On more than one team", stats.headline.multiTeamHackers],
           ].map(([label, value]) => (
             <div key={label} className="border border-hairline p-2">
               <dt className="label-hw-dim normal-case">{label}</dt>
@@ -276,39 +287,73 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
         )}
       </Section>
 
+      {critTop && (
+        <Section id="top-criterion" title="Top projects per score criterion">
+          <div className="flex flex-wrap gap-1 mb-2" role="tablist" aria-label="Score criterion">
+            {byCriterion.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="tab"
+                aria-selected={c.id === critTop.id}
+                onClick={() => {
+                  setCrit(c.id);
+                  setAllCrit(false);
+                }}
+                className={cn(
+                  "font-mono text-[10px] tracking-[0.08em] border px-2 py-1",
+                  c.id === critTop.id ? "border-display bg-display text-shell" : "border-hairline text-display hover:bg-panel-deep",
+                )}
+                data-testid="criterion-tab"
+              >
+                {criterionName(critLabel(c.id)).toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <p className="label-hw-dim normal-case mb-3" data-testid="criterion-label">
+            {critLabel(critTop.id)}
+          </p>
+          <div role="tabpanel" data-testid="criterion-panel">
+            {critTop.rows.length ? (
+              <>
+                <BarList
+                  slug={slug}
+                  max={critTop.max}
+                  testId="chart-top-criterion"
+                  items={(allCrit ? critTop.rows : critTop.rows.slice(0, CRIT_TOP)).map((x) => ({
+                    key: x.project.id,
+                    label: x.project.title,
+                    value: x.score,
+                    valueLabel: `${x.score} / ${critTop.max}`,
+                    projects: [x.project],
+                    highlight: x.winner,
+                  }))}
+                  hint={`Judge score on this criterion, out of ${critTop.max}. ★ = prize winner.`}
+                />
+                {critTop.rows.length > CRIT_TOP && (
+                  <button
+                    type="button"
+                    onClick={() => setAllCrit((v) => !v)}
+                    className="mt-2 font-mono text-[10px] tracking-[0.12em] border border-hairline text-display px-3 py-1.5 hover:bg-panel-deep"
+                    data-testid="criterion-show-all"
+                  >
+                    {allCrit ? `SHOW TOP ${CRIT_TOP}` : `SHOW ALL (${critTop.rows.length})`}
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="text-label-dim text-[12px]">No scored projects yet.</p>
+            )}
+          </div>
+        </Section>
+      )}
+
       {stats.privacyReview && (
         <Section id="privacy-review" title="Privacy track tech review">
           <PrivacyReviewSection review={stats.privacyReview} slug={slug} />
         </Section>
       )}
 
-      <Section id="multi-team" title="Hackers on multiple teams">
-        <p className="text-display font-mono text-xl mb-2" data-testid="multi-team-count">
-          {stats.multiTeam.count}
-        </p>
-        {stats.multiTeam.count > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[320px] text-[12px] text-body border-collapse" data-testid="multi-team-table">
-              <thead>
-                <tr className="label-hw-dim text-left">
-                  <th className="py-1 pr-2">HACKER</th>
-                  <th className="py-1 pr-2">PROJECTS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.multiTeam.hackers.map((h, i) => (
-                  <tr key={i} className="border-t border-hairline-subtle align-top">
-                    <td className="py-1.5 pr-2 text-display">{h.name ?? <span className="text-label-dim">Name withheld</span>}</td>
-                    <td className="py-1.5 pr-2">
-                      <ProjectNames slug={slug} projects={h.projects} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
 
       <Section id="feedback" title="Event feedback (anonymized)">
         <p className="label-hw-dim normal-case mb-2">

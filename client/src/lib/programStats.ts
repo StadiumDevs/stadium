@@ -6,6 +6,7 @@
 
 import type { ApiRubricLeaderboard } from "./api";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
+import { getProgramProfile } from "./programProfiles";
 import { UNCATEGORIZED, type ProgramStatsConfig, type SubmissionCategory } from "./programStatsConfig";
 import { buildPrivacyReview, privacyReviewChecks, type PrivacyReview, type PrivacyReviewChecks, type PrivacyReviewData } from "./privacyReview";
 
@@ -46,7 +47,7 @@ export type ProgramStats = {
   scoreMax: number;
   unscoredNote: string;
   winners: Record<string, StatsWinner[]>;
-  headline: { submissions: number; hackers: number; teams: number; byTrack: Record<string, number>; multiTeamHackers: number };
+  headline: { submissions: number; hackers: number; teams: number; byTrack: Record<string, number> };
   /** Admin only (CSV download in the admin preview): never in the published snapshot. */
   composite?: StatsCompositeRow[];
   perTrack: { id: string; label: string; count: number; projects: StatsProject[] }[];
@@ -58,7 +59,8 @@ export type ProgramStats = {
     unscored: StatsProject[];
     notJudged: StatsProject[];
   }[];
-  multiTeam: { count: number; hackers: { name: string | null; projects: StatsProject[] }[] };
+  /** Per rubric criterion of the judged track: every scored project, highest first. */
+  topByCriterion?: { id: string; max: number; rows: { project: StatsProject; score: number; winner: boolean }[] }[];
   feedback: { minResponses: number; groups: { id: string; label: string; none: boolean; questions: StatsFeedbackQuestion[] }[] };
   /** Privacy track tech review (from the versioned fixture), when the program has one. */
   privacyReview?: PrivacyReview | null;
@@ -189,35 +191,21 @@ export function buildStats({
 
   const winners: Record<string, StatsWinner[]> = {};
   for (const track of Object.keys(JUDGED_LABELS)) {
+    const amount = (w: Omit<StatsWinner, "place">) => Number(w.prize.amount);
     winners[track] = subs
       .filter((s) => s.prizes?.[track])
-      .sort((a, b) => Number(b.prizes![track]!.amount) - Number(a.prizes![track]!.amount) || a.projectTitle.localeCompare(b.projectTitle))
-      .map((s, i) => ({
-        place: i + 1,
+      .map((s) => ({
         prize: { label: s.prizes![track]!.label, amount: s.prizes![track]!.amount, currency: s.prizes![track]!.currency },
         project: projectRef(s),
         ecosystemPrize: track === judgeTrack && !!s.ecosystemPrize,
         score: track === judgeTrack && judged.has(s.id) ? round1(judged.get(s.id)!) : null,
-      }));
+      }))
+      .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity) || amount(b) - amount(a) || a.project.title.localeCompare(b.project.title))
+      .map((w, i) => ({ place: i + 1, ...w }));
   }
 
-  const hackers = new Map<string, { names: Set<string>; projects: StatsProject[]; anonymous: boolean }>();
-  for (const s of subs) {
-    for (const p of peopleOf(s)) {
-      const h = hackers.get(p.key) ?? { names: new Set<string>(), projects: [], anonymous: false };
-      if (p.name) h.names.add(p.name);
-      h.projects.push(projectRef(s));
-      h.anonymous ||= !!s.details?.anonymous;
-      hackers.set(p.key, h);
-    }
-  }
-  const multi = [...hackers.values()]
-    .filter((h) => h.projects.length > 1)
-    .map((h) => ({
-      name: h.anonymous ? null : [...h.names].sort((a, b) => b.length - a.length)[0] ?? null,
-      projects: h.projects,
-    }))
-    .sort((a, b) => (a.name ?? "~").localeCompare(b.name ?? "~"));
+  const hackers = new Set<string>();
+  for (const s of subs) for (const p of peopleOf(s)) hackers.add(p.key);
 
   const byTrack: Record<string, number> = { privacy: 0, both: 0, agentic: 0 };
   for (const s of subs) byTrack[s.details.track] = (byTrack[s.details.track] ?? 0) + 1;
@@ -226,7 +214,6 @@ export function buildStats({
     hackers: hackers.size,
     teams: subs.length,
     byTrack,
-    multiTeamHackers: multi.length,
   };
 
   const shippedMax = Object.values(weights.shipped).reduce((a, b) => a + b, 0);
@@ -301,6 +288,20 @@ export function buildStats({
     };
   });
 
+  const rowOf = new Map(board.rows.filter((r) => r.judgeCount > 0).map((r) => [r.submissionId, r]));
+  const criterionValue = (r: (typeof board.rows)[number], id: string) =>
+    (normalized && r.normByCriterion ? r.normByCriterion[id] : r.avgByCriterion?.[id]) ?? 0;
+  const rubricCriteria = getProgramProfile(program.slug)?.tracks.find((t) => t.id === judgeTrack)?.rubric.criteria ?? [];
+  const topByCriterion = rubricCriteria.map((c) => ({
+    id: c.id,
+    max: c.max,
+    rows: subs
+      .filter((s) => !onlyUnscored(s) && rowOf.has(s.id) && judged.has(s.id))
+      .map((s) => ({ project: projectRef(s), score: round1(criterionValue(rowOf.get(s.id)!, c.id)), total: judged.get(s.id)!, winner: hasPrize(s) }))
+      .sort((a, b) => b.score - a.score || b.total - a.total || a.project.title.localeCompare(b.project.title))
+      .map(({ total: _total, ...x }) => x),
+  }));
+
   const trackOf = new Map(subs.map((s) => [s.id, s.details.track]));
   const ratingRows = ratings.filter((r) => trackOf.has(r.submissionId) && Number.isFinite(Number(r.score)));
   const summarize = (rows: typeof ratingRows): StatsFeedbackQuestion[] =>
@@ -339,7 +340,7 @@ export function buildStats({
     perTrack,
     perCategory,
     topByCategory,
-    multiTeam: { count: multi.length, hackers: multi },
+    topByCriterion,
     feedback,
     // 8. Privacy track tech review (from the versioned fixture).
     ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),
@@ -369,13 +370,6 @@ export function computeChecks({
     for (const [t, n] of Object.entries(expected.byTrack ?? {})) {
       const got = stats.headline.byTrack[t] ?? 0;
       if (got !== n) mismatches.push(`${TRACK_LABELS[t] ?? t}: ${got} in the database, ${n} expected`);
-    }
-    if (stats.multiTeam.count !== expected.multiTeamHackers) {
-      mismatches.push(`Hackers on more than one team: ${stats.multiTeam.count}, ${expected.multiTeamHackers} expected`);
-    }
-    const names = new Set(stats.multiTeam.hackers.map((h) => norm(h.name)));
-    for (const n of expected.multiTeamNames ?? []) {
-      if (!names.has(norm(n))) mismatches.push(`Expected ${n} on more than one team`);
     }
   }
 
@@ -422,6 +416,11 @@ export const statsFingerprint = (stats: ProgramStats | null) => {
 
 /** What gets published: the stats without the admin-only composite ranking. */
 export const publicSnapshot = (stats: ProgramStats): ProgramStats => {
-  const { composite: _composite, ...rest } = stats;
+  // Admin-only composite; multiple-teams data is no longer published (older snapshots may still have it).
+  const { composite: _composite, multiTeam: _multiTeam, ...rest } = stats as ProgramStats & { multiTeam?: unknown };
+  if (rest.headline && "multiTeamHackers" in rest.headline) {
+    const { multiTeamHackers: _m, ...headline } = rest.headline as ProgramStats["headline"] & { multiTeamHackers?: number };
+    return { ...rest, headline };
+  }
   return rest;
 };

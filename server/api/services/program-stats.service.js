@@ -119,41 +119,28 @@ export function buildStats({ program, submissions, board, ratings, config, revie
   );
   const normalized = !!board.normalization?.enabled && board.normalization?.available !== false;
 
-  // 1. Prize winners, per judged track, best prize first.
+  // 1. Prize winners, per judged track. The judged track is ranked by score
+  // (highest first, so the place is the rank); Agentic Commerce has no Stadium
+  // score, so best prize first. Ties: bigger prize, then title.
   const winners = {};
   for (const track of Object.keys(JUDGED_LABELS)) {
+    const amount = (w) => Number(w.prize.amount);
     winners[track] = subs
       .filter((s) => s.prizes?.[track])
-      .sort((a, b) => Number(b.prizes[track].amount) - Number(a.prizes[track].amount) || a.projectTitle.localeCompare(b.projectTitle))
-      .map((s, i) => ({
-        place: i + 1,
+      .map((s) => ({
         prize: { label: s.prizes[track].label, amount: s.prizes[track].amount, currency: s.prizes[track].currency },
         project: projectRef(s),
         ecosystemPrize: track === judgeTrack && !!s.ecosystemPrize,
         // Agentic Commerce winners show without scores.
         score: track === judgeTrack && judged.has(s.id) ? round1(judged.get(s.id)) : null,
-      }));
+      }))
+      .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity) || amount(b) - amount(a) || a.project.title.localeCompare(b.project.title))
+      .map((w, i) => ({ place: i + 1, ...w }));
   }
 
-  // Hackers across teams, on email.
-  const hackers = new Map();
-  for (const s of subs) {
-    for (const p of peopleOf(s)) {
-      const h = hackers.get(p.key) ?? { names: new Set(), projects: [], anonymous: false };
-      if (p.name) h.names.add(p.name);
-      h.projects.push(projectRef(s));
-      h.anonymous ||= !!s.details?.anonymous;
-      hackers.set(p.key, h);
-    }
-  }
-  const multi = [...hackers.values()]
-    .filter((h) => h.projects.length > 1)
-    .map((h) => ({
-      // Anonymous entries keep names private; the longest spelling otherwise.
-      name: h.anonymous ? null : [...h.names].sort((a, b) => b.length - a.length)[0] ?? null,
-      projects: h.projects,
-    }))
-    .sort((a, b) => (a.name ?? '~').localeCompare(b.name ?? '~'));
+  // Hackers, deduped across teams on email.
+  const hackers = new Set();
+  for (const s of subs) for (const p of peopleOf(s)) hackers.add(p.key);
 
   // 2. Headline numbers.
   const byTrack = { privacy: 0, both: 0, agentic: 0 };
@@ -163,7 +150,6 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     hackers: hackers.size,
     teams: subs.length,
     byTrack,
-    multiTeamHackers: multi.length,
   };
 
   // 3. Composite: likely to continue and get support (0–100).
@@ -242,6 +228,20 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     };
   });
 
+  // 6. Top projects per rubric criterion (judged track only): the values the
+  // track was ranked on (normalized when the board is), every scored project.
+  const rowOf = new Map(board.rows.filter((r) => r.judgeCount > 0).map((r) => [r.submissionId, r]));
+  const criterionValue = (r, id) => (normalized && r.normByCriterion ? r.normByCriterion[id] : r.avgByCriterion?.[id]) ?? 0;
+  const topByCriterion = (RUBRICS[judgeTrack] ?? []).map((c) => ({
+    id: c.id,
+    max: c.max,
+    rows: subs
+      .filter((s) => !onlyUnscored(s) && rowOf.has(s.id) && judged.has(s.id))
+      .map((s) => ({ project: projectRef(s), score: round1(criterionValue(rowOf.get(s.id), c.id)), total: judged.get(s.id), winner: hasPrize(s) }))
+      .sort((a, b) => b.score - a.score || b.total - a.total || a.project.title.localeCompare(b.project.title))
+      .map(({ total: _total, ...x }) => x),
+  }));
+
   // 7. Event feedback: numeric questions only, per track and overall.
   const trackOf = new Map(subs.map((s) => [s.id, s.details.track]));
   const ratingRows = ratings.filter((r) => trackOf.has(r.submissionId) && Number.isFinite(Number(r.score)));
@@ -281,7 +281,7 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     perTrack,
     perCategory,
     topByCategory,
-    multiTeam: { count: multi.length, hackers: multi },
+    topByCriterion,
     feedback,
     // 8. Privacy track tech review (from the versioned fixture).
     ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),
@@ -304,13 +304,6 @@ export function computeChecks({ counted, testEntries = [], stats, config, review
     for (const [t, n] of Object.entries(expected.byTrack ?? {})) {
       const got = stats.headline.byTrack[t] ?? 0;
       if (got !== n) mismatches.push(`${TRACK_LABELS[t] ?? t}: ${got} in the database, ${n} expected`);
-    }
-    if (stats.multiTeam.count !== expected.multiTeamHackers) {
-      mismatches.push(`Hackers on more than one team: ${stats.multiTeam.count}, ${expected.multiTeamHackers} expected`);
-    }
-    const names = new Set(stats.multiTeam.hackers.map((h) => norm(h.name)));
-    for (const n of expected.multiTeamNames ?? []) {
-      if (!names.has(norm(n))) mismatches.push(`Expected ${n} on more than one team`);
     }
   }
 
@@ -352,7 +345,12 @@ export function computeChecks({ counted, testEntries = [], stats, config, review
 /** What gets published: the stats without the admin-only composite ranking. */
 export const publicSnapshot = (stats) => {
   if (!stats) return stats;
-  const { composite: _composite, ...rest } = stats;
+  // Admin-only composite; multiple-teams data is no longer published (older snapshots may still have it).
+  const { composite: _composite, multiTeam: _multiTeam, ...rest } = stats;
+  if (rest.headline && 'multiTeamHackers' in rest.headline) {
+    const { multiTeamHackers: _m, ...headline } = rest.headline;
+    return { ...rest, headline };
+  }
   return rest;
 };
 

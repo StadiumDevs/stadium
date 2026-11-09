@@ -145,7 +145,7 @@ export type ApiProject = {
   /** Live/production website URL */
   liveUrl?: string;
   donationAddress?: string;
-  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
+  bountyPrize?: { name: string; amount: number; currency?: string; hackathonWonAtId: string }[];
   techStack?: string[];
   categories?: string[];
   m2Status?: "building" | "under_review" | "completed";
@@ -415,6 +415,8 @@ export type ApiLeaderboardRow = {
   submissionId: string;
   projectTitle: string;
   submitterName?: string;
+  /** Submitter contact email (admin/judge view only; stripped from public results). */
+  lumaEmail?: string;
   githubUrl?: string;
   videoUrl?: string;
   /** False when the submitter's Luma email isn't in the signup list. */
@@ -430,6 +432,8 @@ export type ApiLeaderboardRow = {
   judgeScores?: { judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }[];
   /** The viewing judge's own score (null = not yet scored), for inline edit + re-save. */
   myScore?: { requirements: number; techStack: number; innovation: number; notes: string } | null;
+  /** Set once this winner has been pushed into the central winners panel. */
+  promotedProjectId?: string | null;
   /** Current prize on this submission (null = not a winner). */
   prizeAmount?: number | null;
   prizeCurrency?: string | null;
@@ -716,6 +720,17 @@ export type ApiTrackedSubmission = ApiSubmission & {
 };
 
 /** Public, email-free projection of a tracked submission. */
+/** A project's final score in one judged track (published results only). */
+export type ApiPublicTrackScore = {
+  /** The total the track was ranked on. */
+  score: number;
+  max: number;
+  /** Judges who scored this project. */
+  judges: number;
+  /** Per rubric category: this project's value and the track average (same scale). */
+  criteria: { id: string; score: number; max: number; trackAvg: number }[];
+};
+
 export type ApiPublicSubmission = {
   id: string;
   projectTitle: string;
@@ -734,7 +749,7 @@ export type ApiPublicSubmission = {
   /** Only true once results are published. */
   ecosystemPrize: boolean;
   /** Once published: the final score per judged track (the score the track was ranked on). Only tracks with scoring judges. */
-  scores?: Partial<Record<JudgedTrack, { score: number; max: number }>>;
+  scores?: Partial<Record<JudgedTrack, ApiPublicTrackScore>>;
   /** The Bitrefill survey answers: admin views only (like the Bitrefill feedback), never public. */
   feedback?: SubmissionPayload["feedback"] | null;
 };
@@ -2613,6 +2628,7 @@ export const api = {
     slug: string,
     submissionId: string,
     authHeader: AdminAuthArg,
+    bounty?: { bountyName?: string; bountyAmount?: number; bountyCurrency?: string },
   ): Promise<{ status: string; data: { projectId: string; alreadyPromoted?: boolean } }> => {
     if (USE_MOCK_DATA) {
       const { mockJudging } = await import("./mockJudging");
@@ -2620,7 +2636,11 @@ export const api = {
     }
     return request(
       `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/promote`,
-      { method: "POST", headers: adminAuthHeaders(authHeader) },
+      {
+        method: "POST",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify(bounty ?? {}),
+      },
     );
   },
 

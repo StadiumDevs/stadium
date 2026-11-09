@@ -86,8 +86,6 @@ export const FSH_COMPOSITE_WEIGHTS = {
 export const FSH_EXPECTED = {
   submissions: 62,
   byTrack: { privacy: 24, both: 24, agentic: 14 },
-  multiTeamHackers: 4,
-  multiTeamNames: ['Madhanraj M', 'Dijo S Benelen', 'Divesh Kumar S', 'Sarnav Kansal'],
 };
 
 export const PROGRAM_STATS = {

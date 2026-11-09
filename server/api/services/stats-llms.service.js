@@ -73,7 +73,6 @@ export function renderStatsLlms({ program, stats, publishedAt, url }) {
   line(`- Privacy: ${h.byTrack.privacy ?? 0}`);
   line(`- Both tracks: ${h.byTrack.both ?? 0}`);
   line(`- Agentic Commerce only: ${h.byTrack.agentic ?? 0}`);
-  line(`- On more than one team: ${h.multiTeamHackers}`);
   line();
 
   // Tracks and categories
@@ -100,14 +99,21 @@ export function renderStatsLlms({ program, stats, publishedAt, url }) {
   }
   line();
 
+  // Top per score criterion
+  const byCriterion = (stats.topByCriterion ?? []).filter((c) => c.rows.length);
+  if (byCriterion.length) {
+    line('## Top projects per score criterion');
+    line('Judge score on each rubric criterion, highest first. ★ = prize winner.');
+    for (const c of byCriterion) {
+      line();
+      line(`### ${c.id.charAt(0).toUpperCase()}${c.id.slice(1)} (out of ${c.max})`);
+      c.rows.forEach((x, i) => line(`${i + 1}. ${x.winner ? '★ ' : ''}${x.project.title} · ${x.score} / ${c.max}`));
+    }
+    line();
+  }
+
   // Privacy track tech review
   if (review) renderReview(review, line);
-
-  // Multiple teams
-  line('## Hackers on multiple teams');
-  line(`Count: ${stats.multiTeam.count}`);
-  for (const x of stats.multiTeam.hackers) line(`- ${x.name ?? 'Name withheld'}: ${list(x.projects)}`);
-  line();
 
   // Feedback
   line('## Event feedback (anonymized)');
