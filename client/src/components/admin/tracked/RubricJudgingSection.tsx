@@ -550,7 +550,7 @@ export function RubricJudgingSection({
   };
 
   const award = async (submissionId: string, amount: string) => {
-    const tiers = tiersForTrack(prizeTiers, trackById(profile, boardTrack));
+    const tiers = tiersForTrack(prizeTiers, trackById(profile, boardTrack), profile);
     const prize = amount === "" ? null : tiers.find((t) => String(t.amount) === amount) ?? null;
     setBusy(`prize:${submissionId}`);
     try {
@@ -1347,8 +1347,8 @@ export function RubricJudgingSection({
                                 className="bg-panel-deep border border-hairline text-display font-mono text-[11px] px-1 py-1 max-w-[220px]"
                               >
                                 <option value="">No prize</option>
-                                {tiersForTrack(prizeTiers, trackById(profile, boardTrack)).map((t) => (
-                                  <option key={t.amount} value={String(t.amount)}>
+                                {tiersForTrack(prizeTiers, trackById(profile, boardTrack), profile).map((t) => (
+                                  <option key={`${t.label}|${t.amount}`} value={String(t.amount)}>
                                     {t.label} (${t.amount})
                                   </option>
                                 ))}
