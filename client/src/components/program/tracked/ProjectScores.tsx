@@ -21,7 +21,11 @@ function AiGeneratedInfo({ about }: { about: ApiProjectFeedback["about"] }) {
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="z-[200] w-[min(22rem,calc(100vw-2rem))] border border-hairline bg-panel-deep shadow-lg p-3 text-[12px] leading-relaxed text-body normal-case tracking-normal font-sans space-y-2"
+        // Always on screen on phones: stays 16px from the edges, flips/shifts to
+        // fit, and scrolls inside when taller than the space available.
+        collisionPadding={16}
+        avoidCollisions
+        className="z-[200] w-[min(22rem,calc(100vw-2rem))] max-h-[min(70vh,var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain border border-hairline bg-panel-deep shadow-lg p-3 text-[12px] leading-relaxed text-body normal-case tracking-normal font-sans space-y-2"
         data-testid="ai-generated-popup"
       >
         <div className="label-hw text-display">How this feedback was written</div>
@@ -45,10 +49,6 @@ function AiGeneratedInfo({ about }: { about: ApiProjectFeedback["about"] }) {
             checked were dropped or worded as what a judge observed; checked ones are listed under "Checked facts" with their source.
           </p>
         )}
-        <p className="text-label-dim">
-          Feedback v{about.version} · {about.generatedDate}
-          {about.latestChange ? ` · ${about.latestChange}` : ""}
-        </p>
       </PopoverContent>
     </Popover>
   );
