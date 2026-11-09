@@ -720,6 +720,17 @@ export type ApiTrackedSubmission = ApiSubmission & {
 };
 
 /** Public, email-free projection of a tracked submission. */
+/** A project's final score in one judged track (published results only). */
+export type ApiPublicTrackScore = {
+  /** The total the track was ranked on. */
+  score: number;
+  max: number;
+  /** Judges who scored this project. */
+  judges: number;
+  /** Per rubric category: this project's value and the track average (same scale). */
+  criteria: { id: string; score: number; max: number; trackAvg: number }[];
+};
+
 export type ApiPublicSubmission = {
   id: string;
   projectTitle: string;
@@ -738,7 +749,7 @@ export type ApiPublicSubmission = {
   /** Only true once results are published. */
   ecosystemPrize: boolean;
   /** Once published: the final score per judged track (the score the track was ranked on). Only tracks with scoring judges. */
-  scores?: Partial<Record<JudgedTrack, { score: number; max: number }>>;
+  scores?: Partial<Record<JudgedTrack, ApiPublicTrackScore>>;
   /** The Bitrefill survey answers: admin views only (like the Bitrefill feedback), never public. */
   feedback?: SubmissionPayload["feedback"] | null;
 };

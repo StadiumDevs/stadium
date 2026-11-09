@@ -11,11 +11,8 @@ import submissionRefusalRepository from '../repositories/submission-refusal.repo
 import experienceRatingRepository from '../repositories/submission-experience-rating.repository.js';
 import submissionEditorRepository from '../repositories/submission-editor.repository.js';
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
-import { trackedProgramFor, batchFor, submissionsClosed, isCountedEntry } from '../constants/trackedPrograms.js';
-import { RUBRIC_TRACKS } from '../constants/rubrics.js';
-import { computeLeaderboard } from '../services/rubric-leaderboard.service.js';
-import { publicScores } from '../services/public-scores.service.js';
-import { programStatsFor } from '../constants/programStats.js';
+import { trackedProgramFor, batchFor, submissionsClosed } from '../constants/trackedPrograms.js';
+import { loadPublicScores } from '../services/public-scores.service.js';
 import { toPublicList } from '../utils/public-submission.js';
 import {
   validateSubmission,
@@ -787,17 +784,8 @@ class SubmissionController {
       let submissions = toPublicList(rows.filter((s) => !s.isTestEntry), published);
       let judgesByTrack = null;
       if (published) {
-        // Final scores on the cards: the score each track was ranked on at publish.
-        const [all, scores, judges] = await Promise.all([
-          programSubmissionRepository.listByProgramId(program.id),
-          submissionRubricScoreRepository.listByProgram(program.id),
-          programAdminEmailRepository.listJudges(program.id),
-        ]);
-        const counted = all.filter((s) => isCountedEntry(s, tracked, program));
-        const boards = Object.fromEntries(RUBRIC_TRACKS.map((t) => [t, computeLeaderboard({ track: t, submissions: counted, scores, judges })]));
-        // A track judged outside Stadium (FSH Agentic Commerce, by Bitrefill) never shows a score.
-        const unscoredTrack = programStatsFor(program.slug)?.unscoredTrack?.track ?? null;
-        const result = publicScores({ boards, ranking: program.resultsRanking ?? null, unscoredTrack });
+        // Final scores: the score each track was ranked on at publish, per category too.
+        const result = await loadPublicScores(program, tracked);
         judgesByTrack = result.judgesByTrack;
         submissions = submissions.map((s) => (result.bySubmission.has(s.id) ? { ...s, scores: result.bySubmission.get(s.id) } : s));
       }

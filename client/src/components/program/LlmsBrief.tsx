@@ -9,7 +9,8 @@ const btn =
  * paste into a coding agent (it saves the brief as AGENTS.md in the new repo).
  * Mirrors the program's llms.txt index.
  */
-export function LlmsBrief({ slug, className = "" }: { slug: string; className?: string }) {
+/** `showTitle={false}` when a collapsible around it already shows the title. */
+export function LlmsBrief({ slug, className = "", showTitle = true }: { slug: string; className?: string; showTitle?: boolean }) {
   const [copied, setCopied] = useState<string | null>(null);
   const tracks = llmsTrackFiles(slug);
   const guideUrl = llmsGuideUrl(slug);
@@ -33,7 +34,7 @@ export function LlmsBrief({ slug, className = "" }: { slug: string; className?: 
   return (
     <div className={`w-full border border-hairline bg-panel-deep p-3 md:p-4 space-y-3 ${className}`} data-testid="program-llms">
       <div className="space-y-1">
-        <div className="label-hw text-display">·FOR AI CODING AGENTS</div>
+        {showTitle && <div className="label-hw text-display">·FOR AI CODING AGENTS</div>}
         <p className="text-body text-[13px] leading-relaxed">
           Load only your track's brief: each one is self-contained (rules, what to submit, how it's judged, the stack). Paste
           the prompt into your coding agent: it saves the brief as AGENTS.md in your new repo, so it reads it locally instead

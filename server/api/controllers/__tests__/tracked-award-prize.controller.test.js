@@ -143,3 +143,29 @@ describe('platform admin override', () => {
     expect((await award('u', 'privacy', 100, { override: true }, { role: 'admin', address: '5Prog' })).status).toHaveBeenCalledWith(403);
   });
 });
+
+describe('publicWinner carries the final scores', () => {
+  const winner = async () => {
+    const res = mockRes();
+    await controller.publicWinner({ params: { slug: FSH.slug, submissionId: 'a' } }, res);
+    return res;
+  };
+
+  it('404 before results are published', async () => {
+    expect((await winner()).status).toHaveBeenCalledWith(404);
+  });
+
+  it('after publish: score, judges and per-category values with the track average; no emails', async () => {
+    programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: '2026-11-09T16:00:00Z', resultsRanking: { privacy: { normalized: false } } });
+    const a = { ...entry('a', 'privacy', { privacy: { label: 'Privacy: top prize', amount: 1300, currency: 'USDC' } }), projectTitle: 'A', submitterName: 'Lead', lumaEmail: 'lead@x.io' };
+    submissionRepo.findById.mockResolvedValue(a);
+    submissionRepo.listByProgramId.mockResolvedValue([a, entry('b'), entry('c')]);
+    const res = await winner();
+    expect(res.status).toHaveBeenCalledWith(200);
+    const data = res.json.mock.calls[0][0].data;
+    expect(data.scores.privacy).toMatchObject({ score: 10, max: 16, judges: 1 });
+    expect(data.scores.privacy.criteria.find((c) => c.id === 'works')).toEqual({ id: 'works', score: 2, max: 3, trackAvg: 2 });
+    expect(JSON.stringify(data)).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+});
+

@@ -22,8 +22,8 @@ describe('public card scores', () => {
   it('scores only scored projects in tracks with scoring judges, never per-judge data', () => {
     const { bySubmission, judgesByTrack } = publicScores({ boards, ranking: { privacy: { normalized: false } } });
     expect(judgesByTrack).toEqual({ privacy: 3 });
-    expect(bySubmission.get('p1')).toEqual({ privacy: { score: 12.5, max: rubricMax('privacy') } });
-    expect(bySubmission.get('p2')).toEqual({ privacy: { score: 7.5, max: 16 } });
+    expect(bySubmission.get('p1')).toMatchObject({ privacy: { score: 12.5, max: rubricMax('privacy'), judges: 2 } });
+    expect(bySubmission.get('p2')).toMatchObject({ privacy: { score: 7.5, max: 16, judges: 2 } });
     expect(bySubmission.has('p3')).toBe(false);
     expect(bySubmission.has('g1')).toBe(false);
     expect(JSON.stringify([...bySubmission.entries()])).not.toMatch(/@/);
@@ -41,7 +41,24 @@ describe('public card scores', () => {
     expect(Object.keys(without.judgesByTrack)).toEqual(['privacy']);
     expect(without.bySubmission.has('g1')).toBe(false);
     expect(all.judgesByTrack.agentic).toBe(1);
-    expect(all.bySubmission.get('g1')).toEqual({ agentic: { score: 12, max: 15 } });
+    expect(all.bySubmission.get('g1')).toMatchObject({ agentic: { score: 12, max: 15, judges: 1 } });
+  });
+
+  it('per category: the raw averages when ranked raw, with the track average and max', () => {
+    const { bySubmission } = publicScores({ boards, ranking: { privacy: { normalized: false } } });
+    const crit = bySubmission.get('p1').privacy.criteria;
+    expect(crit.map((c) => c.id)).toEqual(['works', 'private', 'easy', 'needed', 'continuing', 'bonus']);
+    // p1: judges gave 3 and 2 on every criterion -> 2.5; p2: 1 and 2 -> 1.5; track average 2.
+    expect(crit.find((c) => c.id === 'works')).toEqual({ id: 'works', score: 2.5, max: 3, trackAvg: 2 });
+    expect(crit.find((c) => c.id === 'bonus')).toEqual({ id: 'bonus', score: 0, max: 1, trackAvg: 0 });
+  });
+
+  it('per category: the normalized values when the track was ranked normalized', () => {
+    const row = boards.privacy.rows.find((r) => r.submissionId === 'p1');
+    const { bySubmission } = publicScores({ boards, ranking: { privacy: { normalized: true } } });
+    const works = bySubmission.get('p1').privacy.criteria.find((c) => c.id === 'works');
+    const expected = row.normByCriterion ? Math.round(row.normByCriterion.works * 10) / 10 : 2.5;
+    expect(works.score).toBe(expected);
   });
 
   it('uses the normalized total when the track was ranked normalized at publish', () => {
