@@ -119,20 +119,23 @@ export function buildStats({ program, submissions, board, ratings, config, revie
   );
   const normalized = !!board.normalization?.enabled && board.normalization?.available !== false;
 
-  // 1. Prize winners, per judged track, best prize first.
+  // 1. Prize winners, per judged track. The judged track is ranked by score
+  // (highest first, so the place is the rank); Agentic Commerce has no Stadium
+  // score, so best prize first. Ties: bigger prize, then title.
   const winners = {};
   for (const track of Object.keys(JUDGED_LABELS)) {
+    const amount = (w) => Number(w.prize.amount);
     winners[track] = subs
       .filter((s) => s.prizes?.[track])
-      .sort((a, b) => Number(b.prizes[track].amount) - Number(a.prizes[track].amount) || a.projectTitle.localeCompare(b.projectTitle))
-      .map((s, i) => ({
-        place: i + 1,
+      .map((s) => ({
         prize: { label: s.prizes[track].label, amount: s.prizes[track].amount, currency: s.prizes[track].currency },
         project: projectRef(s),
         ecosystemPrize: track === judgeTrack && !!s.ecosystemPrize,
         // Agentic Commerce winners show without scores.
         score: track === judgeTrack && judged.has(s.id) ? round1(judged.get(s.id)) : null,
-      }));
+      }))
+      .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity) || amount(b) - amount(a) || a.project.title.localeCompare(b.project.title))
+      .map((w, i) => ({ place: i + 1, ...w }));
   }
 
   // Hackers, deduped across teams on email.
@@ -225,6 +228,20 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     };
   });
 
+  // 6. Top projects per rubric criterion (judged track only): the values the
+  // track was ranked on (normalized when the board is), every scored project.
+  const rowOf = new Map(board.rows.filter((r) => r.judgeCount > 0).map((r) => [r.submissionId, r]));
+  const criterionValue = (r, id) => (normalized && r.normByCriterion ? r.normByCriterion[id] : r.avgByCriterion?.[id]) ?? 0;
+  const topByCriterion = (RUBRICS[judgeTrack] ?? []).map((c) => ({
+    id: c.id,
+    max: c.max,
+    rows: subs
+      .filter((s) => !onlyUnscored(s) && rowOf.has(s.id) && judged.has(s.id))
+      .map((s) => ({ project: projectRef(s), score: round1(criterionValue(rowOf.get(s.id), c.id)), total: judged.get(s.id), winner: hasPrize(s) }))
+      .sort((a, b) => b.score - a.score || b.total - a.total || a.project.title.localeCompare(b.project.title))
+      .map(({ total: _total, ...x }) => x),
+  }));
+
   // 7. Event feedback: numeric questions only, per track and overall.
   const trackOf = new Map(subs.map((s) => [s.id, s.details.track]));
   const ratingRows = ratings.filter((r) => trackOf.has(r.submissionId) && Number.isFinite(Number(r.score)));
@@ -264,6 +281,7 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     perTrack,
     perCategory,
     topByCategory,
+    topByCriterion,
     feedback,
     // 8. Privacy track tech review (from the versioned fixture).
     ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),

@@ -99,6 +99,19 @@ export function renderStatsLlms({ program, stats, publishedAt, url }) {
   }
   line();
 
+  // Top per score criterion
+  const byCriterion = (stats.topByCriterion ?? []).filter((c) => c.rows.length);
+  if (byCriterion.length) {
+    line('## Top projects per score criterion');
+    line('Judge score on each rubric criterion, highest first. ★ = prize winner.');
+    for (const c of byCriterion) {
+      line();
+      line(`### ${c.id.charAt(0).toUpperCase()}${c.id.slice(1)} (out of ${c.max})`);
+      c.rows.forEach((x, i) => line(`${i + 1}. ${x.winner ? '★ ' : ''}${x.project.title} · ${x.score} / ${c.max}`));
+    }
+    line();
+  }
+
   // Privacy track tech review
   if (review) renderReview(review, line);
 

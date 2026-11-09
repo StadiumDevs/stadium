@@ -4,6 +4,7 @@ import { trackFieldsFor, trackLabel, type ProgramProfile } from "@/lib/programPr
 import { formatSurvey } from "@/lib/submissionFeedback";
 import { TxCheckBadge, TxidLink } from "./TxCheckBadge";
 import { ViewingKeyLine } from "./ViewingKeyLine";
+import { ProjectScores } from "./ProjectScores";
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid grid-cols-1 sm:grid-cols-[150px_1fr] gap-1 sm:gap-3 py-2 border-b border-hairline-subtle">
@@ -44,6 +45,8 @@ export function SubmissionDetails({
   const d = s.details;
   const show = trackFieldsFor(d.track, track);
   return (
+    <>
+    <ProjectScores profile={profile} submission={s} />
     <dl>
       {/* Some entries came in without a pitch or description (e.g. Z-Pay): say so, don't leave a blank. */}
       {!d.pitch?.trim() && !s.projectBrief?.trim() ? (
@@ -156,5 +159,6 @@ export function SubmissionDetails({
         </Row>
       )}
     </dl>
+    </>
   );
 }

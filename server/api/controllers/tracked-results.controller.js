@@ -21,6 +21,7 @@ import { checkAndStore } from '../services/tx-check.service.js';
 import { toPublicSubmission } from '../utils/public-submission.js';
 import { prizeTiersFor, validateMilestonePatch } from '../utils/submission.validator.js';
 import { tierBelongsToTrack, tierLimit } from '../utils/track-prize-tiers.js';
+import { loadPublicScores } from '../services/public-scores.service.js';
 import { extractSupabaseToken, getSupabaseUser } from '../auth/supabaseUser.js';
 import auditLog from '../services/program-audit-log.service.js';
 
@@ -280,7 +281,9 @@ class TrackedResultsController {
       if (!s || s.programId !== ctx.program.id || !s.details || Object.keys(s.prizes || {}).length === 0) {
         return fail(res, 404, 'Project not found');
       }
-      res.status(200).json({ status: 'success', data: toPublicSubmission(s, { published: true }) });
+      const { bySubmission } = await loadPublicScores(ctx.program, ctx.tracked);
+      const data = toPublicSubmission(s, { published: true });
+      res.status(200).json({ status: 'success', data: bySubmission.has(s.id) ? { ...data, scores: bySubmission.get(s.id) } : data });
     } catch (error) {
       console.error('❌ Error loading a winner:', error);
       fail(res, 500, 'Failed to load the project');

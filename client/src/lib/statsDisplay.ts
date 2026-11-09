@@ -24,6 +24,7 @@ export const STATS_SECTIONS = [
   { id: "headline", label: "Numbers" },
   { id: "tracks", label: "Tracks & categories" },
   { id: "top", label: "Top per category" },
+  { id: "top-criterion", label: "Top per criterion" },
   { id: "privacy-review", label: "Privacy tech review" },
   { id: "feedback", label: "Feedback" },
 ] as const;

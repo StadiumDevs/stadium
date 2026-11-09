@@ -54,7 +54,7 @@ describe('stats llms.txt', () => {
 
   it('covers every section of the page', () => {
     for (const h of [
-      '## Prize winners', '## Headline numbers', '## Submissions per track',
+      '## Prize winners', '## Headline numbers', '## Submissions per track', '## Top projects per score criterion', '### Works (out of 3)',
       '## Submissions per category, split by track', '## Top scored projects per category', '## Privacy track tech review',
       '### How projects reach Zcash', '### Nym in practice', '### ChainSafe WebZjs', '### Agent and crypto building blocks',
       '### Shielded features used in code', '### Which ZIPs the projects cite', '### Projects building on new or draft ZIPs', '### Findings',

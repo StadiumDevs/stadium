@@ -239,7 +239,8 @@ describe('GET submissions/public', () => {
     await submissionController.publicSubmissions({ params: { slug: FSH.slug } }, res);
     const data = res.json.mock.calls[0][0].data;
     expect(data.judgesByTrack).toEqual({ privacy: 2 });
-    expect(data.submissions.find((s) => s.id === 'a').scores).toEqual({ privacy: { score: 12.5, max: 16 } });
+    expect(data.submissions.find((s) => s.id === 'a').scores).toMatchObject({ privacy: { score: 12.5, max: 16, judges: 2 } });
+    expect(data.submissions.find((s) => s.id === 'a').scores.privacy.criteria).toHaveLength(6);
     expect(data.submissions.find((s) => s.id === 'b').scores).toBeUndefined();
     expect(JSON.stringify(data)).not.toMatch(/@/);
     s1.mockRestore();

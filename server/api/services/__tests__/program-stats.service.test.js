@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorize, computeChecks, computeStats, publicSnapshot, statsFingerprint, suggestCategory } from '../program-stats.service.js';
+import { buildStats, categorize, computeChecks, computeStats, publicSnapshot, statsFingerprint, suggestCategory } from '../program-stats.service.js';
 import { FSH_CATEGORIES, PROGRAM_STATS } from '../../constants/programStats.js';
 import { FSH_FINAL_TITLES } from './fixtures/fsh-final-titles.js';
 
@@ -146,6 +146,51 @@ describe('computeStats', () => {
       [1, 'Pegasus', null],
       [2, 'GiftRelay', null],
     ]);
+  });
+
+  it('Privacy winners are ranked by score (place = rank), not by prize amount', () => {
+    const prize = (label, amount) => ({ privacy: { label, amount, currency: 'USDC' } });
+    const w = (id, title, p) => ({ id, projectTitle: title, submitterName: id, lumaEmail: `${id}@x.io`, prizes: p, details: { track: 'privacy', pitch: 'p', team: [] } });
+    const subs = [
+      w('top', 'Top prize, lower score', prize('Privacy: top prize', 1300)),
+      w('eco', 'Ecosystem, highest score', prize('Zcash ecosystem prize', 100)),
+      w('unscored', 'Override, no score', prize('Privacy: third prize', 200)),
+      w('tie', 'Same score, smaller prize', prize('Privacy: third prize', 200)),
+    ];
+    const board = {
+      rows: [
+        { submissionId: 'top', judgeCount: 3, avgTotal: 11.2, normTotal: null },
+        { submissionId: 'eco', judgeCount: 3, avgTotal: 13.4, normTotal: null },
+        { submissionId: 'tie', judgeCount: 3, avgTotal: 11.2, normTotal: null },
+      ],
+      normalization: null,
+    };
+    const stats = buildStats({ program, submissions: subs, board, ratings: [], config, now: NOW });
+    expect(stats.winners.privacy.map((x) => [x.place, x.project.id, x.score])).toEqual([
+      [1, 'eco', 13.4],
+      [2, 'top', 11.2],
+      [3, 'tie', 11.2],
+      [4, 'unscored', null],
+    ]);
+  });
+
+  it('top per criterion: 6 rubric criteria, highest first, raw or normalized values, no Agentic-only', () => {
+    const w = (id, title, track = 'privacy') => ({ id, projectTitle: title, submitterName: id, lumaEmail: `${id}@x.io`, prizes: id === 'b' ? { privacy: { label: 'Privacy: top prize', amount: 1300, currency: 'USDC' } } : {}, details: { track, pitch: 'p', team: [] } });
+    const subs = [w('a', 'Alpha'), w('b', 'Beta'), w('c', 'Gamma'), w('g', 'Agent', 'agentic'), w('u', 'Unscored')];
+    const row = (id, works, total, normWorks) => ({
+      submissionId: id, judgeCount: 2, avgTotal: total, normTotal: total + 1,
+      avgByCriterion: { works, private: 1, easy: 1, needed: 1, continuing: 1, bonus: 0 },
+      normByCriterion: { works: normWorks, private: 1, easy: 1, needed: 1, continuing: 1, bonus: 0 },
+    });
+    const rows = [row('a', 2, 9, 1.0), row('b', 3, 12, 2.0), row('c', 2, 11, 3.0)];
+    const raw = buildStats({ program, submissions: subs, board: { rows, normalization: null }, ratings: [], config, now: NOW });
+    expect(raw.topByCriterion.map((c) => c.id)).toEqual(['works', 'private', 'easy', 'needed', 'continuing', 'bonus']);
+    const works = raw.topByCriterion[0];
+    expect(works.max).toBe(3);
+    // Raw: Beta 3, then the 2s tie-broken by total (Gamma 11 before Alpha 9); winners flagged; no Agentic-only, no unscored.
+    expect(works.rows.map((x) => [x.project.id, x.score, x.winner])).toEqual([['b', 3, true], ['c', 2, false], ['a', 2, false]]);
+    const norm = buildStats({ program, submissions: subs, board: { rows, normalization: { enabled: true, available: true } }, ratings: [], config, now: NOW });
+    expect(norm.topByCriterion[0].rows.map((x) => [x.project.id, x.score])).toEqual([['c', 3], ['b', 2], ['a', 1]]);
   });
 
   it('Agentic-only projects: no score anywhere, but in counts and categories', () => {

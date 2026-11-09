@@ -7,6 +7,7 @@ import type {
   ApiPrizeTier,
   ApiPublicSubmission,
   ApiPublicSubmissions,
+  ApiPublicTrackScore,
   ApiResultsRanking,
   ApiRubricLeaderboard,
   ApiRubricLeaderboardRow,
@@ -174,25 +175,8 @@ export const mockTracked = {
       .map((s) => toPublic(s, published))
       .sort((a, b) => (published ? bestPrize(b) - bestPrize(a) : 0) || a.createdAt.localeCompare(b.createdAt));
     if (!published) return { published, submissions, ranking: null, judgesByTrack: null };
-    // Like server public-scores.service.js: the score each track was ranked on at publish.
-    const profile = getProgramProfile(slug);
+    const { bySubmission, judgesByTrack } = this.publicScores(slug);
     const ranking = state.resultsRanking ?? null;
-    const bySubmission = new Map<string, Partial<Record<JudgedTrack, { score: number; max: number }>>>();
-    const judgesByTrack: Partial<Record<JudgedTrack, number>> = {};
-    // A track judged outside Stadium (FSH Agentic Commerce, by Bitrefill) never shows a score.
-    const unscored = programStatsFor(slug)?.unscoredTrack.track ?? null;
-    for (const t of profile?.tracks ?? []) {
-      if (t.id === unscored) continue;
-      const scored = this.leaderboard(slug, t.id).rows.filter((r) => r.judgeCount > 0);
-      if (!scored.length) continue;
-      judgesByTrack[t.id] = new Set(scored.flatMap((r) => r.judgeScores.map((j) => j.judgeEmail))).size;
-      const normalized = !!ranking?.[t.id]?.normalized;
-      for (const r of scored) {
-        const value = normalized && r.normTotal != null ? r.normTotal : r.avgTotal;
-        if (value == null) continue;
-        bySubmission.set(r.submissionId, { ...bySubmission.get(r.submissionId), [t.id]: { score: Math.round(value * 10) / 10, max: maxScore(t.rubric) } });
-      }
-    }
     return {
       published,
       submissions: submissions.map((s) => (bySubmission.has(s.id) ? { ...s, scores: bySubmission.get(s.id) } : s)),
@@ -207,7 +191,52 @@ export const mockTracked = {
     if (!state.resultsPublishedAt) return null;
     const s = state.submissions.find((x) => x.id === id);
     if (!s || Object.keys(s.prizes).length === 0) return null;
-    return toPublic(s, true);
+    const scores = this.publicScores(slug).bySubmission.get(s.id);
+    return scores ? { ...toPublic(s, true), scores } : toPublic(s, true);
+  },
+
+  /**
+   * Like server public-scores.service.js: per project, the score each track was
+   * ranked on at publish (normalized when it was ranked normalized), per category
+   * with the track average, and how many judges scored it.
+   */
+  publicScores(slug: string): {
+    bySubmission: Map<string, Partial<Record<JudgedTrack, ApiPublicTrackScore>>>;
+    judgesByTrack: Partial<Record<JudgedTrack, number>>;
+  } {
+    const state = load(slug);
+    const profile = getProgramProfile(slug);
+    const ranking = state.resultsRanking ?? null;
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+    const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+    const bySubmission = new Map<string, Partial<Record<JudgedTrack, ApiPublicTrackScore>>>();
+    const judgesByTrack: Partial<Record<JudgedTrack, number>> = {};
+    // A track judged outside Stadium (FSH Agentic Commerce, by Bitrefill) never shows a score.
+    const unscored = programStatsFor(slug)?.unscoredTrack.track ?? null;
+    for (const t of profile?.tracks ?? []) {
+      if (t.id === unscored) continue;
+      const scored = this.leaderboard(slug, t.id).rows.filter((r) => r.judgeCount > 0);
+      if (!scored.length) continue;
+      judgesByTrack[t.id] = new Set(scored.flatMap((r) => r.judgeScores.map((j) => j.judgeEmail))).size;
+      const normalized = !!ranking?.[t.id]?.normalized;
+      const rankedNormalized = (r: (typeof scored)[number]) => normalized && r.normTotal != null && r.normByCriterion != null;
+      const criterionOf = (r: (typeof scored)[number], id: string) => (rankedNormalized(r) ? r.normByCriterion![id] : r.avgByCriterion[id]) ?? 0;
+      const trackAvg = Object.fromEntries(t.rubric.criteria.map((c) => [c.id, round1(mean(scored.map((r) => criterionOf(r, c.id))))]));
+      for (const r of scored) {
+        const total = rankedNormalized(r) ? r.normTotal! : r.avgTotal;
+        if (total == null) continue;
+        bySubmission.set(r.submissionId, {
+          ...bySubmission.get(r.submissionId),
+          [t.id]: {
+            score: round1(total),
+            max: maxScore(t.rubric),
+            judges: r.judgeCount,
+            criteria: t.rubric.criteria.map((c) => ({ id: c.id, score: round1(criterionOf(r, c.id)), max: c.max, trackAvg: trackAvg[c.id] })),
+          },
+        });
+      }
+    }
+    return { bySubmission, judgesByTrack };
   },
 
   add(slug: string, payload: TrackedSubmitPayload): ApiTrackedSubmission {

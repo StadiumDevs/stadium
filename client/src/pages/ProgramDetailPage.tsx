@@ -62,6 +62,26 @@ const CTA_CLASS =
 // One width for the header, the about panel and everything below it.
 const PAGE_WIDTH = "max-w-6xl";
 
+/** A titled block that starts collapsed. `bare` drops the inner border (inside a panel). */
+function Collapsible({ title, testId, bare = false, children }: { title: string; testId: string; bare?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={bare ? "" : "border border-hairline"} data-testid={testId}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`w-full flex items-center justify-between gap-2 text-left ${bare ? "" : "px-3 py-2"}`}
+        data-testid={`${testId}-toggle`}
+      >
+        <span className="label-hw text-display">·{title}</span>
+        <span className="label-hw-dim">{open ? "HIDE ▴" : "SHOW ▾"}</span>
+      </button>
+      {open && <div className={bare ? "mt-3" : "px-3 pb-3"}>{children}</div>}
+    </div>
+  );
+}
+
 const PROGRAM_TYPE_LABEL: Record<ApiProgram["programType"], string> = {
   dogfooding: "DOGFOODING",
   pitch_off: "PITCH-OFF",
@@ -89,6 +109,17 @@ const ProgramDetailPage = () => {
   // Tracked programs (programProfiles.ts) list every submission live.
   const profile = getProgramProfile(slug);
   const [tracked, setTracked] = useState<ApiPublicSubmissions | null>(null);
+  // What the page layout depends on has loaded (live submissions, results,
+  // stats snapshot): until then only the header renders, so the pre-results
+  // layout (submit panel etc.) never flashes before the published one.
+  const [trackedReady, setTrackedReady] = useState(false);
+  const [resultsReady, setResultsReady] = useState(false);
+  const [statsReady, setStatsReady] = useState(false);
+  useEffect(() => {
+    setTrackedReady(false);
+    setResultsReady(false);
+    setStatsReady(false);
+  }, [slug]);
   const [coverError, setCoverError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [nonMemberOpen, setNonMemberOpen] = useState(false);
@@ -120,7 +151,6 @@ const ProgramDetailPage = () => {
   // Public results: search box over published submissions, and the collapsible
   // "about" panel (hackathon info) that sits below the projects once published.
   const [resultsQuery, setResultsQuery] = useState("");
-  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Admins can apply on behalf of any project (server-side `requireTeamMemberOrAdminByBodyProject`
   // accepts admins). Without this branch, the page would dead-end at "You need to be a team member"
@@ -215,7 +245,8 @@ const ProgramDetailPage = () => {
     api
       .getProgramResults(slug)
       .then((r) => { if (active) setResults(r.data); })
-      .catch(() => { if (active) setResults(null); });
+      .catch(() => { if (active) setResults(null); })
+      .finally(() => { if (active) setResultsReady(true); });
     return () => { active = false; };
   }, [slug, program, profile]);
 
@@ -227,7 +258,8 @@ const ProgramDetailPage = () => {
       api
         .listPublicSubmissions(slug)
         .then((r) => { if (active) setTracked(r.data); })
-        .catch(() => { if (active) setTracked(null); });
+        .catch(() => { if (active) setTracked(null); })
+        .finally(() => { if (active) setTrackedReady(true); });
     load();
     // Pick up a project submitted from the modal (or another tab) without a reload.
     window.addEventListener("focus", load);
@@ -243,7 +275,8 @@ const ProgramDetailPage = () => {
     api
       .getProgramStats(slug)
       .then((r) => { if (active) setStatsPublishedAt(r?.publishedAt ?? null); })
-      .catch(() => { if (active) setStatsPublishedAt(null); });
+      .catch(() => { if (active) setStatsPublishedAt(null); })
+      .finally(() => { if (active) setStatsReady(true); });
     return () => { active = false; };
   }, [slug, profile, program?.status, previewBefore]);
 
@@ -450,34 +483,52 @@ const ProgramDetailPage = () => {
   // A completed tracked program: the details move into a collapsible under
   // All projects (collapsed by default), with the stats link and "Updated" date.
   const completedTracked = !!profile && isPublished && program?.status === "completed";
-  // Published hackathon: the rest of the event info (tracks, prizes, FAQ),
-  // collapsed, directly above the projects.
-  const renderDetails = () =>
-    program &&
-    isPublished && ((program.content ?? []).some((c) => c.type !== "schedule") || (completedTracked && hasAbout)) && (
-      <section className="panel p-4 mb-4" data-testid="program-details-collapsible">
-        <button
-          type="button"
-          onClick={() => setAboutOpen((v) => !v)}
-          aria-expanded={aboutOpen}
-          className="w-full flex items-center justify-between gap-2 text-left"
-        >
-          <span className="label-hw text-display">·{completedTracked ? "PROGRAM" : "HACKATHON"} DETAILS</span>
-          <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
-        </button>
-        {aboutOpen && (
-          <div className="mt-3">
-            {/* Completed: the about panel lives here too, above the projects. */}
-            {completedTracked && hasAbout && aboutPanel("mb-4")}
-            <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
+  const publishedTracked = !!profile && isPublished;
+  const detailContent = (program?.content ?? []).filter((c) => c.type !== "schedule");
+  // Body waits for the data its layout depends on (no flash of the pre-results page).
+  const needTracked = !!profile?.showSubmissionsLive && !previewBefore;
+  const needStats = !!profile && program?.status === "completed" && !previewBefore;
+  const bodyReady = (!needTracked || trackedReady) && (profile ? true : resultsReady) && (!needStats || statsReady);
+
+  // Published tracked program: PROGRAM DETAILS shows the event image and its key
+  // details; the agent brief and the hackathon details are collapsed.
+  const renderPublishedDetails = () =>
+    program && (
+      <section className="panel p-4 md:p-6 mb-4" data-testid="program-details">
+        <div className="label-hw text-display mb-4">·PROGRAM DETAILS</div>
+        {hasAbout && aboutPanel("", { heading: false, llms: false })}
+        {(hasLlms(program.slug) || detailContent.length > 0) && (
+          <div className="mt-4 space-y-2">
+            {hasLlms(program.slug) && (
+              <Collapsible title="FOR AI CODING AGENTS" testId="details-llms">
+                <LlmsBrief slug={program.slug} showTitle={false} />
+              </Collapsible>
+            )}
+            {detailContent.length > 0 && (
+              <Collapsible title="HACKATHON DETAILS" testId="details-content">
+                <ProgramContent sections={detailContent} />
+              </Collapsible>
+            )}
           </div>
         )}
       </section>
     );
-  const aboutPanel = (className: string) =>
+
+  // Untracked published hackathon: the rest of the event info, collapsed above the projects.
+  const renderDetails = () =>
+    program &&
+    isPublished &&
+    detailContent.length > 0 && (
+      <section className="panel p-4 mb-4" data-testid="program-details-collapsible">
+        <Collapsible title="HACKATHON DETAILS" testId="details-content" bare>
+          <ProgramContent sections={detailContent} />
+        </Collapsible>
+      </section>
+    );
+  const aboutPanel = (className: string, { heading = true, llms = true }: { heading?: boolean; llms?: boolean } = {}) =>
     program && (
         <section className={className} data-testid="program-about">
-          <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>
+          {heading && <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>}
           <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start" : ""}`}>
             {showCover && (
               // The whole image, never cropped (covers can be square or wide).
@@ -548,7 +599,7 @@ const ProgramDetailPage = () => {
             </div>
           </div>
           {/* Full width under the image and the key info. */}
-          {hasLlms(program.slug) && <LlmsBrief slug={program.slug} className="mt-6" />}
+          {llms && hasLlms(program.slug) && <LlmsBrief slug={program.slug} className="mt-6" />}
         </section>
     );
 
@@ -630,13 +681,19 @@ const ProgramDetailPage = () => {
               )}
             </div>
           </header>
-          {hasAbout && !completedTracked && aboutPanel(`panel p-4 md:p-6 mb-4 mx-auto ${PAGE_WIDTH}`)}
+          {!bodyReady && (
+            <div className={`panel px-4 py-10 mb-4 mx-auto ${PAGE_WIDTH} text-center label-hw-dim`} data-testid="program-body-loading">
+              LOADING…
+            </div>
+          )}
+          {bodyReady && hasAbout && !publishedTracked && aboutPanel(`panel p-4 md:p-6 mb-4 mx-auto ${PAGE_WIDTH}`)}
           {/* Tracked programs: the wide project grid sits above the event info once
               results are published (the Bitrefill "flip"), below it until then. */}
-          {profile && tracked && isPublished && (
+          {bodyReady && profile && tracked && isPublished && (
             <div className={`${PAGE_WIDTH} mx-auto`}>
+              {/* Published: PROGRAM DETAILS, then the prize winners and stats link, then the projects. */}
+              {renderPublishedDetails()}
               {completedTracked && statsPublishedAt && <ProgramStatsLink slug={program.slug} />}
-              {renderDetails()}
               <TrackedProjectsSection
                 profile={profile}
                 programSlug={program.slug}
@@ -646,6 +703,7 @@ const ProgramDetailPage = () => {
               />
             </div>
           )}
+          {bodyReady && (
           <article className={`${PAGE_WIDTH} mx-auto`}>
 
             {/* Untracked published hackathon: event details, then the searchable projects. */}
@@ -905,7 +963,8 @@ const ProgramDetailPage = () => {
               mode={submitMode}
             />
           </article>
-          {profile && tracked && !isPublished && (
+          )}
+          {bodyReady && profile && tracked && !isPublished && (
             <div className={`${PAGE_WIDTH} mx-auto mt-4`}>
               <TrackedProjectsSection
                 profile={profile}
