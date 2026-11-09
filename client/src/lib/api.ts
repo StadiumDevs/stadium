@@ -2646,7 +2646,7 @@ export const api = {
   },
 
   /** Judge/admin: at-a-glance counts for the program header (no PII). */
-  getProgramStats: async (
+  getProgramHeaderStats: async (
     slug: string,
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgramStats }> => {
@@ -2660,7 +2660,7 @@ export const api = {
       }
       return { status: "success", data: mockJudging.stats(slug) };
     }
-    return request(`/programs/${encodeURIComponent(slug)}/stats`, {
+    return request(`/programs/${encodeURIComponent(slug)}/stats/summary`, {
       headers: adminAuthHeaders(authHeader),
     });
   },
