@@ -20,6 +20,7 @@ import {
 import { checkAndStore } from '../services/tx-check.service.js';
 import { toPublicSubmission } from '../utils/public-submission.js';
 import { prizeTiersFor, validateMilestonePatch } from '../utils/submission.validator.js';
+import { tierBelongsToTrack, tierLimit } from '../utils/track-prize-tiers.js';
 import { extractSupabaseToken, getSupabaseUser } from '../auth/supabaseUser.js';
 import auditLog from '../services/program-audit-log.service.js';
 
@@ -138,8 +139,9 @@ class TrackedResultsController {
       const amount = req.body?.amount ?? null;
       let tier = null;
       if (amount !== null) {
-        const prefix = ctx.tracked.prizePrefixes[track];
-        tier = prizeTiersFor(ctx.program).find((t) => sameAmount(t.amount, amount) && t.label.startsWith(prefix));
+        // Prefixed tiers belong to their track; unprefixed ones ("Zcash ecosystem prize") to the Ecosystem track.
+        const tiers = prizeTiersFor(ctx.program);
+        tier = tiers.find((t) => sameAmount(t.amount, amount) && tierBelongsToTrack(t, track, ctx.tracked));
         if (!tier) return fail(res, 400, 'That prize is not one of this track\'s tiers');
         const scores = await submissionRubricScoreRepository.listByProgram(ctx.program.id);
         if (!hasFullScore(track, scores, s.id)) {
@@ -147,7 +149,7 @@ class TrackedResultsController {
         }
         const blocked = winnerBlockedReason(track, scores, s.id);
         if (blocked) return fail(res, 409, blocked);
-        const limit = ctx.tracked.tierLimits?.[track]?.[tier.amount];
+        const limit = tierLimit(tier, track, ctx.tracked, prizeTiersFor(ctx.program));
         if (limit) {
           const all = await programSubmissionRepository.listByProgramId(ctx.program.id);
           const holders = all.filter((x) => x.id !== s.id && sameAmount(x.prizes?.[track]?.amount, tier.amount)).length;
