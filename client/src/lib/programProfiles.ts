@@ -312,8 +312,24 @@ export const trackFieldsFor = (entry: SubmissionTrack | null | undefined, view?:
   return { privacy: show("privacy"), agentic: show("agentic") };
 };
 
-export const tiersForTrack = (tiers: ApiPrizeTier[] | null | undefined, track: ProgramTrack) =>
-  (tiers ?? []).filter((t) => t.label.startsWith(track.prizePrefix));
+/**
+ * The configured prize tiers a judged track can award. A tier labelled with the
+ * track's prefix ("Privacy: top prize") belongs to that track; a tier with no
+ * track prefix ("Zcash ecosystem prize") belongs to the program's Ecosystem
+ * track (profile.milestone.track). Identical tiers saved more than once (two
+ * ecosystem prizes) show once. Mirrors server api/utils/track-prize-tiers.js.
+ */
+export const tiersForTrack = (tiers: ApiPrizeTier[] | null | undefined, track: ProgramTrack, profile: ProgramProfile) => {
+  const unprefixed = (t: ApiPrizeTier) => !profile.tracks.some((x) => t.label.startsWith(x.prizePrefix));
+  const seen = new Set<string>();
+  return (tiers ?? []).filter((t) => {
+    if (!t.label.startsWith(track.prizePrefix) && !(track.id === profile.milestone.track && unprefixed(t))) return false;
+    const key = `${t.label}|${t.amount}|${t.currency}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 export const trackLabel = (profile: ProgramProfile, track: SubmissionTrack | null | undefined) =>
   !track
