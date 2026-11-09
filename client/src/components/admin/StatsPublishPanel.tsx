@@ -4,6 +4,7 @@ import { api, type AdminAuthArg } from "@/lib/api";
 import type { ProgramStats, ProgramStatsChecks } from "@/lib/programStats";
 import { ProgramStatsView } from "@/components/stats/ProgramStatsView";
 import { formatIst } from "@/lib/statsDisplay";
+import { buildCompositeCsv, downloadCsv } from "@/lib/trackedCsv";
 import { useToast } from "@/hooks/use-toast";
 
 type Preview = { stats: ProgramStats; checks: ProgramStatsChecks; publishedAt: string | null; changedSincePublish: boolean };
@@ -136,6 +137,17 @@ export function StatsPublishPanel({
       {preview?.changedSincePublish && (
         <button type="button" className={btnSolid} onClick={publish} disabled={busy} data-testid="stats-republish">
           REPUBLISH
+        </button>
+      )}
+      {preview?.stats.composite && preview.stats.composite.length > 0 && (
+        <button
+          type="button"
+          className={btnGhost}
+          onClick={() => downloadCsv(`${slug}-likely-to-continue-${new Date().toISOString().slice(0, 10)}.csv`, buildCompositeCsv(preview.stats.composite!))}
+          title="Projects ranked by likelihood to continue and get support. Admin only: not on the public page."
+          data-testid="stats-composite-csv"
+        >
+          LIKELY TO CONTINUE (CSV) ↓
         </button>
       )}
       <button type="button" className={btnGhost} onClick={() => onPreviewOpenChange(true)} data-testid="stats-preview-open">

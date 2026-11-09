@@ -1,5 +1,6 @@
 import { classifySubmission } from "./submissionCategories";
 import type { ApiRubricLeaderboard, ApiTrackedSubmission, JudgedTrack } from "./api";
+import type { StatsCompositeRow } from "./programStats";
 import { trackById, trackLabel, type ProgramJudge, type ProgramProfile } from "./programProfiles";
 
 const cell = (v: string | number | null | undefined) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -290,3 +291,24 @@ export const buildFeedbackCsv = (items: FeedbackItem[]) =>
     ["submittedAt", "projectTitle", "track", "pointPerson", "feedback"],
     ...items.map((i) => [i.submittedAt, i.projectTitle, i.track, i.pointPerson, i.note]),
   ]);
+
+/** Admin only: the "likely to continue and get support" ranking from the live stats (never published). */
+export function buildCompositeCsv(rows: StatsCompositeRow[]): string {
+  const header = ["rank", "project", "track", "score", "noJudgeScore", "judge", "support", "milestone", "shippedPublicUrl", "shippedDemoVideo", "shippedRepo"];
+  return toCsv([
+    header,
+    ...rows.map((r) => [
+      r.rank,
+      r.project.title,
+      r.project.track ?? "",
+      r.score,
+      r.noJudgeScore ? "yes" : "no",
+      r.breakdown.judge ?? "",
+      r.breakdown.support,
+      r.breakdown.milestone,
+      r.breakdown.shipped.publicUrl,
+      r.breakdown.shipped.demoVideo,
+      r.breakdown.shipped.repo,
+    ]),
+  ]);
+}

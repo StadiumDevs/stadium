@@ -22,7 +22,6 @@ export const TRACK_COLORS: Record<string, string> = {
 export const STATS_SECTIONS = [
   { id: "winners", label: "Prize winners" },
   { id: "headline", label: "Numbers" },
-  { id: "ranking", label: "Likely to continue" },
   { id: "tracks", label: "Tracks & categories" },
   { id: "top", label: "Top per category" },
   { id: "privacy-review", label: "Privacy tech review" },

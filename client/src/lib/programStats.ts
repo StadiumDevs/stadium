@@ -47,7 +47,8 @@ export type ProgramStats = {
   unscoredNote: string;
   winners: Record<string, StatsWinner[]>;
   headline: { submissions: number; hackers: number; teams: number; byTrack: Record<string, number>; multiTeamHackers: number };
-  composite: StatsCompositeRow[];
+  /** Admin only (CSV download in the admin preview): never in the published snapshot. */
+  composite?: StatsCompositeRow[];
   perTrack: { id: string; label: string; count: number; projects: StatsProject[] }[];
   perCategory: { id: string; label: string; total: number; segments: { track: string; count: number; projects: StatsProject[] }[] }[];
   topByCategory: {
@@ -417,4 +418,10 @@ export const statsFingerprint = (stats: ProgramStats | null) => {
   if (!stats) return null;
   const { generatedAt, ...rest } = stats;
   return JSON.stringify(rest);
+};
+
+/** What gets published: the stats without the admin-only composite ranking. */
+export const publicSnapshot = (stats: ProgramStats): ProgramStats => {
+  const { composite: _composite, ...rest } = stats;
+  return rest;
 };

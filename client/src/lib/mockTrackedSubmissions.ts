@@ -33,7 +33,7 @@ import { checkTestnetTx } from "./txCheck";
 import { mockPrograms } from "./mockPrograms";
 import { toPublicSubmission } from "./trackedDisplay";
 import { DEFAULT_NORMALIZATION, normalizeTrack } from "./scoreNormalization";
-import { buildStats, computeChecks, statsFingerprint, type ProgramStats, type ProgramStatsChecks } from "./programStats";
+import { buildStats, computeChecks, publicSnapshot, statsFingerprint, type ProgramStats, type ProgramStatsChecks } from "./programStats";
 import type { PrivacyReviewData } from "./privacyReview";
 import { programStatsFor } from "./programStatsConfig";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
@@ -584,7 +584,7 @@ export const mockTracked = {
     return {
       ...live,
       publishedAt: state.statsPublishedAt ?? null,
-      changedSincePublish: !!state.statsSnapshot && statsFingerprint(state.statsSnapshot) !== statsFingerprint(live.stats),
+      changedSincePublish: !!state.statsSnapshot && statsFingerprint(publicSnapshot(state.statsSnapshot)) !== statsFingerprint(publicSnapshot(live.stats)),
     };
   },
 
@@ -592,15 +592,16 @@ export const mockTracked = {
     const live = this.statsLive(slug, review);
     if (!live) return null;
     const state = load(slug);
-    state.statsSnapshot = live.stats;
+    // The composite ranking is admin only: never published.
+    state.statsSnapshot = publicSnapshot(live.stats);
     state.statsPublishedAt = live.stats.generatedAt;
     save(slug, state);
-    return { stats: live.stats, publishedAt: live.stats.generatedAt };
+    return { stats: state.statsSnapshot, publishedAt: live.stats.generatedAt };
   },
 
   statsPublished(slug: string): { stats: ProgramStats; publishedAt: string } | null {
     const state = load(slug);
-    return state.statsSnapshot && state.statsPublishedAt ? { stats: state.statsSnapshot, publishedAt: state.statsPublishedAt } : null;
+    return state.statsSnapshot && state.statsPublishedAt ? { stats: publicSnapshot(state.statsSnapshot), publishedAt: state.statsPublishedAt } : null;
   },
 
   updateMilestone(slug: string, id: string, patch: Partial<ApiSubmissionMilestone>): ApiTrackedSubmission | null {

@@ -88,19 +88,6 @@ export function renderStatsLlms({
   line(`- On more than one team: ${h.multiTeamHackers}`);
   line();
 
-  // Composite ranking
-  line('## Projects ranked by likelihood to continue and get support');
-  line('Composite score out of 100: judge score (Privacy rubric) 45, Ecosystem Prize or a milestone partner 20, a milestone / next step stated 20, shipped evidence 15 (public URL, demo video, repo, 5 each). Projects without a judge score are ranked on the other signals scaled to 100.');
-  for (const r of stats.composite) {
-    const b = r.breakdown;
-    const shipped = b.shipped.publicUrl + b.shipped.demoVideo + b.shipped.repo;
-    const parts = [b.shipped.publicUrl && 'URL', b.shipped.demoVideo && 'video', b.shipped.repo && 'repo'].filter(Boolean).join(', ') || 'none';
-    line(
-      `${r.rank}. ${r.project.title} · ${r.score} · judge ${b.judge == null ? '—' : b.judge} · support ${b.support} · milestone ${b.milestone} · shipped ${shipped} (${parts})${r.noJudgeScore ? ' · scaled to 100 without the judge signal' : ''}`,
-    );
-  }
-  line();
-
   // Tracks and categories
   line('## Submissions per track');
   for (const t of stats.perTrack) line(`- ${t.label}: ${t.count} · ${list(t.projects)}`);
@@ -167,7 +154,7 @@ function renderReview(r: PrivacyReview, line: (s?: string) => void) {
   for (const x of [...r.charts.reach].sort((a, b) => b.projects.length - a.projects.length)) line(`- ${x.label}: ${x.projects.length} · ${names(x.projects)}`);
   line();
   line('### Nym in practice');
-  for (const x of r.charts.nym) line(`- ${x.status}: ${x.projects.length} · ${names(x.projects)}`);
+  for (const x of r.charts.nym.filter((n) => n.status !== 'Not used')) line(`- ${x.status}: ${x.projects.length} · ${names(x.projects)}`);
   if (r.nymDetails) line(r.nymDetails);
   line();
   line('### ChainSafe WebZjs');

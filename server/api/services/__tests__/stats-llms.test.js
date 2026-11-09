@@ -54,7 +54,7 @@ describe('stats llms.txt', () => {
 
   it('covers every section of the page', () => {
     for (const h of [
-      '## Prize winners', '## Headline numbers', '## Projects ranked by likelihood to continue and get support', '## Submissions per track',
+      '## Prize winners', '## Headline numbers', '## Submissions per track',
       '## Submissions per category, split by track', '## Top scored projects per category', '## Privacy track tech review',
       '### How projects reach Zcash', '### Nym in practice', '### ChainSafe WebZjs', '### Agent and crypto building blocks',
       '### Shielded features used in code', '### Which ZIPs the projects cite', '### Projects building on new or draft ZIPs', '### Findings',
@@ -63,6 +63,10 @@ describe('stats llms.txt', () => {
     ]) expect(text).toContain(h);
     expect(text).toContain('1. Z-Pay — shielded checkout, without a merchant app · Privacy: top prize (1000 USD) · score 12.5 / 16');
     expect(text).toContain('- Noir Wallet: 11 · ');
+    // Admin-only ranking and the Nym "Not used" bar are not on the page, so not here either.
+    expect(text).not.toContain('likelihood to continue');
+    expect(text).not.toContain('- Not used:');
+    expect(text).toContain('- Built in: 7 · ');
     expect(text).toContain('- ZIP 321 · Payment request URIs · Payments UX · Payment links and QR codes: 26 · ');
     expect(text).toContain('https://zips.z.cash/zip-0068');
     expect(text).toContain('Track review v1.0, generated 9 Nov 2026 by Claude from repo snapshots.');

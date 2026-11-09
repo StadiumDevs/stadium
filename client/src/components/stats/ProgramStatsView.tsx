@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import type { ProgramStats, StatsCompositeRow } from "@/lib/programStats";
+import type { ProgramStats } from "@/lib/programStats";
 import { TRACK_LABELS } from "@/lib/programStats";
 import { cn } from "@/lib/utils";
 import { BarList, ChartFrame, ProjectNames, StackedBars } from "./StatsCharts";
@@ -45,21 +45,9 @@ function Section({ id, title, children }: { id: string; title: string; children:
   );
 }
 
-const pct = (n: number) => `${Math.round(n * 10) / 10}`;
 const prizeText = (p: { label: string; amount: number | string; currency: string }) =>
   `${p.label.replace(/^[^:]+:\s*/, "")} (${p.amount} ${p.currency})`;
 
-function Breakdown({ row }: { row: StatsCompositeRow }) {
-  const b = row.breakdown;
-  const shipped = b.shipped.publicUrl + b.shipped.demoVideo + b.shipped.repo;
-  return (
-    <span className="font-mono text-[11px] text-label-mid">
-      {b.judge == null ? "judge —" : `judge ${pct(b.judge)}`} · support {b.support} · milestone {b.milestone} · shipped {shipped} (
-      {[b.shipped.publicUrl && "URL", b.shipped.demoVideo && "video", b.shipped.repo && "repo"].filter(Boolean).join(", ") || "none"})
-      {row.noJudgeScore && " · scaled to 100 without the judge signal"}
-    </span>
-  );
-}
 
 /** The whole stats page body: used by the public page and the admin preview. */
 export function ProgramStatsView({ stats, slug, sticky = true }: { stats: ProgramStats; slug: string; sticky?: boolean }) {
@@ -209,44 +197,6 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
         </dl>
       </Section>
 
-      <Section id="ranking" title="Projects ranked by likelihood to continue and get support">
-        <p className="label-hw-dim normal-case mb-2">
-          Composite score out of 100: judge score (Privacy rubric) 45, Ecosystem Prize or a milestone partner 20, a
-          milestone / next step stated 20, shipped evidence 15 (public URL, demo video, repo, 5 each). Projects without a judge score
-          are ranked on the other signals scaled to 100. Hover or focus a row for its breakdown.
-        </p>
-        <ol className="space-y-1" data-testid="composite-ranking">
-          {stats.composite.map((r) => (
-            <li
-              key={r.project.id}
-              tabIndex={0}
-              className="group border-t border-hairline-subtle py-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-display"
-              data-testid="composite-row"
-            >
-              <div className="grid grid-cols-[2.5rem_1fr_auto] items-center gap-2 text-[12px]">
-                <span className="font-mono text-label-dim">{r.rank}</span>
-                <span className="min-w-0">
-                  <ProjectNames slug={slug} projects={[r.project]} />
-                  {r.noJudgeScore && (
-                    <span className="label-hw border border-warn text-warn rounded-sm px-1 py-0.5 ml-1 align-middle" data-testid="no-judge-score">
-                      NO JUDGE SCORE
-                    </span>
-                  )}
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="hidden sm:block w-24 h-2 bg-hairline-subtle" aria-hidden>
-                    <span className="block h-2 bg-display-dim" style={{ width: `${r.score}%` }} />
-                  </span>
-                  <span className="font-mono text-display w-10 text-right">{pct(r.score)}</span>
-                </span>
-              </div>
-              <div className="hidden group-hover:block group-focus:block pl-12 pt-1" data-testid="composite-breakdown">
-                <Breakdown row={r} />
-              </div>
-            </li>
-          ))}
-        </ol>
-      </Section>
 
       <Section id="tracks" title="Submissions per track, then per category">
         <div className="grid gap-6">

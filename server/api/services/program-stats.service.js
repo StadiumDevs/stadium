@@ -349,6 +349,13 @@ export function computeChecks({ counted, testEntries = [], stats, config, review
   };
 }
 
+/** What gets published: the stats without the admin-only composite ranking. */
+export const publicSnapshot = (stats) => {
+  if (!stats) return stats;
+  const { composite: _composite, ...rest } = stats;
+  return rest;
+};
+
 /** Stable JSON without the generation time, to tell whether live stats differ from the snapshot. */
 export const statsFingerprint = (stats) => {
   if (!stats) return null;

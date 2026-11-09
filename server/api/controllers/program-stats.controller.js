@@ -11,7 +11,7 @@ import programAdminEmailRepository from '../repositories/program-admin-email.rep
 import experienceRatingRepository from '../repositories/submission-experience-rating.repository.js';
 import { trackedProgramFor, isAbandoned, isCountedEntry } from '../constants/trackedPrograms.js';
 import { programStatsFor } from '../constants/programStats.js';
-import { computeChecks, computeStats, statsFingerprint } from '../services/program-stats.service.js';
+import { computeChecks, computeStats, publicSnapshot, statsFingerprint } from '../services/program-stats.service.js';
 import { loadPrivacyReview } from '../services/privacy-review.service.js';
 import { renderStatsLlms } from '../services/stats-llms.service.js';
 
@@ -61,7 +61,7 @@ class ProgramStatsController {
       if (!ctx) return;
       const snapshot = ctx.program.statsPublishedAt ? await programRepository.getStatsSnapshot(ctx.program.slug) : null;
       if (!snapshot) return fail(res, 404, 'Stats are not published yet');
-      res.status(200).json({ status: 'success', data: { stats: snapshot, publishedAt: ctx.program.statsPublishedAt } });
+      res.status(200).json({ status: 'success', data: { stats: publicSnapshot(snapshot), publishedAt: ctx.program.statsPublishedAt } });
     } catch (error) {
       console.error('❌ Error loading published stats:', error);
       fail(res, 500, 'Failed to load the stats');
@@ -77,7 +77,7 @@ class ProgramStatsController {
       if (!snapshot) return fail(res, 404, 'Stats are not published yet');
       const text = renderStatsLlms({
         program: { name: ctx.program.name, slug: ctx.program.slug },
-        stats: snapshot,
+        stats: publicSnapshot(snapshot),
         publishedAt: ctx.program.statsPublishedAt,
         url: `${siteOrigin()}/programs/${ctx.program.slug}/stats`,
       });
@@ -105,7 +105,7 @@ class ProgramStatsController {
           stats,
           checks,
           publishedAt: ctx.program.statsPublishedAt ?? null,
-          changedSincePublish: !!snapshot && statsFingerprint(snapshot) !== statsFingerprint(stats),
+          changedSincePublish: !!snapshot && statsFingerprint(publicSnapshot(snapshot)) !== statsFingerprint(publicSnapshot(stats)),
         },
       });
     } catch (error) {
@@ -121,8 +121,10 @@ class ProgramStatsController {
       const ctx = await loadContext(req, res);
       if (!ctx) return;
       const { stats } = await liveStats(ctx);
-      const updated = await programRepository.setStatsSnapshot(ctx.program.slug, stats, stats.generatedAt);
-      res.status(200).json({ status: 'success', data: { stats, publishedAt: updated.statsPublishedAt } });
+      // The composite ranking is admin only (a CSV in the preview): never published.
+      const published = publicSnapshot(stats);
+      const updated = await programRepository.setStatsSnapshot(ctx.program.slug, published, stats.generatedAt);
+      res.status(200).json({ status: 'success', data: { stats: published, publishedAt: updated.statsPublishedAt } });
       auditLog.logSafe({
         programId: ctx.program.id,
         actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },

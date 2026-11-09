@@ -8,7 +8,7 @@ import { programStatsFor } from "@/lib/programStatsConfig";
  */
 export function ProgramStatsLink({ slug }: { slug: string }) {
   const base = `/programs/${slug}/stats`;
-  const jumps = ["winners", "ranking", "tracks", ...(programStatsFor(slug)?.privacyReview ? ["privacy-review"] : []), "feedback"];
+  const jumps = ["winners", "tracks", ...(programStatsFor(slug)?.privacyReview ? ["privacy-review"] : []), "feedback"];
   return (
     <section className="panel p-4 mb-4" aria-label="Prize winners and submission stats" data-testid="program-stats-link">
       <div className="label-hw text-display mb-3">·VIEW PRIZE WINNERS AND SUBMISSION STATS</div>

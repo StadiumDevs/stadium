@@ -161,7 +161,9 @@ export function PrivacyReviewSection({ review, slug }: { review: PrivacyReview; 
       <ChartFrame title="Nym in practice" testId="pr-chart-nym">
         <BarList
           slug={slug}
-          items={review.charts.nym.map((s) => ({
+          items={review.charts.nym
+            .filter((s) => s.status !== "Not used")
+            .map((s) => ({
             key: s.status,
             label: s.status,
             value: s.projects.length,

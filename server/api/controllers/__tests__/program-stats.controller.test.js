@@ -96,6 +96,9 @@ describe('ProgramStatsController', () => {
     const [slug, snapshot, publishedAt] = programRepo.setStatsSnapshot.mock.calls[0];
     expect(slug).toBe(SLUG);
     expect(snapshot.checks).toBeUndefined();
+    // The composite ranking is admin only: never in the published snapshot or response.
+    expect(snapshot).not.toHaveProperty('composite');
+    expect(res.json.mock.calls[0][0].data.stats).not.toHaveProperty('composite');
     expect(publishedAt).toBe(snapshot.generatedAt);
 
     programService.findBySlug.mockResolvedValue({ id: 'p1', slug: SLUG, statsPublishedAt: publishedAt });
@@ -103,6 +106,8 @@ describe('ProgramStatsController', () => {
     res = mockRes();
     await controller.preview(admin, res);
     expect(res.json.mock.calls[0][0].data.changedSincePublish).toBe(false);
+    // The admin preview keeps it (for the CSV download).
+    expect(res.json.mock.calls[0][0].data.stats.composite.length).toBeGreaterThan(0);
 
     scores[0] = { ...scores[0], criteria: { ...crit, works: 0 } };
     res = mockRes();
@@ -111,7 +116,12 @@ describe('ProgramStatsController', () => {
     // The public endpoint still serves the stored snapshot.
     res = mockRes();
     await controller.getPublished({ params: { slug: SLUG } }, res);
-    expect(res.json.mock.calls[0][0].data.stats).toBe(snapshot);
+    expect(res.json.mock.calls[0][0].data.stats).toEqual(snapshot);
+    // An older snapshot that still has the composite is served without it.
+    programRepo.getStatsSnapshot.mockResolvedValue({ ...snapshot, composite: [{ rank: 1 }] });
+    res = mockRes();
+    await controller.getPublished({ params: { slug: SLUG } }, res);
+    expect(res.json.mock.calls[0][0].data.stats).not.toHaveProperty('composite');
   });
 });
 
