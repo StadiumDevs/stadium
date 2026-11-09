@@ -119,20 +119,23 @@ export function buildStats({ program, submissions, board, ratings, config, revie
   );
   const normalized = !!board.normalization?.enabled && board.normalization?.available !== false;
 
-  // 1. Prize winners, per judged track, best prize first.
+  // 1. Prize winners, per judged track. The judged track is ranked by score
+  // (highest first, so the place is the rank); Agentic Commerce has no Stadium
+  // score, so best prize first. Ties: bigger prize, then title.
   const winners = {};
   for (const track of Object.keys(JUDGED_LABELS)) {
+    const amount = (w) => Number(w.prize.amount);
     winners[track] = subs
       .filter((s) => s.prizes?.[track])
-      .sort((a, b) => Number(b.prizes[track].amount) - Number(a.prizes[track].amount) || a.projectTitle.localeCompare(b.projectTitle))
-      .map((s, i) => ({
-        place: i + 1,
+      .map((s) => ({
         prize: { label: s.prizes[track].label, amount: s.prizes[track].amount, currency: s.prizes[track].currency },
         project: projectRef(s),
         ecosystemPrize: track === judgeTrack && !!s.ecosystemPrize,
         // Agentic Commerce winners show without scores.
         score: track === judgeTrack && judged.has(s.id) ? round1(judged.get(s.id)) : null,
-      }));
+      }))
+      .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity) || amount(b) - amount(a) || a.project.title.localeCompare(b.project.title))
+      .map((w, i) => ({ place: i + 1, ...w }));
   }
 
   // Hackers, deduped across teams on email.

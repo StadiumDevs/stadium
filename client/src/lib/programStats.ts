@@ -188,16 +188,17 @@ export function buildStats({
 
   const winners: Record<string, StatsWinner[]> = {};
   for (const track of Object.keys(JUDGED_LABELS)) {
+    const amount = (w: Omit<StatsWinner, "place">) => Number(w.prize.amount);
     winners[track] = subs
       .filter((s) => s.prizes?.[track])
-      .sort((a, b) => Number(b.prizes![track]!.amount) - Number(a.prizes![track]!.amount) || a.projectTitle.localeCompare(b.projectTitle))
-      .map((s, i) => ({
-        place: i + 1,
+      .map((s) => ({
         prize: { label: s.prizes![track]!.label, amount: s.prizes![track]!.amount, currency: s.prizes![track]!.currency },
         project: projectRef(s),
         ecosystemPrize: track === judgeTrack && !!s.ecosystemPrize,
         score: track === judgeTrack && judged.has(s.id) ? round1(judged.get(s.id)!) : null,
-      }));
+      }))
+      .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity) || amount(b) - amount(a) || a.project.title.localeCompare(b.project.title))
+      .map((w, i) => ({ place: i + 1, ...w }));
   }
 
   const hackers = new Set<string>();

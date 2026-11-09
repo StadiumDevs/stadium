@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorize, computeChecks, computeStats, publicSnapshot, statsFingerprint, suggestCategory } from '../program-stats.service.js';
+import { buildStats, categorize, computeChecks, computeStats, publicSnapshot, statsFingerprint, suggestCategory } from '../program-stats.service.js';
 import { FSH_CATEGORIES, PROGRAM_STATS } from '../../constants/programStats.js';
 import { FSH_FINAL_TITLES } from './fixtures/fsh-final-titles.js';
 
@@ -145,6 +145,32 @@ describe('computeStats', () => {
     expect(s.winners.agentic.map((w) => [w.place, w.project.title, w.score])).toEqual([
       [1, 'Pegasus', null],
       [2, 'GiftRelay', null],
+    ]);
+  });
+
+  it('Privacy winners are ranked by score (place = rank), not by prize amount', () => {
+    const prize = (label, amount) => ({ privacy: { label, amount, currency: 'USDC' } });
+    const w = (id, title, p) => ({ id, projectTitle: title, submitterName: id, lumaEmail: `${id}@x.io`, prizes: p, details: { track: 'privacy', pitch: 'p', team: [] } });
+    const subs = [
+      w('top', 'Top prize, lower score', prize('Privacy: top prize', 1300)),
+      w('eco', 'Ecosystem, highest score', prize('Zcash ecosystem prize', 100)),
+      w('unscored', 'Override, no score', prize('Privacy: third prize', 200)),
+      w('tie', 'Same score, smaller prize', prize('Privacy: third prize', 200)),
+    ];
+    const board = {
+      rows: [
+        { submissionId: 'top', judgeCount: 3, avgTotal: 11.2, normTotal: null },
+        { submissionId: 'eco', judgeCount: 3, avgTotal: 13.4, normTotal: null },
+        { submissionId: 'tie', judgeCount: 3, avgTotal: 11.2, normTotal: null },
+      ],
+      normalization: null,
+    };
+    const stats = buildStats({ program, submissions: subs, board, ratings: [], config, now: NOW });
+    expect(stats.winners.privacy.map((x) => [x.place, x.project.id, x.score])).toEqual([
+      [1, 'eco', 13.4],
+      [2, 'top', 11.2],
+      [3, 'tie', 11.2],
+      [4, 'unscored', null],
     ]);
   });
 
