@@ -1,25 +1,33 @@
 // Per-judge score normalization for rubric judging. Pure: no I/O.
 // Mirrors client/src/lib/scoreNormalization.ts so the playground and
-// production normalize the same way.
+// production normalize the same way (normalization-parity.test.js checks it).
 //
-// Method (per track, per judge):
-// - A judge's scores are z-scored, z = (x − judge mean) ÷ judge SD, over the
-//   projects that judge scored, once the judge has at least `minScoresForZ`
-//   scores and a non-zero SD. Otherwise they are only mean-centered (x − mean).
-// - Each score becomes a contribution in rubric points, so both methods share
-//   one scale: z judges give grandMean + grandSD × z, centered judges give
-//   grandMean + (x − judge mean). The grand mean and SD are taken over every
-//   counted score in the track.
-// - A project's normalized score is the mean of its contributions.
-// - Criteria are normalized the same way, per judge and per criterion, and
-//   clipped to the criterion's range. Bonus criteria stay raw.
-// - The additive judge-offset model (score = project quality + judge bias) is
-//   fitted alongside as a check, or as the ranking when method = 'offset'. It
-//   suits tracks where judges were assigned by domain, which z-scores don't
-//   handle well because they assume each judge saw a random mix of projects.
+// Default method, 'offset' (additive judge-offset model):
+//   score = project quality + judge bias, least squares, biases summing to 0
+//   over the judges in the fit.
+// - Only judges with at least one counted (complete, not abstained) score in
+//   the track are in the fit. Assigned judges who haven't scored are left out.
+// - Because the biases sum to 0, a project scored by every judge in the fit
+//   keeps exactly its raw average. Only projects some judges didn't score move:
+//   down when their judges were lenient, up when harsh. Ranks of fully scored
+//   projects can still change, because partly scored ones move past them.
+// - A judge with fewer than `minScoresPerJudge` scores gets bias 0
+//   (lowCountBias 'zero') or a bias scaled by n / minScoresPerJudge ('shrink');
+//   the other judges are re-centred so the biases still sum to 0.
+// - The total is fitted directly (normTotal). Each non-bonus criterion is fitted
+//   separately and clipped to its range, for display and tie-breaks only; bonus
+//   criteria stay raw. The fit is linear, so normTotal equals the sum of the
+//   criterion fits except where a criterion was clipped or for the bonus.
+// - Normalization needs at least `minJudges` scoring judges in the track;
+//   below that the track stays raw (available: false).
+//
+// Optional method, 'zscore': a judge's scores become grandMean + grandSD × z,
+// z = (x − judge mean) ÷ judge SD, once the judge has `minScoresForZ` scores and
+// a non-zero SD; otherwise grandMean + (x − judge mean). This rescales every
+// judge's spread, so it also moves projects every judge scored.
 //
 // Missing scores stay missing: only the scores passed in count. Zero is a
-// valid score.
+// valid score. Abstentions count as missing.
 
 const EPS = 1e-9;
 const mean = (ns) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
@@ -31,14 +39,21 @@ const sd = (ns) => {
 };
 const clip = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
-export const DEFAULT_NORMALIZATION = Object.freeze({ enabled: true, method: 'zscore', minScoresForZ: 8 });
+export const DEFAULT_NORMALIZATION = Object.freeze({
+  enabled: true,
+  method: 'offset',
+  minJudges: 2,
+  minScoresPerJudge: 8,
+  lowCountBias: 'zero',
+  minScoresForZ: 8,
+});
+
+export const UNAVAILABLE_REASON = (minJudges) => `Needs scores from at least ${minJudges} judges`;
 
 /**
- * Normalizes one set of values (a total or one criterion).
+ * Z-score normalization of one set of values (a total or one criterion).
  * @param {{ submissionId: string, judgeEmail: string, x: number }[]} entries
  * @param {{ minScoresForZ: number, range?: [number, number] }} opts
- * @returns {{ byProject: Map<string, { value: number, contributions: { judgeEmail: string, method: 'zscore'|'center', value: number }[] }>,
- *            judges: Map<string, { n: number, mean: number, sd: number, method: 'zscore'|'center' }> }}
  */
 export function normalizeValues(entries, { minScoresForZ, range }) {
   const all = entries.map((e) => e.x);
@@ -73,11 +88,13 @@ export function normalizeValues(entries, { minScoresForZ, range }) {
 
 /**
  * Additive judge-offset model: x = quality[project] + bias[judge], least
- * squares with the biases summing to 0, by alternating updates.
+ * squares with the biases summing to 0, by alternating updates. Judges with
+ * fewer than `minScoresPerJudge` scores get bias 0 ('zero') or a shrunk bias
+ * ('shrink'); the other judges are re-centred so the sum stays 0.
  * @param {{ submissionId: string, judgeEmail: string, x: number }[]} entries
- * @returns {{ quality: Map<string, number>, bias: Map<string, number> }}
+ * @returns {{ quality: Map<string, number>, bias: Map<string, number>, lowCount: Set<string> }}
  */
-export function fitJudgeOffsets(entries, { maxIter = 500, tol = 1e-9 } = {}) {
+export function fitJudgeOffsets(entries, { minScoresPerJudge = 0, lowCountBias = 'zero', maxIter = 2000, tol = 1e-12 } = {}) {
   const byP = new Map();
   const byJ = new Map();
   for (const e of entries) {
@@ -86,13 +103,22 @@ export function fitJudgeOffsets(entries, { maxIter = 500, tol = 1e-9 } = {}) {
     byP.get(e.submissionId).push(e);
     byJ.get(e.judgeEmail).push(e);
   }
+  const lowCount = new Set([...byJ].filter(([, es]) => es.length < minScoresPerJudge).map(([j]) => j));
+  const free = [...byJ.keys()].filter((j) => !lowCount.has(j));
   const quality = new Map([...byP].map(([p, es]) => [p, mean(es.map((e) => e.x))]));
   const bias = new Map([...byJ.keys()].map((j) => [j, 0]));
   for (let it = 0; it < maxIter; it += 1) {
+    for (const [j, es] of byJ) {
+      const b = mean(es.map((e) => e.x - quality.get(e.submissionId)));
+      if (!lowCount.has(j)) bias.set(j, b);
+      else bias.set(j, lowCountBias === 'shrink' ? (b * es.length) / minScoresPerJudge : 0);
+    }
+    // Re-centre so the biases sum to 0: on the free judges, or on everyone
+    // when every judge is below the minimum.
+    const centreOn = free.length ? free : [...byJ.keys()];
+    const shift = [...bias.values()].reduce((a, b) => a + b, 0) / centreOn.length;
+    for (const j of centreOn) bias.set(j, bias.get(j) - shift);
     let delta = 0;
-    for (const [j, es] of byJ) bias.set(j, mean(es.map((e) => e.x - quality.get(e.submissionId))));
-    const shift = mean([...bias.values()]);
-    for (const j of bias.keys()) bias.set(j, bias.get(j) - shift);
     for (const [p, es] of byP) {
       const q = mean(es.map((e) => e.x - bias.get(e.judgeEmail)));
       delta = Math.max(delta, Math.abs(q - quality.get(p)));
@@ -100,59 +126,85 @@ export function fitJudgeOffsets(entries, { maxIter = 500, tol = 1e-9 } = {}) {
     }
     if (delta < tol) break;
   }
-  return { quality, bias };
+  return { quality, bias, lowCount };
 }
 
 /**
  * Normalizes a whole track.
  * @param {object} args
  * @param {{ id: string, min?: number, max: number, weight?: number }[]} args.criteria
- * @param {string[]} args.bonusIds  criteria shown raw (not z-scored)
- * @param {{ submissionId: string, judgeEmail: string, criteria: Record<string, number> }[]} args.scores
- *        fully scored rows for this track only
- * @param {{ minScoresForZ?: number }} [args.config]
+ * @param {string[]} args.bonusIds  criteria shown raw
+ * @param {{ submissionId: string, judgeEmail: string, criteria: Record<string, number>, abstained?: boolean }[]} args.scores
+ *        complete score sheets for this track only (abstentions are dropped here)
+ * @param {Partial<typeof DEFAULT_NORMALIZATION>} [args.config]
  */
 export function normalizeTrack({ criteria, bonusIds = [], scores, config = {} }) {
-  const minScoresForZ = config.minScoresForZ ?? DEFAULT_NORMALIZATION.minScoresForZ;
-  const totalOf = (crit) => criteria.reduce((sum, c) => sum + (crit[c.id] ?? 0) * (c.weight ?? 1), 0);
-  const totals = scores.map((s) => ({ submissionId: s.submissionId, judgeEmail: s.judgeEmail, x: totalOf(s.criteria) }));
+  const cfg = { ...DEFAULT_NORMALIZATION, ...config };
+  const counted = scores.filter((s) => !s.abstained);
+  const scoringJudges = [...new Set(counted.map((s) => s.judgeEmail))];
+  const base = { method: cfg.method, minJudges: cfg.minJudges, scoringJudges: scoringJudges.length, minScoresForZ: cfg.minScoresForZ };
 
-  const total = normalizeValues(totals, { minScoresForZ });
-  const offsets = fitJudgeOffsets(totals);
+  if (scoringJudges.length < cfg.minJudges) {
+    return {
+      ...base,
+      available: false,
+      reason: UNAVAILABLE_REASON(cfg.minJudges),
+      projects: new Map(),
+      judgeStats: scoringJudges.map((judgeEmail) => {
+        const xs = counted.filter((s) => s.judgeEmail === judgeEmail);
+        return { judgeEmail, n: xs.length, mean: null, sd: null, method: null, bias: null, lowCount: false };
+      }),
+    };
+  }
+
+  const totalOf = (crit) => criteria.reduce((sum, c) => sum + (crit[c.id] ?? 0) * (c.weight ?? 1), 0);
+  const totals = counted.map((s) => ({ submissionId: s.submissionId, judgeEmail: s.judgeEmail, x: totalOf(s.criteria) }));
+  const offsetOpts = { minScoresPerJudge: cfg.minScoresPerJudge, lowCountBias: cfg.lowCountBias };
+  const isOffset = cfg.method === 'offset';
+
+  const z = normalizeValues(totals, { minScoresForZ: cfg.minScoresForZ });
+  const offsets = fitJudgeOffsets(totals, offsetOpts);
 
   const perCriterion = {};
   for (const c of criteria) {
     if (bonusIds.includes(c.id)) continue;
-    const entries = scores.map((s) => ({ submissionId: s.submissionId, judgeEmail: s.judgeEmail, x: s.criteria[c.id] ?? 0 }));
-    perCriterion[c.id] = normalizeValues(entries, { minScoresForZ, range: [c.min ?? 0, c.max] });
+    const entries = counted.map((s) => ({ submissionId: s.submissionId, judgeEmail: s.judgeEmail, x: s.criteria[c.id] ?? 0 }));
+    const range = [c.min ?? 0, c.max];
+    if (isOffset) {
+      const fit = fitJudgeOffsets(entries, offsetOpts);
+      perCriterion[c.id] = (id) => clip(fit.quality.get(id), range[0], range[1]);
+    } else {
+      const fit = normalizeValues(entries, { minScoresForZ: cfg.minScoresForZ, range });
+      perCriterion[c.id] = (id) => fit.byProject.get(id).value;
+    }
   }
 
   const projects = new Map();
-  for (const [id, p] of total.byProject) {
+  for (const [id, zp] of z.byProject) {
     const normByCriterion = {};
     for (const c of criteria) {
-      if (bonusIds.includes(c.id)) {
-        normByCriterion[c.id] = mean(scores.filter((s) => s.submissionId === id).map((s) => s.criteria[c.id] ?? 0));
-      } else {
-        normByCriterion[c.id] = perCriterion[c.id].byProject.get(id).value;
-      }
+      normByCriterion[c.id] = bonusIds.includes(c.id)
+        ? mean(counted.filter((s) => s.submissionId === id).map((s) => s.criteria[c.id] ?? 0))
+        : perCriterion[c.id](id);
     }
-    projects.set(id, {
-      normTotal: p.value,
-      normByCriterion,
-      offsetTotal: offsets.quality.get(id),
-      contributions: p.contributions,
-    });
+    const offsetTotal = offsets.quality.get(id);
+    const contributions = isOffset
+      ? totals
+          .filter((t) => t.submissionId === id)
+          .map((t) => ({ judgeEmail: t.judgeEmail, method: 'offset', value: t.x - offsets.bias.get(t.judgeEmail) }))
+      : zp.contributions;
+    projects.set(id, { normTotal: isOffset ? offsetTotal : zp.value, normByCriterion, zTotal: zp.value, offsetTotal, contributions });
   }
 
-  const judgeStats = [...total.judges].map(([judgeEmail, j]) => ({
+  const judgeStats = [...z.judges].map(([judgeEmail, j]) => ({
     judgeEmail,
     n: j.n,
     mean: j.mean,
     sd: j.sd,
-    method: j.method,
+    method: isOffset ? 'offset' : j.method,
     bias: offsets.bias.get(judgeEmail) ?? 0,
+    lowCount: offsets.lowCount.has(judgeEmail),
   }));
 
-  return { projects, judgeStats, minScoresForZ };
+  return { ...base, available: true, reason: null, projects, judgeStats };
 }

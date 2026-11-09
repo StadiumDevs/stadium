@@ -1,5 +1,5 @@
 import type { ApiPrizeTier, JudgedTrack, SubmissionTrack } from "./api";
-import type { NormalizationConfig } from "./scoreNormalization";
+import { DEFAULT_NORMALIZATION, type NormalizationConfig } from "./scoreNormalization";
 
 /**
  * Per-program configuration for hackathons that go beyond the Bitrefill shape:
@@ -61,6 +61,9 @@ export const batchFor = (profile: ProgramProfile, createdAt: string): string | n
   return (batches.find((b) => b.until && at <= Date.parse(b.until)) ?? batches[batches.length - 1]).id;
 };
 
+/** An automatic submission category: matched by keyword prefixes in the title, pitch and brief. */
+export type SubmissionCategory = { id: string; label: string; keywords: string[] };
+
 export type MilestoneStep = { id: "agree" | "checkin" | "deliver" | "share" | "payout"; label: string; due: string };
 
 export type ProgramProfile = {
@@ -70,6 +73,11 @@ export type ProgramProfile = {
   /** Teammates besides the point person (server: trackedPrograms.js maxTeam). */
   maxTeammates?: number;
   themes: string[];
+  /**
+   * Categories that submissions are sorted into automatically, by keyword
+   * (submissionCategories.ts), in priority order for ties. Not chosen by teams.
+   */
+  categories?: SubmissionCategory[];
   appTypes: string[];
   /** Show submitted projects on the public page immediately, not only after results. */
   showSubmissionsLive: boolean;
@@ -194,7 +202,7 @@ const PRIVACY_RUBRIC: Rubric = {
     maxAvg: 0,
     message: "Average Works score is 0: this project can't be selected as a winner.",
   },
-  normalization: { enabled: true, method: "zscore", minScoresForZ: 8 },
+  normalization: DEFAULT_NORMALIZATION,
   guideUrl: PRIVACY_JUDGING_GUIDE_URL,
 };
 
@@ -207,7 +215,7 @@ const AGENTIC_RUBRIC: Rubric = {
     { id: "innovation", label: "How innovative the submission is", weight: 1, min: 1, max: 5 },
   ],
   tieBreaks: [{ kind: "criterion", id: "innovation", label: "How innovative" }],
-  normalization: { enabled: true, method: "zscore", minScoresForZ: 8 },
+  normalization: DEFAULT_NORMALIZATION,
 };
 
 export const FREE_SOCIETY_HACK_SLUG = "free-society-hack-2026";
@@ -246,6 +254,18 @@ const FREE_SOCIETY_HACK: ProgramProfile = {
   // Solo or a team of up to 4, including the point person.
   maxTeammates: 3,
   themes: ["1. Private payment rails", "2. The first five minutes", "3. Privacy beyond the transaction"],
+  // Free Society Hack submission categories (both tracks), in tie-break order.
+  categories: [
+    { id: "agents", label: "Agents", keywords: ["agent", "agentic", "autonomous", "mcp", "llm", "a2a", "x402"] },
+    { id: "rewards", label: "Rewards", keywords: ["reward", "loyalty", "cashback", "points", "gift card", "voucher", "tip", "airdrop", "bounty", "incentive", "allowance", "faucet"] },
+    { id: "wallets", label: "Wallets", keywords: ["wallet", "address book", "viewing key", "seed phrase", "custody", "multisig", "key vault", "lightwalletd"] },
+    { id: "business", label: "Business", keywords: ["merchant", "invoice", "payroll", "payslip", "business", "checkout", "point of sale", "receipt", "accounting", "commission", "bill", "subscription", "escrow", "remittance", "store", "shop"] },
+    { id: "education", label: "Education", keywords: ["learn", "education", "tutorial", "course", "teach", "student", "quiz", "explorer", "explainer", "onboarding"] },
+    { id: "assistants", label: "Assistants", keywords: ["assistant", "concierge", "copilot", "chatbot", "pilot", "voice", "chat"] },
+    { id: "verification", label: "Verification", keywords: ["verify", "verification", "proof", "attest", "identity", "credential", "kyc", "age", "audit", "reserves"] },
+    { id: "trading", label: "Trading", keywords: ["trade", "trading", "swap", "dex", "exchange", "arbitrage", "market", "portfolio", "price", "router", "liquidity"] },
+    { id: "activism", label: "Activism", keywords: ["activis", "protest", "donation", "donate", "journalis", "censorship", "human rights", "whistleblow", "dissident", "ballot", "vote", "petition", "feedback box"] },
+  ],
   appTypes: ["web app", "mobile app", "SDK or library", "CLI", "agent", "other"],
   showSubmissionsLive: true,
   timeZone: { id: "Asia/Kolkata", label: "IST" },

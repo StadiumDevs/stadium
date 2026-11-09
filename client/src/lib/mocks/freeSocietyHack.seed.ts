@@ -25,6 +25,7 @@
  */
 import type {
   ApiPrizeTier,
+  ApiResultsRanking,
   ApiRubricScore,
   ApiTrackedSubmission,
   ApiTxCheck,
@@ -840,6 +841,8 @@ export type TrackedSeed = {
   submissions: ApiTrackedSubmission[];
   scores: ApiRubricScore[];
   resultsPublishedAt: string | null;
+  /** How each track was ranked when published (mirrors programs.results_ranking). */
+  resultsRanking?: ApiResultsRanking | null;
 };
 
 export function buildFreeSocietyHackSeed(): TrackedSeed {

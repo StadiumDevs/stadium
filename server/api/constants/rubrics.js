@@ -21,6 +21,20 @@ export const RUBRICS = {
 
 export const RUBRIC_TRACKS = Object.keys(RUBRICS);
 
+// Per-judge normalization (score-normalization.service.js; client:
+// Rubric.normalization in programProfiles.ts). method: 'offset' (judge-offset
+// model: projects every scoring judge scored keep their raw average) or
+// 'zscore'. Needs `minJudges` judges with scores in the track; judges under
+// `minScoresPerJudge` scores get bias 0 ('zero') or a shrunk one ('shrink').
+const NORMALIZATION = Object.freeze({
+  enabled: true,
+  method: 'offset',
+  minJudges: 2,
+  minScoresPerJudge: 8,
+  lowCountBias: 'zero',
+  minScoresForZ: 8,
+});
+
 // Ranking rules per track (client: Rubric.tieBreaks / winnerGate in
 // programProfiles.ts). Ties go to the first tie-break that differs.
 export const RUBRIC_RANKING = {
@@ -30,10 +44,8 @@ export const RUBRIC_RANKING = {
       { kind: 'criterion', id: 'needed', label: 'Needed' },
     ],
     bonusId: 'bonus',
-    // An average Works score of 0 can't win.
-    // Per-judge normalization (score-normalization.service.js). method:
-    // 'zscore' (default) or 'offset' (additive judge-offset model).
-    normalization: { enabled: true, method: 'zscore', minScoresForZ: 8 },
+    normalization: NORMALIZATION,
+    // An average Works score of 0 can't win (read from raw averages).
     winnerGate: {
       criterionId: 'works',
       maxAvg: 0,
@@ -44,7 +56,7 @@ export const RUBRIC_RANKING = {
     // Bitrefill's rule: ties go to the higher How innovative score.
     tieBreaks: [{ kind: 'criterion', id: 'innovation', label: 'How innovative' }],
     bonusId: null,
-    normalization: { enabled: true, method: 'zscore', minScoresForZ: 8 },
+    normalization: NORMALIZATION,
     winnerGate: null,
   },
 };

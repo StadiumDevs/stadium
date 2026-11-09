@@ -33,6 +33,7 @@ import lumaSyncService from '../services/luma-sync.service.js';
 import auditLog from '../services/program-audit-log.service.js';
 import { checkAndStore as checkTxAndStore } from '../services/tx-check.service.js';
 import { judgedTracksOf } from '../services/rubric-leaderboard.service.js';
+import { snapshotForProgram } from '../services/results-ranking.service.js';
 
 // On a Luma-gated cache-miss we lazily re-sync, but only if the last sync is
 // older than this floor. Bounds Luma calls when not-on-list emails retry, while
@@ -91,11 +92,19 @@ async function setResultsPublished(req, res, publish) {
     if (!program) {
       return res.status(404).json({ status: 'error', message: 'Program not found' });
     }
-    const updated = await programRepository.setResultsPublished(
-      slug,
-      publish ? new Date().toISOString() : null,
-    );
-    res.status(200).json({ status: 'success', data: { resultsPublishedAt: updated.resultsPublishedAt } });
+    // Tracked programs: store how each track was ranked (the admin's APPLY
+    // NORMALIZATION toggle, sent as `normalized`, default on), so a later
+    // toggle change doesn't change what's public.
+    const tracked = trackedProgramFor(slug);
+    const ranking =
+      publish && tracked
+        ? await snapshotForProgram({ program, tracked, normalized: req.body?.normalized !== false })
+        : null;
+    const updated = await programRepository.setResultsPublished(slug, publish ? new Date().toISOString() : null, ranking);
+    res.status(200).json({
+      status: 'success',
+      data: { resultsPublishedAt: updated.resultsPublishedAt, resultsRanking: updated.resultsRanking ?? null },
+    });
     auditLog.logSafe({
       programId: program.id,
       actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
@@ -770,7 +779,12 @@ class SubmissionController {
       const rows = await programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' });
       res.status(200).json({
         status: 'success',
-        data: { published: !!program.resultsPublishedAt, submissions: toPublicList(rows, !!program.resultsPublishedAt) },
+        data: {
+          published: !!program.resultsPublishedAt,
+          submissions: toPublicList(rows, !!program.resultsPublishedAt),
+          // How each track was ranked when published (null until then).
+          ranking: program.resultsPublishedAt ? program.resultsRanking ?? null : null,
+        },
       });
     } catch (error) {
       console.error('❌ Error listing public submissions:', error);

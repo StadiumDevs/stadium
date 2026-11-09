@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ApiPublicSubmission, JudgedTrack } from "@/lib/api";
+import type { ApiPublicSubmission, ApiResultsRanking, JudgedTrack } from "@/lib/api";
 import { judgedTracksOf, type ProgramProfile } from "@/lib/programProfiles";
 import { cn } from "@/lib/utils";
 import { SubmissionCard } from "./SubmissionCard";
@@ -18,11 +18,14 @@ export function TrackedProjectsSection({
   programSlug,
   submissions,
   published,
+  ranking,
 }: {
   profile: ProgramProfile;
   programSlug: string;
   submissions: ApiPublicSubmission[];
   published: boolean;
+  /** How each track was ranked when results were published (stored at publish time). */
+  ranking?: ApiResultsRanking | null;
 }) {
   const [query, setQuery] = useState("");
   const [track, setTrack] = useState<TrackFilter>("all");
@@ -96,6 +99,19 @@ export function TrackedProjectsSection({
           />
         </div>
       </div>
+      {published && ranking && Object.keys(ranking).length > 0 && (
+        <p className="label-hw-dim normal-case mb-3" data-testid="results-method-note">
+          How winners were ranked:{" "}
+          {profile.tracks
+            .filter((t) => ranking[t.id])
+            .map((t) => {
+              const r = ranking[t.id]!;
+              return `${t.shortLabel}: ${r.normalized ? "normalized scores (adjusted for each judge's leniency)" : "average judge scores"}`;
+            })
+            .join(" · ")}
+          .
+        </p>
+      )}
 
       {submissions.length === 0 ? (
         <p className="label-hw-dim">No projects submitted yet. They appear here as soon as they are submitted.</p>
