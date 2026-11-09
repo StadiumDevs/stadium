@@ -5,7 +5,7 @@ import { maxScore, trackById, type ProgramProfile } from "@/lib/programProfiles"
 import { classifySubmission, countByCategory, themesOf } from "@/lib/submissionCategories";
 
 // Organizer-only breakdown of the submissions: how many fall into each
-// automatic category and each theme picked on the form, and how each category
+// category and each theme picked on the form, and how each category
 // scores on the selected track. Read from the same live data as the ranked
 // table, so the numbers never disagree.
 
@@ -129,9 +129,9 @@ export function SubmissionBreakdownPanel({
         <>
           {categories.length > 0 && (
             <p className="label-hw-dim normal-case">
-              Categories are assigned automatically from each project's title, pitch and description (keyword match),
-              and update when a team edits them. Themes are what teams picked on the form; a project with several
-              themes counts once in each.
+              Categories come from the program's category map (matched by project id or title); projects not in the
+              map show as Uncategorized. Themes are what teams picked on the form; a project with several themes
+              counts once in each.
             </p>
           )}
           <div className="grid gap-4 md:grid-cols-2">

@@ -1,0 +1,112 @@
+// The prize winners and submission stats page (tracked programs with a stats
+// config). Platform admins preview the live stats with the data checks and
+// publish a snapshot; the public endpoint serves only that snapshot, so later
+// score, prize or feedback changes need a republish to go public.
+
+import programService from '../services/program.service.js';
+import programRepository from '../repositories/program.repository.js';
+import programSubmissionRepository from '../repositories/program-submission.repository.js';
+import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
+import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
+import experienceRatingRepository from '../repositories/submission-experience-rating.repository.js';
+import { trackedProgramFor, isAbandoned, isCountedEntry } from '../constants/trackedPrograms.js';
+import { programStatsFor } from '../constants/programStats.js';
+import { computeChecks, computeStats, statsFingerprint } from '../services/program-stats.service.js';
+import auditLog from '../services/program-audit-log.service.js';
+
+const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
+const fail = (res, code, message) => res.status(code).json({ status: 'error', message });
+
+async function loadContext(req, res) {
+  const config = programStatsFor(req.params.slug);
+  const tracked = trackedProgramFor(req.params.slug);
+  if (!config || !tracked) {
+    fail(res, 404, 'This program has no stats page');
+    return null;
+  }
+  const program = await programService.findBySlug(req.params.slug);
+  if (!program) {
+    fail(res, 404, 'Program not found');
+    return null;
+  }
+  return { config, tracked, program };
+}
+
+/** Live stats and checks from the database. */
+async function liveStats({ config, tracked, program }) {
+  const [all, scores, judges, ratings] = await Promise.all([
+    programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' }),
+    submissionRubricScoreRepository.listByProgram(program.id),
+    programAdminEmailRepository.listJudges(program.id),
+    experienceRatingRepository.listByProgramId(program.id),
+  ]);
+  const counted = all.filter((s) => isCountedEntry(s, tracked, program));
+  const testEntries = all.filter((s) => s.isTestEntry && !isAbandoned(s, tracked, program));
+  const stats = computeStats({ program, submissions: counted, scores, judges, ratings, config });
+  const checks = computeChecks({ counted, testEntries, stats, config });
+  return { stats, checks };
+}
+
+class ProgramStatsController {
+  // Public: the published snapshot, or 404 before publishing.
+  async getPublished(req, res) {
+    try {
+      const ctx = await loadContext(req, res);
+      if (!ctx) return;
+      const snapshot = ctx.program.statsPublishedAt ? await programRepository.getStatsSnapshot(ctx.program.slug) : null;
+      if (!snapshot) return fail(res, 404, 'Stats are not published yet');
+      res.status(200).json({ status: 'success', data: { stats: snapshot, publishedAt: ctx.program.statsPublishedAt } });
+    } catch (error) {
+      console.error('❌ Error loading published stats:', error);
+      fail(res, 500, 'Failed to load the stats');
+    }
+  }
+
+  // Platform admin: live stats, data checks, and whether they differ from the snapshot.
+  async preview(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) return fail(res, 403, 'Only platform admins can preview the stats');
+      const ctx = await loadContext(req, res);
+      if (!ctx) return;
+      const { stats, checks } = await liveStats(ctx);
+      const snapshot = ctx.program.statsPublishedAt ? await programRepository.getStatsSnapshot(ctx.program.slug) : null;
+      res.status(200).json({
+        status: 'success',
+        data: {
+          stats,
+          checks,
+          publishedAt: ctx.program.statsPublishedAt ?? null,
+          changedSincePublish: !!snapshot && statsFingerprint(snapshot) !== statsFingerprint(stats),
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error previewing stats:', error);
+      fail(res, 500, 'Failed to build the stats');
+    }
+  }
+
+  // Platform admin: publish (or republish) the snapshot. Checks are never stored.
+  async publish(req, res) {
+    try {
+      if (!isPlatformAdmin(req)) return fail(res, 403, 'Only platform admins can publish the stats');
+      const ctx = await loadContext(req, res);
+      if (!ctx) return;
+      const { stats } = await liveStats(ctx);
+      const updated = await programRepository.setStatsSnapshot(ctx.program.slug, stats, stats.generatedAt);
+      res.status(200).json({ status: 'success', data: { stats, publishedAt: updated.statsPublishedAt } });
+      auditLog.logSafe({
+        programId: ctx.program.id,
+        actor: { chain: req.user?.chain, wallet: req.user?.address, email: req.user?.email },
+        action: ctx.program.statsPublishedAt ? 'stats.republish' : 'stats.publish',
+        targetType: 'program',
+        targetId: ctx.program.id,
+        metadata: null,
+      });
+    } catch (error) {
+      console.error('❌ Error publishing stats:', error);
+      fail(res, 500, 'Failed to publish the stats');
+    }
+  }
+}
+
+export default new ProgramStatsController();

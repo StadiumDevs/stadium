@@ -32,7 +32,7 @@ import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadg
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
 import { SubmissionBreakdownPanel } from "./SubmissionBreakdownPanel";
-import { classifySubmission, NO_THEME, themesOf } from "@/lib/submissionCategories";
+import { classifySubmission, NO_THEME, themesOf, UNCATEGORIZED } from "@/lib/submissionCategories";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
 import { CriteriaCarousel, type CheckStep } from "./CriteriaCarousel";
 import { DemoVideo } from "./DemoVideo";
@@ -652,20 +652,20 @@ export function RubricJudgingSection({
   // Category (automatic, from the project's text) and themes (picked on the form) per row.
   const categoryOf = (submissionId: string, projectTitle: string) =>
     profile.categories?.length
-      ? classifySubmission(profile.categories, submissions.find((x) => x.id === submissionId) ?? { projectTitle })
+      ? classifySubmission(profile.categories, submissions.find((x) => x.id === submissionId) ?? { id: submissionId, projectTitle })
       : null;
   const groups: { key: string; label: string | null; rows: typeof shownRows }[] = (() => {
     if (groupBy === "none") return [{ key: "all", label: null, rows: shownRows }];
     // Groups keep the overall rank order inside; config order for the group list.
     const order =
       groupBy === "category"
-        ? [...(profile.categories ?? []).map((c) => c.label), "Other"]
+        ? [...(profile.categories ?? []).map((c) => c.label), UNCATEGORIZED.label]
         : [...profile.themes, NO_THEME];
     const byKey = new Map<string, typeof shownRows>();
     for (const r of shownRows) {
       const keys =
         groupBy === "category"
-          ? [categoryOf(r.submissionId, r.projectTitle)?.label ?? "Other"]
+          ? [categoryOf(r.submissionId, r.projectTitle)?.label ?? UNCATEGORIZED.label]
           : themesOf(submissions.find((x) => x.id === r.submissionId) ?? {});
       for (const k of keys) byKey.set(k, [...(byKey.get(k) ?? []), r]);
     }
@@ -1299,7 +1299,7 @@ export function RubricJudgingSection({
                                   <span
                                     className="label-hw-dim"
                                     data-testid="leaderboard-category"
-                                    title={`Category matched on: ${cat.matched.join(", ") || "no keyword"}`}
+                                    title={cat.by ? `Category matched by ${cat.by}` : `Not in the category map${cat.suggested ? ` (suggested: ${cat.suggested})` : ""}`}
                                   >
                                     {cat.label.toUpperCase()}
                                   </span>

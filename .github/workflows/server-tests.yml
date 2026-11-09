@@ -1,15 +1,18 @@
 name: Server tests
 
-# Runs the server Vitest suite on pull requests. It includes
-# normalization-parity.test.js, which checks the client playground's copy of
-# the score normalization (client/src/lib/scoreNormalization.ts) against the
-# server's, so the two can't drift apart.
+# Runs the server Vitest suite on pull requests. It includes the parity tests
+# (normalization-parity.test.js, program-stats-parity.test.js), which check the
+# client playground's copies of the score normalization and the stats page
+# against the server's, so they can't drift apart.
 on:
   pull_request:
     branches: [develop, main]
     paths:
       - 'server/**'
       - 'client/src/lib/scoreNormalization.ts'
+      - 'client/src/lib/programStats.ts'
+      - 'client/src/lib/programStatsConfig.ts'
+      - 'client/src/lib/experienceRatings.ts'
       - '.github/workflows/server-tests.yml'
 
 permissions:

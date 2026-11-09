@@ -8,7 +8,7 @@ import programService from '../services/program.service.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
-import { trackedProgramFor, isAbandoned } from '../constants/trackedPrograms.js';
+import { trackedProgramFor, isCountedEntry } from '../constants/trackedPrograms.js';
 import { RUBRIC_TRACKS } from '../constants/rubrics.js';
 import {
   computeJudgingProgress,
@@ -74,7 +74,7 @@ class TrackedResultsController {
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
-      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
+      const submissions = all.filter((s) => isCountedEntry(s, ctx.tracked, ctx.program));
       const board = computeLeaderboard({ track, submissions, scores, judges });
       if (isJudgeOnly(req)) {
         const me = req.user.email.toLowerCase();
@@ -108,7 +108,7 @@ class TrackedResultsController {
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
-      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
+      const submissions = all.filter((s) => isCountedEntry(s, ctx.tracked, ctx.program));
       const me = (req.user?.email || '').toLowerCase();
       const data = computeJudgingProgress({ submissions, scores, judges }).map(({ email, ...row }) => ({
         ...row,

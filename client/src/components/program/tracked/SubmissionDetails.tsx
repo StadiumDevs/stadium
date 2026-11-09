@@ -45,8 +45,17 @@ export function SubmissionDetails({
   const show = trackFieldsFor(d.track, track);
   return (
     <dl>
-      <Row label="ONE-LINE PITCH">{d.pitch}</Row>
-      <Row label="DESCRIPTION">{s.projectBrief}</Row>
+      {/* Some entries came in without a pitch or description (e.g. Z-Pay): say so, don't leave a blank. */}
+      {!d.pitch?.trim() && !s.projectBrief?.trim() ? (
+        <Row label="DESCRIPTION">
+          <span className="text-label-dim">No description submitted</span>
+        </Row>
+      ) : (
+        <>
+          <Row label="ONE-LINE PITCH">{d.pitch}</Row>
+          <Row label="DESCRIPTION">{s.projectBrief}</Row>
+        </>
+      )}
       <Row label="TRACK">{trackLabel(profile, d.track)}</Row>
       {show.privacy && d.themes.length > 0 && (
         <Row label="THEMES">

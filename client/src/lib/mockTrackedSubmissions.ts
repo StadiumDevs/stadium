@@ -22,6 +22,7 @@ import {
   getProgramProfile,
   isFullyScored,
   judgedTracksOf,
+  maxScore,
   rubricDraftKey,
   trackById,
   weightedTotal,
@@ -32,12 +33,16 @@ import { checkTestnetTx } from "./txCheck";
 import { mockPrograms } from "./mockPrograms";
 import { toPublicSubmission } from "./trackedDisplay";
 import { DEFAULT_NORMALIZATION, normalizeTrack } from "./scoreNormalization";
+import { buildStats, computeChecks, statsFingerprint, type ProgramStats, type ProgramStatsChecks } from "./programStats";
+import { programStatsFor } from "./programStatsConfig";
+import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
 
 const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }> = {
   "free-society-hack-2026": { build: buildFreeSocietyHackSeed, judges: FSH_JUDGES },
 };
 
-const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v7`;
+// v8: the seed gained a test entry (Example Project).
+const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v8`;
 
 // Mirrors the server: submissions close at the program's eventEndsAt, and a
 // draft still unfinalized after that is abandoned (out of every final list).
@@ -84,6 +89,18 @@ const save = (slug: string, state: TrackedSeed) => {
 const now = () => new Date().toISOString();
 const mean = (ns: number[]) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
 const EPS = 1e-9;
+
+// Playground event ratings (1–5) for the seeded entries, stable per project.
+// Agentic-only entries didn't answer, so the stats page shows "No feedback collected" there.
+const mockRatings = (subs: ApiTrackedSubmission[]) => {
+  const hash = (t: string) => [...t].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const out: { submissionId: string; category: string; score: number }[] = [];
+  for (const s of subs) {
+    if (s.details.track === "agentic" || hash(s.id) % 5 === 0) continue;
+    for (const c of EXPERIENCE_RATING_CATEGORIES) out.push({ submissionId: s.id, category: c.id, score: 2 + (hash(s.id + c.id) % 4) });
+  }
+  return out;
+};
 
 const toPublic = (s: ApiTrackedSubmission, published: boolean): ApiPublicSubmission =>
   toPublicSubmission(s, { showPrizes: published });
@@ -152,7 +169,7 @@ export const mockTracked = {
     const published = !!state.resultsPublishedAt;
     // Like the server: only finalized entries are public (drafts are the team's own).
     const submissions = state.submissions
-      .filter((s) => s.status !== "draft")
+      .filter((s) => s.status !== "draft" && !s.isTestEntry)
       .map((s) => toPublic(s, published))
       .sort((a, b) => (published ? bestPrize(b) - bestPrize(a) : 0) || a.createdAt.localeCompare(b.createdAt));
     return { published, submissions, ranking: published ? state.resultsRanking ?? null : null };
@@ -263,7 +280,7 @@ export const mockTracked = {
       let scored = 0;
       let total = 0;
       for (const s of state.submissions) {
-        if (isAbandonedIn(slug, s)) continue;
+        if (isAbandonedIn(slug, s) || s.isTestEntry) continue;
         for (const t of judgedTracksOf(s.details.track)) {
           if (!j.tracks.includes(t)) continue;
           total += 1;
@@ -283,7 +300,9 @@ export const mockTracked = {
     const bonus = rubric.criteria.find((c) => c.isBonus);
     const state = load(slug);
     const judges = this.judges(slug).filter((j) => j.tracks.includes(track)).map((j) => j.email);
-    const entries = state.submissions.filter((s) => !isAbandonedIn(slug, s) && judgedTracksOf(s.details.track).includes(track));
+    const entries = state.submissions.filter(
+      (s) => !isAbandonedIn(slug, s) && !s.isTestEntry && judgedTracksOf(s.details.track).includes(track),
+    );
 
     const normalization = { ...DEFAULT_NORMALIZATION, ...(rubric.normalization ?? {}) };
     const entryIds = new Set(entries.map((s) => s.id));
@@ -507,6 +526,54 @@ export const mockTracked = {
 
   resultsRanking(slug: string): ApiResultsRanking | null {
     return load(slug).resultsRanking ?? null;
+  },
+
+  /**
+   * Stats page (mirrors server program-stats.controller.js): live stats and
+   * checks for the admin preview, built by the same code as production.
+   */
+  statsLive(slug: string): { stats: ProgramStats; checks: ProgramStatsChecks } | null {
+    const profile = getProgramProfile(slug);
+    const base = programStatsFor(slug);
+    if (!profile || !base) return null;
+    const state = load(slug);
+    const counted = state.submissions.filter((s) => s.status !== "draft" && !s.isTestEntry && !isAbandonedIn(slug, s));
+    const testEntries = state.submissions.filter((s) => s.isTestEntry);
+    const config = {
+      ...base,
+      // The profile's map (in the playground it also knows the mock titles).
+      categories: profile.categories ?? base.categories,
+      scoreMax: maxScore(trackById(profile, base.judgeTrack).rubric),
+    };
+    const board = this.leaderboard(slug, base.judgeTrack);
+    const stats = buildStats({ program: { slug }, submissions: counted, board, ratings: mockRatings(counted), config });
+    return { stats, checks: computeChecks({ counted, testEntries, stats, config }) };
+  },
+
+  statsPreview(slug: string) {
+    const live = this.statsLive(slug);
+    if (!live) return null;
+    const state = load(slug);
+    return {
+      ...live,
+      publishedAt: state.statsPublishedAt ?? null,
+      changedSincePublish: !!state.statsSnapshot && statsFingerprint(state.statsSnapshot) !== statsFingerprint(live.stats),
+    };
+  },
+
+  statsPublish(slug: string): { stats: ProgramStats; publishedAt: string } | null {
+    const live = this.statsLive(slug);
+    if (!live) return null;
+    const state = load(slug);
+    state.statsSnapshot = live.stats;
+    state.statsPublishedAt = live.stats.generatedAt;
+    save(slug, state);
+    return { stats: live.stats, publishedAt: live.stats.generatedAt };
+  },
+
+  statsPublished(slug: string): { stats: ProgramStats; publishedAt: string } | null {
+    const state = load(slug);
+    return state.statsSnapshot && state.statsPublishedAt ? { stats: state.statsSnapshot, publishedAt: state.statsPublishedAt } : null;
   },
 
   updateMilestone(slug: string, id: string, patch: Partial<ApiSubmissionMilestone>): ApiTrackedSubmission | null {

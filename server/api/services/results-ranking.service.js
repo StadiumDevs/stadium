@@ -6,7 +6,7 @@
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
-import { isAbandoned } from '../constants/trackedPrograms.js';
+import { isCountedEntry } from '../constants/trackedPrograms.js';
 import { RUBRIC_TRACKS } from '../constants/rubrics.js';
 import { computeLeaderboard } from './rubric-leaderboard.service.js';
 
@@ -33,7 +33,7 @@ export async function snapshotForProgram({ program, tracked, normalized }) {
     submissionRubricScoreRepository.listByProgram(program.id),
     programAdminEmailRepository.listJudges(program.id),
   ]);
-  const submissions = all.filter((s) => !isAbandoned(s, tracked, program));
+  const submissions = all.filter((s) => isCountedEntry(s, tracked, program));
   const boards = {};
   for (const track of RUBRIC_TRACKS) boards[track] = computeLeaderboard({ track, submissions, scores, judges });
   return rankingSnapshot(boards, normalized);

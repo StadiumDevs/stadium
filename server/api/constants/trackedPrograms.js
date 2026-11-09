@@ -55,6 +55,11 @@ export const submissionsClosed = (config, program, now = Date.now()) =>
 export const isAbandoned = (submission, config, program, now = Date.now()) =>
   submission?.status === 'draft' && submissionsClosed(config, program, now);
 
+// Counts as an entry: not abandoned and not a test entry (an organiser trying
+// the form). Leaderboards, the public list and the stats use only these.
+export const isCountedEntry = (submission, config, program, now = Date.now()) =>
+  !isAbandoned(submission, config, program, now) && submission?.isTestEntry !== true;
+
 // The batch a submission belongs to, from its first submission time.
 export function batchFor(batches, createdAt) {
   if (!Array.isArray(batches) || batches.length === 0) return null;

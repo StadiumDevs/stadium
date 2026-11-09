@@ -29,6 +29,8 @@ import { LumaCheckoutButton } from "@/components/program/LumaCheckoutButton";
 import { LlmsBrief } from "@/components/program/LlmsBrief";
 import { hasLlms } from "@/lib/llms/llmsPrograms";
 import { TrackedProjectsSection } from "@/components/program/tracked/TrackedProjectsSection";
+import { ProgramStatsLink } from "@/components/stats/ProgramStatsLink";
+import { UpdatedAt } from "@/components/stats/ProgramStatsView";
 import { getProgramProfile } from "@/lib/programProfiles";
 import type { ApiPublicSubmissions } from "@/lib/api";
 
@@ -232,6 +234,19 @@ const ProgramDetailPage = () => {
     return () => { active = false; window.removeEventListener("focus", load); };
   }, [slug, program, profile, submitOpen, previewBefore]);
 
+  // Completed programs with a published stats page: its snapshot time ("Updated …")
+  // and the "View prize winners and submission stats" block.
+  const [statsPublishedAt, setStatsPublishedAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!slug || !profile || program?.status !== "completed" || previewBefore) { setStatsPublishedAt(null); return; }
+    let active = true;
+    api
+      .getProgramStats(slug)
+      .then((r) => { if (active) setStatsPublishedAt(r?.publishedAt ?? null); })
+      .catch(() => { if (active) setStatsPublishedAt(null); });
+    return () => { active = false; };
+  }, [slug, profile, program?.status, previewBefore]);
+
   // Stadium project entries belonging to this program (hackathons etc.).
   // Server filters on hackathon_id, backfilled to match program slugs.
   useEffect(() => {
@@ -432,6 +447,87 @@ const ProgramDetailPage = () => {
     );
   };
 
+  // A completed tracked program: the details move into a collapsible under
+  // All projects (collapsed by default), with the stats link and "Updated" date.
+  const completedTracked = !!profile && isPublished && program?.status === "completed";
+  const aboutPanel = (className: string) =>
+    program && (
+        <section className={className} data-testid="program-about">
+          <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>
+          <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start" : ""}`}>
+            {showCover && (
+              // The whole image, never cropped (covers can be square or wide).
+              // Above the fold: fetch first. The panel colour shows while it loads.
+              // Keep covers small (about 1200px WebP in client/public, not a raw upload).
+              <img
+                src={program.coverImageUrl ?? undefined}
+                alt={`${program.name} event`}
+                onError={() => setCoverError(true)}
+                // Lowercase attribute: React 18 warns on the camelCase prop.
+                {...{ fetchpriority: "high" }}
+                decoding="async"
+                width={1200}
+                height={1200}
+                className="w-full h-auto rounded-sm border border-hairline bg-panel-deep"
+                data-testid="program-cover"
+              />
+            )}
+            <div className="flex flex-col gap-4 min-w-0" data-testid="program-key-info">
+              {program.description && (
+                <p className="text-body text-base leading-relaxed whitespace-pre-line">{program.description}</p>
+              )}
+              {infoRows.length > 0 && (
+                <div className="space-y-2">
+                  {infoRows.map((r, i) => (
+                    <div key={i} className="flex items-baseline justify-between gap-3 border-b border-hairline-subtle pb-1.5 last:border-0">
+                      <span className="label-hw-dim shrink-0">{r.label}</span>
+                      {r.href ? (
+                        <a
+                          href={r.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-[12px] text-display text-right underline underline-offset-2 hover:text-display-dim"
+                          data-testid="venue-map-link"
+                        >
+                          {r.value} ↗
+                        </a>
+                      ) : (
+                        <span className="font-mono text-[12px] text-display text-right">{r.value}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Registration still open with a Luma event: Luma's checkout
+                  opens over this page. Afterwards: a plain link to the event. */}
+              {program.lumaEventId && registrationOpen ? (
+                <LumaCheckoutButton
+                  eventId={program.lumaEventId}
+                  eventUrl={program.eventUrl}
+                  className={`self-start ${CTA_CLASS}`}
+                >
+                  REGISTER ON LUMA ▸
+                </LumaCheckoutButton>
+              ) : (
+                program.eventUrl && (
+                  <a
+                    href={program.eventUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`self-start ${CTA_CLASS}`}
+                    data-testid="event-page-link"
+                  >
+                    {isHackathon && registrationOpen ? "SIGN UP ON LUMA ▸" : "EVENT PAGE ▸"}
+                  </a>
+                )
+              )}
+            </div>
+          </div>
+          {/* Full width under the image and the key info. */}
+          {hasLlms(program.slug) && <LlmsBrief slug={program.slug} className="mt-6" />}
+        </section>
+    );
+
   return (
     <div className="min-h-screen scanlines">
       <Navigation />
@@ -484,6 +580,11 @@ const ProgramDetailPage = () => {
           {/* Program header first on every program, then the about panel, both
               the same width as the sections below. */}
           <header className={`mb-6 mx-auto ${PAGE_WIDTH}`} data-testid="program-header">
+            {completedTracked && statsPublishedAt && (
+              <div className="mb-2">
+                <UpdatedAt at={statsPublishedAt} />
+              </div>
+            )}
             <div className="label-hw-dim mb-2">·PROGRAM / {PROGRAM_TYPE_LABEL[program.programType]}</div>
             <h1 className="font-display text-5xl md:text-6xl uppercase tracking-tight text-display leading-[0.95] mb-3">
               {program.name}
@@ -504,86 +605,12 @@ const ProgramDetailPage = () => {
               )}
             </div>
           </header>
-          {hasAbout && (
-            <section className={`panel p-4 md:p-6 mb-4 mx-auto ${PAGE_WIDTH}`} data-testid="program-about">
-              <div className="label-hw text-display mb-4">·ABOUT THIS {isHackathon ? "HACKATHON" : "PROGRAM"}</div>
-              <div className={`grid grid-cols-1 gap-6 ${showCover ? "md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start" : ""}`}>
-                {showCover && (
-                  // The whole image, never cropped (covers can be square or wide).
-                  // Above the fold: fetch first. The panel colour shows while it loads.
-                  // Keep covers small (about 1200px WebP in client/public, not a raw upload).
-                  <img
-                    src={program.coverImageUrl ?? undefined}
-                    alt={`${program.name} event`}
-                    onError={() => setCoverError(true)}
-                    // Lowercase attribute: React 18 warns on the camelCase prop.
-                    {...{ fetchpriority: "high" }}
-                    decoding="async"
-                    width={1200}
-                    height={1200}
-                    className="w-full h-auto rounded-sm border border-hairline bg-panel-deep"
-                    data-testid="program-cover"
-                  />
-                )}
-                <div className="flex flex-col gap-4 min-w-0" data-testid="program-key-info">
-                  {program.description && (
-                    <p className="text-body text-base leading-relaxed whitespace-pre-line">{program.description}</p>
-                  )}
-                  {infoRows.length > 0 && (
-                    <div className="space-y-2">
-                      {infoRows.map((r, i) => (
-                        <div key={i} className="flex items-baseline justify-between gap-3 border-b border-hairline-subtle pb-1.5 last:border-0">
-                          <span className="label-hw-dim shrink-0">{r.label}</span>
-                          {r.href ? (
-                            <a
-                              href={r.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-mono text-[12px] text-display text-right underline underline-offset-2 hover:text-display-dim"
-                              data-testid="venue-map-link"
-                            >
-                              {r.value} ↗
-                            </a>
-                          ) : (
-                            <span className="font-mono text-[12px] text-display text-right">{r.value}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* Registration still open with a Luma event: Luma's checkout
-                      opens over this page. Afterwards: a plain link to the event. */}
-                  {program.lumaEventId && registrationOpen ? (
-                    <LumaCheckoutButton
-                      eventId={program.lumaEventId}
-                      eventUrl={program.eventUrl}
-                      className={`self-start ${CTA_CLASS}`}
-                    >
-                      REGISTER ON LUMA ▸
-                    </LumaCheckoutButton>
-                  ) : (
-                    program.eventUrl && (
-                      <a
-                        href={program.eventUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`self-start ${CTA_CLASS}`}
-                        data-testid="event-page-link"
-                      >
-                        {isHackathon && registrationOpen ? "SIGN UP ON LUMA ▸" : "EVENT PAGE ▸"}
-                      </a>
-                    )
-                  )}
-                </div>
-              </div>
-              {/* Full width under the image and the key info. */}
-              {hasLlms(program.slug) && <LlmsBrief slug={program.slug} className="mt-6" />}
-            </section>
-          )}
+          {hasAbout && !completedTracked && aboutPanel(`panel p-4 md:p-6 mb-4 mx-auto ${PAGE_WIDTH}`)}
           {/* Tracked programs: the wide project grid sits above the event info once
               results are published (the Bitrefill "flip"), below it until then. */}
           {profile && tracked && isPublished && (
             <div className={`${PAGE_WIDTH} mx-auto`}>
+              {completedTracked && statsPublishedAt && <ProgramStatsLink slug={program.slug} />}
               <TrackedProjectsSection
                 profile={profile}
                 programSlug={program.slug}
@@ -799,19 +826,21 @@ const ProgramDetailPage = () => {
 
             {/* Published hackathon: the rest of the event info (tracks, prizes,
                 FAQ) collapsed below the projects. */}
-            {isPublished && (program.content ?? []).some((c) => c.type !== "schedule") && (
-              <section className="panel p-4 mb-4">
+            {isPublished && ((program.content ?? []).some((c) => c.type !== "schedule") || (completedTracked && hasAbout)) && (
+              <section className="panel p-4 mb-4" data-testid="program-details-collapsible">
                 <button
                   type="button"
                   onClick={() => setAboutOpen((v) => !v)}
                   aria-expanded={aboutOpen}
                   className="w-full flex items-center justify-between gap-2 text-left"
                 >
-                  <span className="label-hw text-display">·HACKATHON DETAILS</span>
+                  <span className="label-hw text-display">·{completedTracked ? "PROGRAM" : "HACKATHON"} DETAILS</span>
                   <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
                 </button>
                 {aboutOpen && (
                   <div className="mt-3">
+                    {/* Completed: the about panel lives here too, under All projects. */}
+                    {completedTracked && hasAbout && aboutPanel("mb-4")}
                     <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
                   </div>
                 )}

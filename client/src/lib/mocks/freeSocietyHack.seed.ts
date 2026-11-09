@@ -33,6 +33,7 @@ import type {
   SubmissionTrack,
   TxCheckStatus,
 } from "../api";
+import type { ProgramStats } from "../programStats";
 import {
   FREE_SOCIETY_HACK_PRIZE_TIERS as TIERS,
   FREE_SOCIETY_HACK_SLUG,
@@ -843,6 +844,9 @@ export type TrackedSeed = {
   resultsPublishedAt: string | null;
   /** How each track was ranked when published (mirrors programs.results_ranking). */
   resultsRanking?: ApiResultsRanking | null;
+  /** The published stats page (mirrors programs.stats_snapshot / stats_published_at). */
+  statsSnapshot?: ProgramStats | null;
+  statsPublishedAt?: string | null;
 };
 
 export function buildFreeSocietyHackSeed(): TrackedSeed {
@@ -963,6 +967,22 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
         });
       });
     }
+  });
+
+  // The organiser's test entry (like sacha's "Example Project" on 2 Nov): kept
+  // for the record, excluded from judging, the leaderboard, the public list and the stats.
+  const template = submissions.find((s) => s.details.track === "both") ?? submissions[0];
+  submissions.push({
+    ...template,
+    id: "fsh-test-example-project",
+    projectTitle: "Example Project",
+    submitterName: "Organiser (mock)",
+    lumaEmail: "organiser@example.com",
+    prizes: {},
+    ecosystemPrize: false,
+    isTestEntry: true,
+    createdAt: istOnHackDay("09:00"),
+    details: { ...template.details, team: [], milestone: null },
   });
 
   return {
