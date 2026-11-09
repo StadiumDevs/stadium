@@ -3001,14 +3001,16 @@ export const api = {
     track: JudgedTrack,
     prize: ApiPrizeTier | null,
     _authHeader: AdminAuthArg,
+    /** Platform admin: award even if the project isn't fully scored or hits the winner gate (audit-logged). */
+    { override = false }: { override?: boolean } = {},
   ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       let data;
       try {
-        data = mockTracked.awardPrize(slug, submissionId, track, prize);
+        data = mockTracked.awardPrize(slug, submissionId, track, prize, override);
       } catch (e) {
-        throw new ApiError((e as Error).message, 409);
+        throw new ApiError((e as Error).message, 409, (e as Error & { code?: string }).code);
       }
       if (!data) throw new ApiError("Submission not found", 404);
       return { status: "success", data };
@@ -3018,7 +3020,7 @@ export const api = {
       {
         method: "PUT",
         headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: prize ? prize.amount : null }),
+        body: JSON.stringify({ amount: prize ? prize.amount : null, ...(override ? { override: true } : {}) }),
       },
     );
   },
