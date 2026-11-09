@@ -201,7 +201,7 @@ export function ProgramResultsSummarySection({
       .then((authHeader) =>
         Promise.allSettled([
           api.getLeaderboard(program.slug, authHeader),
-          api.getProgramStats(program.slug, authHeader),
+          api.getProgramHeaderStats(program.slug, authHeader),
           api.getFeedbackAggregate(program.slug, authHeader),
         ]),
       )

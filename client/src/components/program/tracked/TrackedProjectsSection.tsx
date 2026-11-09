@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { ApiPublicSubmission, JudgedTrack } from "@/lib/api";
 import { judgedTracksOf, type ProgramProfile } from "@/lib/programProfiles";
 import { cn } from "@/lib/utils";
@@ -18,15 +19,35 @@ export function TrackedProjectsSection({
   programSlug,
   submissions,
   published,
+  judgesByTrack,
 }: {
   profile: ProgramProfile;
   programSlug: string;
   submissions: ApiPublicSubmission[];
   published: boolean;
+  /** Once published: judges who scored each track (counts only), for the score caption. */
+  judgesByTrack?: Partial<Record<JudgedTrack, number>> | null;
 }) {
   const [query, setQuery] = useState("");
   const [track, setTrack] = useState<TrackFilter>("all");
-  const [openId, setOpenId] = useState<string | null>(null);
+  // ?project=<id> (links from the stats page charts) opens that project's details.
+  const [params, setParams] = useSearchParams();
+  const [openId, setOpenId] = useState<string | null>(() => params.get("project"));
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const id = params.get("project");
+    if (!id) return;
+    setOpenId(id);
+    sectionRef.current?.scrollIntoView({ block: "start" });
+  }, [params]);
+  const close = () => {
+    setOpenId(null);
+    if (params.has("project")) {
+      const next = new URLSearchParams(params);
+      next.delete("project");
+      setParams(next, { replace: true });
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -63,7 +84,7 @@ export function TrackedProjectsSection({
   );
 
   return (
-    <section className="panel p-4 mb-4" aria-label="Submitted projects">
+    <section ref={sectionRef} className="panel p-4 mb-4 scroll-mt-4" aria-label="Submitted projects" data-testid="tracked-projects">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
         <div className="label-hw text-display">
           ·PROJECTS ({filtered.length}
@@ -97,6 +118,20 @@ export function TrackedProjectsSection({
         </div>
       </div>
 
+      {published && judgesByTrack && Object.keys(judgesByTrack).length > 0 && (
+        <p className="label-hw-dim normal-case mb-3" data-testid="scores-caption">
+          {profile.tracks
+            .filter((t) => judgesByTrack[t.id])
+            .map((t) => {
+              const n = judgesByTrack[t.id]!;
+              const note = (t.judgesNote ?? "Scored by {n} judges").replace("{n}", String(n));
+              return `${t.shortLabel.charAt(0)}${t.shortLabel.slice(1).toLowerCase()} scores: ${note.charAt(0).toLowerCase()}${note.slice(1)}`;
+            })
+            .join(" · ")}
+          .
+        </p>
+      )}
+
       {submissions.length === 0 ? (
         <p className="label-hw-dim">No projects submitted yet. They appear here as soon as they are submitted.</p>
       ) : filtered.length === 0 ? (
@@ -122,7 +157,7 @@ export function TrackedProjectsSection({
         profile={profile}
         programSlug={programSlug}
         submission={open}
-        onOpenChange={(v) => !v && setOpenId(null)}
+        onOpenChange={(v) => !v && close()}
       />
     </section>
   );

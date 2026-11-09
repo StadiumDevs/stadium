@@ -52,7 +52,7 @@ import { api } from "@/lib/api";
 interface BountyPrize {
   name: string;
   amount: number;
-  currency?: 'USDC' | 'DOT';
+  currency?: string;
   hackathonWonAtId: string;
   txHash?: string;
 }
@@ -126,12 +126,12 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
     return true;
   });
 
-  // Sort: by event date (newest first)
-  const sortedProjects = [...filteredProjects].sort((a, b) => {
-    const dateA = a.hackathon?.eventStartedAt ? new Date(a.hackathon.eventStartedAt).getTime() : 0;
-    const dateB = b.hackathon?.eventStartedAt ? new Date(b.hackathon.eventStartedAt).getTime() : 0;
-    return dateB - dateA;
-  });
+  // Sort: by event date (newest first). Prefer the program's event date (always
+  // populated, incl. promoted hackathon submissions), falling back to the legacy
+  // flat column. So the latest event (e.g. Bitrefill 2026) sorts to the top.
+  const eventDate = (p: any) =>
+    new Date(p.program?.eventStartsAt ?? p.hackathon?.eventStartedAt ?? 0).getTime() || 0;
+  const sortedProjects = [...filteredProjects].sort((a, b) => eventDate(b) - eventDate(a));
 
   // Count by type for display
   const mainTrackCount = winnerProjects.filter(isMainTrackWinner).length;
@@ -169,6 +169,8 @@ export function WinnersTable({ projects, onRefresh, connectedAddress, signAdminA
   // Format amount with correct currency symbol
   const formatAmount = (amount: number, currency?: string) => {
     if (currency === 'DOT') return `${amount.toLocaleString()} DOT`;
+    if (currency === 'EUR') return `€${amount.toLocaleString()}`;
+    if (currency && currency !== 'USD' && currency !== 'USDC') return `${amount.toLocaleString()} ${currency}`;
     return `$${amount.toLocaleString()}`;
   };
 

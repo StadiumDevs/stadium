@@ -1,0 +1,928 @@
+{
+  "version": {
+    "version": "1.0.1",
+    "projectCount": 48,
+    "notesCount": 72,
+    "projectsWithNotes": 42,
+    "factCheckSources": [
+      "public git histories and READMEs",
+      "the Privacy Track Tech Review v1.0",
+      "the event's Bitrefill developer docs",
+      "zips.z.cash"
+    ],
+    "generated": "9 Nov 2026, 21:30 CET (20:30 UTC)",
+    "generatedDate": "9 Nov 2026",
+    "generatedBy": "Claude (claude-opus-5-5, configured model) in a Claude session for the Free Society Hack organisers",
+    "scores": "Stadium normalized ranked export, 9 Nov 2026 16:13 CET (judge-offset model)",
+    "notes": "Judges' notes from the same export (72 notes on 42 projects), anonymised and paraphrased",
+    "factCheck": "9 Nov 2026: public git histories and READMEs, the Privacy Track Tech Review v1.0, the event's Bitrefill developer docs, and zips.z.cash",
+    "changelog": [
+      {
+        "version": "1.0.1",
+        "date": "10 Nov 2026",
+        "text": "Zec Start and Mirage prize lines corrected to match the awarded prizes (Zec Start: third prize; Mirage: second prize)."
+      },
+      {
+        "version": "1.0",
+        "date": "9 Nov 2026",
+        "text": "first version: feedback for all 48 Privacy track submissions."
+      }
+    ]
+  },
+  "method": [
+    "Scores are the judge-offset normalized averages from Stadium. \"Strongest\" and \"weakest\" compare each criterion with the track median for that criterion, so they show where a project stood out, not just its highest raw number.",
+    "Judges' notes are anonymised: no judge is named, and notes are paraphrased rather than quoted. Vague notes (for example a single word) are left out.",
+    "Every factual claim in a judge's note was checked before use. Claims that could be checked are listed under fact checks with their source. Claims that couldn't be checked are either dropped or worded as what a judge observed during judging.",
+    "Projects with no judge notes get feedback from their scores only, marked basis = scores."
+  ],
+  "projects": [
+    {
+      "title": "Zeno Wallet",
+      "repo": "https://github.com/karar189/zeno-web-wallet",
+      "prize": "Privacy: top prize (1300 USDC)",
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Top prize, with high scores across the board. A judge praised its rare focus on a usability problem most privacy projects skip: a wallet that opens instantly and shows who can see what before you pay.",
+      "worked": [
+        "A judge called the idea original and was impressed that it tackles a UX gap that usually gets overlooked.",
+        "Strong on every criterion. Works was near the maximum and Easy was well above the track median.",
+        "Nym routing is built into the code (Privacy Track Tech Review v1.0)."
+      ],
+      "improve": [
+        "One judge was concerned the fast-sync server could still learn something about users. Say exactly what the sync server sees today, and what it will stop seeing once attestation and the incoming-viewing-key mode in your milestone ship."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Zec Start",
+      "repo": "https://github.com/ItsBreaker/ZecStart.git",
+      "prize": "Privacy: third prize (200 USDC)",
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Third prize. A judge saw it closing a real gap in basic onboarding: a first-timer reaches a real private payment in minutes.",
+      "worked": [
+        "A judge found it easy, clear and concise. Easy was your strongest criterion, far above the track median.",
+        "A judge called onboarding one of the biggest gaps in the ecosystem."
+      ],
+      "improve": [
+        "Teach more privacy-specific topics, for example what a viewing key reveals or why moving funds out of the shielded pool can link you.",
+        "A judge suggested ZecHub may want to integrate it. That conversation could give the lessons a permanent home.",
+        "Continuing sat at the track median. Your classroom plan is the strongest way to show the project keeps going."
+      ],
+      "facts": [
+        {
+          "text": "Your zingo-cli build turns Nym off, so the demo's network traffic isn't mixnet-routed. That may be worth a lesson of its own.",
+          "source": "Privacy Track Tech Review v1.0, Nym column"
+        }
+      ]
+    },
+    {
+      "title": "Ghost Layer",
+      "repo": "https://github.com/skartik-sk/ghost-layer",
+      "prize": "Privacy: second prize (300 USDC)",
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Second prize. Judges saw a strong privacy improvement in an often-overlooked area: wallet syncing and sending can no longer be linked by the light-wallet server.",
+      "worked": [
+        "Private was your strongest criterion and among the highest in the track.",
+        "Judges valued that it reduces linkability between syncing and sending transactions."
+      ],
+      "improve": [
+        "Easy was your weakest criterion. A local gateway is a setup step most users won't take. Your milestone's \"Ghost mode\" inside an existing wallet is the most direct fix."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Hisaab",
+      "repo": "https://github.com/nikhil-pn/hisaab",
+      "prize": "Privacy: third prize (200 USDC)",
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Third prize. Judges agreed Zcash needs accounting tools and saw this as useful for real adoption.",
+      "worked": [
+        "Works was your strongest criterion: the end-to-end flow from invoice to accountant-ready ledger ran."
+      ],
+      "improve": [
+        "Get the first accountant to use it on real books. Your milestone says nobody has agreed yet, and that pilot is what proves the need."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Mirage",
+      "repo": "https://github.com/MeghVyas3132/Mirage-Zcash",
+      "prize": "Privacy: second prize (300 USDC)",
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Second prize. A judge found it more original than most, and best suited to living inside the wallets people already use.",
+      "worked": [
+        "Private was your strongest criterion, well above the track median."
+      ],
+      "improve": [
+        "Works was your weakest criterion, slightly below the median. Show the check working end to end on a real wallet flow.",
+        "A judge suggested it would work best inside popular wallets. Your planned pre-send pull request to zkool or Zingo is the right next step."
+      ],
+      "facts": []
+    },
+    {
+      "title": "zcash-now (MCP + llms.txt)",
+      "repo": "https://github.com/sachindkagrawal15/zcash-now",
+      "prize": null,
+      "ecosystemPrize": true,
+      "basis": "scores and judges’ notes",
+      "summary": "Ecosystem Prize. A judge liked the keyless, stdio-only design and saw it as a strong contribution to ZecHub and Zcash developers generally.",
+      "worked": [
+        "Private and Continuing were both well above the track median."
+      ],
+      "improve": [
+        "A judge noted it needs a maintainer. Say who keeps the recipes and facts current after the 30 days, since the daily checks need someone to review them.",
+        "Another team built a similar tool with the same name. Coordinating with them, or at least linking each other, would help developers."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Whisper-Shop",
+      "repo": "https://github.com/ayushsingh82/Whisper-Shop",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge saw one of the better, working agentic-commerce flows: send shielded ZEC with a memo, get the code back.",
+      "worked": [
+        "Works was at the maximum: judges confirmed the flow runs.",
+        "Another judge found it simple and effective."
+      ],
+      "improve": [
+        "A judge asked what happens when the vendor doesn't deliver. Add a refund or dispute path, and say who holds funds in between.",
+        "Needed was your weakest criterion, below the median. Show who uses this over existing gift-card checkouts."
+      ],
+      "facts": [
+        {
+          "text": "Bitrefill doesn't accept ZEC directly. Paying from ZEC means swapping to USDC first, for example through NEAR Intents 1Click, which takes ZEC only from transparent addresses.",
+          "source": "Event Bitrefill developer docs (Ways to pay; Lane 5 route), checked 19 Oct 2026"
+        }
+      ]
+    },
+    {
+      "title": "Oboro",
+      "repo": "https://github.com/nickthelegend/oboro",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges found it well thought out, and liked the angle of a marketplace where agents pay in ZEC.",
+      "worked": [
+        "Private was your strongest criterion, with Nym routing built into the code (Privacy Track Tech Review v1.0).",
+        "Judges liked the agent-marketplace angle."
+      ],
+      "improve": [
+        "Needed was close to the median. Name the first agents or builders who'd use the marketplace."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Vouch",
+      "repo": "https://github.com/SATISH-JALAN/vouch-zcash",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges rated the privacy design highly: replace a viewing key with one provable fact about your shielded ZEC.",
+      "worked": [
+        "Private was your strongest criterion: proving one fact instead of handing over a viewing key is a strong idea."
+      ],
+      "improve": [
+        "Easy was your weakest criterion. Make the first proof a one-minute flow for someone who has never seen the format.",
+        "Make it easy for judges and users to see what's new. Your README's \"Built at Free Society Hack\" table is the right place, so keep it current."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Veylor",
+      "repo": "https://github.com/ChinmayGopal931/veylor-nym",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges saw good use of Nym from an advanced builder: a wallet with an optional mixnet mode that hides your IP.",
+      "worked": [
+        "Works was your strongest criterion, and all six judges scored it.",
+        "A judge singled out the Nym integration (built in, per the Privacy Track Tech Review v1.0)."
+      ],
+      "improve": [
+        "Easy was your weakest criterion. Make Nym mode simple to turn on, and explain what it protects in one line."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Shielded Shopping Agent",
+      "repo": "https://github.com/Vishal4742/shielded-shopping-agent",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores only",
+      "summary": "Based on scores only: strong on ease of use, weaker on privacy.",
+      "worked": [
+        "Easy was your strongest criterion, well above the track median."
+      ],
+      "improve": [
+        "Private was your weakest criterion. Your milestone already targets the right fixes: users holding their own keys, Tor or Nym for remaining connections, and no LLM in the loop."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Zool",
+      "repo": "https://github.com/rubberpirate/hack-zool",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge liked the idea of paying people in Zcash without collecting their wallet addresses, but wasn't sure how many users need it.",
+      "worked": [
+        "Easy was your strongest criterion."
+      ],
+      "improve": [
+        "Show the demand: who pays salaries or prizes this way today, and what do they use instead?",
+        "Continuing was your weakest criterion. Your milestone proposes a new GitHub-bounty feature rather than finishing the current one.",
+        "A judge suggested building on ZIP 324."
+      ],
+      "facts": [
+        {
+          "text": "ZIP 324, \"URI-Encapsulated Payments\", is a Draft ZIP for sending ZEC through a messaging app as a link that the recipient can claim without a wallet or address. That matches your use case.",
+          "source": "zips.z.cash/zip-0324 (status: Draft), checked 9 Nov 2026"
+        }
+      ]
+    },
+    {
+      "title": "zcash-now (web app)",
+      "repo": "https://github.com/dexalien/zcash-now",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges were very positive: a live list of what works on Zcash today, useful to every Zcash builder and a natural fit for ZecHub's docs.",
+      "worked": [
+        "One judge named it among their favourites.",
+        "Continuing was your strongest criterion."
+      ],
+      "improve": [
+        "Another team built an overlapping tool with the same name (an MCP server and llms.txt). Talking to them could avoid two half-maintained versions."
+      ],
+      "facts": []
+    },
+    {
+      "title": "zpulse",
+      "repo": "https://github.com/vipenl26/zpulse",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges loved the idea of a dead man's switch for whistleblowers, and the clever use of Shamir sharing.",
+      "worked": [
+        "Private was your strongest criterion.",
+        "A judge highlighted that Shamir threshold sharing lets the release still work when some watchers are down."
+      ],
+      "improve": [
+        "Easy was your weakest criterion. Running a watcher is a technical job, and your plan to run one on a phone would help.",
+        "A judge pointed out the similarity to z-canary. Say clearly what zpulse adds."
+      ],
+      "facts": [
+        {
+          "text": "Your README already credits z-canary, which is good practice.",
+          "source": "zpulse README, read 9 Nov 2026"
+        }
+      ]
+    },
+    {
+      "title": "MaZe",
+      "repo": "https://github.com/KatrixReloaded/cwZEC",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges found the concept of moving ZEC to Ethereum confidentially interesting, but split widely on the execution.",
+      "worked": [
+        "Works was your strongest criterion, and Nym routing is built into the code (Privacy Track Tech Review v1.0).",
+        "Four judges gave a bonus point, the most of any project."
+      ],
+      "improve": [
+        "A judge found the interface rough and generic. Invest in a clear, trustworthy flow, since users are moving funds across chains.",
+        "Turn the 30-day plan into one deliverable a partner can confirm. The current list (TEE compatibility, distributed hosting, pool balancing, MPC) has no end state."
+      ],
+      "facts": [
+        {
+          "text": "No demo video was submitted.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "ZecHunt",
+      "repo": "https://github.com/AmanGxpta/ZecHunt",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge found it a fun idea: treasure hunts funded in shielded ZEC.",
+      "worked": [
+        "Easy was your strongest criterion, well above the track median."
+      ],
+      "improve": [
+        "Needed was your weakest criterion. A judge asked for a plan to find interested users: who runs hunts, and why would they fund them in ZEC?"
+      ],
+      "facts": []
+    },
+    {
+      "title": "zshagun",
+      "repo": "https://github.com/cryppit/zshagun",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge liked the simplicity and real-world use, and appreciated your honesty about the gaps.",
+      "worked": [
+        "Needed was your strongest criterion.",
+        "A judge valued that you acknowledged the gaps and had plans to close them."
+      ],
+      "improve": [
+        "Private was your weakest criterion. A judge said it would score higher with more privacy work, such as Nym."
+      ],
+      "facts": []
+    },
+    {
+      "title": "hushfolio",
+      "repo": "https://github.com/rizwanmoulvi/hushfolio",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge called it a unique idea: private stock exposure with shielded ZEC.",
+      "worked": [
+        "Private was your strongest criterion, and Nym is used through zingo-cli (Privacy Track Tech Review v1.0)."
+      ],
+      "improve": [
+        "Continuing was your weakest criterion. Your plan to pilot with three investors is the right test. Name them or the channel you'll find them through."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Z-Solvency",
+      "repo": "https://github.com/skyyycodes/zk-com",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores only",
+      "summary": "Based on scores only: judges saw a real need for private proof of reserves, with the working demo as the gap.",
+      "worked": [
+        "Needed was your strongest criterion, well above the track median."
+      ],
+      "improve": [
+        "Works was your weakest criterion. A public testnet registry with a real proof anyone can verify would close most of that gap."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Ironclad",
+      "repo": "https://github.com/adilhusain01/ironclad",
+      "prize": null,
+      "ecosystemPrize": true,
+      "basis": "scores and judges’ notes",
+      "summary": "Ecosystem Prize. A judge called it probably the best of the agent-payment projects: spending limits enforced at the key by a FROST co-signer.",
+      "worked": [
+        "Continuing was your strongest criterion: upstreaming to frost-zec gives the work a life beyond the hack.",
+        "It stood out in a crowded category of agent-spending projects."
+      ],
+      "improve": [
+        "Easy was your weakest criterion. Running a co-signer on its own machine is heavy for users. Document the simplest setup."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Shroud",
+      "repo": "https://github.com/Jash-Bohare/Shroud",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges saw a motivated builder with a clear plan, in a category with many similar projects.",
+      "worked": [
+        "Continuing was your strongest criterion, and a judge said your eagerness to build is what makes or breaks this."
+      ],
+      "improve": [
+        "A judge found it simple and similar to other agent-spending projects. Say what Shroud does that the others don't.",
+        "Private was your weakest criterion. Your week-3 plan for Nym or Tor and an encrypted database is the right fix."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Zealed",
+      "repo": "https://github.com/zealed-xyz/zealed",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges liked gamifying privacy, the FROST multisig, and prizes that can be verified publicly without revealing who received them.",
+      "worked": [
+        "Private was your strongest criterion, and FROST threshold signing is in the code (Privacy Track Tech Review v1.0).",
+        "A judge liked the public verification of prizes without revealing the receiver."
+      ],
+      "improve": [
+        "Needed was your weakest criterion, well below the median. A judge suggested the milestone should be about finding out whether there's demand.",
+        "A judge suggested trying it as a dogfooding programme with a community first."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Chupke",
+      "repo": "https://github.com/bilgin-kocak/chupke",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges called it the best and most product-ready of the \"buy Bitrefill with ZEC\" agent flows.",
+      "worked": [
+        "Two judges independently picked it as the best agent-payment flow they saw.",
+        "Continuing was your strongest criterion."
+      ],
+      "improve": [
+        "Needed was your weakest criterion. Show who would choose this over paying Bitrefill directly."
+      ],
+      "facts": [
+        {
+          "text": "Your zingo-cli build turns Nym off. Your milestone's plan to run the Nym build fixes that.",
+          "source": "Privacy Track Tech Review v1.0, Nym column"
+        }
+      ]
+    },
+    {
+      "title": "Munim",
+      "repo": "https://github.com/0xStoneyStark/munim",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge liked the simple interface of a capped household agent funded in shielded ZEC.",
+      "worked": [
+        "Easy was your strongest criterion.",
+        "You filed an upstream issue on zcash-devtool during the hack (#272), which counts as ecosystem contribution."
+      ],
+      "improve": [
+        "Needed was your weakest criterion. The two-week household pilot in your plan is the evidence to collect."
+      ],
+      "facts": []
+    },
+    {
+      "title": "GhostCommits",
+      "repo": "https://github.com/Samarth208P/ghostcommits",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge saw a natural fit for ZecHub as a pilot, but the demo didn't show the full flow working.",
+      "worked": [
+        "Easy was your strongest criterion.",
+        "A judge suggested handing it to ZecHub as a test pilot."
+      ],
+      "improve": [
+        "During judging, connecting GitHub to publish a bounty returned a 404. Submitting a contribution worked, but claiming the reward wasn't shown. Showing the full loop matters.",
+        "Name a clear target user group, and back the problem with sources. A judge questioned whether the idea holds up in the real world.",
+        "The milestone didn't show a clear next step for reaching the ecosystem. Consider Nym for the network side."
+      ],
+      "facts": [
+        {
+          "text": "No demo video was submitted.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "zkLane",
+      "repo": "https://github.com/SurajNaidu0/zklane",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores only",
+      "summary": "Based on scores only: easy to follow, but judges weren't convinced of the need yet.",
+      "worked": [
+        "Easy was your strongest criterion."
+      ],
+      "improve": [
+        "Needed was your weakest criterion. Name which agents or APIs would pay per call this way."
+      ],
+      "facts": [
+        {
+          "text": "Stadium's testnet check couldn't find the transaction you submitted. Re-check the txid and network.",
+          "source": "Stadium submission fields (testnet check: not found)"
+        }
+      ]
+    },
+    {
+      "title": "PocketPilot",
+      "repo": "https://github.com/sankalp771/pocketpilot",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge loved the product vision for buying Bitrefill gift cards with Zcash, but saw it as more of an Agentic Commerce entry than a Privacy one.",
+      "worked": [
+        "Works was your strongest criterion.",
+        "You opened a pull request on zcash-devtool (#271) and an issue on bitrefill/agents (#18) during the hack."
+      ],
+      "improve": [
+        "Needed was your weakest criterion, well below the median. For the Privacy track, show what stays private at each hop."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Keyo",
+      "repo": "https://github.com/The-x-35/keyo",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges liked the interface and acting straight from the keyboard, but were concerned about privacy leaks in a keyboard.",
+      "worked": [
+        "Easy was your strongest criterion, and a judge liked the UI."
+      ],
+      "improve": [
+        "Private was your weakest criterion. Spell out what user data the keyboard can see and what leaves the device."
+      ],
+      "facts": [
+        {
+          "text": "On iOS, a custom keyboard needs \"Allow Full Access\" to reach the network, and the system warns users that such a keyboard can transmit what they type. Your privacy note should address this directly.",
+          "source": "Apple's custom keyboard guidelines (RequestsOpenAccess)"
+        }
+      ]
+    },
+    {
+      "title": "Z402",
+      "repo": "https://github.com/DaevMithran/z402",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge found it well thought out, with a good Nym integration: x402, shielded Zcash and Nym in one client for private paid APIs.",
+      "worked": [
+        "Continuing was your strongest criterion, and Nym routing is built into the code (Privacy Track Tech Review v1.0).",
+        "All six judges scored it, and three gave a bonus point."
+      ],
+      "improve": [
+        "Works was your weakest criterion. Your first milestone item, one documented end-to-end testnet payment, is exactly what's missing."
+      ],
+      "facts": [
+        {
+          "text": "No demo video and no public URL were submitted.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "Cloister",
+      "repo": "https://gitlab.com/Anand-0037/cloister",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge didn't see much new in pay-per-answer access, so the idea needs a sharper edge.",
+      "worked": [
+        "Private was your strongest criterion: no account, and one paid answer per shielded payment."
+      ],
+      "improve": [
+        "Easy was your weakest criterion. Make the first paid request a one-minute flow.",
+        "Say what's new compared with existing pay-per-use AI access."
+      ],
+      "facts": []
+    },
+    {
+      "title": "hushcart",
+      "repo": "https://github.com/harishkotra/hushcart",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge liked that the shop is only an address, and saw a strong fit with Bitrefill.",
+      "worked": [
+        "Continuing was your strongest criterion. Packaging the order matching as a library helps every merchant."
+      ],
+      "improve": [
+        "Works was your weakest criterion. Show one full order from payment to delivered goods in the memo."
+      ],
+      "facts": [
+        {
+          "text": "Your zingo-cli build turns Nym off.",
+          "source": "Privacy Track Tech Review v1.0, Nym column"
+        }
+      ]
+    },
+    {
+      "title": "ZebraScan",
+      "repo": "https://github.com/ShahiTechnovation/ZebraScan",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges liked the idea of spending ZEC at any UPI QR code, but couldn't get it working.",
+      "worked": [
+        "Continuing was your strongest criterion."
+      ],
+      "improve": [
+        "During judging, setting up merchant checkout stopped at \"Enter a UPI ID\", and installing the wallet added friction. Make the first run work without help.",
+        "Works was your weakest criterion. Your milestone is very large for 30 days (three products, fiat settlement, 10–20 merchants, a security review). Pick one."
+      ],
+      "facts": [
+        {
+          "text": "Stadium's testnet check couldn't find the transaction you submitted.",
+          "source": "Stadium submission fields (testnet check: not found)"
+        }
+      ]
+    },
+    {
+      "title": "ColdTrail",
+      "repo": "https://github.com/hyliv-labs/perps-core",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "The idea of entering with shielded ZEC and trading without a trail was clear, but the evidence didn't match the claim.",
+      "worked": [
+        "Continuing was your strongest criterion, and Nym routing is built into the code (Privacy Track Tech Review v1.0)."
+      ],
+      "improve": [
+        "A judge found that your example transaction was a mainnet shielded-to-transparent transaction, not a shielded testnet one. Submit a transaction that shows the private path you describe.",
+        "Works was your weakest criterion."
+      ],
+      "facts": [
+        {
+          "text": "Stadium's testnet check couldn't find the transaction you submitted, consistent with it not being on testnet.",
+          "source": "Stadium submission fields (testnet check: not found)"
+        }
+      ]
+    },
+    {
+      "title": "ZecCircle",
+      "repo": "https://github.com/cadalt0/ZecCircle",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge found it a fun idea: a shared private family wallet you can text.",
+      "worked": [
+        "Easy was your strongest criterion."
+      ],
+      "improve": [
+        "Private was your weakest criterion, well below the median. The bot holding funds is the main concern. Your plan for owner-held keys, a small float and FROST addresses it."
+      ],
+      "facts": [
+        {
+          "text": "Nym is only an optional proxy setting, off by default.",
+          "source": "Privacy Track Tech Review v1.0, Nym column"
+        },
+        {
+          "text": "Stadium's testnet check couldn't find the transaction you submitted.",
+          "source": "Stadium submission fields (testnet check: not found)"
+        }
+      ]
+    },
+    {
+      "title": "ZecGuard",
+      "repo": "https://github.com/Tan0610/zcash",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge praised the thoughtful design: spending caps, an approval queue, a kill switch and locking.",
+      "worked": [
+        "Works was your strongest criterion."
+      ],
+      "improve": [
+        "Needed was your weakest criterion. Many teams built agent-spending guardrails at this hack. A judge suggested collaborating with others doing similar work instead of competing."
+      ],
+      "facts": []
+    },
+    {
+      "title": "ZecRecharge",
+      "repo": "https://github.com/AaroneGeorge/Zzzz",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores only",
+      "summary": "Based on scores only: a working agent for Indian recharges, with privacy the main gap.",
+      "worked": [
+        "Easy was around the track median."
+      ],
+      "improve": [
+        "Private was your weakest criterion. Your plan to route traffic over Nym and publish the full chain of IDs for one mainnet purchase is the right fix."
+      ],
+      "facts": [
+        {
+          "text": "Your zingo-cli build turns Nym off.",
+          "source": "Privacy Track Tech Review v1.0, Nym column"
+        }
+      ]
+    },
+    {
+      "title": "Pegasus",
+      "repo": "https://github.com/Dijo-404/pegasus",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge couldn't find your demo video, which made the project harder to assess.",
+      "worked": [
+        "Easy was around the track median."
+      ],
+      "improve": [
+        "Continuing was your weakest criterion. Make the next steps concrete and dated."
+      ],
+      "facts": [
+        {
+          "text": "Your submission links a Google Drive folder as the demo video, but a judge found no video. Check the folder is shared publicly and holds the video, or use a direct YouTube link.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "FLex",
+      "repo": "https://github.com/YASH-ai-bit/FLex",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge liked the rigour of the setup and your honest reporting that the adaptive policy didn't beat a fixed target.",
+      "worked": [
+        "Your README reports the negative result plainly. That's rare and valuable."
+      ],
+      "improve": [
+        "Works was your weakest criterion, well below the median. There's no recorded shielded transaction yet, and real-world use is unproven.",
+        "A judge doubted it would work in practice. Show one wallet integrating it."
+      ],
+      "facts": [
+        {
+          "text": "Your README states the adaptive heuristic didn't give a general improvement over a fixed target of 4 notes.",
+          "source": "github.com/YASH-ai-bit/FLex README, Benchmark results"
+        },
+        {
+          "text": "No demo video, public URL or testnet transaction was submitted.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "Tandem",
+      "repo": "https://github.com/Allen-Saji/private-recurring-payments",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge thought it looked good, but the need for private B2B payments on Zcash wasn't shown.",
+      "worked": [
+        "Works was close to the track median."
+      ],
+      "improve": [
+        "Needed was your weakest criterion. Your closed pilot with one supplier and three businesses is the evidence to collect."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Zsol",
+      "repo": "https://github.com/Srizdebnath/zsol",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges liked proof of funds for agents, but the Bitrefill route it depends on isn't available today.",
+      "worked": [
+        "A judge saw proof of funds as useful for some agent products and features.",
+        "All six judges scored it."
+      ],
+      "improve": [
+        "Continuing was your weakest criterion.",
+        "Design around the real payment route."
+      ],
+      "facts": [
+        {
+          "text": "Bitrefill doesn't accept ZEC directly. Paying from ZEC means swapping to USDC first, for example through NEAR Intents 1Click, which takes ZEC only from transparent addresses.",
+          "source": "Event Bitrefill developer docs (Ways to pay; Lane 5 route), checked 19 Oct 2026"
+        }
+      ]
+    },
+    {
+      "title": "Z-Bits",
+      "repo": "https://github.com/Gauravsharma2711/z-bits.git",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge saw the biggest gap as need validation and users, and your plan doesn't address it yet.",
+      "worked": [
+        "Needed sat at the track median."
+      ],
+      "improve": [
+        "Private was your weakest criterion.",
+        "Add a step to your plan that tests whether anyone needs shared budgets across several shopping agents."
+      ],
+      "facts": []
+    },
+    {
+      "title": "Secret Bankroll",
+      "repo": "https://github.com/Shoydon/secret-bankroll",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge agreed payroll needs better tooling, but wasn't convinced this is the tool yet.",
+      "worked": [
+        "Easy was around the track median."
+      ],
+      "improve": [
+        "Continuing was your weakest criterion, well below the median. \"More users, more chains, trading\" isn't a plan a partner can confirm. Pick one deliverable."
+      ],
+      "facts": []
+    },
+    {
+      "title": "ZPermit",
+      "repo": "https://github.com/technicalkuldeep/ZPermit",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "A judge couldn't find your demo video, which made the project harder to assess.",
+      "worked": [
+        "Needed was your strongest criterion, though still below the median."
+      ],
+      "improve": [
+        "Continuing was your weakest criterion. Make the next step one concrete, checkable deliverable."
+      ],
+      "facts": [
+        {
+          "text": "Your submission links a Google Drive folder as the demo video, but a judge found no video. Check the folder is shared publicly and holds the video, or use a direct YouTube link.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "Z-Pay",
+      "repo": "https://github.com/Jmohak2004/zcash",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores only",
+      "summary": "Based on scores only: judges had little evidence to go on.",
+      "worked": [
+        "Needed was your strongest criterion, though below the median."
+      ],
+      "improve": [
+        "Works was your weakest criterion. Your milestone's one deliverable, a public testnet payment with no viewing key in page scope, is the right thing to show."
+      ],
+      "facts": [
+        {
+          "text": "No demo video, public URL or testnet transaction was submitted.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "Finity",
+      "repo": "https://github.com/Ithaca-Labs/Finity-ZEC",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges couldn't tell whether it works end to end, which held it back.",
+      "worked": [
+        "Needed was your strongest criterion, though below the median."
+      ],
+      "improve": [
+        "Add a short \"built at the hack\" section so judges and users can see what's new.",
+        "Make the next steps precise. Your one-round-trip plan with a recorded transaction at every step is a good shape."
+      ],
+      "facts": [
+        {
+          "text": "Stadium's testnet check couldn't find the transaction you submitted.",
+          "source": "Stadium submission fields (testnet check: not found)"
+        }
+      ]
+    },
+    {
+      "title": "Obscura",
+      "repo": null,
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "No repository was submitted, so the code couldn't be assessed.",
+      "worked": [
+        "A judge liked the security attack scoreboard."
+      ],
+      "improve": [
+        "Submit the repository. Without it, Works can't score."
+      ],
+      "facts": [
+        {
+          "text": "No repository, demo video or public URL was submitted.",
+          "source": "Stadium submission fields; Privacy Track Tech Review v1.0"
+        }
+      ]
+    },
+    {
+      "title": "ZapOut",
+      "repo": "https://github.com/Yash-arch-ui/ZAPOUT",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores and judges’ notes",
+      "summary": "Judges had little working evidence to assess: the repo link didn't open during judging, and the transaction couldn't be found.",
+      "worked": [],
+      "improve": [
+        "Make the repository public so the code can be reviewed.",
+        "Submit a testnet transaction that shows the relay working, and say clearly what was built during the hack.",
+        "Private was your weakest criterion. Explain what the relay keeps private and what it reveals."
+      ],
+      "facts": [
+        {
+          "text": "The submitted repo was private or deleted when the review ran on 9 Nov, and Stadium's testnet check couldn't find the submitted transaction.",
+          "source": "Privacy Track Tech Review v1.0; Stadium submission fields"
+        }
+      ]
+    },
+    {
+      "title": "Pactora",
+      "repo": "https://github.com/Sarnav07/Pactora",
+      "prize": null,
+      "ecosystemPrize": false,
+      "basis": "scores only",
+      "summary": "Based on scores only: judges had little working evidence to assess.",
+      "worked": [
+        "Easy was your strongest criterion, though below the median."
+      ],
+      "improve": [
+        "Works was your weakest criterion, well below the median. Reproduce the full flow on testnet with a confirmed shielded transaction, as your milestone says."
+      ],
+      "facts": [
+        {
+          "text": "No demo video or testnet transaction was submitted.",
+          "source": "Stadium submission fields"
+        }
+      ]
+    }
+  ]
+}

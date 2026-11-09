@@ -1,0 +1,444 @@
+// Converts a privacy track tech review markdown file (the versioned source of
+// truth, e.g. server/fixtures/free-society-hack-2026/privacy-track-review/v1.0.md)
+// into the JSON fixture the stats page reads (v1.0.json next to it).
+//
+//   node scripts/convert-privacy-review.js fixtures/free-society-hack-2026/privacy-track-review/v1.0.md
+//
+// Pure: no database. Every chart and count is derived here from the file's
+// datasets, then checked against the counts the file states (sections 3, 5, 6,
+// 7, 8, 9). Any disagreement stops the conversion: the data is never "fixed".
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ── Markdown helpers ──
+
+const cells = (line) =>
+  line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((c) => c.trim());
+
+/** Index of the first line that starts with `prefix`. */
+function lineOf(lines, prefix) {
+  const i = lines.findIndex((l) => l.startsWith(prefix));
+  if (i < 0) throw new Error(`Heading not found: "${prefix}"`);
+  return i;
+}
+
+/** The first table after line `from`: { header, rows, end }. */
+function tableAfter(lines, from) {
+  let i = from;
+  while (i < lines.length && !lines[i].startsWith('|')) i += 1;
+  if (i >= lines.length) throw new Error(`No table after line ${from + 1}`);
+  const header = cells(lines[i]);
+  i += 2; // header + separator
+  const rows = [];
+  while (i < lines.length && lines[i].startsWith('|')) {
+    rows.push(cells(lines[i]));
+    i += 1;
+  }
+  return { header, rows, end: i };
+}
+
+function tableUnder(lines, heading, expectedHeader) {
+  const t = tableAfter(lines, lineOf(lines, heading));
+  if (expectedHeader && JSON.stringify(t.header) !== JSON.stringify(expectedHeader)) {
+    throw new Error(`Unexpected columns under "${heading}":\n  got      ${t.header.join(' | ')}\n  expected ${expectedHeader.join(' | ')}`);
+  }
+  return t;
+}
+
+/** Text lines from `heading` up to the next heading of the same or higher level. */
+function sectionText(lines, heading) {
+  const start = lineOf(lines, heading);
+  const level = heading.match(/^#+/)[0].length;
+  const out = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const m = lines[i].match(/^(#+)\s/);
+    if (m && m[1].length <= level) break;
+    out.push(lines[i]);
+  }
+  return out;
+}
+
+const names = (s) =>
+  s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+const toInt = (s, what) => {
+  const n = Number(s);
+  if (!Number.isInteger(n)) throw new Error(`Not a number for ${what}: "${s}"`);
+  return n;
+};
+const dash = (s) => s === '' || s === '—' || s === '–';
+const strip = (s) => s.replace(/\*\*/g, '').replace(/`/g, '');
+
+// ── Columns ──
+
+const DATASET_A_HEADER = [
+  'Short name', 'Title (as submitted)', 'Track', 'Repo', 'Commit', 'Last commit (IST)', 'After deadline', 'Language',
+  'Noir Wallet', 'Nym', 'WebZjs', 'zcash-devtool', 'zkool', 'zingo-cli', 'librustzcash', 'Zallet', 'PCZT', 'FROST', 'Halo2',
+  'NEAR Intents', 'MCP', 'LLM API', 'x402', 'Bitrefill', 'ZIPs cited', 'Not readable because',
+];
+
+/** Y/N tool columns: key in the JSON, column in Dataset A, label on the page. */
+export const TOOL_COLUMNS = [
+  { key: 'noirWallet', column: 'Noir Wallet', label: 'Noir Wallet' },
+  { key: 'zcashDevtool', column: 'zcash-devtool', label: 'zcash-devtool' },
+  { key: 'zkool', column: 'zkool', label: 'zkool' },
+  { key: 'zingoCli', column: 'zingo-cli', label: 'zingo-cli' },
+  { key: 'librustzcash', column: 'librustzcash', label: 'librustzcash crates' },
+  { key: 'zallet', column: 'Zallet', label: 'Zallet' },
+  { key: 'pczt', column: 'PCZT', label: 'PCZT' },
+  { key: 'frost', column: 'FROST', label: 'FROST' },
+  { key: 'halo2', column: 'Halo2', label: 'Halo2 proofs' },
+  { key: 'nearIntents', column: 'NEAR Intents', label: 'NEAR Intents' },
+  { key: 'mcp', column: 'MCP', label: 'MCP' },
+  { key: 'llmApi', column: 'LLM API', label: 'LLM API' },
+  { key: 'x402', column: 'x402', label: 'x402' },
+  { key: 'bitrefill', column: 'Bitrefill', label: 'Bitrefill' },
+];
+const TOOL_BY_LABEL = Object.fromEntries(TOOL_COLUMNS.map((t) => [t.label, t]));
+
+const NYM_STATUSES = ['Built in', 'Through zingo-cli', 'Optional proxy setting', 'Turned off in zingo-cli build', 'Not used'];
+const WEBZJS_STATUSES = ['Used (patched build)', 'Flags it as broken', 'Considered, not used', 'Not used'];
+
+// ── Conversion ──
+
+export function convertReviewMarkdown(md) {
+  const lines = md.replace(/\r\n/g, '\n').split('\n');
+  const problems = [];
+  const expectEq = (what, got, stated) => {
+    if (JSON.stringify(got) !== JSON.stringify(stated)) problems.push(`${what}: computed ${JSON.stringify(got)}, file states ${JSON.stringify(stated)}`);
+  };
+  const sameNames = (what, got, stated) => expectEq(what, [...got].sort(), [...stated].sort());
+
+  // Version block.
+  const meta = Object.fromEntries(
+    tableAfter(lines, 0)
+      .rows.filter((r) => r[0])
+      .map((r) => [r[0], strip(r[1])]),
+  );
+  for (const k of ['Version', 'Generated', 'Generated by']) if (!meta[k]) throw new Error(`Version table has no "${k}" row`);
+  const changelog = [];
+  for (let i = lineOf(lines, '**Changelog**') + 1; i < lines.length && lines[i].startsWith('- '); i += 1) {
+    const m = lines[i].match(/^- ([\d.]+) \(([^)]+)\):\s*(.*)$/);
+    if (!m) throw new Error(`Changelog line not understood: "${lines[i]}"`);
+    changelog.push({ version: m[1], date: m[2], text: m[3] });
+  }
+  const generatedDate = meta.Generated.split(',')[0].trim();
+  const version = {
+    version: meta.Version,
+    generated: meta.Generated,
+    generatedDate,
+    generatedBy: meta['Generated by'],
+    reposRead: meta['Repos read'] ?? null,
+    // "9 Nov 2026" from "Shallow clones taken 9 Nov 2026 12:47 UTC …" (falls back to the generation date).
+    reposReadDate: meta['Repos read']?.match(/\d{1,2} [A-Z][a-z]{2} \d{4}/)?.[0] ?? generatedDate,
+    githubSearch: meta['GitHub search'] ?? null,
+    // "Input list" is left out on purpose: it names the excluded test entry,
+    // and test entries never appear in the published stats.
+    changelog,
+  };
+
+  // Dataset A.
+  const a = tableUnder(lines, '## 4. Dataset A', DATASET_A_HEADER);
+  const col = Object.fromEntries(a.header.map((h, i) => [h, i]));
+  const projects = a.rows.map((r) => {
+    const get = (c) => r[col[c]];
+    const readable = !get('Not readable because');
+    const tools = {};
+    for (const t of TOOL_COLUMNS) {
+      const v = get(t.column);
+      if (readable && v !== '' && v !== 'Y') throw new Error(`${get('Short name')}: "${t.column}" is "${v}", expected Y or blank`);
+      tools[t.key] = readable ? v === 'Y' : null;
+    }
+    const nym = readable ? get('Nym') : null;
+    const webzjs = readable ? get('WebZjs') : null;
+    if (readable && !NYM_STATUSES.includes(nym)) throw new Error(`${get('Short name')}: unknown Nym status "${nym}"`);
+    if (readable && !WEBZJS_STATUSES.includes(webzjs)) throw new Error(`${get('Short name')}: unknown WebZjs status "${webzjs}"`);
+    const track = get('Track').toLowerCase();
+    if (!['privacy', 'both'].includes(track)) throw new Error(`${get('Short name')}: unknown track "${get('Track')}"`);
+    return {
+      shortName: get('Short name'),
+      title: get('Title (as submitted)'),
+      track,
+      repo: dash(get('Repo')) ? null : get('Repo'),
+      commit: dash(get('Commit')) ? null : get('Commit'),
+      lastCommitIst: dash(get('Last commit (IST)')) ? null : get('Last commit (IST)'),
+      afterDeadline: get('After deadline') === 'Y',
+      language: dash(get('Language')) ? null : get('Language'),
+      readable,
+      notReadableReason: readable ? null : get('Not readable because'),
+      tools,
+      nym,
+      webzjs,
+      zips: get('ZIPs cited')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((z) => toInt(z, `${get('Short name')} ZIPs cited`)),
+    };
+  });
+  const shortNames = new Set(projects.map((p) => p.shortName));
+  if (shortNames.size !== projects.length) throw new Error('Dataset A has duplicate short names');
+  const readable = projects.filter((p) => p.readable);
+  const withTool = (key) => readable.filter((p) => p.tools[key]).map((p) => p.shortName);
+  const withStatus = (field, status) => readable.filter((p) => p[field] === status).map((p) => p.shortName);
+  const known = (what, list) => {
+    for (const n of list) if (!shortNames.has(n)) problems.push(`${what}: "${n}" is not a short name in Dataset A`);
+  };
+
+  // 5.1 and 5.4: tool charts.
+  const toolChart = (heading, header) =>
+    tableUnder(lines, heading, header).rows.map((r) => {
+      const t = TOOL_BY_LABEL[r[0]];
+      if (!t && r[0] !== 'WebZjs') throw new Error(`${heading}: unknown row "${r[0]}"`);
+      const computed = t ? withTool(t.key) : withStatus('webzjs', 'Used (patched build)');
+      const key = t ? t.key : 'webzjs';
+      expectEq(`${r[0]} count`, computed.length, toInt(r[1], r[0]));
+      sameNames(`${r[0]} projects`, computed, names(r[2]));
+      return { key, label: r[0], projects: computed };
+    });
+  const reach = toolChart('### 5.1', ['Tool', 'Projects', 'Which']);
+  const blocks = toolChart('### 5.4', ['Component', 'Projects', 'Which']);
+
+  // 5.2 Nym, 5.3 WebZjs.
+  const statusChart = (heading, field, statuses) => {
+    const stated = new Map(tableUnder(lines, heading, ['Status', 'Projects', 'Which']).rows.map((r) => [r[0], r]));
+    return statuses
+      .filter((s) => stated.has(s))
+      .map((s) => {
+        const r = stated.get(s);
+        const computed = withStatus(field, s);
+        expectEq(`${field} ${s} count`, computed.length, toInt(r[1], s));
+        if (!r[2].startsWith('(')) sameNames(`${field} ${s} projects`, computed, names(r[2]));
+        return { status: s, projects: computed };
+      });
+  };
+  const nym = statusChart('### 5.2', 'nym', NYM_STATUSES);
+  const webzjs = statusChart('### 5.3', 'webzjs', WEBZJS_STATUSES);
+  const nymDetails = strip(sectionText(lines, '### 5.2').find((l) => l.startsWith('Built-in details:')) ?? '');
+  const webzjsNote = strip(
+    sectionText(lines, '### 5.3')
+      .filter((l) => l.trim() && !l.startsWith('|'))
+      .join(' '),
+  );
+
+  // 5.5 Languages.
+  const languages = tableUnder(lines, '### 5.5', ['Primary language', 'Projects']).rows.map((r) => {
+    const computed = readable.filter((p) => p.language === r[0]).map((p) => p.shortName);
+    expectEq(`Language ${r[0]}`, computed.length, toInt(r[1], r[0]));
+    return { language: r[0], projects: computed };
+  });
+
+  // Dataset B: totals only (the file lists no projects).
+  const shieldedFeatures = tableUnder(lines, '## 6. Dataset B', ['Feature', 'Projects', 'Of', 'Search']).rows.map((r) => ({
+    feature: r[0],
+    count: toInt(r[1], r[0]),
+    of: toInt(r[2], `${r[0]} of`),
+    search: strip(r[3]),
+  }));
+  for (const f of shieldedFeatures) expectEq(`${f.feature} "of"`, f.of, readable.length);
+
+  // Dataset C: ZIPs.
+  const zipRows = tableUnder(lines, '## 7. Dataset C', ['ZIP', 'Name', 'Theme', 'What projects use it for', 'Projects', 'Which']).rows;
+  const zips = zipRows.map((r) => {
+    const zip = toInt(r[0], 'ZIP');
+    const computed = readable.filter((p) => p.zips.includes(zip)).map((p) => p.shortName);
+    expectEq(`ZIP ${zip} count`, computed.length, toInt(r[4], `ZIP ${zip}`));
+    sameNames(`ZIP ${zip} projects`, computed, names(r[5]));
+    const asCited = /\(as cited\)/.test(r[1]);
+    return { zip, name: r[1].replace(/\s*\(as cited\)\s*/, '').trim(), asCited, theme: r[2], use: r[3], projects: computed };
+  });
+  const cited = new Set(readable.flatMap((p) => p.zips));
+  for (const z of cited) if (!zips.some((x) => x.zip === z)) problems.push(`ZIP ${z} is cited in Dataset A but not in Dataset C`);
+  const themeLine = sectionText(lines, '## 7. Dataset C').find((l) => l.startsWith('Themes, in legend order:'));
+  if (!themeLine) throw new Error('No "Themes, in legend order" line in section 7');
+  const zipThemes = themeLine
+    .replace('Themes, in legend order:', '')
+    .replace(/\.$/, '')
+    .split('·')
+    .map((s) => s.trim());
+  for (const z of zips) if (!zipThemes.includes(z.theme)) problems.push(`ZIP ${z.zip} theme "${z.theme}" is not in the legend`);
+
+  // 7.1 New or draft ZIPs.
+  const newZips = tableUnder(lines, '### 7.1', ['Project', 'ZIPs', 'What they build']).rows.map((r) => {
+    const projectNames = names(r[0]);
+    known('7.1', projectNames);
+    return {
+      projects: projectNames,
+      zips: r[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((label) => ({ label, zip: /^\(?\d+\)?$/.test(label) ? Number(label.replace(/[()]/g, '')) : null })),
+      what: strip(r[2]),
+    };
+  });
+
+  // Dataset D: upstream PRs and issues.
+  const up = tableUnder(lines, '## 8. Dataset D', ['Project', 'Author (GitHub)', 'Repo', '#', 'Type', 'Title', 'Status', 'Date', 'When', 'URL']);
+  const upstream = up.rows.map((r) => ({
+    project: r[0],
+    author: r[1],
+    repo: r[2],
+    number: dash(r[3]) ? null : toInt(r[3], 'upstream #'),
+    type: r[4],
+    title: r[5],
+    status: r[6],
+    date: r[7],
+    when: r[8],
+    url: r[9],
+    duringHack: r[8].startsWith('During the hack') && r[6] !== 'Not filed',
+  }));
+  known('Dataset D', upstream.map((u) => u.project));
+  for (const u of upstream) if (!/^https:\/\//.test(u.url)) problems.push(`Upstream row "${u.title}" has no URL`);
+  const upstreamText = sectionText(lines, '## 8. Dataset D');
+  const after = upstreamText.slice(upstreamText.findIndex((l) => l.startsWith('|')));
+  const notes = after.filter((l) => l.trim() && !l.startsWith('|')).join(' ');
+  const upstreamCaveats = {};
+  for (const sentence of notes.split(/(?<=\.)\s+(?=[A-Z])/)) {
+    const m = sentence.match(/^(.+?)'s PR\b/);
+    if (m && shortNames.has(m[1])) upstreamCaveats[m[1]] = strip(sentence).trim();
+  }
+  const during = upstream.filter((u) => u.duringHack);
+  const statedUpstream = notes.match(/Headline "(\d+)"/);
+  if (statedUpstream) expectEq('Upstream during the hack', during.length, Number(statedUpstream[1]));
+  const upstreamDescription = strip(upstreamText.filter((l) => l.trim() && !l.startsWith('|'))[0] ?? '');
+
+  // Dataset E: friction. Names that aren't a short name (e.g. "zcash-now",
+  // which doesn't say which of the two entries) stay unresolved.
+  const frictionSection = sectionText(lines, '## 9. Dataset E');
+  const friction = tableUnder(lines, '## 9. Dataset E', ['Theme', 'Projects', 'Which']).rows.map((r) => {
+    const list = names(r[2]);
+    expectEq(`Friction "${r[0]}" count`, list.length, toInt(r[1], r[0]));
+    return { theme: r[0], projects: list.map((n) => ({ name: n, shortName: shortNames.has(n) ? n : null })) };
+  });
+  const frictionNote = strip(frictionSection.filter((l) => l.trim() && !l.startsWith('|')).join(' '));
+
+  // Section 10: findings.
+  const findings = sectionText(lines, '## 10. Findings')
+    .filter((l) => /^\d+\.\s/.test(l))
+    .map((l) => {
+      const m = l.match(/^\d+\.\s+\*\*(.+?)\*\*\s*(.*)$/);
+      if (!m) throw new Error(`Finding not understood: "${l}"`);
+      return { lead: m[1], text: m[2].replace(/\*\*/g, '') };
+    });
+
+  // Section 3: headline, recomputed and checked.
+  const stated = Object.fromEntries(tableUnder(lines, '## 3. Headline numbers', ['Measure', 'Value']).rows.map((r) => [r[0], r[1]]));
+  const statedNum = (measure) => {
+    const v = stated[measure];
+    if (v === undefined) throw new Error(`Section 3 has no "${measure}" row`);
+    return toInt(v.match(/^\d+/)?.[0] ?? '', measure);
+  };
+  const ofReadable = (feature) => shieldedFeatures.find((f) => f.feature === feature);
+  const builtIn = withStatus('nym', 'Built in').length;
+  const viaZingo = withStatus('nym', 'Through zingo-cli').length;
+  const headline = {
+    submissions: projects.length,
+    readable: readable.length,
+    noirWallet: withTool('noirWallet').length,
+    nymRouted: builtIn + viaZingo,
+    nymBuiltIn: builtIn,
+    nymThroughZingo: viaZingo,
+    webzjs: withStatus('webzjs', 'Used (patched build)').length,
+    upstreamDuringHack: during.length,
+    upstreamTeams: new Set(during.map((u) => u.project)).size,
+    afterDeadline: projects.filter((p) => p.afterDeadline).length,
+  };
+  expectEq('Privacy-track submissions', headline.submissions, statedNum('Privacy-track submissions'));
+  expectEq('Readable repos', headline.readable, statedNum('Readable repos'));
+  expectEq('Use Noir Wallet in code', headline.noirWallet, statedNum('Use Noir Wallet in code'));
+  expectEq('Route traffic over Nym', headline.nymRouted, statedNum('Route traffic over Nym (built in 7 + through zingo-cli 3)'));
+  expectEq('Build on ChainSafe WebZjs', headline.webzjs, statedNum('Build on ChainSafe WebZjs'));
+  const upstreamMeasure = Object.keys(stated).find((k) => k.startsWith('Upstream PRs and issues filed during the hack'));
+  expectEq('Upstream during the hack', headline.upstreamDuringHack, statedNum(upstreamMeasure));
+  const teams = stated[upstreamMeasure].match(/from (\d+) teams/);
+  if (teams) expectEq('Upstream teams', headline.upstreamTeams, Number(teams[1]));
+  const nymParts = Object.keys(stated)
+    .find((k) => k.startsWith('Route traffic over Nym'))
+    .match(/built in (\d+) \+ through zingo-cli (\d+)/);
+  if (nymParts) expectEq('Nym built in + through zingo-cli', [builtIn, viaZingo], [Number(nymParts[1]), Number(nymParts[2])]);
+  for (const [measure, feature] of [
+    ['Encrypted memos used in code', 'Encrypted memos'],
+    ['Unified addresses used in code', 'Unified addresses'],
+    ['Viewing keys used in code', 'Viewing keys'],
+    ['ZIP-321 payment links used in code', 'ZIP-321 payment links'],
+  ]) {
+    const f = ofReadable(feature);
+    if (!f) throw new Error(`Dataset B has no "${feature}" row`);
+    expectEq(measure, `${f.count} of ${f.of}`, stated[measure]);
+  }
+
+  // Section 1: scope, checked against Dataset A.
+  const scopeLines = sectionText(lines, '## 1. Scope').filter((l) => l.startsWith('- '));
+  const scopeCounts = scopeLines.join(' ').match(/\*\*(\d+) submissions\*\*:\s*(\d+) Privacy-only \+ (\d+) entered in both/);
+  if (scopeCounts) {
+    expectEq('Scope', [headline.submissions, projects.filter((p) => p.track === 'privacy').length, projects.filter((p) => p.track === 'both').length], scopeCounts.slice(1, 4).map(Number));
+  }
+  const notReadable = projects.filter((p) => !p.readable).map((p) => ({ shortName: p.shortName, reason: p.notReadableReason }));
+
+  // Section 2: the counting rule and column definitions, for "How this was checked".
+  const howText = sectionText(lines, '## 2. How each column was decided');
+  const countingRule = strip(howText.find((l) => l.startsWith('Counts are')) ?? '');
+  const columnDefinitions = tableUnder(lines, '## 2. How each column was decided', ['Column', 'Counts as Y when the code…']).rows.map((r) => ({
+    column: r[0],
+    rule: strip(r[1]),
+  }));
+  const scope = scopeLines.map((l) => strip(l.slice(2)));
+
+  if (problems.length) {
+    const err = new Error(`The file's datasets disagree with its stated counts. Nothing was written.\n- ${problems.join('\n- ')}`);
+    err.problems = problems;
+    throw err;
+  }
+
+  return {
+    version,
+    scope,
+    countingRule,
+    columnDefinitions,
+    headline,
+    notReadable,
+    projects,
+    charts: { reach, nym, webzjs, blocks, languages },
+    nymDetails,
+    webzjsNote,
+    shieldedFeatures,
+    zips,
+    zipThemes,
+    newZips,
+    upstream,
+    upstreamDescription,
+    upstreamCaveats,
+    friction,
+    frictionNote,
+    findings,
+  };
+}
+
+/** The JSON text written next to the markdown (stable, so a test can compare it). */
+export const reviewJson = (md) => `${JSON.stringify(convertReviewMarkdown(md), null, 2)}\n`;
+
+// CLI
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const input = process.argv[2];
+  if (!input || !input.endsWith('.md')) {
+    console.error('Usage: node scripts/convert-privacy-review.js <dir>/v<version>.md');
+    process.exit(1);
+  }
+  const out = input.replace(/\.md$/, '.json');
+  try {
+    fs.writeFileSync(out, reviewJson(fs.readFileSync(input, 'utf8')));
+    console.log(`Wrote ${out}`);
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+}

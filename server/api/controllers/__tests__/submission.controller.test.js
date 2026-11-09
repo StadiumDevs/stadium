@@ -560,7 +560,7 @@ describe('SubmissionController results publish (platform admin)', () => {
     const res = mockRes();
     await submissionController.unpublishResults(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(programRepo.setResultsPublished).toHaveBeenCalledWith('bitrefill', null);
+    expect(programRepo.setResultsPublished).toHaveBeenCalledWith('bitrefill', null, null);
     expect(prizeAwardService.notifyWinners).not.toHaveBeenCalled();
   });
 });

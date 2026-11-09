@@ -117,9 +117,6 @@ const ProgramWinnerPage = () => {
             {isEcosystem(entry) && (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-body text-sm">{profile.milestone.flagLabel}: partner + 30-day milestone</span>
-                <span className="font-mono text-sm font-bold text-display">
-                  +${profile.milestone.payoutAmount} ON COMPLETION
-                </span>
               </div>
             )}
             <p className="label-hw-dim normal-case">

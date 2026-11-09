@@ -295,3 +295,15 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: repo root; `.github/workflows/*.yml`; `client/package.json`, `server/package.json` (no `engines`)
 - **Observed during**: adding CI security + dependency-update checks
 - **Suggestion**: The lockfiles were written by npm 11, and `npm ci` on npm 10 (Node 20/22) rejects them ("Missing: smoldot@2.0.26 from lock file"). It is version-specific even within npm 11: 11.6.2 (which wrote them) works; 11.19.1 (bundled with Node 24 on runners) rejects them, and a relock with 11.19.1 is rejected by 11.6.2. The new workflows pin `NPM_VERSION: 11.6.2`. `claude.yml` (Node 20 / npm 10) will fail at `npm ci`. Pick one npm version for the team (a `packageManager` field in package.json, or `devEngines`), relock with it, and drop the pin. Add `.nvmrc` (24) plus `engines`, check that Railway/Vercel match, and switch every workflow to `node-version-file: .nvmrc`.
+
+## [2026-11-09] `api.getProgramStats` is defined twice
+- **Severity**: major
+- **File(s)**: `client/src/lib/api.ts:2636` (judge/admin header counts) and `client/src/lib/api.ts:3069` (public stats snapshot), callers `client/src/components/admin/ProgramStatsHeader.tsx:45`, `client/src/components/admin/ProgramResultsSummarySection.tsx:204`
+- **Observed during**: privacy track tech review section (stats page), exploring e29f836
+- **Suggestion**: The later key in the `api` object literal wins, so the admin header and results summary now call the public snapshot endpoint instead of the header counts. Rename one (e.g. `getPublishedProgramStats`) and update its callers.
+
+## [2026-11-09] Two routes for `GET /programs/:slug/stats`
+- **Severity**: major
+- **File(s)**: `server/api/routes/program.routes.js:111` (public `getPublished`) and `:299` (`requireProgramJudge` → `submissionController.programStats`)
+- **Observed during**: privacy track tech review section (stats page), exploring e29f836
+- **Suggestion**: Express uses the first match, so the judge header-stats endpoint can no longer be reached. Give the published stats page or the judge counts a distinct path, together with the client rename above.

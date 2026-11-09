@@ -116,6 +116,8 @@ export const mockPrograms: ApiProgram[] = [
     description:
       "A Zcash hackathon with a Bitrefill track at True Tramm Trunk, BKC, Mumbai. Two tracks, Privacy (Zcash) and Agentic Commerce (by Bitrefill). All times IST.",
     status: "completed",
+    // Shows the JUDGING IN PROGRESS badge on the mock-mode preview.
+    judgingInProgress: true,
     owner: "webzero",
     applicationsOpenAt: "2026-10-12T00:00:00+05:30",
     applicationsCloseAt: "2026-10-30T23:59:00+05:30",
@@ -127,7 +129,12 @@ export const mockPrograms: ApiProgram[] = [
     coverImageUrl: "/fsh-cover.webp",
     lumaEventId: "evt-B6kmWqZYUUeTkIP",
     content: FREE_SOCIETY_HACK_2026_CONTENT,
-    prizeTiers: FREE_SOCIETY_HACK_PRIZE_TIERS,
+    // Like production: two ecosystem prizes saved without a track prefix (they belong to Privacy).
+    prizeTiers: [
+      ...FREE_SOCIETY_HACK_PRIZE_TIERS,
+      { label: "Zcash ecosystem prize", amount: 100, currency: "USDC" },
+      { label: "Zcash ecosystem prize", amount: 100, currency: "USDC" },
+    ],
     resultsPublishedAt: "2026-11-05T13:15:00+05:30",
     createdAt: "2026-10-26T00:00:00Z",
     updatedAt: "2026-11-05T00:00:00Z",

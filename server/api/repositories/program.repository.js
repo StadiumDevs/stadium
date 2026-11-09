@@ -22,11 +22,15 @@ const transformProgram = (row) => {
     content: row.content ?? null,
     prizeTiers: row.prize_tiers ?? null,
     resultsPublishedAt: row.results_published_at ?? null,
+    resultsRanking: row.results_ranking ?? null,
+    // The stats snapshot itself is read with getStatsSnapshot (it's large).
+    statsPublishedAt: row.stats_published_at ?? null,
     lumaEventId: row.luma_event_id ?? null,
     lastGuestSyncAt: row.last_guest_sync_at ?? null,
     lastGuestSyncStatus: row.last_guest_sync_status ?? null,
     honoraryMentions: row.honorary_mentions ?? null,
     galleryUrl: row.gallery_url ?? null,
+    judgingInProgress: row.judging_in_progress ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -58,6 +62,7 @@ const toSnakeCase = (data) => {
   }
   if ('honoraryMentions' in data) row.honorary_mentions = data.honoraryMentions ?? null;
   if ('galleryUrl' in data) row.gallery_url = data.galleryUrl ?? null;
+  if ('judgingInProgress' in data) row.judging_in_progress = !!data.judgingInProgress;
   return row;
 };
 
@@ -114,11 +119,31 @@ class ProgramRepository {
     if (error) throw error;
   }
 
-  // Publish/unpublish the public results: set or clear results_published_at.
-  async setResultsPublished(slug, publishedAt) {
+  // Publish/unpublish the public results: set or clear results_published_at,
+  // with the ranking snapshot (how each track was ranked) stored alongside.
+  async setResultsPublished(slug, publishedAt, ranking = null) {
     const { data, error } = await supabase
       .from('programs')
-      .update({ results_published_at: publishedAt, updated_at: new Date().toISOString() })
+      .update({ results_published_at: publishedAt, results_ranking: ranking, updated_at: new Date().toISOString() })
+      .eq('slug', slug)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return transformProgram(data);
+  }
+
+  // The published stats snapshot, or null.
+  async getStatsSnapshot(slug) {
+    const { data, error } = await supabase.from('programs').select('stats_snapshot').eq('slug', slug).maybeSingle();
+    if (error) throw error;
+    return data?.stats_snapshot ?? null;
+  }
+
+  // Publish the stats page: store the snapshot and when it was taken.
+  async setStatsSnapshot(slug, snapshot, publishedAt) {
+    const { data, error } = await supabase
+      .from('programs')
+      .update({ stats_snapshot: snapshot, stats_published_at: publishedAt, updated_at: new Date().toISOString() })
       .eq('slug', slug)
       .select('*')
       .single();

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import fs from "fs";
 import path from "path";
@@ -47,6 +47,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // The playground reads the privacy track review fixtures from ../server/fixtures.
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(__dirname, "../server/fixtures")] },
   },
 
   plugins: [react(), llmsTxt()],

@@ -7,6 +7,8 @@ import type {
   ApiPrizeTier,
   ApiPublicSubmission,
   ApiPublicSubmissions,
+  ApiPublicTrackScore,
+  ApiResultsRanking,
   ApiRubricLeaderboard,
   ApiRubricLeaderboardRow,
   ApiRubricScore,
@@ -21,6 +23,7 @@ import {
   getProgramProfile,
   isFullyScored,
   judgedTracksOf,
+  maxScore,
   rubricDraftKey,
   trackById,
   weightedTotal,
@@ -30,12 +33,19 @@ import { buildFreeSocietyHackSeed, FSH_JUDGES, type TrackedSeed } from "./mocks/
 import { checkTestnetTx } from "./txCheck";
 import { mockPrograms } from "./mockPrograms";
 import { toPublicSubmission } from "./trackedDisplay";
+import { DEFAULT_NORMALIZATION, normalizeTrack } from "./scoreNormalization";
+import { buildStats, computeChecks, publicSnapshot, statsFingerprint, type ProgramStats, type ProgramStatsChecks } from "./programStats";
+import type { PrivacyReviewData } from "./privacyReview";
+import { feedbackBySubmission, type ProjectFeedbackData } from "./projectFeedback";
+import { programStatsFor } from "./programStatsConfig";
+import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
 
 const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }> = {
   "free-society-hack-2026": { build: buildFreeSocietyHackSeed, judges: FSH_JUDGES },
 };
 
-const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v7`;
+// v8: the seed gained a test entry (Example Project).
+const stateKey = (slug: string) => `stadium_mock_tracked_${slug}_v8`;
 
 // Mirrors the server: submissions close at the program's eventEndsAt, and a
 // draft still unfinalized after that is abandoned (out of every final list).
@@ -82,6 +92,18 @@ const save = (slug: string, state: TrackedSeed) => {
 const now = () => new Date().toISOString();
 const mean = (ns: number[]) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
 const EPS = 1e-9;
+
+// Playground event ratings (1–5) for the seeded entries, stable per project.
+// Agentic-only entries didn't answer, so the stats page shows "No feedback collected" there.
+const mockRatings = (subs: ApiTrackedSubmission[]) => {
+  const hash = (t: string) => [...t].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const out: { submissionId: string; category: string; score: number }[] = [];
+  for (const s of subs) {
+    if (s.details.track === "agentic" || hash(s.id) % 5 === 0) continue;
+    for (const c of EXPERIENCE_RATING_CATEGORIES) out.push({ submissionId: s.id, category: c.id, score: 2 + (hash(s.id + c.id) % 4) });
+  }
+  return out;
+};
 
 const toPublic = (s: ApiTrackedSubmission, published: boolean): ApiPublicSubmission =>
   toPublicSubmission(s, { showPrizes: published });
@@ -145,24 +167,84 @@ export const mockTracked = {
 
 
   /** Public: every submitted project, live. Winners first once published. */
-  publicList(slug: string): ApiPublicSubmissions {
+  publicList(slug: string, feedbackFixture: ProjectFeedbackData | null = null): ApiPublicSubmissions {
     const state = load(slug);
     const published = !!state.resultsPublishedAt;
     // Like the server: only finalized entries are public (drafts are the team's own).
     const submissions = state.submissions
-      .filter((s) => s.status !== "draft")
+      .filter((s) => s.status !== "draft" && !s.isTestEntry)
       .map((s) => toPublic(s, published))
       .sort((a, b) => (published ? bestPrize(b) - bestPrize(a) : 0) || a.createdAt.localeCompare(b.createdAt));
-    return { published, submissions };
+    if (!published) return { published, submissions, ranking: null, judgesByTrack: null };
+    const { bySubmission, judgesByTrack } = this.publicScores(slug);
+    const ranking = state.resultsRanking ?? null;
+    // Like the server: judges' feedback from the versioned fixture, matched by repo then title.
+    const feedback = feedbackBySubmission(feedbackFixture, state.submissions.filter((s) => s.status !== "draft" && !s.isTestEntry));
+    return {
+      published,
+      submissions: submissions.map((s) => ({
+        ...s,
+        ...(bySubmission.has(s.id) ? { scores: bySubmission.get(s.id) } : {}),
+        ...(feedback.has(s.id) ? { feedback: feedback.get(s.id) } : {}),
+      })),
+      ranking,
+      judgesByTrack,
+    };
   },
 
   /** Public: a winner's project page. Null for non-winners or before publishing. */
-  publicWinner(slug: string, id: string): ApiPublicSubmission | null {
+  publicWinner(slug: string, id: string, feedbackFixture: ProjectFeedbackData | null = null): ApiPublicSubmission | null {
     const state = load(slug);
     if (!state.resultsPublishedAt) return null;
     const s = state.submissions.find((x) => x.id === id);
     if (!s || Object.keys(s.prizes).length === 0) return null;
-    return toPublic(s, true);
+    const scores = this.publicScores(slug).bySubmission.get(s.id);
+    const fb = feedbackBySubmission(feedbackFixture, state.submissions.filter((x) => x.status !== "draft" && !x.isTestEntry)).get(s.id);
+    return { ...toPublic(s, true), ...(scores ? { scores } : {}), ...(fb ? { feedback: fb } : {}) };
+  },
+
+  /**
+   * Like server public-scores.service.js: per project, the score each track was
+   * ranked on at publish (normalized when it was ranked normalized), per category
+   * with the track average, and how many judges scored it.
+   */
+  publicScores(slug: string): {
+    bySubmission: Map<string, Partial<Record<JudgedTrack, ApiPublicTrackScore>>>;
+    judgesByTrack: Partial<Record<JudgedTrack, number>>;
+  } {
+    const state = load(slug);
+    const profile = getProgramProfile(slug);
+    const ranking = state.resultsRanking ?? null;
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+    const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+    const bySubmission = new Map<string, Partial<Record<JudgedTrack, ApiPublicTrackScore>>>();
+    const judgesByTrack: Partial<Record<JudgedTrack, number>> = {};
+    // A track judged outside Stadium (FSH Agentic Commerce, by Bitrefill) never shows a score.
+    const unscored = programStatsFor(slug)?.unscoredTrack.track ?? null;
+    for (const t of profile?.tracks ?? []) {
+      if (t.id === unscored) continue;
+      const scored = this.leaderboard(slug, t.id).rows.filter((r) => r.judgeCount > 0);
+      if (!scored.length) continue;
+      judgesByTrack[t.id] = new Set(scored.flatMap((r) => r.judgeScores.map((j) => j.judgeEmail))).size;
+      const normalized = !!ranking?.[t.id]?.normalized;
+      const rankedNormalized = (r: (typeof scored)[number]) => normalized && r.normTotal != null && r.normByCriterion != null;
+      const criterionOf = (r: (typeof scored)[number], id: string) => (rankedNormalized(r) ? r.normByCriterion![id] : r.avgByCriterion[id]) ?? 0;
+      const trackAvg = Object.fromEntries(t.rubric.criteria.map((c) => [c.id, round1(mean(scored.map((r) => criterionOf(r, c.id))))]));
+      for (const r of scored) {
+        const total = rankedNormalized(r) ? r.normTotal! : r.avgTotal;
+        if (total == null) continue;
+        bySubmission.set(r.submissionId, {
+          ...bySubmission.get(r.submissionId),
+          [t.id]: {
+            score: round1(total),
+            max: maxScore(t.rubric),
+            judges: r.judgeCount,
+            criteria: t.rubric.criteria.map((c) => ({ id: c.id, score: round1(criterionOf(r, c.id)), max: c.max, trackAvg: trackAvg[c.id] })),
+          },
+        });
+      }
+    }
+    return { bySubmission, judgesByTrack };
   },
 
   add(slug: string, payload: TrackedSubmitPayload): ApiTrackedSubmission {
@@ -261,7 +343,7 @@ export const mockTracked = {
       let scored = 0;
       let total = 0;
       for (const s of state.submissions) {
-        if (isAbandonedIn(slug, s)) continue;
+        if (isAbandonedIn(slug, s) || s.isTestEntry) continue;
         for (const t of judgedTracksOf(s.details.track)) {
           if (!j.tracks.includes(t)) continue;
           total += 1;
@@ -281,16 +363,41 @@ export const mockTracked = {
     const bonus = rubric.criteria.find((c) => c.isBonus);
     const state = load(slug);
     const judges = this.judges(slug).filter((j) => j.tracks.includes(track)).map((j) => j.email);
-    const entries = state.submissions.filter((s) => !isAbandonedIn(slug, s) && judgedTracksOf(s.details.track).includes(track));
+    const entries = state.submissions.filter(
+      (s) => !isAbandonedIn(slug, s) && !s.isTestEntry && judgedTracksOf(s.details.track).includes(track),
+    );
 
+    const normalization = { ...DEFAULT_NORMALIZATION, ...(rubric.normalization ?? {}) };
+    const entryIds = new Set(entries.map((s) => s.id));
+    // Every counted score in the track feeds the normalization (mirrors the server).
+    // Complete and not abstained (an abstention counts as a missing score).
+    const trackScores = state.scores.filter(
+      (x) =>
+        x.track === track &&
+        entryIds.has(x.submissionId) &&
+        !(x as { abstained?: boolean }).abstained &&
+        isFullyScored(rubric, x.criteria),
+    );
+    const norm = normalizeTrack({
+      criteria: rubric.criteria,
+      bonusIds: bonus ? [bonus.id] : [],
+      scores: trackScores,
+      config: normalization,
+    });
+
+    // Normalization is on only when configured and enough judges have scored.
+    const normOn = normalization.enabled && norm.available;
     const rows: ApiRubricLeaderboardRow[] = entries.map((s) => {
-      const counted = state.scores.filter(
-        (x) => x.submissionId === s.id && x.track === track && isFullyScored(rubric, x.criteria),
-      );
+      const counted = trackScores.filter((x) => x.submissionId === s.id);
       const avgByCriterion: Record<string, number> = {};
       for (const c of rubric.criteria) avgByCriterion[c.id] = mean(counted.map((x) => x.criteria[c.id] ?? 0));
+      const n = normOn ? norm.projects.get(s.id) : undefined;
+      const contributionOf = new Map((n?.contributions ?? []).map((c) => [c.judgeEmail, c]));
       return {
         rank: 0,
+        rawRank: 0,
+        normRank: null,
+        rankChange: 0,
         submissionId: s.id,
         projectTitle: s.projectTitle,
         submitterName: s.submitterName,
@@ -298,15 +405,25 @@ export const mockTracked = {
         status: s.status ?? "submitted",
         avgTotal: mean(counted.map((x) => weightedTotal(rubric, x.criteria))),
         avgByCriterion,
+        normTotal: n ? n.normTotal : null,
+        normByCriterion: n ? n.normByCriterion : null,
+        zTotal: n ? n.zTotal : null,
+        offsetTotal: n ? n.offsetTotal : null,
+        coverage: { scored: counted.length, of: norm.scoringJudges },
+        fullyScored: counted.length > 0 && counted.length === norm.scoringJudges,
         bonusCount: bonus ? counted.filter((x) => (x.criteria[bonus.id] ?? 0) > 0).length : 0,
         judgeCount: counted.length,
         tieBrokenBy: null,
+        rawTieBrokenBy: null,
+        normTieBrokenBy: null,
         judgeScores: counted.map((x) => ({
           judgeEmail: x.judgeEmail,
           total: weightedTotal(rubric, x.criteria),
           criteria: x.criteria,
           notes: x.notes,
           session: x.session,
+          normContribution: contributionOf.get(x.judgeEmail)?.value ?? null,
+          method: contributionOf.get(x.judgeEmail)?.method ?? null,
         })),
         txCheck: s.details.txCheck,
         prize: s.prizes[track] ?? null,
@@ -315,25 +432,51 @@ export const mockTracked = {
       };
     });
 
-    const tieValue = (r: ApiRubricLeaderboardRow, i: number) => {
-      const tb = rubric.tieBreaks[i];
-      return tb.kind === "bonusCount" ? r.bonusCount : r.avgByCriterion[tb.id] ?? 0;
+    const rankBy = (totalOf: (r: ApiRubricLeaderboardRow) => number, critOf: (r: ApiRubricLeaderboardRow) => Record<string, number>) => {
+      const tieValue = (r: ApiRubricLeaderboardRow, i: number) => {
+        const tb = rubric.tieBreaks[i];
+        return tb.kind === "bonusCount" ? r.bonusCount : critOf(r)[tb.id] ?? 0;
+      };
+      const sameTotal = (a: ApiRubricLeaderboardRow, b: ApiRubricLeaderboardRow) =>
+        totalOf(a) === totalOf(b) || Math.abs(totalOf(a) - totalOf(b)) <= EPS;
+      const sorted = [...rows].sort((a, b) => {
+        if (!sameTotal(a, b)) return totalOf(b) - totalOf(a);
+        for (let i = 0; i < rubric.tieBreaks.length; i += 1) {
+          const d = tieValue(b, i) - tieValue(a, i);
+          if (Math.abs(d) > EPS) return d;
+        }
+        return 0;
+      });
+      return sorted.map((row, i) => {
+        const prev = sorted[i - 1];
+        let tieBrokenBy: string | null = null;
+        if (prev && sameTotal(prev, row)) {
+          const decider = rubric.tieBreaks.findIndex((_, t) => Math.abs(tieValue(prev, t) - tieValue(row, t)) > EPS);
+          tieBrokenBy = decider >= 0 ? rubric.tieBreaks[decider].label : "unresolved";
+        }
+        return { row, tieBrokenBy };
+      });
     };
-    rows.sort((a, b) => {
-      if (Math.abs(b.avgTotal - a.avgTotal) > EPS) return b.avgTotal - a.avgTotal;
-      for (let i = 0; i < rubric.tieBreaks.length; i += 1) {
-        const d = tieValue(b, i) - tieValue(a, i);
-        if (Math.abs(d) > EPS) return d;
-      }
-      return 0;
+    const rawOrder = rankBy((r) => r.avgTotal, (r) => r.avgByCriterion);
+    rawOrder.forEach(({ row, tieBrokenBy }, i) => {
+      row.rawRank = i + 1;
+      row.rawTieBrokenBy = tieBrokenBy;
     });
-    rows.forEach((r, i) => {
-      r.rank = i + 1;
-      const prev = rows[i - 1];
-      if (prev && Math.abs(prev.avgTotal - r.avgTotal) <= EPS) {
-        const decider = rubric.tieBreaks.findIndex((_, t) => Math.abs(tieValue(prev, t) - tieValue(r, t)) > EPS);
-        r.tieBrokenBy = decider >= 0 ? rubric.tieBreaks[decider].label : "unresolved";
-      }
+    let primary = rawOrder;
+    if (normOn) {
+      const normOrder = rankBy((r) => r.normTotal ?? -Infinity, (r) => r.normByCriterion ?? {});
+      normOrder.forEach(({ row, tieBrokenBy }, i) => {
+        // Unscored projects have no normalized value, so no normalized rank.
+        if (row.normTotal == null) return;
+        row.normRank = i + 1;
+        row.normTieBrokenBy = tieBrokenBy;
+        row.rankChange = (row.rawRank ?? 0) - row.normRank;
+      });
+      primary = normOrder;
+    }
+    primary.forEach(({ row, tieBrokenBy }, i) => {
+      row.rank = i + 1;
+      row.tieBrokenBy = tieBrokenBy;
     });
 
     return {
@@ -341,15 +484,22 @@ export const mockTracked = {
       judges,
       submissionsTotal: entries.length,
       submissionsFullyScored: rows.filter((r) => r.judgeCount === judges.length).length,
-      rows,
+      normalization: { ...normalization, available: norm.available, reason: norm.reason, scoringJudges: norm.scoringJudges },
+      judgeStats: norm.judgeStats,
+      computedAt: new Date().toISOString(),
+      rows: primary.map((x) => x.row),
     };
   },
 
-  awardPrize(slug: string, id: string, track: JudgedTrack, prize: ApiPrizeTier | null): ApiTrackedSubmission | null {
+  awardPrize(slug: string, id: string, track: JudgedTrack, prize: ApiPrizeTier | null, override = false): ApiTrackedSubmission | null {
     const state = load(slug);
-    if (prize) {
+    if (prize && !override) {
+      // Like the server: refused (with a code the admin UI can override) when unscored or gated.
+      const coded = (message: string, code: string) => Object.assign(new Error(message), { code });
+      const row = this.leaderboard(slug, track).rows.find((r) => r.submissionId === id);
+      if (!row || row.judgeCount === 0) throw coded("No judge has fully scored this project in this track yet.", "NOT_FULLY_SCORED");
       const blocked = winnerBlockedReason(state, slug, id, track);
-      if (blocked) throw new Error(blocked);
+      if (blocked) throw coded(blocked, "WINNER_BLOCKED");
     }
     let next: ApiTrackedSubmission | null = null;
     state.submissions = state.submissions.map((s) => {
@@ -420,11 +570,79 @@ export const mockTracked = {
     return next;
   },
 
-  setPublished(slug: string, publish: boolean): string | null {
+  /** Publish with the ranking snapshot (mirrors server results-ranking.service.js). */
+  setPublished(slug: string, publish: boolean, normalized = true): string | null {
+    const profile = getProgramProfile(slug);
+    // Snapshot from the live boards before saving (leaderboard() reads the state itself).
+    const ranking: ApiResultsRanking | null =
+      publish && profile
+        ? Object.fromEntries(
+            profile.tracks.map((t) => {
+              const n = this.leaderboard(slug, t.id).normalization;
+              const on = normalized && !!n?.enabled && n.available !== false;
+              return [t.id, { normalized: on, method: on ? n!.method : null }];
+            }),
+          )
+        : null;
     const state = load(slug);
     state.resultsPublishedAt = publish ? now() : null;
+    state.resultsRanking = ranking;
     save(slug, state);
     return state.resultsPublishedAt;
+  },
+
+  resultsRanking(slug: string): ApiResultsRanking | null {
+    return load(slug).resultsRanking ?? null;
+  },
+
+  /**
+   * Stats page (mirrors server program-stats.controller.js): live stats and
+   * checks for the admin preview, built by the same code as production.
+   * `review` is the privacy track tech review fixture (api.ts loads it).
+   */
+  statsLive(slug: string, review: PrivacyReviewData | null = null): { stats: ProgramStats; checks: ProgramStatsChecks } | null {
+    const profile = getProgramProfile(slug);
+    const base = programStatsFor(slug);
+    if (!profile || !base) return null;
+    const state = load(slug);
+    const counted = state.submissions.filter((s) => s.status !== "draft" && !s.isTestEntry && !isAbandonedIn(slug, s));
+    const testEntries = state.submissions.filter((s) => s.isTestEntry);
+    const config = {
+      ...base,
+      // The profile's map (in the playground it also knows the mock titles).
+      categories: profile.categories ?? base.categories,
+      scoreMax: maxScore(trackById(profile, base.judgeTrack).rubric),
+    };
+    const board = this.leaderboard(slug, base.judgeTrack);
+    const stats = buildStats({ program: { slug }, submissions: counted, board, ratings: mockRatings(counted), config, review });
+    return { stats, checks: computeChecks({ counted, testEntries, stats, config, review }) };
+  },
+
+  statsPreview(slug: string, review: PrivacyReviewData | null = null) {
+    const live = this.statsLive(slug, review);
+    if (!live) return null;
+    const state = load(slug);
+    return {
+      ...live,
+      publishedAt: state.statsPublishedAt ?? null,
+      changedSincePublish: !!state.statsSnapshot && statsFingerprint(publicSnapshot(state.statsSnapshot)) !== statsFingerprint(publicSnapshot(live.stats)),
+    };
+  },
+
+  statsPublish(slug: string, review: PrivacyReviewData | null = null): { stats: ProgramStats; publishedAt: string } | null {
+    const live = this.statsLive(slug, review);
+    if (!live) return null;
+    const state = load(slug);
+    // The composite ranking is admin only: never published.
+    state.statsSnapshot = publicSnapshot(live.stats);
+    state.statsPublishedAt = live.stats.generatedAt;
+    save(slug, state);
+    return { stats: state.statsSnapshot, publishedAt: live.stats.generatedAt };
+  },
+
+  statsPublished(slug: string): { stats: ProgramStats; publishedAt: string } | null {
+    const state = load(slug);
+    return state.statsSnapshot && state.statsPublishedAt ? { stats: publicSnapshot(state.statsSnapshot), publishedAt: state.statsPublishedAt } : null;
   },
 
   updateMilestone(slug: string, id: string, patch: Partial<ApiSubmissionMilestone>): ApiTrackedSubmission | null {

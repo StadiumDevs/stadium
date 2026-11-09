@@ -71,6 +71,7 @@ export default {
         led: "hsl(var(--led))",
         warn: "hsl(var(--warn))",
         info: "hsl(var(--info))",
+        find: "hsl(var(--find))",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

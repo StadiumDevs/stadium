@@ -250,12 +250,43 @@ describe('scoringService.promoteToProject', () => {
         projectName: 'Aurora Pay',
         projectRepo: 'https://gh',
         demoUrl: 'https://v',
-        hackathon: { id: 'bitrefill-2026', name: 'Bitrefill 2026' },
+        hackathon: expect.objectContaining({ id: 'bitrefill-2026', name: 'Bitrefill 2026' }),
         program: { id: 'prog-1' },
+        projectState: 'submitted',
         teamMembers: [expect.objectContaining({ name: 'Ada' })],
+        bountyPrize: [], // submission had no prize -> no bounty
       }),
     );
     expect(submissionRepo.setPromotedProject).toHaveBeenCalledWith('sub-1', 'aurora-pay-ab12');
+  });
+
+  it('creates a bounty_prize from the awarded prize (or an override) when promoting a winner', async () => {
+    submissionRepo.findById.mockResolvedValue({
+      id: 'sub-2', programId: 'prog-1', projectTitle: 'VoiceBuy', submitterName: 'Bo',
+      lumaEmail: 'bo@x.com', videoUrl: 'https://v', githubUrl: 'https://gh',
+      prizeAmount: 500, prizeCurrency: 'EUR', prizeLabel: 'Bitrefill giftcard',
+    });
+    projectService.createProject.mockResolvedValue({ id: 'voicebuy-1' });
+
+    // Default: uses the submission's awarded prize.
+    await scoringService.promoteToProject(program, 'sub-2');
+    expect(projectService.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bountyPrize: [expect.objectContaining({ name: 'Bitrefill giftcard', amount: 500, currency: 'EUR' })],
+      }),
+    );
+
+    // Override: a Showcase 100 EUR award.
+    submissionRepo.findById.mockResolvedValue({
+      id: 'sub-3', programId: 'prog-1', projectTitle: 'LootDrop', submitterName: 'Cy',
+      lumaEmail: 'cy@x.com', videoUrl: 'https://v', githubUrl: 'https://gh',
+    });
+    await scoringService.promoteToProject(program, 'sub-3', { name: 'Showcase', amount: 100, currency: 'EUR' });
+    expect(projectService.createProject).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        bountyPrize: [expect.objectContaining({ name: 'Showcase', amount: 100, currency: 'EUR' })],
+      }),
+    );
   });
 
   it('is idempotent — returns the existing project without creating a second', async () => {

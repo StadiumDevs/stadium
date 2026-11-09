@@ -8,7 +8,7 @@ import programService from '../services/program.service.js';
 import programSubmissionRepository from '../repositories/program-submission.repository.js';
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
-import { trackedProgramFor, isAbandoned } from '../constants/trackedPrograms.js';
+import { trackedProgramFor, isCountedEntry } from '../constants/trackedPrograms.js';
 import { RUBRIC_TRACKS } from '../constants/rubrics.js';
 import {
   computeJudgingProgress,
@@ -20,6 +20,10 @@ import {
 import { checkAndStore } from '../services/tx-check.service.js';
 import { toPublicSubmission } from '../utils/public-submission.js';
 import { prizeTiersFor, validateMilestonePatch } from '../utils/submission.validator.js';
+import { tierBelongsToTrack, tierLimit } from '../utils/track-prize-tiers.js';
+import { loadPublicScores } from '../services/public-scores.service.js';
+import { loadProjectFeedback, feedbackBySubmission } from '../services/project-feedback.service.js';
+import { programStatsFor } from '../constants/programStats.js';
 import { extractSupabaseToken, getSupabaseUser } from '../auth/supabaseUser.js';
 import auditLog from '../services/program-audit-log.service.js';
 
@@ -74,14 +78,20 @@ class TrackedResultsController {
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
-      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
+      const submissions = all.filter((s) => isCountedEntry(s, ctx.tracked, ctx.program));
       const board = computeLeaderboard({ track, submissions, scores, judges });
       if (isJudgeOnly(req)) {
         const me = req.user.email.toLowerCase();
         const nameOf = new Map(judges.map((j) => [j.email, j.name || j.email.split('@')[0]]));
         const mask = (e) => (e === me ? e : nameOf.get(e) ?? 'Judge');
         board.judges = board.judges.map(mask);
-        for (const r of board.rows) r.judgeScores = r.judgeScores.map((x) => ({ ...x, judgeEmail: mask(x.judgeEmail) }));
+        // Judge calibration (each judge's mean, SD, bias and per-score
+        // contribution) is for organizers only, so judges don't adjust toward
+        // the panel mid-round.
+        delete board.judgeStats;
+        for (const r of board.rows) {
+          r.judgeScores = r.judgeScores.map(({ normContribution, method, ...x }) => ({ ...x, judgeEmail: mask(x.judgeEmail) }));
+        }
       }
       res.status(200).json({ status: 'success', data: board });
     } catch (error) {
@@ -102,7 +112,7 @@ class TrackedResultsController {
         submissionRubricScoreRepository.listByProgram(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
-      const submissions = all.filter((s) => !isAbandoned(s, ctx.tracked, ctx.program));
+      const submissions = all.filter((s) => isCountedEntry(s, ctx.tracked, ctx.program));
       const me = (req.user?.email || '').toLowerCase();
       const data = computeJudgingProgress({ submissions, scores, judges }).map(({ email, ...row }) => ({
         ...row,
@@ -130,18 +140,27 @@ class TrackedResultsController {
         return fail(res, 409, `This project didn't enter the ${track} track.`);
       }
       const amount = req.body?.amount ?? null;
+      // A platform admin may award a project that isn't (fully) scored or hits the
+      // winner gate, after confirming in the UI; it's recorded in the audit log.
+      const override = req.body?.override === true;
+      const overridden = [];
       let tier = null;
       if (amount !== null) {
-        const prefix = ctx.tracked.prizePrefixes[track];
-        tier = prizeTiersFor(ctx.program).find((t) => sameAmount(t.amount, amount) && t.label.startsWith(prefix));
+        // Prefixed tiers belong to their track; unprefixed ones ("Zcash ecosystem prize") to the Ecosystem track.
+        const tiers = prizeTiersFor(ctx.program);
+        tier = tiers.find((t) => sameAmount(t.amount, amount) && tierBelongsToTrack(t, track, ctx.tracked));
         if (!tier) return fail(res, 400, 'That prize is not one of this track\'s tiers');
         const scores = await submissionRubricScoreRepository.listByProgram(ctx.program.id);
         if (!hasFullScore(track, scores, s.id)) {
-          return fail(res, 409, 'No judge has fully scored this project in this track yet.');
+          if (!override) return res.status(409).json({ status: 'error', code: 'NOT_FULLY_SCORED', message: 'No judge has fully scored this project in this track yet.' });
+          overridden.push('not_fully_scored');
         }
         const blocked = winnerBlockedReason(track, scores, s.id);
-        if (blocked) return fail(res, 409, blocked);
-        const limit = ctx.tracked.tierLimits?.[track]?.[tier.amount];
+        if (blocked) {
+          if (!override) return res.status(409).json({ status: 'error', code: 'WINNER_BLOCKED', message: blocked });
+          overridden.push('winner_blocked');
+        }
+        const limit = tierLimit(tier, track, ctx.tracked, prizeTiersFor(ctx.program));
         if (limit) {
           const all = await programSubmissionRepository.listByProgramId(ctx.program.id);
           const holders = all.filter((x) => x.id !== s.id && sameAmount(x.prizes?.[track]?.amount, tier.amount)).length;
@@ -163,7 +182,7 @@ class TrackedResultsController {
         action: tier ? 'tracked.prize_award' : 'tracked.prize_clear',
         targetType: 'submission',
         targetId: s.id,
-        metadata: { track, amount: tier?.amount ?? null, label: tier?.label ?? null },
+        metadata: { track, amount: tier?.amount ?? null, label: tier?.label ?? null, ...(overridden.length ? { override: overridden } : {}) },
       });
     } catch (error) {
       console.error('❌ Error awarding a track prize:', error);
@@ -264,7 +283,23 @@ class TrackedResultsController {
       if (!s || s.programId !== ctx.program.id || !s.details || Object.keys(s.prizes || {}).length === 0) {
         return fail(res, 404, 'Project not found');
       }
-      res.status(200).json({ status: 'success', data: toPublicSubmission(s, { published: true }) });
+      const [{ bySubmission }, all] = await Promise.all([
+        loadPublicScores(ctx.program, ctx.tracked),
+        programSubmissionRepository.listByProgramId(ctx.program.id, { status: 'submitted' }),
+      ]);
+      const feedback = feedbackBySubmission(
+        loadProjectFeedback(ctx.program.slug, programStatsFor(ctx.program.slug)?.projectFeedback),
+        all.filter((x) => !x.isTestEntry),
+      );
+      const data = toPublicSubmission(s, { published: true });
+      res.status(200).json({
+        status: 'success',
+        data: {
+          ...data,
+          ...(bySubmission.has(s.id) ? { scores: bySubmission.get(s.id) } : {}),
+          ...(feedback.has(s.id) ? { feedback: feedback.get(s.id) } : {}),
+        },
+      });
     } catch (error) {
       console.error('❌ Error loading a winner:', error);
       fail(res, 500, 'Failed to load the project');

@@ -1,4 +1,6 @@
 import type { ExperienceRatingCategory, ExperienceRatings } from "./experienceRatings";
+import type { NormalizationConfig } from "./scoreNormalization";
+import type { ProgramStats, ProgramStatsChecks } from "./programStats";
 
 // Fallbacks: production so Vercel deploy works without env; dev so local works without .env
 const PRODUCTION_API = 'https://stadium-production-996a.up.railway.app/api';
@@ -19,6 +21,24 @@ if (typeof window !== "undefined") {
 export const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 if (typeof window !== "undefined") {
   (window as unknown as { __STADIUM_MOCK__?: boolean }).__STADIUM_MOCK__ = USE_MOCK_DATA;
+}
+
+/** Mock mode: the privacy track tech review fixture the program's stats config points to. */
+async function mockPrivacyReview(slug: string) {
+  const [{ programStatsFor }, { loadMockPrivacyReview }] = await Promise.all([
+    import("./programStatsConfig"),
+    import("./mocks/privacyReviewFixtures"),
+  ]);
+  return loadMockPrivacyReview(slug, programStatsFor(slug)?.privacyReview);
+}
+
+/** Mock mode: the judges' feedback fixture the program's stats config points to. */
+async function mockProjectFeedback(slug: string) {
+  const [{ programStatsFor }, { loadMockProjectFeedback }] = await Promise.all([
+    import("./programStatsConfig"),
+    import("./mocks/projectFeedbackFixtures"),
+  ]);
+  return loadMockProjectFeedback(slug, programStatsFor(slug)?.projectFeedback);
 }
 
 class ApiError extends Error {
@@ -134,7 +154,7 @@ export type ApiProject = {
   /** Live/production website URL */
   liveUrl?: string;
   donationAddress?: string;
-  bountyPrize?: { name: string; amount: number; hackathonWonAtId: string }[];
+  bountyPrize?: { name: string; amount: number; currency?: string; hackathonWonAtId: string }[];
   techStack?: string[];
   categories?: string[];
   m2Status?: "building" | "under_review" | "completed";
@@ -404,6 +424,8 @@ export type ApiLeaderboardRow = {
   submissionId: string;
   projectTitle: string;
   submitterName?: string;
+  /** Submitter contact email (admin/judge view only; stripped from public results). */
+  lumaEmail?: string;
   githubUrl?: string;
   videoUrl?: string;
   /** False when the submitter's Luma email isn't in the signup list. */
@@ -419,6 +441,8 @@ export type ApiLeaderboardRow = {
   judgeScores?: { judgeEmail: string; requirements: number; techStack: number; innovation: number; total: number }[];
   /** The viewing judge's own score (null = not yet scored), for inline edit + re-save. */
   myScore?: { requirements: number; techStack: number; innovation: number; notes: string } | null;
+  /** Set once this winner has been pushed into the central winners panel. */
+  promotedProjectId?: string | null;
   /** Current prize on this submission (null = not a winner). */
   prizeAmount?: number | null;
   prizeCurrency?: string | null;
@@ -547,10 +571,14 @@ export type ApiProgram = {
   prizeTiers?: ApiPrizeTier[] | null;
   /** Set when a platform admin publishes results to the public program page. */
   resultsPublishedAt?: string | null;
+  /** When the prize winners and submission stats page was last published (null = not yet). */
+  statsPublishedAt?: string | null;
   /** Honorary mentions for the completed-program results panel. */
   honoraryMentions?: { name: string; videoUrl?: string | null; githubUrl?: string | null }[] | null;
   /** Link to an event photo gallery (e.g. Google Drive folder). */
   galleryUrl?: string | null;
+  /** Platform-admin switch: shows a JUDGING IN PROGRESS badge on the public page. */
+  judgingInProgress?: boolean;
   /** Luma event id (evt-…). When set + server has LUMA_API_KEY, the submit gate
    *  verifies emails against the event's checked-in guests synced from Luma. */
   lumaEventId?: string | null;
@@ -689,6 +717,8 @@ export type ApiJudgingProgressRow = { name: string; tracks: JudgedTrack[]; score
 
 /** Admin/judge view of a tracked submission (includes emails). */
 export type ApiTrackedSubmission = ApiSubmission & {
+  /** A test entry (an organiser trying the form): excluded from judging, the leaderboard, the public list and the stats. */
+  isTestEntry?: boolean;
   details: ApiSubmissionDetails;
   /** Judging batch (e.g. evening / morning), from the first submission time. */
   batch?: string | null;
@@ -698,7 +728,41 @@ export type ApiTrackedSubmission = ApiSubmission & {
   ecosystemPrize: boolean;
 };
 
+/** Judges' feedback for one project (AI-written from the scores and judges' notes; read from the versioned fixture). */
+export type ApiProjectFeedback = {
+  summary: string;
+  worked: string[];
+  improve: string[];
+  facts: { text: string; source: string | null }[];
+  basis: string;
+  version: string;
+  generatedDate: string;
+  generatedBy: string;
+  /** How the feedback was written (the "AI-generated" popup). */
+  about: {
+    model: string | null;
+    generatedDate: string;
+    projectCount: number;
+    projectsWithNotes: number;
+    notesCount: number;
+    factCheckSources: string[];
+    version: string;
+    latestChange: string | null;
+  };
+};
+
 /** Public, email-free projection of a tracked submission. */
+/** A project's final score in one judged track (published results only). */
+export type ApiPublicTrackScore = {
+  /** The total the track was ranked on. */
+  score: number;
+  max: number;
+  /** Judges who scored this project. */
+  judges: number;
+  /** Per rubric category: this project's value and the track average (same scale). */
+  criteria: { id: string; score: number; max: number; trackAvg: number }[];
+};
+
 export type ApiPublicSubmission = {
   id: string;
   projectTitle: string;
@@ -716,11 +780,25 @@ export type ApiPublicSubmission = {
   prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
   /** Only true once results are published. */
   ecosystemPrize: boolean;
+  /** Once published: the final score per judged track (the score the track was ranked on). Only tracks with scoring judges. */
+  scores?: Partial<Record<JudgedTrack, ApiPublicTrackScore>>;
+  /** Once results are published: the judges' feedback (AI-written, from the versioned fixture), if any. */
+  feedback?: ApiProjectFeedback;
   /** The Bitrefill survey answers: admin views only (like the Bitrefill feedback), never public. */
   feedback?: SubmissionPayload["feedback"] | null;
 };
 
-export type ApiPublicSubmissions = { published: boolean; submissions: ApiPublicSubmission[] };
+/** How each judged track was ranked when results were published (programs.results_ranking). */
+export type ApiResultsRanking = Partial<Record<JudgedTrack, { normalized: boolean; method: "offset" | "zscore" | null }>>;
+
+export type ApiPublicSubmissions = {
+  published: boolean;
+  submissions: ApiPublicSubmission[];
+  /** Set once published: the ranking mode stored at publish time, per track. */
+  ranking?: ApiResultsRanking | null;
+  /** Set once published: how many judges scored each track (counts only). */
+  judgesByTrack?: Partial<Record<JudgedTrack, number>> | null;
+};
 
 /** One judge's rubric score for one submission in one track. Null = unscored. */
 export type ApiRubricScore = {
@@ -751,7 +829,36 @@ export type ApiRubricLeaderboardRow = {
   judgeCount: number;
   /** Set when this row's order against the row above was decided by a tie-break. */
   tieBrokenBy: string | null;
-  judgeScores: { judgeEmail: string; total: number; criteria: Record<string, number | null>; notes: string; session: string }[];
+  judgeScores: {
+    judgeEmail: string;
+    total: number;
+    criteria: Record<string, number | null>;
+    notes: string;
+    session: string;
+    /** This score after per-judge normalization, in rubric points (organizers only). */
+    normContribution?: number | null;
+    /** How this score was normalized: judge offset (default), z-score or mean-centering (organizers only). */
+    method?: "offset" | "zscore" | "center" | null;
+  }[];
+  /** Rank by raw average total. */
+  rawRank?: number;
+  /** Rank by normalized total (null = unscored, or normalization unavailable). */
+  normRank?: number | null;
+  /** rawRank − normRank: positive = moved up after normalization. */
+  rankChange?: number;
+  /** Normalized total (null = no scores yet). */
+  normTotal?: number | null;
+  normByCriterion?: Record<string, number> | null;
+  /** Per-judge z-score result and judge-offset model result (both always computed). */
+  zTotal?: number | null;
+  offsetTotal?: number | null;
+  /** Judges who scored this project, out of the judges with any score in the track. */
+  coverage?: { scored: number; of: number };
+  /** Scored by every judge with a score in the track: its normalized total equals its raw average. */
+  fullyScored?: boolean;
+  /** The tie-break that decided this row in each ranking. */
+  rawTieBrokenBy?: string | null;
+  normTieBrokenBy?: string | null;
   txCheck: ApiTxCheck | null;
   prize: ApiPrizeTier | null;
   ecosystemPrize: boolean;
@@ -764,6 +871,26 @@ export type ApiRubricLeaderboard = {
   judges: string[];
   submissionsTotal: number;
   submissionsFullyScored: number;
+  normalization?: NormalizationConfig & {
+    /** False when fewer than `minJudges` judges have scored this track: the board is raw. */
+    available?: boolean;
+    reason?: string | null;
+    /** Judges with at least one complete score sheet in this track. */
+    scoringJudges?: number;
+  };
+  /** Per judge: scores counted, mean, SD, method and bias in rubric points (organizers only). */
+  judgeStats?: {
+    judgeEmail: string;
+    n: number;
+    mean: number | null;
+    sd: number | null;
+    method: "offset" | "zscore" | "center" | null;
+    bias: number | null;
+    /** Below minScoresPerJudge: bias set to 0 or shrunk. */
+    lowCount?: boolean;
+  }[];
+  /** When the board was computed (every request recomputes the whole track). */
+  computedAt?: string;
   rows: ApiRubricLeaderboardRow[];
 };
 
@@ -2535,6 +2662,7 @@ export const api = {
     slug: string,
     submissionId: string,
     authHeader: AdminAuthArg,
+    bounty?: { bountyName?: string; bountyAmount?: number; bountyCurrency?: string },
   ): Promise<{ status: string; data: { projectId: string; alreadyPromoted?: boolean } }> => {
     if (USE_MOCK_DATA) {
       const { mockJudging } = await import("./mockJudging");
@@ -2542,7 +2670,11 @@ export const api = {
     }
     return request(
       `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/promote`,
-      { method: "POST", headers: adminAuthHeaders(authHeader) },
+      {
+        method: "POST",
+        headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+        body: JSON.stringify(bounty ?? {}),
+      },
     );
   },
 
@@ -2568,7 +2700,7 @@ export const api = {
   },
 
   /** Judge/admin: at-a-glance counts for the program header (no PII). */
-  getProgramStats: async (
+  getProgramHeaderStats: async (
     slug: string,
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiProgramStats }> => {
@@ -2582,7 +2714,7 @@ export const api = {
       }
       return { status: "success", data: mockJudging.stats(slug) };
     }
-    return request(`/programs/${encodeURIComponent(slug)}/stats`, {
+    return request(`/programs/${encodeURIComponent(slug)}/stats/summary`, {
       headers: adminAuthHeaders(authHeader),
     });
   },
@@ -2705,7 +2837,7 @@ export const api = {
   listPublicSubmissions: async (slug: string): Promise<{ status: string; data: ApiPublicSubmissions }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      return { status: "success", data: mockTracked.publicList(slug) };
+      return { status: "success", data: mockTracked.publicList(slug, await mockProjectFeedback(slug)) };
     }
     return request(`/programs/${encodeURIComponent(slug)}/submissions/public`);
   },
@@ -2714,7 +2846,7 @@ export const api = {
   getPublicWinner: async (slug: string, submissionId: string): Promise<{ status: string; data: ApiPublicSubmission }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      const data = mockTracked.publicWinner(slug, submissionId);
+      const data = mockTracked.publicWinner(slug, submissionId, await mockProjectFeedback(slug));
       if (!data) throw new ApiError("Project not found", 404);
       return { status: "success", data };
     }
@@ -2740,7 +2872,7 @@ export const api = {
           // Seeded drafts keep their status (abandoned ones drop out after the
           // deadline); drafts saved in the playground stay out (no full details yet).
           submissions: all
-            .filter((x) => !mockTracked.isAbandoned(slug, x))
+            .filter((x) => !mockTracked.isAbandoned(slug, x) && !x.isTestEntry)
             .map((x) => ({ ...x, status: x.status ?? ("submitted" as const), ...stamps[x.lumaEmail.trim().toLowerCase()] })),
           resultsPublishedAt: mockTracked.resultsPublishedAt(slug),
           draftCount: all.filter((x) => x.status === "draft").length,
@@ -2914,14 +3046,16 @@ export const api = {
     track: JudgedTrack,
     prize: ApiPrizeTier | null,
     _authHeader: AdminAuthArg,
+    /** Platform admin: award even if the project isn't fully scored or hits the winner gate (audit-logged). */
+    { override = false }: { override?: boolean } = {},
   ): Promise<{ status: string; data: ApiTrackedSubmission }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
       let data;
       try {
-        data = mockTracked.awardPrize(slug, submissionId, track, prize);
+        data = mockTracked.awardPrize(slug, submissionId, track, prize, override);
       } catch (e) {
-        throw new ApiError((e as Error).message, 409);
+        throw new ApiError((e as Error).message, 409, (e as Error & { code?: string }).code);
       }
       if (!data) throw new ApiError("Submission not found", 404);
       return { status: "success", data };
@@ -2931,7 +3065,7 @@ export const api = {
       {
         method: "PUT",
         headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: prize ? prize.amount : null }),
+        body: JSON.stringify({ amount: prize ? prize.amount : null, ...(override ? { override: true } : {}) }),
       },
     );
   },
@@ -2985,15 +3119,76 @@ export const api = {
     slug: string,
     publish: boolean,
     _authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { resultsPublishedAt: string | null } }> => {
+    /** The APPLY NORMALIZATION toggle when publishing: stored with the results. */
+    normalized = true,
+  ): Promise<{ status: string; data: { resultsPublishedAt: string | null; resultsRanking?: ApiResultsRanking | null } }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      return { status: "success", data: { resultsPublishedAt: mockTracked.setPublished(slug, publish) } };
+      const resultsPublishedAt = mockTracked.setPublished(slug, publish, normalized);
+      return { status: "success", data: { resultsPublishedAt, resultsRanking: mockTracked.resultsRanking(slug) } };
     }
     return request(`/programs/${encodeURIComponent(slug)}/results/${publish ? "publish" : "unpublish"}`, {
       method: "POST",
       headers: adminAuthHeaders(_authHeader),
+      body: JSON.stringify({ normalized }),
     });
+  },
+
+  /** Public: the hosted llms.txt for the published stats page (null in mock mode, which has no API). */
+  getProgramStatsLlmsUrl: (slug: string): string | null =>
+    USE_MOCK_DATA ? null : `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/stats/llms.txt`,
+
+  /** Public: the published prize winners and submission stats page (the snapshot), or null before publishing. */
+  getProgramStats: async (slug: string): Promise<{ stats: ProgramStats; publishedAt: string } | null> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const published = mockTracked.statsPublished(slug);
+      if (published) return published;
+      // Playground: a completed program with a stats page shows it without an
+      // admin publishing first (stands in for "the organisers have published").
+      // The admin page can still republish; RESET PLAYGROUND clears it again.
+      const [{ mockPrograms }, { programStatsFor }] = await Promise.all([import("./mockPrograms"), import("./programStatsConfig")]);
+      const program = mockPrograms.find((p) => p.slug === slug);
+      if (program?.status !== "completed" || !programStatsFor(slug)) return null;
+      return mockTracked.statsPublish(slug, await mockPrivacyReview(slug));
+    }
+    try {
+      const r = await request(`/programs/${encodeURIComponent(slug)}/stats`);
+      return r.data;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+
+  /** Platform admin: live stats with the data checks, and whether they differ from the published snapshot. */
+  previewProgramStats: async (
+    slug: string,
+    _authHeader: AdminAuthArg,
+  ): Promise<{ stats: ProgramStats; checks: ProgramStatsChecks; publishedAt: string | null; changedSincePublish: boolean }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const r = mockTracked.statsPreview(slug, await mockPrivacyReview(slug));
+      if (!r) throw new ApiError("This program has no stats page", 404);
+      return r;
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/stats/preview`, { headers: adminAuthHeaders(_authHeader) });
+    return r.data;
+  },
+
+  /** Platform admin: publish (or republish) the stats snapshot. */
+  publishProgramStats: async (slug: string, _authHeader: AdminAuthArg): Promise<{ stats: ProgramStats; publishedAt: string }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const r = mockTracked.statsPublish(slug, await mockPrivacyReview(slug));
+      if (!r) throw new ApiError("This program has no stats page", 404);
+      return r;
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/stats/publish`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
+    });
+    return r.data;
   },
 
   /** Admin: re-run the testnet transaction check for one submission. */
