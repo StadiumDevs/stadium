@@ -8,9 +8,11 @@ import { computeLeaderboard } from '../rubric-leaderboard.service.js';
 import * as client from '../../../../client/src/lib/programStats.ts';
 import { PROGRAM_STATS as CLIENT_PROGRAM_STATS } from '../../../../client/src/lib/programStatsConfig.ts';
 import { FSH_FINAL_TITLES } from './fixtures/fsh-final-titles.js';
+import { loadPrivacyReview } from '../privacy-review.service.js';
 
 const SLUG = 'free-society-hack-2026';
 const config = { ...PROGRAM_STATS[SLUG], scoreMax: 16 };
+const review = loadPrivacyReview(SLUG, PROGRAM_STATS[SLUG].privacyReview);
 const rng = (seed) => {
   let s = seed;
   return () => {
@@ -73,13 +75,13 @@ describe('stats: server and client agree', () => {
     for (let t = 0; t < 60; t += 1) {
       const { submissions, judges, scores, ratings } = randomProgram(r);
       const board = computeLeaderboard({ track: 'privacy', submissions, scores, judges, now });
-      const args = { program: { slug: SLUG }, submissions, board, ratings, config, now };
+      const args = { program: { slug: SLUG }, submissions, board, ratings, config, review: t % 2 ? review : null, now };
       const a = server.buildStats(args);
       const b = client.buildStats(args);
       expect(b).toEqual(a);
       const testEntries = [{ projectTitle: 'Example Project' }];
-      expect(client.computeChecks({ counted: submissions, testEntries, stats: b, config })).toEqual(
-        server.computeChecks({ counted: submissions, testEntries, stats: a, config }),
+      expect(client.computeChecks({ counted: submissions, testEntries, stats: b, config, review: args.review })).toEqual(
+        server.computeChecks({ counted: submissions, testEntries, stats: a, config, review: args.review }),
       );
       expect(client.statsFingerprint(b)).toBe(server.statsFingerprint(a));
     }

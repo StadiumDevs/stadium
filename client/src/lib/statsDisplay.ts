@@ -25,6 +25,7 @@ export const STATS_SECTIONS = [
   { id: "ranking", label: "Likely to continue" },
   { id: "tracks", label: "Tracks & categories" },
   { id: "top", label: "Top per category" },
+  { id: "privacy-review", label: "Privacy tech review" },
   { id: "multi-team", label: "Multiple teams" },
   { id: "feedback", label: "Feedback" },
 ] as const;

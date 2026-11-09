@@ -23,6 +23,15 @@ if (typeof window !== "undefined") {
   (window as unknown as { __STADIUM_MOCK__?: boolean }).__STADIUM_MOCK__ = USE_MOCK_DATA;
 }
 
+/** Mock mode: the privacy track tech review fixture the program's stats config points to. */
+async function mockPrivacyReview(slug: string) {
+  const [{ programStatsFor }, { loadMockPrivacyReview }] = await Promise.all([
+    import("./programStatsConfig"),
+    import("./mocks/privacyReviewFixtures"),
+  ]);
+  return loadMockPrivacyReview(slug, programStatsFor(slug)?.privacyReview);
+}
+
 class ApiError extends Error {
   status: number;
   code?: string;
@@ -3087,7 +3096,7 @@ export const api = {
   ): Promise<{ stats: ProgramStats; checks: ProgramStatsChecks; publishedAt: string | null; changedSincePublish: boolean }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      const r = mockTracked.statsPreview(slug);
+      const r = mockTracked.statsPreview(slug, await mockPrivacyReview(slug));
       if (!r) throw new ApiError("This program has no stats page", 404);
       return r;
     }
@@ -3099,7 +3108,7 @@ export const api = {
   publishProgramStats: async (slug: string, _authHeader: AdminAuthArg): Promise<{ stats: ProgramStats; publishedAt: string }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      const r = mockTracked.statsPublish(slug);
+      const r = mockTracked.statsPublish(slug, await mockPrivacyReview(slug));
       if (!r) throw new ApiError("This program has no stats page", 404);
       return r;
     }

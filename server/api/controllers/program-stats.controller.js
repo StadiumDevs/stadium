@@ -12,6 +12,7 @@ import experienceRatingRepository from '../repositories/submission-experience-ra
 import { trackedProgramFor, isAbandoned, isCountedEntry } from '../constants/trackedPrograms.js';
 import { programStatsFor } from '../constants/programStats.js';
 import { computeChecks, computeStats, statsFingerprint } from '../services/program-stats.service.js';
+import { loadPrivacyReview } from '../services/privacy-review.service.js';
 import auditLog from '../services/program-audit-log.service.js';
 
 const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
@@ -42,8 +43,9 @@ async function liveStats({ config, tracked, program }) {
   ]);
   const counted = all.filter((s) => isCountedEntry(s, tracked, program));
   const testEntries = all.filter((s) => s.isTestEntry && !isAbandoned(s, tracked, program));
-  const stats = computeStats({ program, submissions: counted, scores, judges, ratings, config });
-  const checks = computeChecks({ counted, testEntries, stats, config });
+  const review = loadPrivacyReview(program.slug, config.privacyReview);
+  const stats = computeStats({ program, submissions: counted, scores, judges, ratings, config, review });
+  const checks = computeChecks({ counted, testEntries, stats, config, review });
   return { stats, checks };
 }
 

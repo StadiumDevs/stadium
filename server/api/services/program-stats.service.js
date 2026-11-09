@@ -16,6 +16,7 @@ import { RUBRICS } from '../constants/rubrics.js';
 import { EXPERIENCE_RATING_CATEGORIES } from '../constants/experienceRatings.js';
 import { UNCATEGORIZED } from '../constants/programStats.js';
 import { computeLeaderboard } from './rubric-leaderboard.service.js';
+import { buildPrivacyReview, privacyReviewChecks } from './privacy-review.service.js';
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const norm = (t) =>
@@ -93,19 +94,20 @@ function peopleOf(s) {
  * @param {object[]} args.judges       judge rows
  * @param {{ submissionId: string, category: string, score: number }[]} args.ratings
  * @param {object} args.config         PROGRAM_STATS[slug]
+ * @param {object|null} [args.review]  the privacy track tech review fixture (loadPrivacyReview), if the config has one
  * @param {Date} [args.now]
  */
-export function computeStats({ program, submissions, scores, judges, ratings, config, now = new Date() }) {
+export function computeStats({ program, submissions, scores, judges, ratings, config, review = null, now = new Date() }) {
   // Judge signal: the live (normalized when available) leaderboard of the judged track.
   const board = computeLeaderboard({ track: config.judgeTrack, submissions: submissions.filter((s) => s.details), scores, judges, now });
-  return buildStats({ program, submissions, board, ratings, config, now });
+  return buildStats({ program, submissions, board, ratings, config, review, now });
 }
 
 /**
  * The stats from a ready leaderboard of the judged track (pure; the client
  * playground passes its own board, programStats.ts mirrors this function).
  */
-export function buildStats({ program, submissions, board, ratings, config, now = new Date() }) {
+export function buildStats({ program, submissions, board, ratings, config, review = null, now = new Date() }) {
   const { categories, weights, judgeTrack, unscoredTrack, minFeedbackResponses } = config;
   const subs = submissions.filter((s) => s.details);
   const onlyUnscored = (s) => s.details.track === unscoredTrack.track;
@@ -281,6 +283,8 @@ export function buildStats({ program, submissions, board, ratings, config, now =
     topByCategory,
     multiTeam: { count: multi.length, hackers: multi },
     feedback,
+    // 8. Privacy track tech review (from the versioned fixture).
+    ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),
   };
 }
 
@@ -289,7 +293,7 @@ export function buildStats({ program, submissions, board, ratings, config, now =
  * @param {object[]} counted  counted entries
  * @param {object[]} testEntries  excluded test entries
  */
-export function computeChecks({ counted, testEntries = [], stats, config }) {
+export function computeChecks({ counted, testEntries = [], stats, config, review = null }) {
   const { expected, categories } = config;
   const subs = counted.filter((s) => s.details);
   const mismatches = [];
@@ -335,7 +339,14 @@ export function computeChecks({ counted, testEntries = [], stats, config }) {
     noDemoVideo: subs.filter((s) => !present(s.videoUrl)).map((s) => s.projectTitle),
   };
 
-  return { mismatches, duplicates: dupes, uncategorized, gaps, testEntries: testEntries.map((s) => s.projectTitle) };
+  return {
+    mismatches,
+    duplicates: dupes,
+    uncategorized,
+    gaps,
+    testEntries: testEntries.map((s) => s.projectTitle),
+    ...(review ? { privacyReview: privacyReviewChecks(review, subs) } : {}),
+  };
 }
 
 /** Stable JSON without the generation time, to tell whether live stats differ from the snapshot. */

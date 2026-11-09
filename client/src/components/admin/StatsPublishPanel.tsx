@@ -44,6 +44,25 @@ function ChecksPanel({ checks }: { checks: ProgramStatsChecks }) {
         <div>No repo: {checks.gaps.noRepo.join(", ") || "none"}</div>
         <div>No demo video: {checks.gaps.noDemoVideo.join(", ") || "none"}</div>
       </div>
+      {checks.privacyReview && (
+        <div className="text-[12px] text-body space-y-1" data-testid="checks-privacy-review">
+          <div className="label-hw-dim">PRIVACY TRACK REVIEW V{checks.privacyReview.version}: ROWS MATCHED TO SUBMISSIONS</div>
+          <div data-testid="checks-privacy-review-summary">
+            {checks.privacyReview.matched} of {checks.privacyReview.total} matched ({checks.privacyReview.byRepo} by repo, {checks.privacyReview.byTitle} by title),{" "}
+            {checks.privacyReview.unmatched.length} unmatched, {checks.privacyReview.ambiguous.length} ambiguous. Unmatched and ambiguous rows show without a link.
+          </div>
+          {list(
+            "REVIEW ROWS THAT MATCH NO SUBMISSION",
+            checks.privacyReview.unmatched.map((r) => `${r.shortName}: "${r.title}" (${r.repo ?? "no repo"})`),
+            "checks-privacy-review-unmatched",
+          )}
+          {list(
+            "REVIEW ROWS THAT MATCH MORE THAN ONE SUBMISSION",
+            checks.privacyReview.ambiguous.map((r) => `${r.shortName}: ${r.candidates.join("; ")}`),
+            "checks-privacy-review-ambiguous",
+          )}
+        </div>
+      )}
     </section>
   );
 }

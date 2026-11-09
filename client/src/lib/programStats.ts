@@ -7,6 +7,7 @@
 import type { ApiRubricLeaderboard } from "./api";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
 import { UNCATEGORIZED, type ProgramStatsConfig, type SubmissionCategory } from "./programStatsConfig";
+import { buildPrivacyReview, privacyReviewChecks, type PrivacyReview, type PrivacyReviewChecks, type PrivacyReviewData } from "./privacyReview";
 
 // ── Snapshot types (what the stats endpoints return) ──
 
@@ -58,6 +59,8 @@ export type ProgramStats = {
   }[];
   multiTeam: { count: number; hackers: { name: string | null; projects: StatsProject[] }[] };
   feedback: { minResponses: number; groups: { id: string; label: string; none: boolean; questions: StatsFeedbackQuestion[] }[] };
+  /** Privacy track tech review (from the versioned fixture), when the program has one. */
+  privacyReview?: PrivacyReview | null;
 };
 export type ProgramStatsChecks = {
   mismatches: string[];
@@ -65,6 +68,7 @@ export type ProgramStatsChecks = {
   uncategorized: { id: string; title: string; suggested: string | null }[];
   gaps: { noDescription: string[]; noRepo: string[]; noDemoVideo: string[] };
   testEntries: string[];
+  privacyReview?: PrivacyReviewChecks | null;
 };
 
 /** The submission fields the stats read (a subset of ApiTrackedSubmission). */
@@ -162,6 +166,7 @@ export function buildStats({
   board,
   ratings,
   config,
+  review = null,
   now = new Date(),
 }: {
   program: { slug: string };
@@ -169,6 +174,7 @@ export function buildStats({
   board: Pick<ApiRubricLeaderboard, "rows" | "normalization">;
   ratings: { submissionId: string; category: string; score: number }[];
   config: ProgramStatsConfig & { scoreMax: number };
+  review?: PrivacyReviewData | null;
   now?: Date;
 }): ProgramStats {
   const { categories, weights, judgeTrack, unscoredTrack, minFeedbackResponses } = config;
@@ -334,6 +340,8 @@ export function buildStats({
     topByCategory,
     multiTeam: { count: multi.length, hackers: multi },
     feedback,
+    // 8. Privacy track tech review (from the versioned fixture).
+    ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),
   };
 }
 
@@ -342,11 +350,13 @@ export function computeChecks({
   testEntries = [],
   stats,
   config,
+  review = null,
 }: {
   counted: StatsSubmission[];
   testEntries?: { projectTitle: string }[];
   stats: ProgramStats;
   config: ProgramStatsConfig;
+  review?: PrivacyReviewData | null;
 }): ProgramStatsChecks {
   const { expected, categories } = config;
   const subs = counted.filter((s) => s.details);
@@ -393,7 +403,14 @@ export function computeChecks({
     noDemoVideo: subs.filter((s) => !present(s.videoUrl)).map((s) => s.projectTitle),
   };
 
-  return { mismatches, duplicates: dupes, uncategorized, gaps, testEntries: testEntries.map((s) => s.projectTitle) };
+  return {
+    mismatches,
+    duplicates: dupes,
+    uncategorized,
+    gaps,
+    testEntries: testEntries.map((s) => s.projectTitle),
+    ...(review ? { privacyReview: privacyReviewChecks(review, subs) } : {}),
+  };
 }
 
 export const statsFingerprint = (stats: ProgramStats | null) => {

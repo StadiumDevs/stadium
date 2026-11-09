@@ -101,6 +101,9 @@ export const PROGRAM_STATS = {
     unscoredTrack: { track: 'agentic', note: 'Not scored (Agentic Commerce, judged by Bitrefill)' },
     // Feedback questions with fewer responses are hidden.
     minFeedbackResponses: 3,
+    // Privacy track tech review: reads
+    // server/fixtures/free-society-hack-2026/privacy-track-review/v<version>.json.
+    privacyReview: { version: '1.0' },
   },
 };
 

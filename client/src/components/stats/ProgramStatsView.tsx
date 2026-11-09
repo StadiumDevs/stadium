@@ -3,6 +3,7 @@ import type { ProgramStats, StatsCompositeRow } from "@/lib/programStats";
 import { TRACK_LABELS } from "@/lib/programStats";
 import { cn } from "@/lib/utils";
 import { BarList, ChartFrame, ProjectNames, StackedBars } from "./StatsCharts";
+import { PrivacyReviewSection } from "./PrivacyReviewSection";
 import { formatIst, STATS_SECTIONS, TRACK_COLORS } from "@/lib/statsDisplay";
 
 export function UpdatedAt({ at }: { at: string }) {
@@ -61,7 +62,7 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
         data-testid="stats-nav"
       >
         <ul className="flex gap-1 whitespace-nowrap">
-          {STATS_SECTIONS.map((s) => (
+          {STATS_SECTIONS.filter((s) => s.id !== "privacy-review" || stats.privacyReview).map((s) => (
             <li key={s.id}>
               <a href={`#stats-${s.id}`} className="label-hw-dim hover:text-display px-2 py-1 inline-block">
                 {s.label.toUpperCase()}
@@ -248,6 +249,12 @@ export function ProgramStatsView({ stats, slug, sticky = true }: { stats: Progra
           </div>
         )}
       </Section>
+
+      {stats.privacyReview && (
+        <Section id="privacy-review" title="Privacy track tech review">
+          <PrivacyReviewSection review={stats.privacyReview} slug={slug} />
+        </Section>
+      )}
 
       <Section id="multi-team" title="Hackers on multiple teams">
         <p className="text-display font-mono text-xl mb-2" data-testid="multi-team-count">

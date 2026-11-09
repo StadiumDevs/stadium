@@ -31,7 +31,7 @@ export function ProjectNames({ slug, projects, empty = "None" }: { slug: string;
   );
 }
 
-type Active = { key: string; title: string; projects: StatsProject[] } | null;
+type Active = { key: string; title: string; projects: StatsProject[]; empty?: string } | null;
 
 /** The projects behind the bar last hovered, focused or clicked. */
 function ChartDetail({ slug, active, hint }: { slug: string; active: Active; hint: string }) {
@@ -40,7 +40,7 @@ function ChartDetail({ slug, active, hint }: { slug: string; active: Active; hin
       {active ? (
         <>
           <div className="label-hw-dim mb-1">{active.title}</div>
-          <ProjectNames slug={slug} projects={active.projects} />
+          <ProjectNames slug={slug} projects={active.projects} empty={active.empty} />
         </>
       ) : (
         <span className="text-label-dim">{hint}</span>
@@ -68,7 +68,23 @@ export type BarItem = {
   /** Emphasised (e.g. a prize winner). */
   highlight?: boolean;
   color?: string;
+  /** Shown instead of "None" when the bar has no project list. */
+  empty?: string;
 };
+
+/** A colour key for a chart. */
+export function Legend({ items }: { items: { label: string; color: string }[] }) {
+  return (
+    <ul className="flex flex-wrap gap-3 mb-2 text-[11px] text-body" aria-label="Legend">
+      {items.map((l) => (
+        <li key={l.label} className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-sm" style={{ background: l.color }} aria-hidden />
+          {l.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /** Horizontal bars, one focusable button each. */
 export function BarList({
@@ -77,22 +93,25 @@ export function BarList({
   max,
   testId,
   hint = "Hover or focus a bar to list its projects.",
+  wideLabels = false,
 }: {
   slug: string;
   items: BarItem[];
   max?: number;
   testId?: string;
   hint?: string;
+  /** A wider label column (long labels such as "ZIP 321 · Payment request URIs"). */
+  wideLabels?: boolean;
 }) {
   const [active, setActive] = useState<Active>(null);
   const top = max ?? Math.max(1, ...items.map((i) => i.value));
-  const show = (i: BarItem) => setActive({ key: i.key, title: `${i.label} · ${i.valueLabel ?? i.value}`, projects: i.projects });
+  const show = (i: BarItem) => setActive({ key: i.key, title: `${i.label} · ${i.valueLabel ?? i.value}`, projects: i.projects, empty: i.empty });
   return (
     <div data-testid={testId}>
       <div className="overflow-x-auto">
-        <ul className="min-w-[320px] space-y-1">
+        <ul className={cn("space-y-1", wideLabels ? "min-w-[520px]" : "min-w-[320px]")}>
           {items.map((i) => (
-            <li key={i.key} className="grid grid-cols-[minmax(7rem,12rem)_1fr] items-center gap-2">
+            <li key={i.key} className={cn("grid items-center gap-2", wideLabels ? "grid-cols-[minmax(12rem,20rem)_1fr]" : "grid-cols-[minmax(7rem,12rem)_1fr]")}>
               <span className={cn("text-[12px] truncate", i.highlight ? "text-display" : "text-body")} title={i.label}>
                 {i.highlight && "★ "}
                 {i.label}
@@ -145,14 +164,7 @@ export function StackedBars({
   const top = Math.max(1, ...rows.map((r) => r.total));
   return (
     <div data-testid={testId}>
-      <ul className="flex flex-wrap gap-3 mb-2 text-[11px] text-body" aria-label="Legend">
-        {legend.map((l) => (
-          <li key={l.label} className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: l.color }} aria-hidden />
-            {l.label}
-          </li>
-        ))}
-      </ul>
+      <Legend items={legend} />
       <div className="overflow-x-auto">
         <ul className="min-w-[360px] space-y-1">
           {rows.map((r) => (

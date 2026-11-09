@@ -34,6 +34,7 @@ import { mockPrograms } from "./mockPrograms";
 import { toPublicSubmission } from "./trackedDisplay";
 import { DEFAULT_NORMALIZATION, normalizeTrack } from "./scoreNormalization";
 import { buildStats, computeChecks, statsFingerprint, type ProgramStats, type ProgramStatsChecks } from "./programStats";
+import type { PrivacyReviewData } from "./privacyReview";
 import { programStatsFor } from "./programStatsConfig";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
 
@@ -531,8 +532,9 @@ export const mockTracked = {
   /**
    * Stats page (mirrors server program-stats.controller.js): live stats and
    * checks for the admin preview, built by the same code as production.
+   * `review` is the privacy track tech review fixture (api.ts loads it).
    */
-  statsLive(slug: string): { stats: ProgramStats; checks: ProgramStatsChecks } | null {
+  statsLive(slug: string, review: PrivacyReviewData | null = null): { stats: ProgramStats; checks: ProgramStatsChecks } | null {
     const profile = getProgramProfile(slug);
     const base = programStatsFor(slug);
     if (!profile || !base) return null;
@@ -546,12 +548,12 @@ export const mockTracked = {
       scoreMax: maxScore(trackById(profile, base.judgeTrack).rubric),
     };
     const board = this.leaderboard(slug, base.judgeTrack);
-    const stats = buildStats({ program: { slug }, submissions: counted, board, ratings: mockRatings(counted), config });
-    return { stats, checks: computeChecks({ counted, testEntries, stats, config }) };
+    const stats = buildStats({ program: { slug }, submissions: counted, board, ratings: mockRatings(counted), config, review });
+    return { stats, checks: computeChecks({ counted, testEntries, stats, config, review }) };
   },
 
-  statsPreview(slug: string) {
-    const live = this.statsLive(slug);
+  statsPreview(slug: string, review: PrivacyReviewData | null = null) {
+    const live = this.statsLive(slug, review);
     if (!live) return null;
     const state = load(slug);
     return {
@@ -561,8 +563,8 @@ export const mockTracked = {
     };
   },
 
-  statsPublish(slug: string): { stats: ProgramStats; publishedAt: string } | null {
-    const live = this.statsLive(slug);
+  statsPublish(slug: string, review: PrivacyReviewData | null = null): { stats: ProgramStats; publishedAt: string } | null {
+    const live = this.statsLive(slug, review);
     if (!live) return null;
     const state = load(slug);
     state.statsSnapshot = live.stats;

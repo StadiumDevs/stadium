@@ -283,3 +283,15 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `client/src/components/program/SubmitProjectModal.tsx` (`finalizeAfterFeedback`, `askForFeedback`, `toggleFeedback`)
 - **Observed during**: making the FSH event feedback a collapsible section (stadium-reviewer pass)
 - **Suggestion**: Once FINALIZE is clicked, `finalizeAfterFeedback` stays true even if the builder collapses the section and keeps drafting, so submitting the feedback later finalizes without a second click. Consider resetting it on collapse, or labelling the feedback button "SUBMIT FEEDBACK AND FINALIZE" only while it's armed (it already is), and confirming that's the intended behaviour.
+
+## [2026-11-09] `api.getProgramStats` is defined twice
+- **Severity**: major
+- **File(s)**: `client/src/lib/api.ts:2636` (judge/admin header counts) and `client/src/lib/api.ts:3069` (public stats snapshot), callers `client/src/components/admin/ProgramStatsHeader.tsx:45`, `client/src/components/admin/ProgramResultsSummarySection.tsx:204`
+- **Observed during**: privacy track tech review section (stats page), exploring e29f836
+- **Suggestion**: The later key in the `api` object literal wins, so the admin header and results summary now call the public snapshot endpoint instead of the header counts. Rename one (e.g. `getPublishedProgramStats`) and update its callers.
+
+## [2026-11-09] Two routes for `GET /programs/:slug/stats`
+- **Severity**: major
+- **File(s)**: `server/api/routes/program.routes.js:111` (public `getPublished`) and `:299` (`requireProgramJudge` → `submissionController.programStats`)
+- **Observed during**: privacy track tech review section (stats page), exploring e29f836
+- **Suggestion**: Express uses the first match, so the judge header-stats endpoint can no longer be reached. Give the published stats page or the judge counts a distinct path, together with the client rename above.

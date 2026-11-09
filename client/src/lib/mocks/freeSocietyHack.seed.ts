@@ -849,6 +849,19 @@ export type TrackedSeed = {
   statsPublishedAt?: string | null;
 };
 
+// Playground only: a few mock projects carry a real repo from the privacy track
+// tech review (server/fixtures/free-society-hack-2026/privacy-track-review), so
+// the review section's row matching can be tried here. Every other review row
+// shows as unmatched in the admin preview, which is expected in the playground.
+const REVIEW_REPOS: Record<string, string> = {
+  "chai-ledger": "https://github.com/Jmohak2004/zcash", // Z-Pay: repo match, prize winner → linked
+  hushbox: "https://GitHub.com/Shoydon/Secret-Bankroll.git/", // Secret Bankroll: case, .git and / normalised → linked
+  "memo-mailbox": "https://github.com/hyliv-labs/perps-core", // ColdTrail: matched, no project page → plain name
+  "age-pass": "https://github.com/KatrixReloaded/cwZEC", // MaZe: two submissions share the repo → ambiguous
+  "faucet-bot": "https://github.com/KatrixReloaded/cwZEC",
+  "tab-settler": "https://github.com/The-x-35/keyo", // Keyo: Agentic Commerce-only submission is ignored → unmatched
+};
+
 export function buildFreeSocietyHackSeed(): TrackedSeed {
   const submissions: ApiTrackedSubmission[] = PROJECTS.map((p, i) => {
     const createdAt = istOnHackDay(p.at);
@@ -894,7 +907,7 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
       projectBrief: p.description,
       // A public CC0 sample clip (MDN), so the judges' inline player has something to play.
       videoUrl: SAMPLE_DEMO_VIDEO,
-      githubUrl: `https://github.com/example/${p.key}`,
+      githubUrl: REVIEW_REPOS[p.key] ?? `https://github.com/example/${p.key}`,
       late: false,
       createdAt,
       updatedAt: createdAt,
