@@ -146,7 +146,8 @@ export function buildSubmissionsCsv(
 const judgeName = (judges: ProgramJudge[], email: string) => judges.find((j) => j.email === email)?.name ?? email;
 
 /**
- * One track's projects in leaderboard order, with the averages, prize, links,
+ * One track's projects in leaderboard order (normalized rank when on), with the
+ * raw rank and rank change, normalized and raw averages, prize, links,
  * the builder's feedback, and then every judge (by name): total, each
  * criterion, their note (feedback) and the session they scored in.
  */
@@ -161,9 +162,13 @@ export function buildRankedCsv(
   const criteria = rubric.criteria;
   const header: string[] = [
     "rank",
+    "rawRank",
+    "rankChange",
     "tieBrokenBy",
     "projectTitle",
+    "normTotal",
     "avgTotal",
+    ...criteria.filter((c) => !c.isBonus).map((c) => `${c.id}.norm`),
     ...criteria.map((c) => (c.isBonus ? `${c.id}.judgesGiving` : `${c.id}.avg`)),
     "prize",
     "ecosystemPrize",
@@ -194,9 +199,13 @@ export function buildRankedCsv(
     const d = s?.details;
     const row: (string | number | null)[] = [
       r.rank,
+      r.rawRank ?? "",
+      r.rankChange ?? "",
       r.tieBrokenBy ?? "",
       r.projectTitle,
+      r.normTotal == null ? "" : fmt(r.normTotal),
       fmt(r.avgTotal),
+      ...criteria.filter((c) => !c.isBonus).map((c) => (r.normByCriterion?.[c.id] == null ? "" : fmt(r.normByCriterion[c.id]))),
       ...criteria.map((c) => (c.isBonus ? r.bonusCount : fmt(r.avgByCriterion[c.id] ?? 0))),
       r.prize ? `${r.prize.label} (${r.prize.amount} ${r.prize.currency})` : "",
       r.ecosystemPrize ? "yes" : "no",
