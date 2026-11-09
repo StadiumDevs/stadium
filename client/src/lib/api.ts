@@ -3078,7 +3078,15 @@ export const api = {
   getProgramStats: async (slug: string): Promise<{ stats: ProgramStats; publishedAt: string } | null> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      return mockTracked.statsPublished(slug);
+      const published = mockTracked.statsPublished(slug);
+      if (published) return published;
+      // Playground: a completed program with a stats page shows it without an
+      // admin publishing first (stands in for "the organisers have published").
+      // The admin page can still republish; RESET PLAYGROUND clears it again.
+      const [{ mockPrograms }, { programStatsFor }] = await Promise.all([import("./mockPrograms"), import("./programStatsConfig")]);
+      const program = mockPrograms.find((p) => p.slug === slug);
+      if (program?.status !== "completed" || !programStatsFor(slug)) return null;
+      return mockTracked.statsPublish(slug, await mockPrivacyReview(slug));
     }
     try {
       const r = await request(`/programs/${encodeURIComponent(slug)}/stats`);

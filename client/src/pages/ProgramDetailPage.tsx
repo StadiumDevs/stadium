@@ -450,6 +450,30 @@ const ProgramDetailPage = () => {
   // A completed tracked program: the details move into a collapsible under
   // All projects (collapsed by default), with the stats link and "Updated" date.
   const completedTracked = !!profile && isPublished && program?.status === "completed";
+  // Published hackathon: the rest of the event info (tracks, prizes, FAQ),
+  // collapsed, directly above the projects.
+  const renderDetails = () =>
+    program &&
+    isPublished && ((program.content ?? []).some((c) => c.type !== "schedule") || (completedTracked && hasAbout)) && (
+      <section className="panel p-4 mb-4" data-testid="program-details-collapsible">
+        <button
+          type="button"
+          onClick={() => setAboutOpen((v) => !v)}
+          aria-expanded={aboutOpen}
+          className="w-full flex items-center justify-between gap-2 text-left"
+        >
+          <span className="label-hw text-display">·{completedTracked ? "PROGRAM" : "HACKATHON"} DETAILS</span>
+          <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
+        </button>
+        {aboutOpen && (
+          <div className="mt-3">
+            {/* Completed: the about panel lives here too, above the projects. */}
+            {completedTracked && hasAbout && aboutPanel("mb-4")}
+            <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
+          </div>
+        )}
+      </section>
+    );
   const aboutPanel = (className: string) =>
     program && (
         <section className={className} data-testid="program-about">
@@ -611,6 +635,7 @@ const ProgramDetailPage = () => {
           {profile && tracked && isPublished && (
             <div className={`${PAGE_WIDTH} mx-auto`}>
               {completedTracked && statsPublishedAt && <ProgramStatsLink slug={program.slug} />}
+              {renderDetails()}
               <TrackedProjectsSection
                 profile={profile}
                 programSlug={program.slug}
@@ -622,6 +647,8 @@ const ProgramDetailPage = () => {
           )}
           <article className={`${PAGE_WIDTH} mx-auto`}>
 
+            {/* Untracked published hackathon: event details, then the searchable projects. */}
+            {!profile && renderDetails()}
             {/* Published hackathon: searchable projects up top. */}
             {isPublished && !profile && (
               <section className="panel p-4 mb-4">
@@ -822,29 +849,6 @@ const ProgramDetailPage = () => {
               <ProgramContent
                 sections={program.content?.filter((s) => s.type !== "schedule")}
               />
-            )}
-
-            {/* Published hackathon: the rest of the event info (tracks, prizes,
-                FAQ) collapsed below the projects. */}
-            {isPublished && ((program.content ?? []).some((c) => c.type !== "schedule") || (completedTracked && hasAbout)) && (
-              <section className="panel p-4 mb-4" data-testid="program-details-collapsible">
-                <button
-                  type="button"
-                  onClick={() => setAboutOpen((v) => !v)}
-                  aria-expanded={aboutOpen}
-                  className="w-full flex items-center justify-between gap-2 text-left"
-                >
-                  <span className="label-hw text-display">·{completedTracked ? "PROGRAM" : "HACKATHON"} DETAILS</span>
-                  <span className="label-hw-dim">{aboutOpen ? "HIDE ▴" : "SHOW ▾"}</span>
-                </button>
-                {aboutOpen && (
-                  <div className="mt-3">
-                    {/* Completed: the about panel lives here too, under All projects. */}
-                    {completedTracked && hasAbout && aboutPanel("mb-4")}
-                    <ProgramContent sections={program.content?.filter((s) => s.type !== "schedule")} />
-                  </div>
-                )}
-              </section>
             )}
 
             {/* The legacy apply flow (past-winner / Stadium-team) is kept for
