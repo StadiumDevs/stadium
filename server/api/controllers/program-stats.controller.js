@@ -14,6 +14,7 @@ import { programStatsFor } from '../constants/programStats.js';
 import { computeChecks, computeStats, publicSnapshot, statsFingerprint } from '../services/program-stats.service.js';
 import { loadPrivacyReview } from '../services/privacy-review.service.js';
 import { renderStatsLlms } from '../services/stats-llms.service.js';
+import { loadProjectFeedback, projectFeedbackChecks } from '../services/project-feedback.service.js';
 
 /** Where the public stats page lives (linked from the llms.txt). */
 const siteOrigin = () => (process.env.PUBLIC_SITE_URL || 'https://stadium.joinwebzero.com').replace(/\/+$/, '');
@@ -50,7 +51,9 @@ async function liveStats({ config, tracked, program }) {
   const review = loadPrivacyReview(program.slug, config.privacyReview);
   const stats = computeStats({ program, submissions: counted, scores, judges, ratings, config, review });
   const checks = computeChecks({ counted, testEntries, stats, config, review });
-  return { stats, checks };
+  // Judges' feedback fixture: rows that match no submission (or several) show here.
+  const feedback = projectFeedbackChecks(loadProjectFeedback(program.slug, config.projectFeedback), counted);
+  return { stats, checks: feedback ? { ...checks, projectFeedback: feedback } : checks };
 }
 
 class ProgramStatsController {

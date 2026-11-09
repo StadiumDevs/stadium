@@ -4,8 +4,7 @@ import { TRACK_LABELS } from "@/lib/programStats";
 import { cn } from "@/lib/utils";
 import { BarList, ChartFrame, ProjectNames, StackedBars } from "./StatsCharts";
 import { PrivacyReviewSection } from "./PrivacyReviewSection";
-import { getProgramProfile } from "@/lib/programProfiles";
-import { criterionName } from "@/lib/projectReview";
+import { criterionName, getProgramProfile } from "@/lib/programProfiles";
 import { formatIst, STATS_SECTIONS, TRACK_COLORS } from "@/lib/statsDisplay";
 
 export function UpdatedAt({ at }: { at: string }) {
