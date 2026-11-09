@@ -58,10 +58,13 @@ export function SubmissionBreakdownPanel({
   profile,
   submissions,
   board,
+  normalized,
 }: {
   profile: ProgramProfile;
   submissions: ApiTrackedSubmission[];
   board: ApiRubricLeaderboard | null;
+  /** The table's APPLY NORMALIZATION toggle (false when the track can't normalize yet). */
+  normalized: boolean;
 }) {
   const [open, setOpen] = useState(true);
   const categories = useMemo(() => profile.categories ?? [], [profile.categories]);
@@ -87,12 +90,12 @@ export function SubmissionBreakdownPanel({
   }, [submissions]);
 
   const track = board ? trackById(profile, board.track) : null;
-  const normalized = !!board?.normalization?.enabled;
   const scoreByCategory = useMemo<Datum[]>(() => {
     if (!board || !categories.length) return [];
     const sums = new Map<string, { label: string; total: number; n: number }>();
     for (const r of board.rows) {
-      const v = normalized ? r.normTotal : r.judgeCount > 0 ? r.avgTotal : null;
+      // Raw unless the toggle is on and the track normalizes (normTotal is null otherwise).
+      const v = normalized && r.normTotal != null ? r.normTotal : r.judgeCount > 0 ? r.avgTotal : null;
       if (v == null) continue; // not scored yet: missing, not zero
       const s = submissions.find((x) => x.id === r.submissionId);
       const c = classifySubmission(categories, s ?? { projectTitle: r.projectTitle });

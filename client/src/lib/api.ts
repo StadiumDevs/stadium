@@ -1,4 +1,5 @@
 import type { ExperienceRatingCategory, ExperienceRatings } from "./experienceRatings";
+import type { NormalizationConfig } from "./scoreNormalization";
 
 // Fallbacks: production so Vercel deploy works without env; dev so local works without .env
 const PRODUCTION_API = 'https://stadium-production-996a.up.railway.app/api';
@@ -722,7 +723,15 @@ export type ApiPublicSubmission = {
   feedback?: SubmissionPayload["feedback"] | null;
 };
 
-export type ApiPublicSubmissions = { published: boolean; submissions: ApiPublicSubmission[] };
+/** How each judged track was ranked when results were published (programs.results_ranking). */
+export type ApiResultsRanking = Partial<Record<JudgedTrack, { normalized: boolean; method: "offset" | "zscore" | null }>>;
+
+export type ApiPublicSubmissions = {
+  published: boolean;
+  submissions: ApiPublicSubmission[];
+  /** Set once published: the ranking mode stored at publish time, per track. */
+  ranking?: ApiResultsRanking | null;
+};
 
 /** One judge's rubric score for one submission in one track. Null = unscored. */
 export type ApiRubricScore = {
@@ -761,21 +770,28 @@ export type ApiRubricLeaderboardRow = {
     session: string;
     /** This score after per-judge normalization, in rubric points (organizers only). */
     normContribution?: number | null;
-    /** How this judge was normalized: z-scores, or mean-centering below the minimum (organizers only). */
-    method?: "zscore" | "center" | null;
+    /** How this score was normalized: judge offset (default), z-score or mean-centering (organizers only). */
+    method?: "offset" | "zscore" | "center" | null;
   }[];
   /** Rank by raw average total. */
   rawRank?: number;
-  /** Rank by normalized total. `rank` is this one when normalization is on. */
-  normRank?: number;
+  /** Rank by normalized total (null = unscored, or normalization unavailable). */
+  normRank?: number | null;
   /** rawRank − normRank: positive = moved up after normalization. */
   rankChange?: number;
   /** Normalized total (null = no scores yet). */
   normTotal?: number | null;
   normByCriterion?: Record<string, number> | null;
-  /** Per-judge z-score result and judge-offset model result (the check). */
+  /** Per-judge z-score result and judge-offset model result (both always computed). */
   zTotal?: number | null;
   offsetTotal?: number | null;
+  /** Judges who scored this project, out of the judges with any score in the track. */
+  coverage?: { scored: number; of: number };
+  /** Scored by every judge with a score in the track: its normalized total equals its raw average. */
+  fullyScored?: boolean;
+  /** The tie-break that decided this row in each ranking. */
+  rawTieBrokenBy?: string | null;
+  normTieBrokenBy?: string | null;
   txCheck: ApiTxCheck | null;
   prize: ApiPrizeTier | null;
   ecosystemPrize: boolean;
@@ -788,9 +804,24 @@ export type ApiRubricLeaderboard = {
   judges: string[];
   submissionsTotal: number;
   submissionsFullyScored: number;
-  normalization?: { enabled: boolean; method: "zscore" | "offset"; minScoresForZ: number };
-  /** Per judge: scores counted, mean, SD, method and bias vs the panel in rubric points (organizers only). */
-  judgeStats?: { judgeEmail: string; n: number; mean: number; sd: number; method: "zscore" | "center"; bias: number }[];
+  normalization?: NormalizationConfig & {
+    /** False when fewer than `minJudges` judges have scored this track: the board is raw. */
+    available?: boolean;
+    reason?: string | null;
+    /** Judges with at least one complete score sheet in this track. */
+    scoringJudges?: number;
+  };
+  /** Per judge: scores counted, mean, SD, method and bias in rubric points (organizers only). */
+  judgeStats?: {
+    judgeEmail: string;
+    n: number;
+    mean: number | null;
+    sd: number | null;
+    method: "offset" | "zscore" | "center" | null;
+    bias: number | null;
+    /** Below minScoresPerJudge: bias set to 0 or shrunk. */
+    lowCount?: boolean;
+  }[];
   /** When the board was computed (every request recomputes the whole track). */
   computedAt?: string;
   rows: ApiRubricLeaderboardRow[];
@@ -3014,14 +3045,18 @@ export const api = {
     slug: string,
     publish: boolean,
     _authHeader: AdminAuthArg,
-  ): Promise<{ status: string; data: { resultsPublishedAt: string | null } }> => {
+    /** The APPLY NORMALIZATION toggle when publishing: stored with the results. */
+    normalized = true,
+  ): Promise<{ status: string; data: { resultsPublishedAt: string | null; resultsRanking?: ApiResultsRanking | null } }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      return { status: "success", data: { resultsPublishedAt: mockTracked.setPublished(slug, publish) } };
+      const resultsPublishedAt = mockTracked.setPublished(slug, publish, normalized);
+      return { status: "success", data: { resultsPublishedAt, resultsRanking: mockTracked.resultsRanking(slug) } };
     }
     return request(`/programs/${encodeURIComponent(slug)}/results/${publish ? "publish" : "unpublish"}`, {
       method: "POST",
       headers: adminAuthHeaders(_authHeader),
+      body: JSON.stringify({ normalized }),
     });
   },
 

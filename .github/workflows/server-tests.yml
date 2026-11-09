@@ -1,0 +1,31 @@
+name: Server tests
+
+# Runs the server Vitest suite on pull requests. It includes
+# normalization-parity.test.js, which checks the client playground's copy of
+# the score normalization (client/src/lib/scoreNormalization.ts) against the
+# server's, so the two can't drift apart.
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'server/**'
+      - 'client/src/lib/scoreNormalization.ts'
+      - '.github/workflows/server-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+        working-directory: server
+      - run: npm test
+        working-directory: server

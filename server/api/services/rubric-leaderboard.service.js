@@ -17,9 +17,12 @@ export const isFullyScored = (track, criteria) =>
 
 const total = (track, criteria) => RUBRICS[track].reduce((sum, c) => sum + (criteria?.[c.id] ?? 0), 0);
 
+/** Complete, not abstained (an abstention counts as a missing score). */
+const counts = (track, x) => !x.abstained && isFullyScored(track, x.criteria);
+
 /** Fully scored rows for one submission and track. */
 const countedScores = (scores, submissionId, track) =>
-  scores.filter((x) => x.submissionId === submissionId && x.track === track && isFullyScored(track, x.criteria));
+  scores.filter((x) => x.submissionId === submissionId && x.track === track && counts(track, x));
 
 /** At least one judge has fully scored this project in this track. */
 export const hasFullScore = (track, scores, submissionId) => countedScores(scores, submissionId, track).length > 0;
@@ -55,7 +58,7 @@ export function computeLeaderboard({ track, submissions, scores, judges, now = n
 
   // Every counted score in the track feeds the normalization: one judge's new
   // score moves that judge's mean and SD, and so every project they scored.
-  const trackScores = scores.filter((x) => x.track === track && entryIds.has(x.submissionId) && isFullyScored(track, x.criteria));
+  const trackScores = scores.filter((x) => x.track === track && entryIds.has(x.submissionId) && counts(track, x));
   const norm = normalizeTrack({
     criteria: RUBRICS[track],
     bonusIds: ranking.bonusId ? [ranking.bonusId] : [],
@@ -63,16 +66,18 @@ export function computeLeaderboard({ track, submissions, scores, judges, now = n
     config: normalization,
   });
 
+  // Normalization is on only when configured and enough judges have scored.
+  const normOn = normalization.enabled && norm.available;
   const rows = entries.map((s) => {
     const counted = countedScores(trackScores, s.id, track);
     const avgByCriterion = {};
     for (const c of RUBRICS[track]) avgByCriterion[c.id] = mean(counted.map((x) => x.criteria[c.id] ?? 0));
-    const n = norm.projects.get(s.id);
+    const n = normOn ? norm.projects.get(s.id) : null;
     const contributionOf = new Map((n?.contributions ?? []).map((c) => [c.judgeEmail, c]));
     return {
       rank: 0,
       rawRank: 0,
-      normRank: 0,
+      normRank: null,
       rankChange: 0,
       submissionId: s.id,
       projectTitle: s.projectTitle,
@@ -82,14 +87,19 @@ export function computeLeaderboard({ track, submissions, scores, judges, now = n
       status: s.status ?? 'submitted',
       avgTotal: mean(counted.map((x) => total(track, x.criteria))),
       avgByCriterion,
-      // No scores yet: the normalized values stay null (missing, not zero).
-      normTotal: n ? (normalization.method === 'offset' ? n.offsetTotal : n.normTotal) : null,
+      // No scores yet (or normalization off): the normalized values stay null.
+      normTotal: n ? n.normTotal : null,
       normByCriterion: n ? n.normByCriterion : null,
-      zTotal: n ? n.normTotal : null,
+      zTotal: n ? n.zTotal : null,
       offsetTotal: n ? n.offsetTotal : null,
+      // Coverage over the judges who have scored this track, not those assigned.
+      coverage: { scored: counted.length, of: norm.scoringJudges },
+      fullyScored: counted.length > 0 && counted.length === norm.scoringJudges,
       bonusCount: ranking.bonusId ? counted.filter((x) => (x.criteria[ranking.bonusId] ?? 0) > 0).length : 0,
       judgeCount: counted.length,
       tieBrokenBy: null,
+      rawTieBrokenBy: null,
+      normTieBrokenBy: null,
       judgeScores: counted.map((x) => ({
         judgeEmail: x.judgeEmail,
         total: total(track, x.criteria),
@@ -108,26 +118,38 @@ export function computeLeaderboard({ track, submissions, scores, judges, now = n
   });
 
   const rawOrder = rankBy(rows, ranking, (r) => r.avgTotal, (r) => r.avgByCriterion);
-  const normOrder = rankBy(rows, ranking, (r) => r.normTotal ?? -Infinity, (r) => r.normByCriterion ?? {});
-  rawOrder.forEach(({ row }, i) => {
+  rawOrder.forEach(({ row, tieBrokenBy }, i) => {
     row.rawRank = i + 1;
+    row.rawTieBrokenBy = tieBrokenBy;
   });
-  normOrder.forEach(({ row }, i) => {
-    row.normRank = i + 1;
-  });
-  const primary = normalization.enabled ? normOrder : rawOrder;
-  for (const { row, tieBrokenBy } of primary) {
-    row.rank = normalization.enabled ? row.normRank : row.rawRank;
-    row.rankChange = row.rawRank - row.normRank;
-    row.tieBrokenBy = tieBrokenBy;
+  let primary = rawOrder;
+  if (normOn) {
+    const normOrder = rankBy(rows, ranking, (r) => r.normTotal ?? -Infinity, (r) => r.normByCriterion ?? {});
+    normOrder.forEach(({ row, tieBrokenBy }, i) => {
+      // Unscored projects have no normalized value, so no normalized rank.
+      if (row.normTotal == null) return;
+      row.normRank = i + 1;
+      row.normTieBrokenBy = tieBrokenBy;
+      row.rankChange = row.rawRank - row.normRank;
+    });
+    primary = normOrder;
   }
+  primary.forEach(({ row, tieBrokenBy }, i) => {
+    row.rank = i + 1;
+    row.tieBrokenBy = tieBrokenBy;
+  });
 
   return {
     track,
     judges: trackJudges,
     submissionsTotal: entries.length,
     submissionsFullyScored: rows.filter((r) => r.judgeCount === trackJudges.length).length,
-    normalization,
+    normalization: {
+      ...normalization,
+      available: norm.available,
+      reason: norm.reason,
+      scoringJudges: norm.scoringJudges,
+    },
     judgeStats: norm.judgeStats,
     computedAt: now.toISOString(),
     rows: primary.map((x) => x.row),

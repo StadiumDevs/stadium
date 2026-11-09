@@ -1,5 +1,5 @@
 import type { ApiPrizeTier, JudgedTrack, SubmissionTrack } from "./api";
-import type { NormalizationConfig } from "./scoreNormalization";
+import { DEFAULT_NORMALIZATION, type NormalizationConfig } from "./scoreNormalization";
 
 /**
  * Per-program configuration for hackathons that go beyond the Bitrefill shape:
@@ -202,7 +202,7 @@ const PRIVACY_RUBRIC: Rubric = {
     maxAvg: 0,
     message: "Average Works score is 0: this project can't be selected as a winner.",
   },
-  normalization: { enabled: true, method: "zscore", minScoresForZ: 8 },
+  normalization: DEFAULT_NORMALIZATION,
   guideUrl: PRIVACY_JUDGING_GUIDE_URL,
 };
 
@@ -215,7 +215,7 @@ const AGENTIC_RUBRIC: Rubric = {
     { id: "innovation", label: "How innovative the submission is", weight: 1, min: 1, max: 5 },
   ],
   tieBreaks: [{ kind: "criterion", id: "innovation", label: "How innovative" }],
-  normalization: { enabled: true, method: "zscore", minScoresForZ: 8 },
+  normalization: DEFAULT_NORMALIZATION,
 };
 
 export const FREE_SOCIETY_HACK_SLUG = "free-society-hack-2026";

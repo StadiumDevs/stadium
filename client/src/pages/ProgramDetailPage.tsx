@@ -589,6 +589,7 @@ const ProgramDetailPage = () => {
                 programSlug={program.slug}
                 submissions={tracked.submissions}
                 published={tracked.published}
+                ranking={tracked.ranking}
               />
             </div>
           )}
@@ -877,6 +878,7 @@ const ProgramDetailPage = () => {
                 programSlug={program.slug}
                 submissions={tracked.submissions}
                 published={tracked.published}
+                ranking={tracked.ranking}
               />
             </div>
           )}

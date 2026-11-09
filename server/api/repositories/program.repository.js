@@ -22,6 +22,7 @@ const transformProgram = (row) => {
     content: row.content ?? null,
     prizeTiers: row.prize_tiers ?? null,
     resultsPublishedAt: row.results_published_at ?? null,
+    resultsRanking: row.results_ranking ?? null,
     lumaEventId: row.luma_event_id ?? null,
     lastGuestSyncAt: row.last_guest_sync_at ?? null,
     lastGuestSyncStatus: row.last_guest_sync_status ?? null,
@@ -116,11 +117,12 @@ class ProgramRepository {
     if (error) throw error;
   }
 
-  // Publish/unpublish the public results: set or clear results_published_at.
-  async setResultsPublished(slug, publishedAt) {
+  // Publish/unpublish the public results: set or clear results_published_at,
+  // with the ranking snapshot (how each track was ranked) stored alongside.
+  async setResultsPublished(slug, publishedAt, ranking = null) {
     const { data, error } = await supabase
       .from('programs')
-      .update({ results_published_at: publishedAt, updated_at: new Date().toISOString() })
+      .update({ results_published_at: publishedAt, results_ranking: ranking, updated_at: new Date().toISOString() })
       .eq('slug', slug)
       .select('*')
       .single();
