@@ -45,15 +45,17 @@ const mockRes = () => {
   res.json = vi.fn(() => res);
   return res;
 };
-const award = async (id, track, amount) => {
+const award = async (id, track, amount, extra = {}, user = ADMIN) => {
   const res = mockRes();
-  await controller.awardPrize({ params: { slug: FSH.slug, submissionId: id, track }, body: { amount }, user: ADMIN }, res);
+  await controller.awardPrize({ params: { slug: FSH.slug, submissionId: id, track }, body: { amount, ...extra }, user }, res);
   return res;
 };
+const auditLog = (await import('../../services/program-audit-log.service.js')).default;
 
 beforeEach(() => {
   vi.clearAllMocks();
   programService.findBySlug.mockResolvedValue(FSH);
+  submissionRepo.listByProgramId.mockResolvedValue([]);
   scoreRepo.listByProgram.mockResolvedValue(
     ['a', 'b', 'c', 'g'].map((id) => ({ submissionId: id, judgeEmail: 'j@x', track: id === 'g' ? 'agentic' : 'privacy', criteria: id === 'g' ? { requirements: 4, techStack: 4, innovation: 4 } : full })),
   );
@@ -106,5 +108,38 @@ describe('awardPrize with the production tiers', () => {
     submissionRepo.findById.mockResolvedValue(entry('a'));
     expect((await award('a', 'privacy', 1300)).status).toHaveBeenCalledWith(200);
     expect((await award('a', 'privacy', 1000)).status).toHaveBeenCalledWith(400);
+  });
+});
+
+describe('platform admin override', () => {
+  it('an unscored project is refused with a code, then awarded with override (audit-logged)', async () => {
+    submissionRepo.findById.mockResolvedValue(entry('u'));
+    const refused = await award('u', 'privacy', 100);
+    expect(refused.status).toHaveBeenCalledWith(409);
+    expect(refused.json.mock.calls[0][0]).toMatchObject({ code: 'NOT_FULLY_SCORED' });
+    expect(submissionRepo.updateTracked).not.toHaveBeenCalled();
+
+    const res = await award('u', 'privacy', 100, { override: true });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(submissionRepo.updateTracked.mock.calls[0][1].prizes.privacy.label).toBe('Zcash ecosystem prize');
+    expect(auditLog.logSafe).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'tracked.prize_award', targetId: 'u', metadata: expect.objectContaining({ override: ['not_fully_scored'] }) }),
+    );
+  });
+
+  it('overrides the Works-0 winner gate too', async () => {
+    scoreRepo.listByProgram.mockResolvedValue([{ submissionId: 'w', judgeEmail: 'j@x', track: 'privacy', criteria: { ...full, works: 0 } }]);
+    submissionRepo.findById.mockResolvedValue(entry('w'));
+    const refused = await award('w', 'privacy', 1300);
+    expect(refused.status).toHaveBeenCalledWith(409);
+    expect(refused.json.mock.calls[0][0].code).toBe('WINNER_BLOCKED');
+    expect((await award('w', 'privacy', 1300, { override: true })).status).toHaveBeenCalledWith(200);
+  });
+
+  it('still enforces tier limits and the platform-admin check', async () => {
+    submissionRepo.findById.mockResolvedValue(entry('u'));
+    submissionRepo.listByProgramId.mockResolvedValue([entry('a', 'privacy', { privacy: { ...ECO } }), entry('b', 'privacy', { privacy: { ...ECO } })]);
+    expect((await award('u', 'privacy', 100, { override: true })).status).toHaveBeenCalledWith(409);
+    expect((await award('u', 'privacy', 100, { override: true }, { role: 'admin', address: '5Prog' })).status).toHaveBeenCalledWith(403);
   });
 });

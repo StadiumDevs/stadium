@@ -137,6 +137,10 @@ class TrackedResultsController {
         return fail(res, 409, `This project didn't enter the ${track} track.`);
       }
       const amount = req.body?.amount ?? null;
+      // A platform admin may award a project that isn't (fully) scored or hits the
+      // winner gate, after confirming in the UI; it's recorded in the audit log.
+      const override = req.body?.override === true;
+      const overridden = [];
       let tier = null;
       if (amount !== null) {
         // Prefixed tiers belong to their track; unprefixed ones ("Zcash ecosystem prize") to the Ecosystem track.
@@ -145,10 +149,14 @@ class TrackedResultsController {
         if (!tier) return fail(res, 400, 'That prize is not one of this track\'s tiers');
         const scores = await submissionRubricScoreRepository.listByProgram(ctx.program.id);
         if (!hasFullScore(track, scores, s.id)) {
-          return fail(res, 409, 'No judge has fully scored this project in this track yet.');
+          if (!override) return res.status(409).json({ status: 'error', code: 'NOT_FULLY_SCORED', message: 'No judge has fully scored this project in this track yet.' });
+          overridden.push('not_fully_scored');
         }
         const blocked = winnerBlockedReason(track, scores, s.id);
-        if (blocked) return fail(res, 409, blocked);
+        if (blocked) {
+          if (!override) return res.status(409).json({ status: 'error', code: 'WINNER_BLOCKED', message: blocked });
+          overridden.push('winner_blocked');
+        }
         const limit = tierLimit(tier, track, ctx.tracked, prizeTiersFor(ctx.program));
         if (limit) {
           const all = await programSubmissionRepository.listByProgramId(ctx.program.id);
@@ -171,7 +179,7 @@ class TrackedResultsController {
         action: tier ? 'tracked.prize_award' : 'tracked.prize_clear',
         targetType: 'submission',
         targetId: s.id,
-        metadata: { track, amount: tier?.amount ?? null, label: tier?.label ?? null },
+        metadata: { track, amount: tier?.amount ?? null, label: tier?.label ?? null, ...(overridden.length ? { override: overridden } : {}) },
       });
     } catch (error) {
       console.error('❌ Error awarding a track prize:', error);
