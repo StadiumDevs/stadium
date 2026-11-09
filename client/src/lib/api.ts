@@ -717,7 +717,21 @@ export type ApiTrackedSubmission = ApiSubmission & {
   prizes: Partial<Record<JudgedTrack, ApiPrizeTier>>;
   /** Ecosystem Prize flag: a second award on top of a podium prize (not a tier). */
   ecosystemPrize: boolean;
+  /** AI feedback (admin): draft and published versions. */
+  aiFeedback?: ApiAiFeedbackRecord | null;
 };
+
+/** AI-generated feedback for one project (summary, strengths, possible improvements). */
+export type ApiAiFeedback = { summary: string; strengths: string[]; improvements: string[] };
+export type ApiAiFeedbackRecord = {
+  draft?: ApiAiFeedback | null;
+  published?: ApiAiFeedback | null;
+  model?: string;
+  generatedAt?: string;
+  publishedAt?: string | null;
+};
+export type ApiAiFeedbackRow = { id: string; title: string; track: string | null; scored: boolean; aiFeedback: ApiAiFeedbackRecord | null };
+export type ApiAiFeedbackList = { configured: boolean; model: string; projects: ApiAiFeedbackRow[] };
 
 /** Public, email-free projection of a tracked submission. */
 /** A project's final score in one judged track (published results only). */
@@ -750,6 +764,8 @@ export type ApiPublicSubmission = {
   ecosystemPrize: boolean;
   /** Once published: the final score per judged track (the score the track was ranked on). Only tracks with scoring judges. */
   scores?: Partial<Record<JudgedTrack, ApiPublicTrackScore>>;
+  /** Once results are published: the admin-published AI feedback, if any. */
+  aiFeedback?: ApiAiFeedback;
   /** The Bitrefill survey answers: admin views only (like the Bitrefill feedback), never public. */
   feedback?: SubmissionPayload["feedback"] | null;
 };
@@ -3055,6 +3071,60 @@ export const api = {
       method: "PUT",
       headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
       body: JSON.stringify({ flagged }),
+    });
+  },
+
+  /** Platform admin: every project with its AI feedback (draft + published). */
+  listAiFeedback: async (slug: string, _authHeader: AdminAuthArg): Promise<{ status: string; data: ApiAiFeedbackList }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      try {
+        return { status: "success", data: mockTracked.aiFeedbackList(slug) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, 409);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/ai-feedback`, { headers: adminAuthHeaders(_authHeader) });
+  },
+
+  /** Platform admin: generate (or regenerate) one project's AI feedback draft. */
+  generateAiFeedback: async (slug: string, submissionId: string, _authHeader: AdminAuthArg): Promise<{ status: string; data: ApiAiFeedbackRow }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      try {
+        return { status: "success", data: mockTracked.aiFeedbackGenerate(slug, submissionId) };
+      } catch (e) {
+        throw new ApiError((e as Error).message, 409);
+      }
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/ai-feedback/generate`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
+    });
+  },
+
+  /** Platform admin: save an edited AI feedback draft. */
+  updateAiFeedback: async (slug: string, submissionId: string, draft: ApiAiFeedback, _authHeader: AdminAuthArg): Promise<{ status: string; data: ApiAiFeedbackRow }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.aiFeedbackUpdate(slug, submissionId, draft) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/ai-feedback`, {
+      method: "PUT",
+      headers: { ...adminAuthHeaders(_authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify({ draft }),
+    });
+  },
+
+  /** Platform admin: publish every AI feedback draft (or unpublish all). */
+  setAiFeedbackPublished: async (slug: string, publish: boolean, _authHeader: AdminAuthArg): Promise<{ status: string; data: { count: number; publishedAt: string | null } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      return { status: "success", data: mockTracked.aiFeedbackSetPublished(slug, publish) };
+    }
+    return request(`/programs/${encodeURIComponent(slug)}/ai-feedback/${publish ? "publish" : "unpublish"}`, {
+      method: "POST",
+      headers: adminAuthHeaders(_authHeader),
     });
   },
 

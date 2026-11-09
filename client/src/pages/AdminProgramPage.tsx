@@ -27,6 +27,7 @@ import { ProgramResultsSummarySection } from "@/components/admin/ProgramResultsS
 import { ExperienceRatingsSection } from "@/components/admin/ExperienceRatingsSection";
 import { RubricJudgingSection } from "@/components/admin/tracked/RubricJudgingSection";
 import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdminSection";
+import { AiFeedbackAdminSection } from "@/components/admin/tracked/AiFeedbackAdminSection";
 import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
 import { MockPlaygroundBar } from "@/components/admin/tracked/MockPlaygroundBar";
 import { StatsPublishPanel } from "@/components/admin/StatsPublishPanel";
@@ -474,6 +475,10 @@ const AdminProgramPage = () => {
                       judgeEmail={null}
                     />
                     <MilestonesAdminSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
+                    {/* The server refuses until results are published, and the section says so. */}
+                    {isGlobalAdmin && (
+                      <AiFeedbackAdminSection programSlug={program.slug} getAuth={getAdminAuth} />
+                    )}
                     <FrictionReportSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
                   </>
                 ) : (

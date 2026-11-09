@@ -4,6 +4,7 @@ import multer from 'multer';
 import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
 import trackedResultsController from '../controllers/tracked-results.controller.js';
+import aiFeedbackController from '../controllers/ai-feedback.controller.js';
 import programStatsController from '../controllers/program-stats.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
@@ -295,6 +296,12 @@ router.patch(
 // the chain and updates details.txCheck; the controller limits track-scoped judges.
 router.post('/:slug/submissions/:submissionId/tx-check', requireProgramJudge('slug'), trackedResultsController.recheckTx);
 router.get('/:slug/submissions/:submissionId/public', trackedResultsController.publicWinner);
+// Platform admin: AI feedback on project pages (generate per project, edit, publish all).
+router.get('/:slug/ai-feedback', requireProgramAdmin('slug'), aiFeedbackController.list);
+router.post('/:slug/submissions/:submissionId/ai-feedback/generate', requireProgramAdmin('slug'), aiFeedbackController.generate);
+router.put('/:slug/submissions/:submissionId/ai-feedback', requireProgramAdmin('slug'), aiFeedbackController.update);
+router.post('/:slug/ai-feedback/publish', requireProgramAdmin('slug'), aiFeedbackController.publish);
+router.post('/:slug/ai-feedback/unpublish', requireProgramAdmin('slug'), aiFeedbackController.unpublish);
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
 // At-a-glance counts for the program header (judge + admin; no PII).

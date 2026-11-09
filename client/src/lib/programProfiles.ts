@@ -291,6 +291,9 @@ const PROFILES: Record<string, ProgramProfile> = {
   [FREE_SOCIETY_HACK_SLUG]: FREE_SOCIETY_HACK,
 };
 
+/** "Works: how much of the demonstrated core flow is real?" → "Works". */
+export const criterionName = (label: string) => label.split(":")[0].trim();
+
 export const getProgramProfile = (slug?: string | null): ProgramProfile | null =>
   (slug && PROFILES[slug]) || null;
 
