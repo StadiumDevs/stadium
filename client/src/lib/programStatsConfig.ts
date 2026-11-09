@@ -22,6 +22,8 @@ export type ProgramStatsConfig = {
   minFeedbackResponses: number;
   /** Privacy track tech review: the fixture version to read (server/fixtures/<slug>/privacy-track-review/v<version>.json). */
   privacyReview?: { version: string };
+  /** Judges' feedback per project: the fixture version to read (server/fixtures/<slug>/project-feedback/v<version>.json). */
+  projectFeedback?: { version: string };
 };
 
 /**
@@ -123,6 +125,9 @@ export const PROGRAM_STATS: Record<string, ProgramStatsConfig> = {
     // Privacy track tech review: reads
     // server/fixtures/free-society-hack-2026/privacy-track-review/v<version>.json.
     privacyReview: { version: "1.0" },
+    // Judges' feedback per project (AI-written, fact-checked): reads
+    // server/fixtures/free-society-hack-2026/project-feedback/v<version>.json.
+    projectFeedback: { version: "1.0.1" },
   },
 };
 

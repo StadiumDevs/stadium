@@ -32,6 +32,15 @@ async function mockPrivacyReview(slug: string) {
   return loadMockPrivacyReview(slug, programStatsFor(slug)?.privacyReview);
 }
 
+/** Mock mode: the judges' feedback fixture the program's stats config points to. */
+async function mockProjectFeedback(slug: string) {
+  const [{ programStatsFor }, { loadMockProjectFeedback }] = await Promise.all([
+    import("./programStatsConfig"),
+    import("./mocks/projectFeedbackFixtures"),
+  ]);
+  return loadMockProjectFeedback(slug, programStatsFor(slug)?.projectFeedback);
+}
+
 class ApiError extends Error {
   status: number;
   code?: string;
@@ -719,6 +728,29 @@ export type ApiTrackedSubmission = ApiSubmission & {
   ecosystemPrize: boolean;
 };
 
+/** Judges' feedback for one project (AI-written from the scores and judges' notes; read from the versioned fixture). */
+export type ApiProjectFeedback = {
+  summary: string;
+  worked: string[];
+  improve: string[];
+  facts: { text: string; source: string | null }[];
+  basis: string;
+  version: string;
+  generatedDate: string;
+  generatedBy: string;
+  /** How the feedback was written (the "AI-generated" popup). */
+  about: {
+    model: string | null;
+    generatedDate: string;
+    projectCount: number;
+    projectsWithNotes: number;
+    notesCount: number;
+    factCheckSources: string[];
+    version: string;
+    latestChange: string | null;
+  };
+};
+
 /** Public, email-free projection of a tracked submission. */
 /** A project's final score in one judged track (published results only). */
 export type ApiPublicTrackScore = {
@@ -750,6 +782,8 @@ export type ApiPublicSubmission = {
   ecosystemPrize: boolean;
   /** Once published: the final score per judged track (the score the track was ranked on). Only tracks with scoring judges. */
   scores?: Partial<Record<JudgedTrack, ApiPublicTrackScore>>;
+  /** Once results are published: the judges' feedback (AI-written, from the versioned fixture), if any. */
+  feedback?: ApiProjectFeedback;
   /** The Bitrefill survey answers: admin views only (like the Bitrefill feedback), never public. */
   feedback?: SubmissionPayload["feedback"] | null;
 };
@@ -2803,7 +2837,7 @@ export const api = {
   listPublicSubmissions: async (slug: string): Promise<{ status: string; data: ApiPublicSubmissions }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      return { status: "success", data: mockTracked.publicList(slug) };
+      return { status: "success", data: mockTracked.publicList(slug, await mockProjectFeedback(slug)) };
     }
     return request(`/programs/${encodeURIComponent(slug)}/submissions/public`);
   },
@@ -2812,7 +2846,7 @@ export const api = {
   getPublicWinner: async (slug: string, submissionId: string): Promise<{ status: string; data: ApiPublicSubmission }> => {
     if (USE_MOCK_DATA) {
       const { mockTracked } = await import("./mockTrackedSubmissions");
-      const data = mockTracked.publicWinner(slug, submissionId);
+      const data = mockTracked.publicWinner(slug, submissionId, await mockProjectFeedback(slug));
       if (!data) throw new ApiError("Project not found", 404);
       return { status: "success", data };
     }

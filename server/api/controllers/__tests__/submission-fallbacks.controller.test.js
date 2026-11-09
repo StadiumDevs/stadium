@@ -247,4 +247,26 @@ describe('GET submissions/public', () => {
     s2.mockRestore();
     programService.findBySlug.mockResolvedValue(FSH);
   });
+
+  it("judges' feedback from the fixture: attached by repo only after publish", async () => {
+    const zeno = { id: 'z', submitterName: 'Lead', lumaEmail: 'lead@example.com', projectTitle: 'Zeno Wallet (renamed)', githubUrl: 'https://github.com/karar189/zeno-web-wallet/', status: 'submitted', details };
+    submissionRepo.listByProgramId.mockResolvedValue([zeno]);
+    let res = mockRes();
+    await submissionController.publicSubmissions({ params: { slug: FSH.slug } }, res);
+    expect(res.json.mock.calls[0][0].data.submissions[0]).not.toHaveProperty('feedback');
+    programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: '2026-11-06T10:00:00Z', resultsRanking: null });
+    const rubricRepo = (await import('../../repositories/submission-rubric-score.repository.js')).default;
+    const judgeRepo = (await import('../../repositories/program-admin-email.repository.js')).default;
+    const s1 = vi.spyOn(rubricRepo, 'listByProgram').mockResolvedValue([]);
+    const s2 = vi.spyOn(judgeRepo, 'listJudges').mockResolvedValue([]);
+    res = mockRes();
+    await submissionController.publicSubmissions({ params: { slug: FSH.slug } }, res);
+    const fb = res.json.mock.calls[0][0].data.submissions[0].feedback;
+    expect(fb.version).toBe('1.0.1');
+    expect(fb.summary).toMatch(/^Top prize/);
+    expect(fb.improve.length).toBeGreaterThan(0);
+    s1.mockRestore();
+    s2.mockRestore();
+    programService.findBySlug.mockResolvedValue(FSH);
+  });
 });

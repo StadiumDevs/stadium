@@ -36,6 +36,7 @@ import { toPublicSubmission } from "./trackedDisplay";
 import { DEFAULT_NORMALIZATION, normalizeTrack } from "./scoreNormalization";
 import { buildStats, computeChecks, publicSnapshot, statsFingerprint, type ProgramStats, type ProgramStatsChecks } from "./programStats";
 import type { PrivacyReviewData } from "./privacyReview";
+import { feedbackBySubmission, type ProjectFeedbackData } from "./projectFeedback";
 import { programStatsFor } from "./programStatsConfig";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
 
@@ -166,7 +167,7 @@ export const mockTracked = {
 
 
   /** Public: every submitted project, live. Winners first once published. */
-  publicList(slug: string): ApiPublicSubmissions {
+  publicList(slug: string, feedbackFixture: ProjectFeedbackData | null = null): ApiPublicSubmissions {
     const state = load(slug);
     const published = !!state.resultsPublishedAt;
     // Like the server: only finalized entries are public (drafts are the team's own).
@@ -177,22 +178,29 @@ export const mockTracked = {
     if (!published) return { published, submissions, ranking: null, judgesByTrack: null };
     const { bySubmission, judgesByTrack } = this.publicScores(slug);
     const ranking = state.resultsRanking ?? null;
+    // Like the server: judges' feedback from the versioned fixture, matched by repo then title.
+    const feedback = feedbackBySubmission(feedbackFixture, state.submissions.filter((s) => s.status !== "draft" && !s.isTestEntry));
     return {
       published,
-      submissions: submissions.map((s) => (bySubmission.has(s.id) ? { ...s, scores: bySubmission.get(s.id) } : s)),
+      submissions: submissions.map((s) => ({
+        ...s,
+        ...(bySubmission.has(s.id) ? { scores: bySubmission.get(s.id) } : {}),
+        ...(feedback.has(s.id) ? { feedback: feedback.get(s.id) } : {}),
+      })),
       ranking,
       judgesByTrack,
     };
   },
 
   /** Public: a winner's project page. Null for non-winners or before publishing. */
-  publicWinner(slug: string, id: string): ApiPublicSubmission | null {
+  publicWinner(slug: string, id: string, feedbackFixture: ProjectFeedbackData | null = null): ApiPublicSubmission | null {
     const state = load(slug);
     if (!state.resultsPublishedAt) return null;
     const s = state.submissions.find((x) => x.id === id);
     if (!s || Object.keys(s.prizes).length === 0) return null;
     const scores = this.publicScores(slug).bySubmission.get(s.id);
-    return scores ? { ...toPublic(s, true), scores } : toPublic(s, true);
+    const fb = feedbackBySubmission(feedbackFixture, state.submissions.filter((x) => x.status !== "draft" && !x.isTestEntry)).get(s.id);
+    return { ...toPublic(s, true), ...(scores ? { scores } : {}), ...(fb ? { feedback: fb } : {}) };
   },
 
   /**

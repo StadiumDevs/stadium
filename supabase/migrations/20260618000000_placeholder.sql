@@ -1,1 +1,0 @@
--- Applied directly to remote on 2026-06-18; placeholder created to unblock local migration history.
