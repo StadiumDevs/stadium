@@ -16,7 +16,7 @@ export type CompositeWeights = {
 export type ProgramStatsConfig = {
   categories: SubmissionCategory[];
   weights: CompositeWeights;
-  expected?: { submissions: number; byTrack: Record<string, number>; multiTeamHackers: number; multiTeamNames: string[] };
+  expected?: { submissions: number; byTrack: Record<string, number> };
   judgeTrack: "privacy" | "agentic";
   unscoredTrack: { track: "privacy" | "agentic"; note: string };
   minFeedbackResponses: number;
@@ -107,8 +107,6 @@ export const FSH_COMPOSITE_WEIGHTS: CompositeWeights = {
 export const FSH_EXPECTED = {
   submissions: 62,
   byTrack: { privacy: 24, both: 24, agentic: 14 },
-  multiTeamHackers: 4,
-  multiTeamNames: ["Madhanraj M", "Dijo S Benelen", "Divesh Kumar S", "Sarnav Kansal"],
 };
 
 export const PROGRAM_STATS: Record<string, ProgramStatsConfig> = {

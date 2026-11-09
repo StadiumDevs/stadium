@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorize, computeChecks, computeStats, statsFingerprint, suggestCategory } from '../program-stats.service.js';
+import { categorize, computeChecks, computeStats, publicSnapshot, statsFingerprint, suggestCategory } from '../program-stats.service.js';
 import { FSH_CATEGORIES, PROGRAM_STATS } from '../../constants/programStats.js';
 import { FSH_FINAL_TITLES } from './fixtures/fsh-final-titles.js';
 
@@ -116,7 +116,7 @@ describe('categories (title-based, from the brief)', () => {
 });
 
 describe('computeStats', () => {
-  it('headline: counts, hackers by email, teams, per track, multi-team hackers', () => {
+  it('headline: counts, hackers by email, teams, per track (no multiple-teams data)', () => {
     const s = run();
     expect(s.headline).toEqual({
       submissions: 6,
@@ -124,17 +124,17 @@ describe('computeStats', () => {
       hackers: 7,
       teams: 6,
       byTrack: { privacy: 3, both: 1, agentic: 2 },
-      multiTeamHackers: 1,
     });
-    expect(s.multiTeam.hackers).toHaveLength(1);
-    expect(s.multiTeam.hackers[0].name).toBe('Madhanraj M.');
-    expect(s.multiTeam.hackers[0].projects.map((p) => p.title)).toEqual(['Ghost Layer', 'GiftRelay', 'Pegasus']);
+    // The "hackers on multiple teams" section was removed: no names or lists are computed.
+    expect(s).not.toHaveProperty('multiTeam');
   });
 
-  it('multi-team names stay private when an entry is anonymous', () => {
-    const f = fixture();
-    f.submissions[3].details.anonymous = true;
-    expect(run(f).multiTeam.hackers[0].name).toBeNull();
+  it('publicSnapshot strips multiple-teams data from older snapshots', () => {
+    const old = { ...run(), headline: { ...run().headline, multiTeamHackers: 1 }, multiTeam: { count: 1, hackers: [{ name: 'X', projects: [] }] } };
+    const pub = publicSnapshot(old);
+    expect(pub).not.toHaveProperty('multiTeam');
+    expect(pub.headline).not.toHaveProperty('multiTeamHackers');
+    expect(pub.headline.hackers).toBe(7);
   });
 
   it('winners per track, best prize first; Agentic winners have no score', () => {
@@ -231,7 +231,7 @@ describe('computeChecks', () => {
     const checks = computeChecks({ counted: f.submissions, testEntries: [{ projectTitle: 'Example Project' }], stats, config });
     expect(checks.mismatches).toContain('Submissions: 7 in the database, 62 expected');
     expect(checks.mismatches.some((m) => m.startsWith('Privacy: 4'))).toBe(true);
-    expect(checks.mismatches).toContain('Expected Sarnav Kansal on more than one team');
+    expect(checks.mismatches.some((m) => /more than one team/.test(m))).toBe(false);
     expect(checks.duplicates).toEqual(['Same repo: "Ghost Layer" and "Zsol copy"']);
     expect(checks.uncategorized).toEqual([{ id: 'priv-f', title: 'Mystery Thing', suggested: 'Wallet and network privacy' }]);
     expect(checks.gaps.noDescription).toEqual(['Z-Pay']);

@@ -59,12 +59,13 @@ describe('stats llms.txt', () => {
       '### How projects reach Zcash', '### Nym in practice', '### ChainSafe WebZjs', '### Agent and crypto building blocks',
       '### Shielded features used in code', '### Which ZIPs the projects cite', '### Projects building on new or draft ZIPs', '### Findings',
       '### What slowed teams down', '### PRs and issues in other repos', '### Every submission', '### How this was checked',
-      '## Hackers on multiple teams', '## Event feedback (anonymized)',
+      '## Event feedback (anonymized)',
     ]) expect(text).toContain(h);
     expect(text).toContain('1. Z-Pay — shielded checkout, without a merchant app · Privacy: top prize (1000 USD) · score 12.5 / 16');
     expect(text).toContain('- Noir Wallet: 11 · ');
     // Admin-only ranking and the Nym "Not used" bar are not on the page, so not here either.
     expect(text).not.toContain('likelihood to continue');
+    expect(text).not.toMatch(/multiple teams|more than one team/i);
     expect(text).not.toContain('- Not used:');
     expect(text).toContain('- Built in: 7 · ');
     expect(text).toContain('- ZIP 321 · Payment request URIs · Payments UX · Payment links and QR codes: 26 · ');

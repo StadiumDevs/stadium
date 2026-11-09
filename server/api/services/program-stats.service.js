@@ -135,25 +135,9 @@ export function buildStats({ program, submissions, board, ratings, config, revie
       }));
   }
 
-  // Hackers across teams, on email.
-  const hackers = new Map();
-  for (const s of subs) {
-    for (const p of peopleOf(s)) {
-      const h = hackers.get(p.key) ?? { names: new Set(), projects: [], anonymous: false };
-      if (p.name) h.names.add(p.name);
-      h.projects.push(projectRef(s));
-      h.anonymous ||= !!s.details?.anonymous;
-      hackers.set(p.key, h);
-    }
-  }
-  const multi = [...hackers.values()]
-    .filter((h) => h.projects.length > 1)
-    .map((h) => ({
-      // Anonymous entries keep names private; the longest spelling otherwise.
-      name: h.anonymous ? null : [...h.names].sort((a, b) => b.length - a.length)[0] ?? null,
-      projects: h.projects,
-    }))
-    .sort((a, b) => (a.name ?? '~').localeCompare(b.name ?? '~'));
+  // Hackers, deduped across teams on email.
+  const hackers = new Set();
+  for (const s of subs) for (const p of peopleOf(s)) hackers.add(p.key);
 
   // 2. Headline numbers.
   const byTrack = { privacy: 0, both: 0, agentic: 0 };
@@ -163,7 +147,6 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     hackers: hackers.size,
     teams: subs.length,
     byTrack,
-    multiTeamHackers: multi.length,
   };
 
   // 3. Composite: likely to continue and get support (0–100).
@@ -281,7 +264,6 @@ export function buildStats({ program, submissions, board, ratings, config, revie
     perTrack,
     perCategory,
     topByCategory,
-    multiTeam: { count: multi.length, hackers: multi },
     feedback,
     // 8. Privacy track tech review (from the versioned fixture).
     ...(review ? { privacyReview: buildPrivacyReview(review, subs) } : {}),
@@ -304,13 +286,6 @@ export function computeChecks({ counted, testEntries = [], stats, config, review
     for (const [t, n] of Object.entries(expected.byTrack ?? {})) {
       const got = stats.headline.byTrack[t] ?? 0;
       if (got !== n) mismatches.push(`${TRACK_LABELS[t] ?? t}: ${got} in the database, ${n} expected`);
-    }
-    if (stats.multiTeam.count !== expected.multiTeamHackers) {
-      mismatches.push(`Hackers on more than one team: ${stats.multiTeam.count}, ${expected.multiTeamHackers} expected`);
-    }
-    const names = new Set(stats.multiTeam.hackers.map((h) => norm(h.name)));
-    for (const n of expected.multiTeamNames ?? []) {
-      if (!names.has(norm(n))) mismatches.push(`Expected ${n} on more than one team`);
     }
   }
 
@@ -352,7 +327,12 @@ export function computeChecks({ counted, testEntries = [], stats, config, review
 /** What gets published: the stats without the admin-only composite ranking. */
 export const publicSnapshot = (stats) => {
   if (!stats) return stats;
-  const { composite: _composite, ...rest } = stats;
+  // Admin-only composite; multiple-teams data is no longer published (older snapshots may still have it).
+  const { composite: _composite, multiTeam: _multiTeam, ...rest } = stats;
+  if (rest.headline && 'multiTeamHackers' in rest.headline) {
+    const { multiTeamHackers: _m, ...headline } = rest.headline;
+    return { ...rest, headline };
+  }
   return rest;
 };
 
