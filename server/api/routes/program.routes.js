@@ -4,6 +4,7 @@ import multer from 'multer';
 import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
 import trackedResultsController from '../controllers/tracked-results.controller.js';
+import programStatsController from '../controllers/program-stats.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
@@ -106,6 +107,13 @@ router.get('/:slug', programController.getBySlug);
 router.get('/:slug/projects', programController.listProjects);
 // Public, PII-free: all submissions + winners, only once results are published.
 router.get('/:slug/results', submissionController.publicResults);
+// Public: the prize winners and submission stats page (the published snapshot only).
+router.get('/:slug/stats', programStatsController.getPublished);
+// Public: the published stats page as llms.txt (plain text, versioned, no emails).
+router.get('/:slug/stats/llms.txt', programStatsController.getLlms);
+// Platform admin: live stats with data checks, and publish / republish the snapshot.
+router.get('/:slug/stats/preview', requireProgramAdmin('slug'), programStatsController.preview);
+router.post('/:slug/stats/publish', requireProgramAdmin('slug'), programStatsController.publish);
 
 // --- Phase 1 revamp: admin create/edit (#46) ---
 router.post('/', requireAdmin, programController.createProgram);
@@ -290,7 +298,8 @@ router.get('/:slug/submissions/:submissionId/public', trackedResultsController.p
 router.post('/:slug/scoring/submit', requireProgramJudge('slug'), submissionController.submitBallot);
 router.get('/:slug/scoring/leaderboard', requireProgramJudge('slug'), submissionController.leaderboard);
 // At-a-glance counts for the program header (judge + admin; no PII).
-router.get('/:slug/stats', requireProgramJudge('slug'), submissionController.programStats);
+// Its own path: GET /:slug/stats is the public stats page snapshot (registered above).
+router.get('/:slug/stats/summary', requireProgramJudge('slug'), submissionController.programStats);
 // Batch claiming + bulk score save (judge workflow for large fields).
 router.post('/:slug/scoring/claim-batch', requireProgramJudge('slug'), submissionController.claimBatch);
 router.put('/:slug/scoring/scores', requireProgramJudge('slug'), submissionController.saveScores);

@@ -25,6 +25,7 @@
  */
 import type {
   ApiPrizeTier,
+  ApiResultsRanking,
   ApiRubricScore,
   ApiTrackedSubmission,
   ApiTxCheck,
@@ -32,6 +33,7 @@ import type {
   SubmissionTrack,
   TxCheckStatus,
 } from "../api";
+import type { ProgramStats } from "../programStats";
 import {
   FREE_SOCIETY_HACK_PRIZE_TIERS as TIERS,
   FREE_SOCIETY_HACK_SLUG,
@@ -840,6 +842,24 @@ export type TrackedSeed = {
   submissions: ApiTrackedSubmission[];
   scores: ApiRubricScore[];
   resultsPublishedAt: string | null;
+  /** How each track was ranked when published (mirrors programs.results_ranking). */
+  resultsRanking?: ApiResultsRanking | null;
+  /** The published stats page (mirrors programs.stats_snapshot / stats_published_at). */
+  statsSnapshot?: ProgramStats | null;
+  statsPublishedAt?: string | null;
+};
+
+// Playground only: a few mock projects carry a real repo from the privacy track
+// tech review (server/fixtures/free-society-hack-2026/privacy-track-review), so
+// the review section's row matching can be tried here. Every other review row
+// shows as unmatched in the admin preview, which is expected in the playground.
+const REVIEW_REPOS: Record<string, string> = {
+  "chai-ledger": "https://github.com/Jmohak2004/zcash", // Z-Pay: repo match, prize winner → linked
+  hushbox: "https://GitHub.com/Shoydon/Secret-Bankroll.git/", // Secret Bankroll: case, .git and / normalised → linked
+  "memo-mailbox": "https://github.com/hyliv-labs/perps-core", // ColdTrail: matched, no project page → plain name
+  "age-pass": "https://github.com/KatrixReloaded/cwZEC", // MaZe: two submissions share the repo → ambiguous
+  "faucet-bot": "https://github.com/KatrixReloaded/cwZEC",
+  "tab-settler": "https://github.com/The-x-35/keyo", // Keyo: Agentic Commerce-only submission is ignored → unmatched
 };
 
 export function buildFreeSocietyHackSeed(): TrackedSeed {
@@ -887,7 +907,7 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
       projectBrief: p.description,
       // A public CC0 sample clip (MDN), so the judges' inline player has something to play.
       videoUrl: SAMPLE_DEMO_VIDEO,
-      githubUrl: `https://github.com/example/${p.key}`,
+      githubUrl: REVIEW_REPOS[p.key] ?? `https://github.com/example/${p.key}`,
       late: false,
       createdAt,
       updatedAt: createdAt,
@@ -960,6 +980,22 @@ export function buildFreeSocietyHackSeed(): TrackedSeed {
         });
       });
     }
+  });
+
+  // The organiser's test entry (like sacha's "Example Project" on 2 Nov): kept
+  // for the record, excluded from judging, the leaderboard, the public list and the stats.
+  const template = submissions.find((s) => s.details.track === "both") ?? submissions[0];
+  submissions.push({
+    ...template,
+    id: "fsh-test-example-project",
+    projectTitle: "Example Project",
+    submitterName: "Organiser (mock)",
+    lumaEmail: "organiser@example.com",
+    prizes: {},
+    ecosystemPrize: false,
+    isTestEntry: true,
+    createdAt: istOnHackDay("09:00"),
+    details: { ...template.details, team: [], milestone: null },
   });
 
   return {

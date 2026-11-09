@@ -25,12 +25,14 @@ import {
   type ProgramJudge,
   type ProgramProfile,
 } from "@/lib/programProfiles";
-import { buildRankedCsv, buildSubmissionsCsv, downloadCsv } from "@/lib/trackedCsv";
+import { buildRankedCsv, buildSubmissionsCsv, downloadCsv, NORMALIZATION_NOTE, rankedCsvName } from "@/lib/trackedCsv";
 import { toPublicSubmission } from "@/lib/trackedDisplay";
 import { ViewingKeyLine } from "@/components/program/tracked/ViewingKeyLine";
 import { TxCheckBadge, TxidLink } from "@/components/program/tracked/TxCheckBadge";
 import { SubmissionDetailModal } from "@/components/program/tracked/SubmissionDetailModal";
 import { JudgingProgressTable } from "./JudgingProgressTable";
+import { SubmissionBreakdownPanel } from "./SubmissionBreakdownPanel";
+import { classifySubmission, NO_THEME, themesOf, UNCATEGORIZED } from "@/lib/submissionCategories";
 import { ScoringNav, type ScoringNavItem } from "./ScoringNav";
 import { CriteriaCarousel, type CheckStep } from "./CriteriaCarousel";
 import { DemoVideo } from "./DemoVideo";
@@ -187,8 +189,10 @@ export function RubricJudgingSection({
   const [seen, setSeen] = useState<Record<string, string>>({});
   const [boardTrack, setBoardTrack] = useState<JudgedTrack>(profile.tracks[0].id);
   const [board, setBoard] = useState<ApiRubricLeaderboard | null>(null);
-  // Ranked table: normalized (per-judge z-scores) or raw averages.
+  // Ranked table and CSV: APPLY NORMALIZATION on (judge-offset model) or off (raw averages).
   const [rankMode, setRankMode] = useState<"norm" | "raw">("norm");
+  // Ranked table: one list, or grouped under each category / theme (ranks stay overall).
+  const [groupBy, setGroupBy] = useState<"none" | "category" | "theme">("none");
   const [openRow, setOpenRow] = useState<string | null>(null);
   // Leaderboard row whose project details are open (a reminder of what it was).
   const [detailsId, setDetailsId] = useState<string | null>(null);
@@ -594,7 +598,8 @@ export function RubricJudgingSection({
     setBusy("publish");
     try {
       const auth = await getAuth();
-      const r = await api.setTrackedResultsPublished(programSlug, !publishedAt, auth);
+      // The toggle is stored with the published results: changing it later doesn't change what's public.
+      const r = await api.setTrackedResultsPublished(programSlug, !publishedAt, auth, rankMode === "norm");
       setPublishedAt(r.data.resultsPublishedAt);
       toast({ title: r.data.resultsPublishedAt ? "Results published" : "Results unpublished" });
     } finally {
@@ -628,13 +633,44 @@ export function RubricJudgingSection({
   }
 
   const ecosystemCount = board?.rows.filter((r) => r.ecosystemPrize).length ?? 0;
+  // Normalization runs only when configured and enough judges have scored this
+  // track (counted live on every recalculation); otherwise the board is raw.
+  const normConfigured = !!board?.normalization?.enabled;
+  const normAvailable = normConfigured && board?.normalization?.available !== false;
+  const normMode = rankMode === "norm" && normAvailable;
   // The server sorts by the primary ranking; the toggle re-sorts by the other one.
-  const normMode = rankMode === "norm" && !!board?.normalization?.enabled;
+  // Unscored projects have no normalized rank and stay last.
   const shownRows = !board
     ? []
-    : board.normalization?.enabled
-      ? [...board.rows].sort((a, b) => (normMode ? (a.normRank ?? 0) - (b.normRank ?? 0) : (a.rawRank ?? 0) - (b.rawRank ?? 0)))
+    : normAvailable
+      ? [...board.rows].sort((a, b) =>
+          normMode ? (a.normRank ?? Infinity) - (b.normRank ?? Infinity) || a.rank - b.rank : (a.rawRank ?? 0) - (b.rawRank ?? 0),
+        )
       : board.rows;
+  const biasOf = (email: string) => board?.judgeStats?.find((j) => j.judgeEmail === email)?.bias ?? null;
+  const signed = (n: number) => `${n >= 0 ? "+" : "−"}${fmt(Math.abs(n))}`;
+  // Category (automatic, from the project's text) and themes (picked on the form) per row.
+  const categoryOf = (submissionId: string, projectTitle: string) =>
+    profile.categories?.length
+      ? classifySubmission(profile.categories, submissions.find((x) => x.id === submissionId) ?? { id: submissionId, projectTitle })
+      : null;
+  const groups: { key: string; label: string | null; rows: typeof shownRows }[] = (() => {
+    if (groupBy === "none") return [{ key: "all", label: null, rows: shownRows }];
+    // Groups keep the overall rank order inside; config order for the group list.
+    const order =
+      groupBy === "category"
+        ? [...(profile.categories ?? []).map((c) => c.label), UNCATEGORIZED.label]
+        : [...profile.themes, NO_THEME];
+    const byKey = new Map<string, typeof shownRows>();
+    for (const r of shownRows) {
+      const keys =
+        groupBy === "category"
+          ? [categoryOf(r.submissionId, r.projectTitle)?.label ?? UNCATEGORIZED.label]
+          : themesOf(submissions.find((x) => x.id === r.submissionId) ?? {});
+      for (const k of keys) byKey.set(k, [...(byKey.get(k) ?? []), r]);
+    }
+    return order.filter((k) => byKey.has(k)).map((k) => ({ key: k, label: k, rows: byKey.get(k)! }));
+  })();
   const batchLabel = (b: string | null | undefined) => profile.judgingSessions.find((x) => x.id === b)?.short ?? null;
   const visibleQueue = queue.filter(
     ({ s, track }) =>
@@ -731,6 +767,7 @@ export function RubricJudgingSection({
         youName={judge?.name}
         refreshToken={progressToken}
       />
+      {!isJudge && <SubmissionBreakdownPanel profile={profile} submissions={submissions} board={board} normalized={normMode} />}
 
       {isJudge && !judge && (
         <p className="label-hw text-destructive normal-case" data-testid="judge-not-invited">
@@ -1044,29 +1081,54 @@ export function RubricJudgingSection({
               )}
             </div>
             <div className="flex flex-wrap gap-1">
-            {board?.normalization?.enabled && (
-              <div className="flex gap-1" role="group" aria-label="Ranking">
-                <button type="button" onClick={() => setRankMode("norm")} aria-pressed={normMode} className={normMode ? btnSolid : btnGhost} data-testid="rank-mode-norm">
-                  NORMALIZED
+            {board && (
+              <label className="flex items-center gap-1 label-hw-dim">
+                GROUP
+                <select
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
+                  className="bg-panel-deep border border-hairline rounded-sm px-1 py-1 text-display font-mono text-[11px]"
+                  data-testid="leaderboard-group-by"
+                >
+                  <option value="none">None</option>
+                  {!!profile.categories?.length && <option value="category">By category</option>}
+                  <option value="theme">By theme</option>
+                </select>
+              </label>
+            )}
+            {normConfigured && (
+              <span className="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setRankMode(rankMode === "norm" ? "raw" : "norm")}
+                  aria-pressed={normMode}
+                  disabled={!normAvailable}
+                  title={normAvailable ? "Adjust scores for each judge's leniency" : board?.normalization?.reason ?? undefined}
+                  className={`${normMode ? btnSolid : btnGhost} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  data-testid="apply-normalization"
+                >
+                  APPLY NORMALIZATION: {normMode ? "ON" : "OFF"}
                 </button>
-                <button type="button" onClick={() => setRankMode("raw")} aria-pressed={!normMode} className={!normMode ? btnSolid : btnGhost} data-testid="rank-mode-raw">
-                  RAW
-                </button>
-              </div>
+                {!normAvailable && (
+                  <span className="label-hw-dim normal-case" data-testid="normalization-unavailable">
+                    {board?.normalization?.reason ?? "Needs scores from at least 2 judges"}
+                  </span>
+                )}
+              </span>
             )}
             {!isJudge && board && (
               <button
                 type="button"
                 onClick={() =>
                   downloadCsv(
-                    `${programSlug}-${boardTrack}-ranked.csv`,
-                    buildRankedCsv(profile, boardTrack, board, submissions, judges),
+                    rankedCsvName(programSlug, boardTrack, normMode),
+                    buildRankedCsv(profile, boardTrack, board, submissions, judges, { normalized: normMode }),
                   )
                 }
                 className={btnGhost}
                 data-testid="export-ranked-csv"
               >
-                EXPORT RANKED CSV
+                DOWNLOAD {normMode ? "NORMALIZED" : "RAW"} CSV
               </button>
             )}
             {canSelectWinners && (
@@ -1131,11 +1193,27 @@ export function RubricJudgingSection({
           {board && (
             <>
               <p className="label-hw-dim normal-case" data-testid="leaderboard-caption">
-                {normMode
-                  ? board.normalization?.method === "offset"
-                    ? "Ranked by normalized score (judge-offset model: each judge's average lean versus the panel is removed)"
-                    : `Ranked by normalized score (per-judge z-scores rescaled to the rubric; judges with fewer than ${board.normalization?.minScoresForZ} scores are mean-centered)`
-                  : "Ranked by average total across the judges who scored each project"}{" "}
+                {normMode ? (
+                  <>
+                    {board.normalization?.method === "zscore"
+                      ? `Normalized: per-judge z-scores rescaled to the rubric (judges with fewer than ${board.normalization?.minScoresForZ} scores are mean-centered).`
+                      : "Normalized: scores are adjusted for each judge's leniency. Projects scored by every judge keep their raw average."}{" "}
+                    <span
+                      className="underline decoration-dotted cursor-help"
+                      tabIndex={0}
+                      title={NORMALIZATION_NOTE}
+                      aria-label={NORMALIZATION_NOTE}
+                      data-testid="normalization-info"
+                    >
+                      ⓘ
+                    </span>{" "}
+                  </>
+                ) : (
+                  <>
+                    Ranked by average total across the judges who scored each project
+                    {normConfigured && !normAvailable && ` (raw only: ${board.normalization?.reason ?? "needs scores from at least 2 judges"}; ${board.normalization?.scoringJudges ?? 0} so far)`}{" "}
+                  </>
+                )}
                 ({board.submissionsFullyScored}/{board.submissionsTotal} scored
                 by all {board.judges.length} judges). Ties: {trackById(profile, boardTrack).rubric.tieBreaks.map((t) => t.label).join(", then ")}.
                 {boardTrack === profile.milestone.track &&
@@ -1160,18 +1238,33 @@ export function RubricJudgingSection({
                     </tr>
                   </thead>
                   <tbody>
-                    {shownRows.map((r) => (
+                    {groups.map((g) => (
+                      <Fragment key={g.key}>
+                      {g.label && (
+                        <tr className="border-t border-hairline" data-testid="leaderboard-group">
+                          <td colSpan={99} className="pt-3 pb-1 label-hw text-display">
+                            {g.label.toUpperCase()} · {g.rows.length}
+                          </td>
+                        </tr>
+                      )}
+                      {g.rows.map((r) => (
                       <Fragment key={r.submissionId}>
                         <tr className="border-t border-hairline-subtle align-top" data-testid="leaderboard-row">
                           <td className="py-2 pr-2 font-mono">
-                            {normMode ? r.normRank : r.rawRank ?? r.rank}
-                            {board.normalization?.enabled && !!r.rankChange && (
+                            {normMode ? r.normRank ?? "—" : r.rawRank ?? r.rank}
+                            {normAvailable && !!r.rankChange && (
                               <div
                                 className="label-hw-dim whitespace-nowrap"
                                 data-testid="rank-change"
                                 title={`Raw rank ${r.rawRank}, normalized rank ${r.normRank}`}
                               >
                                 {normMode ? `raw #${r.rawRank}` : `norm #${r.normRank}`} {r.rankChange! > 0 ? `▲${r.rankChange}` : `▼${-r.rankChange!}`}
+                                {/* Scored by every judge: same score, moved only because others moved around it. */}
+                                {r.fullyScored && (
+                                  <div className="normal-case" data-testid="score-unchanged" title="Scored by every judge: its score is its raw average">
+                                    score unchanged
+                                  </div>
+                                )}
                               </div>
                             )}
                           </td>
@@ -1200,8 +1293,24 @@ export function RubricJudgingSection({
                                 {openRow === r.submissionId ? "HIDE SCORES ▴" : "JUDGES' SCORES ▾"}
                               </button>
                               {r.track === "both" && <span className="label-hw-dim">BOTH TRACKS</span>}
+                              {(() => {
+                                const cat = categoryOf(r.submissionId, r.projectTitle);
+                                return cat ? (
+                                  <span
+                                    className="label-hw-dim"
+                                    data-testid="leaderboard-category"
+                                    title={cat.by ? `Category matched by ${cat.by}` : `Not in the category map${cat.suggested ? ` (suggested: ${cat.suggested})` : ""}`}
+                                  >
+                                    {cat.label.toUpperCase()}
+                                  </span>
+                                ) : null;
+                              })()}
                               {boardTrack === "privacy" && <TxCheckBadge check={r.txCheck} />}
-                              {r.tieBrokenBy && normMode === !!board.normalization?.enabled && <span className="label-hw text-display">TIE · BROKEN BY {r.tieBrokenBy.toUpperCase()}</span>}
+                              {(() => {
+                                // Each ranking has its own tie-break.
+                                const tb = normMode ? r.normTieBrokenBy ?? r.tieBrokenBy : r.rawTieBrokenBy ?? (normAvailable ? null : r.tieBrokenBy);
+                                return tb ? <span className="label-hw text-display">TIE · BROKEN BY {tb.toUpperCase()}</span> : null;
+                              })()}
                               {r.ecosystemPrize && (
                                 <span className="label-hw text-display">★ {profile.milestone.flagLabel.toUpperCase()}</span>
                               )}
@@ -1214,7 +1323,7 @@ export function RubricJudgingSection({
                           </td>
                           <td className="py-2 pr-2 font-mono text-display" data-testid="leaderboard-total">
                             {normMode ? (r.normTotal == null ? "—" : fmt(r.normTotal)) : fmt(r.avgTotal)}
-                            {board.normalization?.enabled && r.normTotal != null && (
+                            {normAvailable && r.normTotal != null && (
                               <div className="label-hw-dim">{normMode ? `raw ${fmt(r.avgTotal)}` : `norm ${fmt(r.normTotal)}`}</div>
                             )}
                           </td>
@@ -1225,7 +1334,9 @@ export function RubricJudgingSection({
                                 : fmt((normMode && r.normByCriterion ? r.normByCriterion[c.id] : r.avgByCriterion[c.id]) ?? 0)}
                             </td>
                           ))}
-                          <td className="py-2 pr-2 font-mono">{r.judgeCount}/{board.judges.length}</td>
+                          <td className="py-2 pr-2 font-mono" title={r.coverage ? `${r.coverage.scored} of the ${r.coverage.of} judges who have scored this track` : undefined}>
+                            {r.judgeCount}/{board.judges.length}
+                          </td>
                           <td className="py-2 pr-2">
                             {canSelectWinners ? (
                               <select
@@ -1277,7 +1388,9 @@ export function RubricJudgingSection({
                                     {js.normContribution != null && (
                                       <span className="text-label-mid">
                                         {" "}
-                                        → {fmt(js.normContribution)} normalized ({js.method === "zscore" ? "z-score" : "mean-centered"})
+                                        {js.method === "offset"
+                                          ? `→ ${fmt(js.normContribution)} adjusted (judge bias ${signed(biasOf(js.judgeEmail) ?? 0)})`
+                                          : `→ ${fmt(js.normContribution)} normalized (${js.method === "zscore" ? "z-score" : "mean-centered"})`}
                                       </span>
                                     )}
                                     {js.notes && <span className="text-body"> · “{js.notes}”</span>}
@@ -1287,6 +1400,8 @@ export function RubricJudgingSection({
                             </td>
                           </tr>
                         )}
+                      </Fragment>
+                      ))}
                       </Fragment>
                     ))}
                   </tbody>

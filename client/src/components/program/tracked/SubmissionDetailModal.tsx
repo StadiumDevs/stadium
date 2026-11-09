@@ -42,7 +42,7 @@ export function SubmissionDetailModal({
           e.preventDefault();
           (e.currentTarget as HTMLElement).focus();
         }}
-        className="w-[calc(100%-2rem)] sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden border border-hairline rounded-sm [&>button]:z-10"
+        className="w-[calc(100%-2rem)] sm:max-w-[min(50.4rem,calc(100vw-2rem))] max-h-[85vh] flex flex-col p-0 overflow-hidden border border-hairline rounded-sm [&>button]:z-10"
       >
         {submission && (
           <div className="overflow-y-auto p-6 pr-10 flex flex-col gap-4" data-testid="submission-modal-body">

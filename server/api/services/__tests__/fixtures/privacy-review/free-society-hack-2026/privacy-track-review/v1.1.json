@@ -1,0 +1,3417 @@
+{
+  "version": {
+    "version": "1.1",
+    "generated": "12 Nov 2026, 10:00 CET (09:00 UTC)",
+    "generatedDate": "12 Nov 2026",
+    "generatedBy": "Claude (claude-opus-5-5, configured model) in a Claude session for the Free Society Hack organisers",
+    "reposRead": "Shallow clones taken 9 Nov 2026 12:47 UTC (HEAD of the default branch; SHA per project below)",
+    "reposReadDate": "9 Nov 2026",
+    "githubSearch": "9 Nov 2026, 13:00–13:30 UTC, GitHub REST search API",
+    "changelog": [
+      {
+        "version": "1.1",
+        "date": "12 Nov 2026",
+        "text": "test fixture only (version swap test); data unchanged."
+      },
+      {
+        "version": "1.0",
+        "date": "9 Nov 2026",
+        "text": "first full version with all datasets, definitions and chart specs."
+      }
+    ]
+  },
+  "scope": [
+    "48 submissions in scope: 24 Privacy-only + 24 entered in both tracks.",
+    "45 readable. Not readable, shown as gaps: Obscura (no repo submitted), Cloister (repo on GitLab, which the review workspace could not reach), ZapOut (GitHub repo private or deleted on 9 Nov).",
+    "The review reads each repo as of 9 Nov, not as at the 00:00 IST 5 Nov deadline. Projects whose latest commit is after the deadline are flagged in the table (column \"After deadline\"); judges' scores were based on the deadline state."
+  ],
+  "countingRule": "Counts are use in the project's own code or dependency files (.rs .ts .tsx .js .mjs .py .go .toml .json .html .sh .yml, package.json, Cargo.toml, requirements.txt, pyproject.toml, go.mod). Excluded from the search: node_modules, build output, lockfiles, minified bundles, docs/, evidence/, and the shared template files most teams copied from the event (AGENTS.md, AGENTS.txt, CLAUDE.md, *llms*.txt, docs/briefs/). Those templates name Noir Wallet, Nym, WebZjs, Zallet, zkool and FROST, so a raw text search over-counts badly (for example 22 repos mention Noir Wallet; 11 use it).",
+  "columnDefinitions": [
+    {
+      "column": "Noir Wallet",
+      "rule": "imports @noir-wallet/sdk or calls the injected window.noirwallet provider (or bundles the SDK)"
+    },
+    {
+      "column": "Nym",
+      "rule": "see the five statuses below"
+    },
+    {
+      "column": "WebZjs",
+      "rule": "see the four statuses below"
+    },
+    {
+      "column": "zcash-devtool",
+      "rule": "runs or wraps the zcash-devtool CLI"
+    },
+    {
+      "column": "zkool",
+      "rule": "talks to zkool / zkool_graphql"
+    },
+    {
+      "column": "zingo-cli",
+      "rule": "runs or wraps zingo-cli / zingolib"
+    },
+    {
+      "column": "librustzcash",
+      "rule": "depends on zcash_client_backend, zcash_primitives, zcash_keys, zcash_client_sqlite, zcash_protocol or zcash_address"
+    },
+    {
+      "column": "Zallet",
+      "rule": "calls a Zallet wallet"
+    },
+    {
+      "column": "PCZT",
+      "rule": "builds or signs Partially Created Zcash Transactions"
+    },
+    {
+      "column": "FROST",
+      "rule": "Zcash threshold signing (RedPallas FROST / frost-zcash-demo / zkool FROST DKG). Zool's generic frost-ed25519 is not counted"
+    },
+    {
+      "column": "Halo2",
+      "rule": "its own Halo2 proving (Vouch and Z-Solvency, both via Valar voting-circuits)"
+    },
+    {
+      "column": "NEAR Intents",
+      "rule": "calls the NEAR Intents / 1Click API"
+    },
+    {
+      "column": "MCP",
+      "rule": "ships or calls an MCP server"
+    },
+    {
+      "column": "LLM API",
+      "rule": "calls an LLM provider (Anthropic, OpenAI, Gemini, local models)"
+    },
+    {
+      "column": "x402",
+      "rule": "uses x402 payments"
+    },
+    {
+      "column": "Bitrefill",
+      "rule": "calls a Bitrefill surface (MCP, REST, CLI, x402)"
+    }
+  ],
+  "headline": {
+    "submissions": 48,
+    "readable": 45,
+    "noirWallet": 11,
+    "nymRouted": 10,
+    "nymBuiltIn": 7,
+    "nymThroughZingo": 3,
+    "webzjs": 1,
+    "upstreamDuringHack": 7,
+    "upstreamTeams": 4,
+    "afterDeadline": 14
+  },
+  "notReadable": [
+    {
+      "shortName": "Obscura",
+      "reason": "No repository was submitted"
+    },
+    {
+      "shortName": "Cloister",
+      "reason": "Repository is on GitLab, which this review could not reach"
+    },
+    {
+      "shortName": "ZapOut",
+      "reason": "Repository is private or deleted"
+    }
+  ],
+  "projects": [
+    {
+      "shortName": "Chupke",
+      "title": "Chupke",
+      "track": "both",
+      "repo": "https://github.com/bilgin-kocak/chupke",
+      "commit": "4dc5168",
+      "lastCommitIst": "04 Nov 18:38",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Turned off in zingo-cli build",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        316,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "hushcart",
+      "title": "hushcart",
+      "track": "both",
+      "repo": "https://github.com/harishkotra/hushcart",
+      "commit": "57a442e",
+      "lastCommitIst": "05 Nov 00:40",
+      "afterDeadline": true,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Turned off in zingo-cli build",
+      "webzjs": "Not used",
+      "zips": [
+        316,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "hushfolio",
+      "title": "hushfolio",
+      "track": "both",
+      "repo": "https://github.com/rizwanmoulvi/hushfolio",
+      "commit": "0e82385",
+      "lastCommitIst": "04 Nov 22:45",
+      "afterDeadline": false,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Through zingo-cli",
+      "webzjs": "Not used",
+      "zips": []
+    },
+    {
+      "shortName": "Ironclad",
+      "title": "Ironclad",
+      "track": "both",
+      "repo": "https://github.com/adilhusain01/ironclad",
+      "commit": "ef4935a",
+      "lastCommitIst": "05 Nov 13:23",
+      "afterDeadline": true,
+      "language": "TypeScript + Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": true,
+        "frost": true,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        173,
+        312,
+        317,
+        321,
+        374,
+        2005
+      ]
+    },
+    {
+      "shortName": "Keyo",
+      "title": "Keyo",
+      "track": "both",
+      "repo": "https://github.com/The-x-35/keyo",
+      "commit": "95f4a12",
+      "lastCommitIst": "04 Nov 19:36",
+      "afterDeadline": false,
+      "language": "Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        321
+      ]
+    },
+    {
+      "shortName": "Munim",
+      "title": "Munim",
+      "track": "both",
+      "repo": "https://github.com/0xStoneyStark/munim",
+      "commit": "99fe253",
+      "lastCommitIst": "04 Nov 23:51",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Considered, not used",
+      "zips": [
+        302
+      ]
+    },
+    {
+      "shortName": "Oboro",
+      "title": "Oboro",
+      "track": "both",
+      "repo": "https://github.com/nickthelegend/oboro",
+      "commit": "706d8a6",
+      "lastCommitIst": "08 Nov 13:14",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": true,
+        "x402": true,
+        "bitrefill": true
+      },
+      "nym": "Built in",
+      "webzjs": "Not used",
+      "zips": [
+        317
+      ]
+    },
+    {
+      "shortName": "Obscura",
+      "title": "Obscura",
+      "track": "both",
+      "repo": null,
+      "commit": null,
+      "lastCommitIst": null,
+      "afterDeadline": false,
+      "language": null,
+      "readable": false,
+      "notReadableReason": "No repository was submitted",
+      "tools": {
+        "noirWallet": null,
+        "zcashDevtool": null,
+        "zkool": null,
+        "zingoCli": null,
+        "librustzcash": null,
+        "zallet": null,
+        "pczt": null,
+        "frost": null,
+        "halo2": null,
+        "nearIntents": null,
+        "mcp": null,
+        "llmApi": null,
+        "x402": null,
+        "bitrefill": null
+      },
+      "nym": null,
+      "webzjs": null,
+      "zips": []
+    },
+    {
+      "shortName": "Pactora",
+      "title": "Pactora",
+      "track": "both",
+      "repo": "https://github.com/Sarnav07/Pactora",
+      "commit": "45994d5",
+      "lastCommitIst": "04 Nov 18:46",
+      "afterDeadline": false,
+      "language": "Python",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": true,
+        "frost": true,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": true,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": []
+    },
+    {
+      "shortName": "Pegasus",
+      "title": "Pegasus",
+      "track": "both",
+      "repo": "https://github.com/Dijo-404/pegasus",
+      "commit": "27426c4",
+      "lastCommitIst": "08 Nov 22:14",
+      "afterDeadline": true,
+      "language": "Python",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": false,
+        "x402": true,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        321
+      ]
+    },
+    {
+      "shortName": "PocketPilot",
+      "title": "PocketPilot",
+      "track": "both",
+      "repo": "https://github.com/sankalp771/pocketpilot",
+      "commit": "c771741",
+      "lastCommitIst": "04 Nov 19:52",
+      "afterDeadline": false,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "Secret Bankroll",
+      "title": "Secret Bankroll",
+      "track": "both",
+      "repo": "https://github.com/Shoydon/secret-bankroll",
+      "commit": "25b532f",
+      "lastCommitIst": "04 Nov 23:45",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": true,
+        "x402": true,
+        "bitrefill": true
+      },
+      "nym": "Through zingo-cli",
+      "webzjs": "Not used",
+      "zips": []
+    },
+    {
+      "shortName": "Shielded Shopping Agent",
+      "title": "Shielded Shopping Agent",
+      "track": "both",
+      "repo": "https://github.com/Vishal4742/shielded-shopping-agent",
+      "commit": "c7b19eb",
+      "lastCommitIst": "04 Nov 21:01",
+      "afterDeadline": false,
+      "language": "Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "Shroud",
+      "title": "Shroud: Private Spending Vault for AI Agents",
+      "track": "both",
+      "repo": "https://github.com/Jash-Bohare/Shroud",
+      "commit": "a8ce8f7",
+      "lastCommitIst": "04 Nov 20:21",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        321
+      ]
+    },
+    {
+      "shortName": "Vouch",
+      "title": "Vouch",
+      "track": "both",
+      "repo": "https://github.com/SATISH-JALAN/vouch-zcash",
+      "commit": "766bfb9",
+      "lastCommitIst": "04 Nov 15:23",
+      "afterDeadline": false,
+      "language": "TypeScript + Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": true,
+        "nearIntents": true,
+        "mcp": true,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        244,
+        258,
+        311
+      ]
+    },
+    {
+      "shortName": "Whisper-Shop",
+      "title": "Whisper-Shop",
+      "track": "both",
+      "repo": "https://github.com/ayushsingh82/Whisper-Shop",
+      "commit": "c45d03f",
+      "lastCommitIst": "04 Nov 18:09",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": false,
+        "x402": true,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        317
+      ]
+    },
+    {
+      "shortName": "Z-Bits",
+      "title": "Z-Bits",
+      "track": "both",
+      "repo": "https://github.com/Gauravsharma2711/z-bits",
+      "commit": "c992ef0",
+      "lastCommitIst": "04 Nov 23:56",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": true,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Considered, not used",
+      "zips": [
+        302,
+        316,
+        370
+      ]
+    },
+    {
+      "shortName": "Zealed",
+      "title": "Zealed",
+      "track": "both",
+      "repo": "https://github.com/zealed-xyz/zealed",
+      "commit": "24b9715",
+      "lastCommitIst": "05 Nov 00:28",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": true,
+        "frost": true,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Considered, not used",
+      "zips": [
+        316,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "ZecCircle",
+      "title": "ZecCircle",
+      "track": "both",
+      "repo": "https://github.com/cadalt0/ZecCircle",
+      "commit": "8f8ca02",
+      "lastCommitIst": "04 Nov 23:19",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Optional proxy setting",
+      "webzjs": "Not used",
+      "zips": [
+        302,
+        321
+      ]
+    },
+    {
+      "shortName": "ZecHunt",
+      "title": "ZecHunt",
+      "track": "both",
+      "repo": "https://github.com/AmanGxpta/ZecHunt",
+      "commit": "06a87bd",
+      "lastCommitIst": "04 Nov 23:51",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        321
+      ]
+    },
+    {
+      "shortName": "ZecRecharge",
+      "title": "ZecRecharge",
+      "track": "both",
+      "repo": "https://github.com/AaroneGeorge/Zzzz",
+      "commit": "ed5907e",
+      "lastCommitIst": "04 Nov 20:06",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": true,
+        "x402": true,
+        "bitrefill": true
+      },
+      "nym": "Turned off in zingo-cli build",
+      "webzjs": "Not used",
+      "zips": [
+        302
+      ]
+    },
+    {
+      "shortName": "ZPermit",
+      "title": "ZPermit",
+      "track": "both",
+      "repo": "https://github.com/technicalkuldeep/ZPermit",
+      "commit": "9e0345e",
+      "lastCommitIst": "04 Nov 23:29",
+      "afterDeadline": false,
+      "language": "Python",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": true,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        259,
+        317,
+        321,
+        2005
+      ]
+    },
+    {
+      "shortName": "zshagun",
+      "title": "zshagun",
+      "track": "both",
+      "repo": "https://github.com/cryppit/zshagun",
+      "commit": "a508f04",
+      "lastCommitIst": "04 Nov 17:42",
+      "afterDeadline": false,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        321,
+        324
+      ]
+    },
+    {
+      "shortName": "Zsol",
+      "title": "Zsol",
+      "track": "both",
+      "repo": "https://github.com/Srizdebnath/zsol",
+      "commit": "875cc5e",
+      "lastCommitIst": "04 Nov 20:42",
+      "afterDeadline": false,
+      "language": "Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": true,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        218,
+        302,
+        316,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "Cloister",
+      "title": "Cloister",
+      "track": "privacy",
+      "repo": "https://gitlab.com/Anand-0037/cloister",
+      "commit": null,
+      "lastCommitIst": null,
+      "afterDeadline": false,
+      "language": null,
+      "readable": false,
+      "notReadableReason": "Repository is on GitLab, which this review could not reach",
+      "tools": {
+        "noirWallet": null,
+        "zcashDevtool": null,
+        "zkool": null,
+        "zingoCli": null,
+        "librustzcash": null,
+        "zallet": null,
+        "pczt": null,
+        "frost": null,
+        "halo2": null,
+        "nearIntents": null,
+        "mcp": null,
+        "llmApi": null,
+        "x402": null,
+        "bitrefill": null
+      },
+      "nym": null,
+      "webzjs": null,
+      "zips": []
+    },
+    {
+      "shortName": "ColdTrail",
+      "title": "ColdTrail",
+      "track": "privacy",
+      "repo": "https://github.com/hyliv-labs/perps-core",
+      "commit": "dc9b331",
+      "lastCommitIst": "04 Nov 22:18",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Built in",
+      "webzjs": "Not used",
+      "zips": []
+    },
+    {
+      "shortName": "Finity",
+      "title": "Finity",
+      "track": "privacy",
+      "repo": "https://github.com/Ithaca-Labs/Finity-ZEC",
+      "commit": "1f67aec",
+      "lastCommitIst": "05 Nov 02:30",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        316,
+        320,
+        321
+      ]
+    },
+    {
+      "shortName": "FLex",
+      "title": "FLex",
+      "track": "privacy",
+      "repo": "https://github.com/YASH-ai-bit/FLex",
+      "commit": "9b66120",
+      "lastCommitIst": "04 Nov 22:52",
+      "afterDeadline": false,
+      "language": "TypeScript + Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        258,
+        259,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "Ghost Layer",
+      "title": "Ghost Layer",
+      "track": "privacy",
+      "repo": "https://github.com/skartik-sk/ghost-layer",
+      "commit": "dd4dfbc",
+      "lastCommitIst": "05 Nov 00:27",
+      "afterDeadline": true,
+      "language": "Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Built in",
+      "webzjs": "Not used",
+      "zips": [
+        244,
+        311,
+        317
+      ]
+    },
+    {
+      "shortName": "GhostCommits",
+      "title": "GhostCommits",
+      "track": "privacy",
+      "repo": "https://github.com/Samarth208P/ghostcommits",
+      "commit": "9777070",
+      "lastCommitIst": "04 Nov 23:52",
+      "afterDeadline": false,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        316
+      ]
+    },
+    {
+      "shortName": "Hisaab",
+      "title": "Hisaab",
+      "track": "privacy",
+      "repo": "https://github.com/nikhil-pn/hisaab",
+      "commit": "0fbc9f1",
+      "lastCommitIst": "05 Nov 00:40",
+      "afterDeadline": true,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        302,
+        316,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "MaZe",
+      "title": "MaZe",
+      "track": "privacy",
+      "repo": "https://github.com/KatrixReloaded/cwZEC",
+      "commit": "4208e30",
+      "lastCommitIst": "04 Nov 23:29",
+      "afterDeadline": false,
+      "language": "Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": true,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Built in",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        317
+      ]
+    },
+    {
+      "shortName": "Mirage",
+      "title": "Mirage",
+      "track": "privacy",
+      "repo": "https://github.com/MeghVyas3132/Mirage-Zcash",
+      "commit": "3eb635d",
+      "lastCommitIst": "05 Nov 13:14",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        316,
+        317,
+        320,
+        321
+      ]
+    },
+    {
+      "shortName": "Tandem",
+      "title": "Tandem",
+      "track": "privacy",
+      "repo": "https://github.com/Allen-Saji/private-recurring-payments",
+      "commit": "7d039a8",
+      "lastCommitIst": "04 Nov 20:20",
+      "afterDeadline": false,
+      "language": "JavaScript + Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": true,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        317
+      ]
+    },
+    {
+      "shortName": "Veylor",
+      "title": "Veylor: Nym Mixnet Mode",
+      "track": "privacy",
+      "repo": "https://github.com/ChinmayGopal931/veylor-nym",
+      "commit": "08fa5e8",
+      "lastCommitIst": "04 Nov 22:29",
+      "afterDeadline": false,
+      "language": "Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Built in",
+      "webzjs": "Not used",
+      "zips": []
+    },
+    {
+      "shortName": "Z-Pay",
+      "title": "Z-Pay — shielded checkout, without a merchant app",
+      "track": "privacy",
+      "repo": "https://github.com/Jmohak2004/zcash",
+      "commit": "9271460",
+      "lastCommitIst": "05 Nov 00:09",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": true,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": true,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Used (patched build)",
+      "zips": [
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "Z-Solvency",
+      "title": "Z-Solvency",
+      "track": "privacy",
+      "repo": "https://github.com/skyyycodes/zk-com",
+      "commit": "e4f17d7",
+      "lastCommitIst": "04 Nov 20:41",
+      "afterDeadline": false,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": true,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32
+      ]
+    },
+    {
+      "shortName": "Z402",
+      "title": "Z402",
+      "track": "privacy",
+      "repo": "https://github.com/DaevMithran/z402",
+      "commit": "1e4fc5e",
+      "lastCommitIst": "04 Nov 18:13",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": true,
+        "bitrefill": false
+      },
+      "nym": "Built in",
+      "webzjs": "Not used",
+      "zips": []
+    },
+    {
+      "shortName": "ZapOut",
+      "title": "ZapOut",
+      "track": "privacy",
+      "repo": "https://github.com/Yash-arch-ui/ZAPOUT",
+      "commit": null,
+      "lastCommitIst": null,
+      "afterDeadline": false,
+      "language": null,
+      "readable": false,
+      "notReadableReason": "Repository is private or deleted",
+      "tools": {
+        "noirWallet": null,
+        "zcashDevtool": null,
+        "zkool": null,
+        "zingoCli": null,
+        "librustzcash": null,
+        "zallet": null,
+        "pczt": null,
+        "frost": null,
+        "halo2": null,
+        "nearIntents": null,
+        "mcp": null,
+        "llmApi": null,
+        "x402": null,
+        "bitrefill": null
+      },
+      "nym": null,
+      "webzjs": null,
+      "zips": []
+    },
+    {
+      "shortName": "zcash-now (dexalien)",
+      "title": "zcash-now",
+      "track": "privacy",
+      "repo": "https://github.com/dexalien/zcash-now",
+      "commit": "a5da9bc",
+      "lastCommitIst": "09 Nov 13:26",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Flags it as broken",
+      "zips": [
+        218,
+        224,
+        225,
+        229,
+        235,
+        237,
+        254,
+        258,
+        259,
+        316,
+        317,
+        318,
+        321,
+        326,
+        2003,
+        2005,
+        2006,
+        2009
+      ]
+    },
+    {
+      "shortName": "zcash-now (Sachin)",
+      "title": "zcash-now: A keyless MCP server and llms.txt that keep AI coding agents current on Zcash, so a developer new to Zcash gets code that works on today's NU7 testnet the first time",
+      "track": "privacy",
+      "repo": "https://github.com/sachindkagrawal15/zcash-now",
+      "commit": "f939503",
+      "lastCommitIst": "04 Nov 22:46",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": true,
+        "llmApi": false,
+        "x402": true,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Flags it as broken",
+      "zips": [
+        225,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "ZebraScan",
+      "title": "ZebraScan",
+      "track": "privacy",
+      "repo": "https://github.com/ShahiTechnovation/ZebraScan",
+      "commit": "40d01dd",
+      "lastCommitIst": "05 Nov 01:26",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        259,
+        316,
+        317,
+        321,
+        2005
+      ]
+    },
+    {
+      "shortName": "Zec Start",
+      "title": "Zec Start",
+      "track": "privacy",
+      "repo": "https://github.com/ItsBreaker/ZecStart",
+      "commit": "851c769",
+      "lastCommitIst": "04 Nov 23:02",
+      "afterDeadline": false,
+      "language": "JavaScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": true,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Turned off in zingo-cli build",
+      "webzjs": "Not used",
+      "zips": [
+        229,
+        258,
+        302,
+        316,
+        317,
+        318,
+        321
+      ]
+    },
+    {
+      "shortName": "ZecGuard",
+      "title": "ZecGuard",
+      "track": "privacy",
+      "repo": "https://github.com/Tan0610/zcash",
+      "commit": "24cccfd",
+      "lastCommitIst": "04 Nov 19:15",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": true,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Considered, not used",
+      "zips": [
+        317
+      ]
+    },
+    {
+      "shortName": "Zeno Wallet",
+      "title": "Zeno Wallet",
+      "track": "privacy",
+      "repo": "https://github.com/karar189/zeno-web-wallet",
+      "commit": "5ea90da",
+      "lastCommitIst": "05 Nov 13:15",
+      "afterDeadline": true,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": true,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Built in",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        310,
+        311,
+        315,
+        316,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "zkLane",
+      "title": "zkLane: private payment channels for AI agents on Zcash",
+      "track": "privacy",
+      "repo": "https://github.com/SurajNaidu0/zklane",
+      "commit": "481d5ba",
+      "lastCommitIst": "04 Nov 22:58",
+      "afterDeadline": false,
+      "language": "TypeScript",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": true,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Through zingo-cli",
+      "webzjs": "Not used",
+      "zips": [
+        68
+      ]
+    },
+    {
+      "shortName": "Zool",
+      "title": "Zool",
+      "track": "privacy",
+      "repo": "https://github.com/rubberpirate/hack-zool",
+      "commit": "4861cd7",
+      "lastCommitIst": "04 Nov 23:51",
+      "afterDeadline": false,
+      "language": "JavaScript + Rust",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": false,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": true,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": false
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        32,
+        317,
+        321
+      ]
+    },
+    {
+      "shortName": "zpulse",
+      "title": "zpulse",
+      "track": "privacy",
+      "repo": "https://github.com/vipenl26/zpulse",
+      "commit": "37c4fee",
+      "lastCommitIst": "05 Nov 09:34",
+      "afterDeadline": true,
+      "language": "Python",
+      "readable": true,
+      "notReadableReason": null,
+      "tools": {
+        "noirWallet": false,
+        "zcashDevtool": true,
+        "zkool": false,
+        "zingoCli": false,
+        "librustzcash": false,
+        "zallet": false,
+        "pczt": false,
+        "frost": false,
+        "halo2": false,
+        "nearIntents": false,
+        "mcp": false,
+        "llmApi": false,
+        "x402": false,
+        "bitrefill": true
+      },
+      "nym": "Not used",
+      "webzjs": "Not used",
+      "zips": [
+        317,
+        321
+      ]
+    }
+  ],
+  "charts": {
+    "reach": [
+      {
+        "key": "zcashDevtool",
+        "label": "zcash-devtool",
+        "projects": [
+          "Ironclad",
+          "Keyo",
+          "Munim",
+          "Pactora",
+          "PocketPilot",
+          "Shielded Shopping Agent",
+          "Shroud",
+          "Whisper-Shop",
+          "ZecCircle",
+          "zshagun",
+          "Zsol",
+          "Ghost Layer",
+          "zcash-now (dexalien)",
+          "Zeno Wallet",
+          "zpulse"
+        ]
+      },
+      {
+        "key": "librustzcash",
+        "label": "librustzcash crates",
+        "projects": [
+          "Ironclad",
+          "Pactora",
+          "Vouch",
+          "ZPermit",
+          "Zsol",
+          "FLex",
+          "Ghost Layer",
+          "MaZe",
+          "Tandem",
+          "Z-Solvency",
+          "ZebraScan",
+          "Zeno Wallet",
+          "Zool"
+        ]
+      },
+      {
+        "key": "noirWallet",
+        "label": "Noir Wallet",
+        "projects": [
+          "Munim",
+          "Pegasus",
+          "PocketPilot",
+          "Zealed",
+          "ColdTrail",
+          "GhostCommits",
+          "Tandem",
+          "Z402",
+          "zcash-now (dexalien)",
+          "ZebraScan",
+          "Zec Start"
+        ]
+      },
+      {
+        "key": "zkool",
+        "label": "zkool",
+        "projects": [
+          "Ironclad",
+          "Pegasus",
+          "Zealed",
+          "ZecHunt",
+          "Hisaab",
+          "Mirage",
+          "Z-Solvency",
+          "Z402",
+          "ZebraScan",
+          "ZecGuard"
+        ]
+      },
+      {
+        "key": "zingoCli",
+        "label": "zingo-cli",
+        "projects": [
+          "Chupke",
+          "hushcart",
+          "hushfolio",
+          "Oboro",
+          "Secret Bankroll",
+          "ZecRecharge",
+          "Zec Start",
+          "zkLane"
+        ]
+      },
+      {
+        "key": "zallet",
+        "label": "Zallet",
+        "projects": [
+          "ZPermit",
+          "Zsol"
+        ]
+      },
+      {
+        "key": "webzjs",
+        "label": "WebZjs",
+        "projects": [
+          "Z-Pay"
+        ]
+      }
+    ],
+    "nym": [
+      {
+        "status": "Built in",
+        "projects": [
+          "Oboro",
+          "ColdTrail",
+          "Ghost Layer",
+          "MaZe",
+          "Veylor",
+          "Z402",
+          "Zeno Wallet"
+        ]
+      },
+      {
+        "status": "Through zingo-cli",
+        "projects": [
+          "hushfolio",
+          "Secret Bankroll",
+          "zkLane"
+        ]
+      },
+      {
+        "status": "Optional proxy setting",
+        "projects": [
+          "ZecCircle"
+        ]
+      },
+      {
+        "status": "Turned off in zingo-cli build",
+        "projects": [
+          "Chupke",
+          "hushcart",
+          "ZecRecharge",
+          "Zec Start"
+        ]
+      },
+      {
+        "status": "Not used",
+        "projects": [
+          "Ironclad",
+          "Keyo",
+          "Munim",
+          "Pactora",
+          "Pegasus",
+          "PocketPilot",
+          "Shielded Shopping Agent",
+          "Shroud",
+          "Vouch",
+          "Whisper-Shop",
+          "Z-Bits",
+          "Zealed",
+          "ZecHunt",
+          "ZPermit",
+          "zshagun",
+          "Zsol",
+          "Finity",
+          "FLex",
+          "GhostCommits",
+          "Hisaab",
+          "Mirage",
+          "Tandem",
+          "Z-Pay",
+          "Z-Solvency",
+          "zcash-now (dexalien)",
+          "zcash-now (Sachin)",
+          "ZebraScan",
+          "ZecGuard",
+          "Zool",
+          "zpulse"
+        ]
+      }
+    ],
+    "webzjs": [
+      {
+        "status": "Used (patched build)",
+        "projects": [
+          "Z-Pay"
+        ]
+      },
+      {
+        "status": "Flags it as broken",
+        "projects": [
+          "zcash-now (dexalien)",
+          "zcash-now (Sachin)"
+        ]
+      },
+      {
+        "status": "Considered, not used",
+        "projects": [
+          "Munim",
+          "Z-Bits",
+          "Zealed",
+          "ZecGuard"
+        ]
+      }
+    ],
+    "blocks": [
+      {
+        "key": "bitrefill",
+        "label": "Bitrefill",
+        "projects": [
+          "Chupke",
+          "hushcart",
+          "hushfolio",
+          "Ironclad",
+          "Keyo",
+          "Munim",
+          "Oboro",
+          "Pactora",
+          "Pegasus",
+          "PocketPilot",
+          "Secret Bankroll",
+          "Shielded Shopping Agent",
+          "Shroud",
+          "Vouch",
+          "Whisper-Shop",
+          "Z-Bits",
+          "Zealed",
+          "ZecCircle",
+          "ZecHunt",
+          "ZecRecharge",
+          "ZPermit",
+          "zshagun",
+          "Zsol",
+          "zpulse"
+        ]
+      },
+      {
+        "key": "llmApi",
+        "label": "LLM API",
+        "projects": [
+          "Keyo",
+          "Munim",
+          "Oboro",
+          "PocketPilot",
+          "Secret Bankroll",
+          "Shielded Shopping Agent",
+          "Shroud",
+          "Vouch",
+          "Z-Bits",
+          "Zealed",
+          "ZecCircle",
+          "ZecHunt",
+          "ZecRecharge",
+          "Z-Pay"
+        ]
+      },
+      {
+        "key": "mcp",
+        "label": "MCP",
+        "projects": [
+          "Ironclad",
+          "Munim",
+          "Oboro",
+          "Pactora",
+          "Pegasus",
+          "PocketPilot",
+          "Secret Bankroll",
+          "Vouch",
+          "Z-Bits",
+          "Tandem",
+          "zcash-now (dexalien)",
+          "zcash-now (Sachin)"
+        ]
+      },
+      {
+        "key": "nearIntents",
+        "label": "NEAR Intents",
+        "projects": [
+          "Keyo",
+          "Pactora",
+          "Shielded Shopping Agent",
+          "Shroud",
+          "Vouch",
+          "Whisper-Shop",
+          "ZecCircle",
+          "ZecRecharge",
+          "ColdTrail",
+          "Zeno Wallet"
+        ]
+      },
+      {
+        "key": "x402",
+        "label": "x402",
+        "projects": [
+          "Oboro",
+          "Pegasus",
+          "Secret Bankroll",
+          "Whisper-Shop",
+          "ZecRecharge",
+          "Z402",
+          "zcash-now (Sachin)"
+        ]
+      },
+      {
+        "key": "pczt",
+        "label": "PCZT",
+        "projects": [
+          "Ironclad",
+          "Pactora",
+          "Z-Bits",
+          "Zealed",
+          "MaZe",
+          "Tandem",
+          "Z-Pay"
+        ]
+      },
+      {
+        "key": "frost",
+        "label": "FROST",
+        "projects": [
+          "Ironclad",
+          "Pactora",
+          "Zealed"
+        ]
+      },
+      {
+        "key": "halo2",
+        "label": "Halo2 proofs",
+        "projects": [
+          "Vouch",
+          "Z-Solvency"
+        ]
+      }
+    ],
+    "languages": [
+      {
+        "language": "TypeScript",
+        "projects": [
+          "Chupke",
+          "Munim",
+          "Oboro",
+          "Secret Bankroll",
+          "Shroud",
+          "Whisper-Shop",
+          "Z-Bits",
+          "Zealed",
+          "ZecCircle",
+          "ZecHunt",
+          "ZecRecharge",
+          "ColdTrail",
+          "Finity",
+          "Mirage",
+          "Z-Pay",
+          "Z402",
+          "zcash-now (dexalien)",
+          "zcash-now (Sachin)",
+          "ZebraScan",
+          "ZecGuard",
+          "Zeno Wallet",
+          "zkLane"
+        ]
+      },
+      {
+        "language": "JavaScript",
+        "projects": [
+          "hushcart",
+          "hushfolio",
+          "PocketPilot",
+          "zshagun",
+          "GhostCommits",
+          "Hisaab",
+          "Z-Solvency",
+          "Zec Start"
+        ]
+      },
+      {
+        "language": "Rust",
+        "projects": [
+          "Keyo",
+          "Shielded Shopping Agent",
+          "Zsol",
+          "Ghost Layer",
+          "MaZe",
+          "Veylor"
+        ]
+      },
+      {
+        "language": "Python",
+        "projects": [
+          "Pactora",
+          "Pegasus",
+          "ZPermit",
+          "zpulse"
+        ]
+      },
+      {
+        "language": "TypeScript + Rust",
+        "projects": [
+          "Ironclad",
+          "Vouch",
+          "FLex"
+        ]
+      },
+      {
+        "language": "JavaScript + Rust",
+        "projects": [
+          "Tandem",
+          "Zool"
+        ]
+      }
+    ]
+  },
+  "nymDetails": "Built-in details: Veylor (lwd-nym crate opening a lightwalletd gRPC channel over a fresh Nym tunnel), Ghost Layer (two nym-socks5-client instances with different exits), Oboro (nym:// tunnel via oboro-node, nymtech/nym git dependency), ColdTrail, MaZe and Z402 (@nymproject/mix-fetch in the browser), Zeno Wallet (SOCKS5 to a local nym-socks5-client).",
+  "webzjsNote": "Z-Pay builds WebZjs from source at commit a50df944, adds patches/webzjs-checkout.patch (pczt_send returning a txid, ZIP-321 payment with memo) and ships it as a MetaMask snap. The zcash-now entries warn agents that WebZjs is not on npm and has no Ironwood support.",
+  "shieldedFeatures": [
+    {
+      "feature": "Encrypted memos",
+      "count": 44,
+      "of": 45,
+      "search": "memo in code"
+    },
+    {
+      "feature": "Unified addresses",
+      "count": 44,
+      "of": 45,
+      "search": "utest1, unified address, UA"
+    },
+    {
+      "feature": "Viewing keys",
+      "count": 35,
+      "of": 45,
+      "search": "viewing key, ufvk, uivk, ivk"
+    },
+    {
+      "feature": "ZIP-321 payment links",
+      "count": 22,
+      "of": 45,
+      "search": "zcash:?, zcash:u…, zip321"
+    }
+  ],
+  "zips": [
+    {
+      "zip": 321,
+      "name": "Payment request URIs",
+      "asCited": false,
+      "theme": "Payments UX",
+      "use": "Payment links and QR codes",
+      "projects": [
+        "Chupke",
+        "hushcart",
+        "Ironclad",
+        "Keyo",
+        "Pegasus",
+        "PocketPilot",
+        "Shielded Shopping Agent",
+        "Shroud",
+        "Zealed",
+        "ZecCircle",
+        "ZecHunt",
+        "ZPermit",
+        "zshagun",
+        "Zsol",
+        "Finity",
+        "FLex",
+        "Hisaab",
+        "Mirage",
+        "Z-Pay",
+        "zcash-now (dexalien)",
+        "zcash-now (Sachin)",
+        "ZebraScan",
+        "Zec Start",
+        "Zeno Wallet",
+        "Zool",
+        "zpulse"
+      ]
+    },
+    {
+      "zip": 317,
+      "name": "Proportional transfer fee",
+      "asCited": false,
+      "theme": "Payments UX",
+      "use": "Fee calculation",
+      "projects": [
+        "Chupke",
+        "hushcart",
+        "Ironclad",
+        "Oboro",
+        "PocketPilot",
+        "Shielded Shopping Agent",
+        "Whisper-Shop",
+        "Zealed",
+        "ZPermit",
+        "Zsol",
+        "FLex",
+        "Ghost Layer",
+        "Hisaab",
+        "MaZe",
+        "Mirage",
+        "Tandem",
+        "Z-Pay",
+        "zcash-now (dexalien)",
+        "zcash-now (Sachin)",
+        "ZebraScan",
+        "Zec Start",
+        "ZecGuard",
+        "Zeno Wallet",
+        "Zool",
+        "zpulse"
+      ]
+    },
+    {
+      "zip": 316,
+      "name": "Unified addresses and viewing keys",
+      "asCited": false,
+      "theme": "Payments UX",
+      "use": "Addresses and UFVKs",
+      "projects": [
+        "Chupke",
+        "hushcart",
+        "Z-Bits",
+        "Zealed",
+        "Zsol",
+        "Finity",
+        "GhostCommits",
+        "Hisaab",
+        "Mirage",
+        "zcash-now (dexalien)",
+        "ZebraScan",
+        "Zec Start",
+        "Zeno Wallet"
+      ]
+    },
+    {
+      "zip": 32,
+      "name": "Shielded HD wallets",
+      "asCited": false,
+      "theme": "Keys",
+      "use": "Account and key derivation",
+      "projects": [
+        "Chupke",
+        "PocketPilot",
+        "Shielded Shopping Agent",
+        "Vouch",
+        "Zsol",
+        "MaZe",
+        "Tandem",
+        "Z-Solvency",
+        "ZebraScan",
+        "Zeno Wallet",
+        "Zool"
+      ]
+    },
+    {
+      "zip": 302,
+      "name": "Memo field format",
+      "asCited": false,
+      "theme": "Payments UX",
+      "use": "Order, receipt and command memos",
+      "projects": [
+        "Munim",
+        "Z-Bits",
+        "ZecCircle",
+        "ZecRecharge",
+        "Zsol",
+        "Hisaab",
+        "Zec Start"
+      ]
+    },
+    {
+      "zip": 258,
+      "name": "NU6.3 (Ironwood) deployment",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Activation heights",
+      "projects": [
+        "Vouch",
+        "FLex",
+        "zcash-now (dexalien)",
+        "Zec Start"
+      ]
+    },
+    {
+      "zip": 259,
+      "name": "NU7 deployment",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Activation heights",
+      "projects": [
+        "ZPermit",
+        "FLex",
+        "zcash-now (dexalien)",
+        "ZebraScan"
+      ]
+    },
+    {
+      "zip": 2005,
+      "name": "Ironwood keys (quantum recoverability)",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "FROST keys, Orchard receivers into Ironwood",
+      "projects": [
+        "Ironclad",
+        "ZPermit",
+        "zcash-now (dexalien)",
+        "ZebraScan"
+      ]
+    },
+    {
+      "zip": 311,
+      "name": "Payment disclosures",
+      "asCited": false,
+      "theme": "Selective disclosure",
+      "use": "Proving a payment without a viewing key",
+      "projects": [
+        "Vouch",
+        "Ghost Layer",
+        "Zeno Wallet"
+      ]
+    },
+    {
+      "zip": 244,
+      "name": "Transaction ID digest",
+      "asCited": false,
+      "theme": "Transaction format",
+      "use": "Computing txids",
+      "projects": [
+        "Vouch",
+        "Ghost Layer"
+      ]
+    },
+    {
+      "zip": 320,
+      "name": "TEX addresses",
+      "asCited": false,
+      "theme": "Exchange rails",
+      "use": "Paying exchange deposit addresses",
+      "projects": [
+        "Finity",
+        "Mirage"
+      ]
+    },
+    {
+      "zip": 229,
+      "name": "v6 transaction format",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Ironwood transactions",
+      "projects": [
+        "zcash-now (dexalien)",
+        "Zec Start"
+      ]
+    },
+    {
+      "zip": 318,
+      "name": "Ironwood",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Ironwood pool",
+      "projects": [
+        "zcash-now (dexalien)",
+        "Zec Start"
+      ]
+    },
+    {
+      "zip": 218,
+      "name": "NU7 block spacing",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "25-second blocks",
+      "projects": [
+        "Zsol",
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 225,
+      "name": "v5 transaction format",
+      "asCited": false,
+      "theme": "Transaction format",
+      "use": "Parsing transactions",
+      "projects": [
+        "zcash-now (dexalien)",
+        "zcash-now (Sachin)"
+      ]
+    },
+    {
+      "zip": 312,
+      "name": "FROST spend authorization",
+      "asCited": false,
+      "theme": "Custody",
+      "use": "Threshold co-signing for agents",
+      "projects": [
+        "Ironclad"
+      ]
+    },
+    {
+      "zip": 374,
+      "name": "PCZT",
+      "asCited": false,
+      "theme": "Custody",
+      "use": "Partially created transactions",
+      "projects": [
+        "Ironclad"
+      ]
+    },
+    {
+      "zip": 370,
+      "name": "Animated PCZT QR",
+      "asCited": true,
+      "theme": "Custody",
+      "use": "Hardware signing with Keystone",
+      "projects": [
+        "Z-Bits"
+      ]
+    },
+    {
+      "zip": 324,
+      "name": "URI-encapsulated payments",
+      "asCited": false,
+      "theme": "Payments UX",
+      "use": "Sending ZEC as a link",
+      "projects": [
+        "zshagun"
+      ]
+    },
+    {
+      "zip": 68,
+      "name": "Relative lock time",
+      "asCited": false,
+      "theme": "Missing primitive",
+      "use": "Payment-channel closes (with ZIP 112)",
+      "projects": [
+        "zkLane"
+      ]
+    },
+    {
+      "zip": 310,
+      "name": "Sapling viewing key security",
+      "asCited": false,
+      "theme": "Selective disclosure",
+      "use": "What a viewing key reveals",
+      "projects": [
+        "Zeno Wallet"
+      ]
+    },
+    {
+      "zip": 315,
+      "name": "Wallet best practices",
+      "asCited": false,
+      "theme": "Keys",
+      "use": "Confirmation policy",
+      "projects": [
+        "Zeno Wallet"
+      ]
+    },
+    {
+      "zip": 173,
+      "name": "Bech32 format",
+      "asCited": false,
+      "theme": "Transaction format",
+      "use": "Backup string encoding",
+      "projects": [
+        "Ironclad"
+      ]
+    },
+    {
+      "zip": 326,
+      "name": "Orchard receivers into Ironwood",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Receiving into Ironwood",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 2003,
+      "name": "NU7 drops v4 transactions",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Lint rule",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 2006,
+      "name": "Ironwood (draft)",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Fact sources",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 2009,
+      "name": "Marginal fee (proposed)",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Fee facts",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 224,
+      "name": "Orchard protocol",
+      "asCited": false,
+      "theme": "Transaction format",
+      "use": "Reference",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 235,
+      "name": "Fee burn",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Reference",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 237,
+      "name": "Cited by zcash-now",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Reference",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    },
+    {
+      "zip": 254,
+      "name": "Withdrawn",
+      "asCited": false,
+      "theme": "Ironwood and NU7",
+      "use": "Reference",
+      "projects": [
+        "zcash-now (dexalien)"
+      ]
+    }
+  ],
+  "zipThemes": [
+    "Payments UX",
+    "Ironwood and NU7",
+    "Keys",
+    "Selective disclosure",
+    "Custody",
+    "Transaction format",
+    "Exchange rails",
+    "Missing primitive"
+  ],
+  "newZips": [
+    {
+      "projects": [
+        "Vouch"
+      ],
+      "zips": [
+        {
+          "label": "311",
+          "zip": 311
+        },
+        {
+          "label": "258",
+          "zip": 258
+        },
+        {
+          "label": "244",
+          "zip": 244
+        }
+      ],
+      "what": "Proves one fact about shielded ZEC (\"at least X ZEC, unmoved since block H\") instead of sharing a viewing key. Uses Valar's voting-circuits delegation circuit (Halo2) with an added threshold constraint; cites ZIP 311 as the design basis"
+    },
+    {
+      "projects": [
+        "Z-Solvency"
+      ],
+      "zips": [
+        {
+          "label": "(32)",
+          "zip": 32
+        }
+      ],
+      "what": "Proof of reserves for shielded ZEC with two Halo2 proofs from the same voting-circuits crate"
+    },
+    {
+      "projects": [
+        "Ghost Layer"
+      ],
+      "zips": [
+        {
+          "label": "311",
+          "zip": 311
+        },
+        {
+          "label": "244",
+          "zip": 244
+        }
+      ],
+      "what": "ZecProof: \"invisible by default, provable by choice\", heading toward full ZIP 311 (zcash/zips PR #387)"
+    },
+    {
+      "projects": [
+        "Zeno Wallet"
+      ],
+      "zips": [
+        {
+          "label": "311",
+          "zip": 311
+        },
+        {
+          "label": "310",
+          "zip": 310
+        },
+        {
+          "label": "315",
+          "zip": 315
+        }
+      ],
+      "what": "Disclosure panel reports ZIP 311 as not implemented in the pinned crates"
+    },
+    {
+      "projects": [
+        "Ironclad"
+      ],
+      "zips": [
+        {
+          "label": "312",
+          "zip": 312
+        },
+        {
+          "label": "374",
+          "zip": 374
+        },
+        {
+          "label": "2005",
+          "zip": 2005
+        },
+        {
+          "label": "173",
+          "zip": 173
+        }
+      ],
+      "what": "2-of-3 re-randomized FROST over RedPallas with a policy co-signer; PCZT; keys derived per ZIP 2005 (quantum recoverable)"
+    },
+    {
+      "projects": [
+        "Zealed",
+        "Pactora"
+      ],
+      "zips": [
+        {
+          "label": "(FROST)",
+          "zip": null
+        }
+      ],
+      "what": "FROST DKG for sponsor treasuries (zkool_graphql) and the official frost-zcash-demo"
+    },
+    {
+      "projects": [
+        "Z-Bits"
+      ],
+      "zips": [
+        {
+          "label": "370",
+          "zip": 370
+        }
+      ],
+      "what": "Plans animated-PCZT QR signing with Keystone"
+    },
+    {
+      "projects": [
+        "Finity",
+        "Mirage"
+      ],
+      "zips": [
+        {
+          "label": "320",
+          "zip": 320
+        }
+      ],
+      "what": "TEX addresses for exchange deposits (Hyperliquid Unit bridge; split exits)"
+    },
+    {
+      "projects": [
+        "zshagun"
+      ],
+      "zips": [
+        {
+          "label": "324",
+          "zip": 324
+        }
+      ],
+      "what": "URI-encapsulated payments cited as prior art for gift links"
+    },
+    {
+      "projects": [
+        "zkLane"
+      ],
+      "zips": [
+        {
+          "label": "68",
+          "zip": 68
+        }
+      ],
+      "what": "Payment channels cannot be closed on chain without relative timelocks (ZIPs 68/112, drafts)"
+    },
+    {
+      "projects": [
+        "zcash-now (dexalien)"
+      ],
+      "zips": [
+        {
+          "label": "2003",
+          "zip": 2003
+        },
+        {
+          "label": "2005",
+          "zip": 2005
+        },
+        {
+          "label": "2006",
+          "zip": 2006
+        },
+        {
+          "label": "2009",
+          "zip": 2009
+        },
+        {
+          "label": "326",
+          "zip": 326
+        },
+        {
+          "label": "229",
+          "zip": 229
+        },
+        {
+          "label": "254 …",
+          "zip": null
+        }
+      ],
+      "what": "Keeps AI agents current on NU7/Ironwood ZIPs; lint rules per ZIP"
+    },
+    {
+      "projects": [
+        "FLex",
+        "ZPermit",
+        "ZebraScan",
+        "Zec Start",
+        "Zsol"
+      ],
+      "zips": [
+        {
+          "label": "258",
+          "zip": 258
+        },
+        {
+          "label": "259",
+          "zip": 259
+        },
+        {
+          "label": "229",
+          "zip": 229
+        },
+        {
+          "label": "318",
+          "zip": 318
+        },
+        {
+          "label": "218",
+          "zip": 218
+        }
+      ],
+      "what": "Pin NU6.3 / NU7 activation heights and Ironwood formats"
+    }
+  ],
+  "upstream": [
+    {
+      "project": "PocketPilot",
+      "author": "sankalp771",
+      "repo": "zcash/zcash-devtool",
+      "number": 271,
+      "type": "PR",
+      "title": "walkthrough: send a memo, then read it with enhance and list-tx",
+      "status": "Open",
+      "date": "2026-11-04",
+      "when": "During the hack",
+      "url": "https://github.com/zcash/zcash-devtool/pull/271",
+      "duringHack": true
+    },
+    {
+      "project": "PocketPilot",
+      "author": "sankalp771",
+      "repo": "bitrefill/agents",
+      "number": 18,
+      "type": "Issue",
+      "title": "MCP buy-products replies inside { response, agent_instructions }, unlike the read tools",
+      "status": "Open",
+      "date": "2026-11-04",
+      "when": "During the hack",
+      "url": "https://github.com/bitrefill/agents/issues/18",
+      "duringHack": true
+    },
+    {
+      "project": "Munim",
+      "author": "0xStoneyStark",
+      "repo": "zcash/zcash-devtool",
+      "number": 272,
+      "type": "Issue",
+      "title": "Memo-driven apps: enhance needed after sync, list-tx --json lacks value/memo",
+      "status": "Open",
+      "date": "2026-11-04",
+      "when": "During the hack",
+      "url": "https://github.com/zcash/zcash-devtool/issues/272",
+      "duringHack": true
+    },
+    {
+      "project": "Munim",
+      "author": "0xStoneyStark",
+      "repo": "bitrefill/agents",
+      "number": 19,
+      "type": "Issue",
+      "title": "MCP docs still show key-in-path URL; tool results are TOON; voucher code format",
+      "status": "Open",
+      "date": "2026-11-04",
+      "when": "During the hack",
+      "url": "https://github.com/bitrefill/agents/issues/19",
+      "duringHack": true
+    },
+    {
+      "project": "Ironclad",
+      "author": "adilhusain01",
+      "repo": "OpenPGP-Wallet/frost-zec",
+      "number": 1,
+      "type": "Issue",
+      "title": "A policy mode for the co-signer: refuse anything outside a standing spending policy",
+      "status": "Open",
+      "date": "2026-11-04",
+      "when": "During the hack",
+      "url": "https://github.com/OpenPGP-Wallet/frost-zec/issues/1",
+      "duringHack": true
+    },
+    {
+      "project": "Ironclad",
+      "author": "adilhusain01",
+      "repo": "Steeve-Crypto/zshield-mcp",
+      "number": 4,
+      "type": "PR",
+      "title": "Add a zkool_graphql backend (CHAIN_MODE=zkool): real testnet payments without a Rust build",
+      "status": "Open",
+      "date": "2026-11-04",
+      "when": "During the hack",
+      "url": "https://github.com/Steeve-Crypto/zshield-mcp/pull/4",
+      "duringHack": true
+    },
+    {
+      "project": "Secret Bankroll",
+      "author": "Shoydon",
+      "repo": "AlwaysHungrie/salts-agent",
+      "number": 47,
+      "type": "PR",
+      "title": "Add a zcash-wallet MCP server, run locally over zingo-cli",
+      "status": "Closed",
+      "date": "2026-11-04",
+      "when": "During the hack (likely a teammate's repo)",
+      "url": "https://github.com/AlwaysHungrie/salts-agent/pull/47",
+      "duringHack": true
+    },
+    {
+      "project": "Ghost Layer",
+      "author": "skartik-sk",
+      "repo": "zingolabs/zaino",
+      "number": null,
+      "type": "Draft issue",
+      "title": "NU7 regtest: blocks rejected with invalid consensus branch id (placeholder 0xffff_fffe)",
+      "status": "Not filed",
+      "date": "2026-11-04",
+      "when": "Drafted in repo, not filed",
+      "url": "https://github.com/skartik-sk/ghost-layer/blob/main/docs/upstream/zaino.md",
+      "duringHack": false
+    },
+    {
+      "project": "Hisaab",
+      "author": "nikhil-pn",
+      "repo": "zkool (zkool_graphql)",
+      "number": null,
+      "type": "Draft issue",
+      "title": "First zkool_graphql build clones the full nymtech/nym history even with Nym off",
+      "status": "Not filed",
+      "date": "2026-11-04",
+      "when": "Drafted in repo, not filed",
+      "url": "https://github.com/nikhil-pn/hisaab/blob/main/docs/upstream-zkool2-issue.md",
+      "duringHack": false
+    },
+    {
+      "project": "Z-Pay",
+      "author": "Jmohak2004",
+      "repo": "ChainSafe/WebZjs",
+      "number": null,
+      "type": "Draft patch",
+      "title": "webzjs-checkout.patch: pczt_send returning a txid, ZIP-321 payments with memo",
+      "status": "Not filed",
+      "date": "2026-11-04",
+      "when": "Drafted in repo, not filed",
+      "url": "https://github.com/Jmohak2004/zcash/blob/main/patches/webzjs-checkout.patch",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "ZcashFoundation/zebra",
+      "number": 11880,
+      "type": "PR",
+      "title": "fix(chain): display TEX addresses as Bech32m per ZIP 320",
+      "status": "Merged",
+      "date": "2026-10-22",
+      "when": "Before the hack",
+      "url": "https://github.com/ZcashFoundation/zebra/pull/11880",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "ZcashFoundation/zebra",
+      "number": 12150,
+      "type": "PR",
+      "title": "fix(chain)!: reject configured activation heights for upgrades with no consensus branch ID",
+      "status": "Merged",
+      "date": "2026-10-31",
+      "when": "Before the hack",
+      "url": "https://github.com/ZcashFoundation/zebra/pull/12150",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "zingolabs/zingo-mobile",
+      "number": 1754,
+      "type": "PR",
+      "title": "fix(insight): a row's address shows its mask in privacy mode",
+      "status": "Merged",
+      "date": "2026-10-25",
+      "when": "Before the hack",
+      "url": "https://github.com/zingolabs/zingo-mobile/pull/1754",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "ZecHub/zechub",
+      "number": 2444,
+      "type": "PR",
+      "title": "Ironwood and turnstile pages: a transfer between pools shows its amount",
+      "status": "Merged",
+      "date": "2026-10-19",
+      "when": "Before the hack",
+      "url": "https://github.com/ZecHub/zechub/pull/2444",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "defuse-protocol/defuse-frontend",
+      "number": 999,
+      "type": "PR",
+      "title": "fix: validate Zcash unified addresses per ZIP-316",
+      "status": "Open",
+      "date": "2026-10-18",
+      "when": "Before the hack",
+      "url": "https://github.com/defuse-protocol/defuse-frontend/pull/999",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "Kenbak/zecblock",
+      "number": 137,
+      "type": "PR",
+      "title": "Look up TEX addresses (ZIP 320) by the P2PKH address they encode",
+      "status": "Open",
+      "date": "2026-10-19",
+      "when": "Before the hack",
+      "url": "https://github.com/Kenbak/zecblock/pull/137",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "KeystoneHQ/keystone3-firmware",
+      "number": 2313,
+      "type": "Issue",
+      "title": "Zcash: a TEX (ZIP 320) user_address fails the transparent output check",
+      "status": "Open",
+      "date": "2026-10-19",
+      "when": "Before the hack",
+      "url": "https://github.com/KeystoneHQ/keystone3-firmware/issues/2313",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "shapeshift/web",
+      "number": 12794,
+      "type": "Issue",
+      "title": "Zcash sends will fail at NU7: the branch ID is fixed to NU6.3",
+      "status": "Closed",
+      "date": "2026-10-25",
+      "when": "Before the hack",
+      "url": "https://github.com/shapeshift/web/issues/12794",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "fireblocks/recovery",
+      "number": 197,
+      "type": "Issue",
+      "title": "ZEC: recovery transactions use the NU5 branch ID and are not valid v5 transactions",
+      "status": "Open",
+      "date": "2026-10-19",
+      "when": "Before the hack",
+      "url": "https://github.com/fireblocks/recovery/issues/197",
+      "duringHack": false
+    },
+    {
+      "project": "zshagun",
+      "author": "Anirudh-712",
+      "repo": "ZcashFoundation/zebra",
+      "number": 12254,
+      "type": "Issue",
+      "title": "bug: transparent::Address accepts a TEX address with a Bech32 checksum",
+      "status": "Open",
+      "date": "2026-11-05",
+      "when": "Day after the hack",
+      "url": "https://github.com/ZcashFoundation/zebra/issues/12254",
+      "duringHack": false
+    },
+    {
+      "project": "Veylor",
+      "author": "ChinmayGopal931",
+      "repo": "JustZappIt/zapp-android",
+      "number": 102,
+      "type": "PR",
+      "title": "feat(nu7): build against the NU7 SDK before mainnet activation",
+      "status": "Merged",
+      "date": "2026-11-03",
+      "when": "Before the hack",
+      "url": "https://github.com/JustZappIt/zapp-android/pull/102",
+      "duringHack": false
+    },
+    {
+      "project": "Veylor",
+      "author": "ChinmayGopal931",
+      "repo": "JustZappIt/zapp-android",
+      "number": 99,
+      "type": "PR",
+      "title": "feat(privateusd): Shielded USD on zecSwap's windows contract",
+      "status": "Merged",
+      "date": "2026-10-24",
+      "when": "Before the hack",
+      "url": "https://github.com/JustZappIt/zapp-android/pull/99",
+      "duringHack": false
+    }
+  ],
+  "upstreamDescription": "Found by GitHub search for PRs, issues and comments authored by every commit author of each repo (plus the repo owner) since 15 Oct 2026, keeping repos the team doesn't own. Links the teams merely cite (for example zcash/librustzcash #1484, zcash/lightwallet-protocol #25, NoirWallet/noir-wallet #53, zcash/zips #387) were written by others and are excluded. Unrelated open-source work by the same people (NEAR, design PRs) is excluded.",
+  "upstreamCaveats": {
+    "Secret Bankroll": "Secret Bankroll's PR is to AlwaysHungrie/salts-agent, which is probably a teammate's repo (the team's demo video is on @Always_Hungrie_'s X account), so present it with that caveat."
+  },
+  "friction": [
+    {
+      "theme": "Getting testnet ZEC (faucet)",
+      "projects": [
+        {
+          "name": "Ironclad",
+          "shortName": "Ironclad"
+        },
+        {
+          "name": "Zec Start",
+          "shortName": "Zec Start"
+        },
+        {
+          "name": "Munim",
+          "shortName": "Munim"
+        },
+        {
+          "name": "Zealed",
+          "shortName": "Zealed"
+        },
+        {
+          "name": "Hisaab",
+          "shortName": "Hisaab"
+        },
+        {
+          "name": "ZecRecharge",
+          "shortName": "ZecRecharge"
+        },
+        {
+          "name": "ZecGuard",
+          "shortName": "ZecGuard"
+        },
+        {
+          "name": "Mirage",
+          "shortName": "Mirage"
+        },
+        {
+          "name": "zpulse",
+          "shortName": "zpulse"
+        },
+        {
+          "name": "Z-Bits",
+          "shortName": "Z-Bits"
+        },
+        {
+          "name": "Keyo",
+          "shortName": "Keyo"
+        },
+        {
+          "name": "zcash-now",
+          "shortName": null
+        }
+      ]
+    },
+    {
+      "theme": "Testnet explorer or indexer",
+      "projects": [
+        {
+          "name": "Ironclad",
+          "shortName": "Ironclad"
+        },
+        {
+          "name": "Zec Start",
+          "shortName": "Zec Start"
+        },
+        {
+          "name": "Zealed",
+          "shortName": "Zealed"
+        },
+        {
+          "name": "Hisaab",
+          "shortName": "Hisaab"
+        },
+        {
+          "name": "ZecRecharge",
+          "shortName": "ZecRecharge"
+        },
+        {
+          "name": "ZecGuard",
+          "shortName": "ZecGuard"
+        },
+        {
+          "name": "Mirage",
+          "shortName": "Mirage"
+        },
+        {
+          "name": "zpulse",
+          "shortName": "zpulse"
+        },
+        {
+          "name": "Z-Bits",
+          "shortName": "Z-Bits"
+        },
+        {
+          "name": "Keyo",
+          "shortName": "Keyo"
+        },
+        {
+          "name": "zcash-now",
+          "shortName": null
+        }
+      ]
+    },
+    {
+      "theme": "Viewing-key-only wallets",
+      "projects": [
+        {
+          "name": "Zec Start",
+          "shortName": "Zec Start"
+        },
+        {
+          "name": "Zealed",
+          "shortName": "Zealed"
+        },
+        {
+          "name": "ZPermit",
+          "shortName": "ZPermit"
+        },
+        {
+          "name": "ZecHunt",
+          "shortName": "ZecHunt"
+        },
+        {
+          "name": "Hisaab",
+          "shortName": "Hisaab"
+        },
+        {
+          "name": "ZecRecharge",
+          "shortName": "ZecRecharge"
+        }
+      ]
+    },
+    {
+      "theme": "Reading memos and tx history",
+      "projects": [
+        {
+          "name": "Munim",
+          "shortName": "Munim"
+        },
+        {
+          "name": "Shroud",
+          "shortName": "Shroud"
+        },
+        {
+          "name": "ZecRecharge",
+          "shortName": "ZecRecharge"
+        },
+        {
+          "name": "zpulse",
+          "shortName": "zpulse"
+        }
+      ]
+    },
+    {
+      "theme": "Building tools from source",
+      "projects": [
+        {
+          "name": "Ironclad",
+          "shortName": "Ironclad"
+        },
+        {
+          "name": "Munim",
+          "shortName": "Munim"
+        },
+        {
+          "name": "Hisaab",
+          "shortName": "Hisaab"
+        }
+      ]
+    },
+    {
+      "theme": "zingo-cli build needs Nym",
+      "projects": [
+        {
+          "name": "Zec Start",
+          "shortName": "Zec Start"
+        },
+        {
+          "name": "hushfolio",
+          "shortName": "hushfolio"
+        },
+        {
+          "name": "ZecRecharge",
+          "shortName": "ZecRecharge"
+        }
+      ]
+    },
+    {
+      "theme": "WebZjs unusable on NU7",
+      "projects": [
+        {
+          "name": "Munim",
+          "shortName": "Munim"
+        },
+        {
+          "name": "ZecGuard",
+          "shortName": "ZecGuard"
+        },
+        {
+          "name": "zcash-now",
+          "shortName": null
+        }
+      ]
+    },
+    {
+      "theme": "Noir Wallet NU7 support",
+      "projects": [
+        {
+          "name": "ZebraScan",
+          "shortName": "ZebraScan"
+        },
+        {
+          "name": "Mirage",
+          "shortName": "Mirage"
+        },
+        {
+          "name": "zcash-now",
+          "shortName": null
+        }
+      ]
+    },
+    {
+      "theme": "Stale NU7 and Ironwood docs",
+      "projects": [
+        {
+          "name": "Mirage",
+          "shortName": "Mirage"
+        },
+        {
+          "name": "zcash-now",
+          "shortName": null
+        }
+      ]
+    }
+  ],
+  "frictionNote": "Keyword reading of each repo's FEEDBACK.md. Coarse; use as a pointer, not a score.",
+  "findings": [
+    {
+      "lead": "Payments UX ZIPs dominate.",
+      "text": "ZIP 321 (payment request URIs, 26 projects), ZIP 317 (fees, 25) and ZIP 316 (unified addresses, 13) are the working set. Memos are near universal in code even though only 7 projects cite ZIP 302; teams use them as order IDs, receipts and agent commands."
+    },
+    {
+      "lead": "Selective disclosure is the biggest unmet need.",
+      "text": "Vouch, Ghost Layer and Zeno Wallet cite ZIP 311 (draft). Zeno reports the pinned crates don't implement it. Vouch and Z-Solvency reuse Valar's voting circuits to prove \"at least X ZEC\" without a viewing key."
+    },
+    {
+      "lead": "Agent custody pulls in FROST and PCZT.",
+      "text": "Ironclad (ZIP 312 + ZIP 374 + ZIP 2005), Zealed and Pactora run FROST; seven projects build PCZTs. Spending limits enforced in code outside the model are the common pattern across agent projects."
+    },
+    {
+      "lead": "Ironwood and NU7 knowledge is scattered.",
+      "text": "Teams cite ZIPs 258, 259, 229, 318, 326, 2003, 2005 and 2009 to pin heights and formats. Zec Start's feedback asks for one \"what is Ironwood\" page; both zcash-now entries exist to keep agents current."
+    },
+    {
+      "lead": "Missing primitives show at the edges.",
+      "text": "zkLane needs relative timelocks (ZIPs 68/112) to close channels on chain; Finity and Mirage work around TEX addresses (ZIP 320); zshagun points to ZIP 324 for payment links."
+    },
+    {
+      "lead": "Nym is real but fragile.",
+      "text": "Seven projects built it in. zingo-cli's Nym-by-default build made four teams turn it off to ship a demo, and three teams list it as friction in their feedback."
+    },
+    {
+      "lead": "WebZjs is effectively unavailable.",
+      "text": "One project patched it from source; several evaluated it and moved to zcash-devtool, zkool or Noir Wallet."
+    },
+    {
+      "lead": "CLIs beat SDKs on day one.",
+      "text": "zcash-devtool (15) and zkool (10) are the most-used ways to reach Zcash; Munim writes that zcash-devtool \"built and synced the first time\" where SDKs did not."
+    },
+    {
+      "lead": "Upstream contributions are few but concrete.",
+      "text": "Four teams filed 7 PRs/issues during the hack (zcash-devtool memo walkthrough PR #271 and memo-app issue #272, Bitrefill MCP issues, a frost-zec policy co-signer request). Three more drafted upstream issues or patches in their repos without filing them."
+    }
+  ]
+}
