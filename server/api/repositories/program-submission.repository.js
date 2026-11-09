@@ -53,8 +53,6 @@ const transform = (row) => {
     // A test entry (e.g. an organiser trying the form): excluded from judging,
     // the leaderboard, the public list and the stats.
     isTestEntry: row.is_test_entry === true,
-    // AI feedback (draft + published); only `published` is ever public.
-    aiFeedback: row.ai_feedback ?? null,
     finalizedAt: row.finalized_at ?? null,
     feedbackSubmittedAt: row.feedback_submitted_at ?? null,
     lastEditedAt: row.last_edited_at ?? null,
@@ -270,9 +268,8 @@ class ProgramSubmissionRepository {
 
   // Tracked programs: write the server-set award and check columns. Only these
   // keys are accepted; anything else is ignored.
-  async updateTracked(id, { prizes, ecosystemPrize, txCheck, milestone, aiFeedback }) {
+  async updateTracked(id, { prizes, ecosystemPrize, txCheck, milestone }) {
     const patch = { updated_at: new Date().toISOString() };
-    if (aiFeedback !== undefined) patch.ai_feedback = aiFeedback;
     if (prizes !== undefined) patch.prizes = prizes;
     if (ecosystemPrize !== undefined) patch.ecosystem_prize = !!ecosystemPrize;
     if (txCheck !== undefined) patch.tx_check = txCheck;

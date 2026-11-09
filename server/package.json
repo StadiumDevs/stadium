@@ -26,7 +26,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.6.0",
     "@grpc/grpc-js": "^1.14.6",
     "@grpc/proto-loader": "^0.8.1",
     "@polkadot-api/descriptors": "file:.papi/descriptors",
@@ -46,8 +45,7 @@
     "resend": "^6.12.3",
     "tweetnacl": "^1.0.3",
     "viem": "^2.50.3",
-    "ws": "^8.19.0",
-    "zod": "^4.6.7"
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@polkadot/keyring": "^13.5.8",

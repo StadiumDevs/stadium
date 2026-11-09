@@ -72,6 +72,8 @@ export type ProgramStatsChecks = {
   gaps: { noDescription: string[]; noRepo: string[]; noDemoVideo: string[] };
   testEntries: string[];
   privacyReview?: PrivacyReviewChecks | null;
+  /** Judges' feedback fixture: rows matched to submissions (server preview only). */
+  projectFeedback?: PrivacyReviewChecks | null;
 };
 
 /** The submission fields the stats read (a subset of ApiTrackedSubmission). */

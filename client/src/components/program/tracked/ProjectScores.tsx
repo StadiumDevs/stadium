@@ -6,12 +6,13 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 /**
  * A project's published scores: per judged track, the normalized average total
  * across all judges and each rubric category against the track average; then
- * the organisers' published AI feedback (summary, strengths, possible
- * improvements), clearly labelled as AI-generated.
+ * the judges' feedback (AI-written in a Claude session from the scores and the
+ * judges' anonymised notes, fact-checked; read from a versioned fixture),
+ * clearly labelled as AI-generated.
  */
 export function ProjectScores({ profile, submission: s }: { profile: ProgramProfile; submission: ApiPublicSubmission }) {
   const tracks = profile.tracks.filter((t) => s.scores?.[t.id]);
-  const fb = s.aiFeedback;
+  const fb = s.feedback;
   if (!tracks.length && !fb) return null;
   return (
     <div className="space-y-5 mb-5" data-testid="project-scores">
@@ -50,36 +51,55 @@ export function ProjectScores({ profile, submission: s }: { profile: ProgramProf
       })}
 
       {fb && (
-        <section data-testid="ai-feedback">
-          <div className="label-hw text-display mb-2">·AI FEEDBACK</div>
-          <p className="text-body text-[13px] leading-relaxed mb-3" data-testid="ai-feedback-summary">
+        <section data-testid="project-feedback">
+          <div className="label-hw text-display mb-2">·JUDGES' FEEDBACK (AI-GENERATED)</div>
+          <p className="text-body text-[13px] leading-relaxed mb-3" data-testid="feedback-summary">
             {fb.summary}
           </p>
           <div className="grid gap-4 md:grid-cols-2">
-            {fb.strengths.length > 0 && (
+            {fb.worked.length > 0 && (
               <div>
-                <div className="label-hw-dim mb-1">STRENGTHS</div>
-                <ul className="list-disc pl-5 space-y-1 text-[13px] text-body" data-testid="ai-feedback-strengths">
-                  {fb.strengths.map((x) => (
+                <div className="label-hw-dim mb-1">WHAT WORKED</div>
+                <ul className="list-disc pl-5 space-y-1 text-[13px] text-body" data-testid="feedback-worked">
+                  {fb.worked.map((x) => (
                     <li key={x}>{x}</li>
                   ))}
                 </ul>
               </div>
             )}
-            {fb.improvements.length > 0 && (
+            {fb.improve.length > 0 && (
               <div>
-                <div className="label-hw-dim mb-1">POSSIBLE IMPROVEMENTS</div>
-                <ul className="list-disc pl-5 space-y-1 text-[13px] text-body" data-testid="ai-feedback-improvements">
-                  {fb.improvements.map((x) => (
+                <div className="label-hw-dim mb-1">WHAT TO IMPROVE</div>
+                <ul className="list-disc pl-5 space-y-1 text-[13px] text-body" data-testid="feedback-improve">
+                  {fb.improve.map((x) => (
                     <li key={x}>{x}</li>
                   ))}
                 </ul>
               </div>
             )}
           </div>
-          <p className="label-hw-dim normal-case mt-3" data-testid="ai-feedback-note">
-            AI-generated (Claude) from the normalized judge scores and individual judges' notes, then reviewed by the organisers.
-            Judges are not quoted or named.
+          {fb.facts.length > 0 && (
+            <div className="mt-3">
+              <div className="label-hw-dim mb-1">CHECKED FACTS</div>
+              <ul className="list-disc pl-5 space-y-1 text-[13px] text-body" data-testid="feedback-facts">
+                {fb.facts.map((f) => (
+                  <li key={f.text}>
+                    {f.text}
+                    {f.source && <span className="block text-[11px] italic text-label-dim">Source: {f.source}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {/notes/.test(fb.basis) ? null : (
+            <p className="text-[12px] text-label-dim mt-3" data-testid="feedback-scores-only">
+              No judge notes for this project: based on scores only.
+            </p>
+          )}
+          <p className="label-hw-dim normal-case mt-3" data-testid="feedback-note">
+            Written by {fb.generatedBy.split(" in a ")[0].replace(", configured model", "")} from the normalized judge scores and the judges' notes, anonymised and
+            paraphrased; facts checked against public sources. Judges are not named or quoted. Feedback v{fb.version},{" "}
+            {fb.generatedDate}.
           </p>
         </section>
       )}

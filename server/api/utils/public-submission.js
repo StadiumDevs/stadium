@@ -38,8 +38,6 @@ export function toPublicSubmission(s, { published = false } = {}) {
     },
     prizes: published ? s.prizes ?? {} : {},
     ecosystemPrize: published && s.ecosystemPrize === true,
-    // AI feedback: only the admin-published version, only once results are published (never the draft).
-    ...(published && s.aiFeedback?.published ? { aiFeedback: s.aiFeedback.published } : {}),
   };
 }
 

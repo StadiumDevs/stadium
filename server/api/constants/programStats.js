@@ -102,6 +102,9 @@ export const PROGRAM_STATS = {
     // Privacy track tech review: reads
     // server/fixtures/free-society-hack-2026/privacy-track-review/v<version>.json.
     privacyReview: { version: '1.0' },
+    // Judges' feedback per project (AI-written, fact-checked): reads
+    // server/fixtures/free-society-hack-2026/project-feedback/v<version>.json.
+    projectFeedback: { version: '1.0.1' },
   },
 };
 

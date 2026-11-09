@@ -64,6 +64,17 @@ function ChecksPanel({ checks }: { checks: ProgramStatsChecks }) {
           )}
         </div>
       )}
+      {checks.projectFeedback && (
+        <div className="text-[12px] text-body space-y-1" data-testid="checks-project-feedback">
+          <div className="label-hw-dim">JUDGES' FEEDBACK V{checks.projectFeedback.version}: ROWS MATCHED TO SUBMISSIONS</div>
+          <div>
+            {checks.projectFeedback.matched} of {checks.projectFeedback.total} matched ({checks.projectFeedback.byRepo} by repo, {checks.projectFeedback.byTitle} by title),{" "}
+            {checks.projectFeedback.unmatched.length} unmatched, {checks.projectFeedback.ambiguous.length} ambiguous. Unmatched projects show no feedback.
+          </div>
+          {list("FEEDBACK ROWS THAT MATCH NO SUBMISSION", checks.projectFeedback.unmatched.map((r) => `${r.title} (${r.repo ?? "no repo"})`), "checks-feedback-unmatched")}
+          {list("FEEDBACK ROWS THAT MATCH MORE THAN ONE", checks.projectFeedback.ambiguous.map((r) => `${r.title}: ${r.candidates.join("; ")}`), "checks-feedback-ambiguous")}
+        </div>
+      )}
     </section>
   );
 }

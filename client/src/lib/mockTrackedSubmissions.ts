@@ -8,9 +8,6 @@ import type {
   ApiPublicSubmission,
   ApiPublicSubmissions,
   ApiPublicTrackScore,
-  ApiAiFeedback,
-  ApiAiFeedbackList,
-  ApiAiFeedbackRow,
   ApiResultsRanking,
   ApiRubricLeaderboard,
   ApiRubricLeaderboardRow,
@@ -39,6 +36,7 @@ import { toPublicSubmission } from "./trackedDisplay";
 import { DEFAULT_NORMALIZATION, normalizeTrack } from "./scoreNormalization";
 import { buildStats, computeChecks, publicSnapshot, statsFingerprint, type ProgramStats, type ProgramStatsChecks } from "./programStats";
 import type { PrivacyReviewData } from "./privacyReview";
+import { feedbackBySubmission, type ProjectFeedbackData } from "./projectFeedback";
 import { programStatsFor } from "./programStatsConfig";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
 
@@ -169,7 +167,7 @@ export const mockTracked = {
 
 
   /** Public: every submitted project, live. Winners first once published. */
-  publicList(slug: string): ApiPublicSubmissions {
+  publicList(slug: string, feedbackFixture: ProjectFeedbackData | null = null): ApiPublicSubmissions {
     const state = load(slug);
     const published = !!state.resultsPublishedAt;
     // Like the server: only finalized entries are public (drafts are the team's own).
@@ -180,22 +178,29 @@ export const mockTracked = {
     if (!published) return { published, submissions, ranking: null, judgesByTrack: null };
     const { bySubmission, judgesByTrack } = this.publicScores(slug);
     const ranking = state.resultsRanking ?? null;
+    // Like the server: judges' feedback from the versioned fixture, matched by repo then title.
+    const feedback = feedbackBySubmission(feedbackFixture, state.submissions.filter((s) => s.status !== "draft" && !s.isTestEntry));
     return {
       published,
-      submissions: submissions.map((s) => (bySubmission.has(s.id) ? { ...s, scores: bySubmission.get(s.id) } : s)),
+      submissions: submissions.map((s) => ({
+        ...s,
+        ...(bySubmission.has(s.id) ? { scores: bySubmission.get(s.id) } : {}),
+        ...(feedback.has(s.id) ? { feedback: feedback.get(s.id) } : {}),
+      })),
       ranking,
       judgesByTrack,
     };
   },
 
   /** Public: a winner's project page. Null for non-winners or before publishing. */
-  publicWinner(slug: string, id: string): ApiPublicSubmission | null {
+  publicWinner(slug: string, id: string, feedbackFixture: ProjectFeedbackData | null = null): ApiPublicSubmission | null {
     const state = load(slug);
     if (!state.resultsPublishedAt) return null;
     const s = state.submissions.find((x) => x.id === id);
     if (!s || Object.keys(s.prizes).length === 0) return null;
     const scores = this.publicScores(slug).bySubmission.get(s.id);
-    return scores ? { ...toPublic(s, true), scores } : toPublic(s, true);
+    const fb = feedbackBySubmission(feedbackFixture, state.submissions.filter((x) => x.status !== "draft" && !x.isTestEntry)).get(s.id);
+    return { ...toPublic(s, true), ...(scores ? { scores } : {}), ...(fb ? { feedback: fb } : {}) };
   },
 
   /**
@@ -517,72 +522,6 @@ export const mockTracked = {
    * Ecosystem Prize winner. Flagging opens its tracked milestone, seeded from the
    * next milestone; unflagging hides it but keeps what was recorded.
    */
-  /** Playground: AI feedback rows (mirrors GET /:slug/ai-feedback). */
-  aiFeedbackList(slug: string): ApiAiFeedbackList {
-    const state = load(slug);
-    if (!state.resultsPublishedAt) throw new Error("Publish the results first: AI feedback is written from the final scores");
-    const scores = state.resultsPublishedAt ? this.publicScores(slug).bySubmission : new Map();
-    return {
-      configured: true,
-      model: "playground placeholder (no AI call)",
-      projects: state.submissions
-        .filter((s) => s.status !== "draft" && !s.isTestEntry)
-        .map((s) => ({ id: s.id, title: s.projectTitle, track: s.details.track, scored: scores.has(s.id), aiFeedback: s.aiFeedback ?? null })),
-    };
-  },
-
-  /** Playground: a clearly marked placeholder draft built from the scores (no AI call). */
-  aiFeedbackGenerate(slug: string, id: string): ApiAiFeedbackRow {
-    const state = load(slug);
-    if (!state.resultsPublishedAt) throw new Error("Publish the results first: AI feedback is written from the final scores");
-    const byTrack = this.publicScores(slug).bySubmission.get(id);
-    const track = byTrack ? (Object.keys(byTrack)[0] as JudgedTrack) : null;
-    if (!byTrack || !track) throw new Error("This project has no published judge scores to write feedback from");
-    const crit = [...byTrack[track]!.criteria].filter((c) => c.id !== "bonus").sort((a, b) => b.score - b.trackAvg - (a.score - a.trackAvg));
-    const name = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
-    const draft: ApiAiFeedback = {
-      summary: `Playground placeholder (no AI call): the judges rated ${name(crit[0].id)} highest relative to the track and ${name(crit[crit.length - 1].id)} lowest.`,
-      strengths: crit.slice(0, 2).map((c) => `${name(c.id)} stood out against the track average.`),
-      improvements: crit.slice(-2).reverse().map((c) => `Strengthen ${name(c.id)} with clearer evidence.`),
-    };
-    let row: ApiAiFeedbackRow | null = null;
-    state.submissions = state.submissions.map((s) => {
-      if (s.id !== id) return s;
-      const next = { ...s, aiFeedback: { ...(s.aiFeedback ?? {}), draft, model: "playground placeholder", generatedAt: now() } };
-      row = { id: s.id, title: s.projectTitle, track: s.details.track, scored: true, aiFeedback: next.aiFeedback };
-      return next;
-    });
-    save(slug, state);
-    return row!;
-  },
-
-  aiFeedbackUpdate(slug: string, id: string, draft: ApiAiFeedback): ApiAiFeedbackRow {
-    const state = load(slug);
-    let row: ApiAiFeedbackRow | null = null;
-    state.submissions = state.submissions.map((s) => {
-      if (s.id !== id) return s;
-      const next = { ...s, aiFeedback: { ...(s.aiFeedback ?? {}), draft } };
-      row = { id: s.id, title: s.projectTitle, track: s.details.track, scored: true, aiFeedback: next.aiFeedback };
-      return next;
-    });
-    save(slug, state);
-    return row!;
-  },
-
-  aiFeedbackSetPublished(slug: string, publish: boolean): { count: number; publishedAt: string | null } {
-    const state = load(slug);
-    const at = now();
-    let count = 0;
-    state.submissions = state.submissions.map((s) => {
-      const fb = s.aiFeedback;
-      if (publish ? !fb?.draft : !fb?.published) return s;
-      count += 1;
-      return { ...s, aiFeedback: publish ? { ...fb, published: fb!.draft, publishedAt: at } : { ...fb, published: null, publishedAt: null } };
-    });
-    save(slug, state);
-    return { count, publishedAt: publish ? at : null };
-  },
-
   setEcosystemPrize(slug: string, id: string, flagged: boolean): ApiTrackedSubmission {
     const profile = getProgramProfile(slug);
     if (!profile) throw new Error("No profile for program");
