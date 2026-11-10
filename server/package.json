@@ -58,6 +58,9 @@
   "overrides": {
     "@ethersproject/providers": {
       "ws": "^8.21.0"
+    },
+    "write-package": {
+      "deepmerge-ts": "^8.0.2"
     }
   }
 }
