@@ -1,6 +1,7 @@
 import type { ExperienceRatingCategory, ExperienceRatings } from "./experienceRatings";
 import type { NormalizationConfig } from "./scoreNormalization";
 import type { ProgramStats, ProgramStatsChecks } from "./programStats";
+import type { MyPayout, PayoutAwardKey, PayoutDetails, PayoutDetailsInput, PayoutPayment, PayoutsTable } from "./payouts";
 
 // Fallbacks: production so Vercel deploy works without env; dev so local works without .env
 const PRODUCTION_API = 'https://stadium-production-996a.up.railway.app/api';
@@ -3236,6 +3237,185 @@ export const api = {
       },
       body: JSON.stringify(patch),
     });
+  },
+
+  // --- Prize payouts (tracked programs) ---
+
+  /** Winner (point person, verified email): their payout card. Playground: no sign-in. */
+  getMyPayout: async (slug: string, submissionId: string, verifiedToken: string | null): Promise<MyPayout> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts, MockPayoutError } = await import("./payouts");
+      const s = mockTracked.list(slug).find((x) => x.id === submissionId);
+      if (!s || !mockTracked.resultsPublishedAt(slug)) throw new ApiError("Submission not found", 404);
+      try {
+        return mockPayouts.mine(slug, s);
+      } catch (e) {
+        if (e instanceof MockPayoutError) throw new ApiError(e.message, e.status);
+        throw e;
+      }
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/payout/mine`, {
+      headers: verifiedToken ? { "x-supabase-token": verifiedToken } : {},
+    });
+    return r.data;
+  },
+
+  /** Winner: send or update the payout details (until a payment is recorded). */
+  saveMyPayout: async (slug: string, submissionId: string, input: PayoutDetailsInput, verifiedToken: string | null): Promise<MyPayout> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts, MockPayoutError } = await import("./payouts");
+      const s = mockTracked.list(slug).find((x) => x.id === submissionId);
+      if (!s) throw new ApiError("Submission not found", 404);
+      try {
+        mockPayouts.saveDetails(slug, s, input, s.lumaEmail);
+        return mockPayouts.mine(slug, s);
+      } catch (e) {
+        if (e instanceof MockPayoutError) throw new ApiError(e.message, e.status);
+        throw e;
+      }
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/payout/mine`, {
+      method: "PUT",
+      headers: { ...(verifiedToken ? { "x-supabase-token": verifiedToken } : {}), "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return r.data;
+  },
+
+  /** Platform admin: every winner with awards, details and payments. */
+  listPayouts: async (slug: string, authHeader: AdminAuthArg): Promise<PayoutsTable> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts, MockPayoutError } = await import("./payouts");
+      try {
+        return mockPayouts.table(slug, mockTracked.list(slug));
+      } catch (e) {
+        if (e instanceof MockPayoutError) throw new ApiError(e.message, e.status);
+        throw e;
+      }
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/payouts`, { headers: adminAuthHeaders(authHeader) });
+    return r.data;
+  },
+
+  /** Platform admin: enter or correct a winner's payout details. */
+  savePayoutDetails: async (slug: string, submissionId: string, input: PayoutDetailsInput, authHeader: AdminAuthArg): Promise<PayoutDetails> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts, MockPayoutError } = await import("./payouts");
+      const s = mockTracked.list(slug).find((x) => x.id === submissionId);
+      if (!s) throw new ApiError("Submission not found", 404);
+      try {
+        return mockPayouts.saveDetails(slug, s, input, "admin (mock)", true);
+      } catch (e) {
+        if (e instanceof MockPayoutError) throw new ApiError(e.message, e.status);
+        throw e;
+      }
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/payout`, {
+      method: "PUT",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return r.data;
+  },
+
+  /** Platform admin: record a payment (tx hash = proof); the server emails the winner. */
+  recordPayoutPayment: async (
+    slug: string,
+    submissionId: string,
+    award: PayoutAwardKey,
+    input: { txHash: string; paidAt?: string; note?: string; notify?: boolean },
+    authHeader: AdminAuthArg,
+  ): Promise<{ payment: PayoutPayment; paid: boolean; emailed: boolean; emailReason: string | null }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts, MockPayoutError } = await import("./payouts");
+      const s = mockTracked.list(slug).find((x) => x.id === submissionId);
+      if (!s) throw new ApiError("Submission not found", 404);
+      try {
+        const payment = mockPayouts.record(slug, s, award, input, "admin (mock)");
+        if (award === "ecosystem" && s.details?.milestone) {
+          mockTracked.updateMilestone(slug, s.id, { payoutStatus: "released", payoutReleasedAt: payment.paidAt });
+        }
+        const row = mockPayouts.table(slug, mockTracked.list(slug)).rows.find((r) => r.submissionId === s.id);
+        return { payment, paid: !!row?.paid, emailed: false, emailReason: "playground" };
+      } catch (e) {
+        if (e instanceof MockPayoutError) throw new ApiError(e.message, e.status);
+        throw e;
+      }
+    }
+    const r = await request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/payments/${encodeURIComponent(award)}`,
+      { method: "PUT", headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" }, body: JSON.stringify(input) },
+    );
+    return r.data;
+  },
+
+  /** Platform admin: undo a recorded payment. */
+  undoPayoutPayment: async (slug: string, submissionId: string, award: PayoutAwardKey, authHeader: AdminAuthArg): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts, MockPayoutError } = await import("./payouts");
+      try {
+        mockPayouts.undo(slug, submissionId, award);
+      } catch (e) {
+        if (e instanceof MockPayoutError) throw new ApiError(e.message, e.status);
+        throw e;
+      }
+      const s = mockTracked.list(slug).find((x) => x.id === submissionId);
+      if (award === "ecosystem" && s?.details?.milestone?.payoutStatus === "released") {
+        mockTracked.updateMilestone(slug, submissionId, { payoutStatus: "pending", payoutReleasedAt: null });
+      }
+      return;
+    }
+    await request(
+      `/programs/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(submissionId)}/payments/${encodeURIComponent(award)}`,
+      { method: "DELETE", headers: adminAuthHeaders(authHeader) },
+    );
+  },
+
+  /** Platform admin: email the payout link to winners who haven't sent details. */
+  requestPayoutDetails: async (slug: string, authHeader: AdminAuthArg, submissionId?: string): Promise<{ sent: number; failed: number; eligible: number }> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts } = await import("./payouts");
+      const eligible = mockPayouts
+        .table(slug, mockTracked.list(slug))
+        .rows.filter((r) => (!submissionId || r.submissionId === submissionId) && !r.details && r.awards.some((a) => a.payable && a.due !== "forfeited")).length;
+      return { sent: 0, failed: 0, eligible };
+    }
+    const r = await request(`/programs/${encodeURIComponent(slug)}/payouts/request`, {
+      method: "POST",
+      headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
+      body: JSON.stringify(submissionId ? { submissionId } : {}),
+    });
+    return r.data;
+  },
+
+  /** Platform admin: the payouts CSV (one line per award). */
+  downloadPayoutsCsv: async (slug: string, authHeader: AdminAuthArg): Promise<Blob> => {
+    if (USE_MOCK_DATA) {
+      const { mockTracked } = await import("./mockTrackedSubmissions");
+      const { mockPayouts } = await import("./payouts");
+      const t = mockPayouts.table(slug, mockTracked.list(slug));
+      const lines = ["project,award,amount,currency,network,address,tx_url"];
+      for (const r of t.rows) {
+        for (const a of r.awards) {
+          lines.push(
+            [r.projectTitle, a.award, a.amount, a.currency, a.payment?.network ?? r.details?.network ?? "", a.payment?.address ?? r.details?.address ?? "", a.payment?.txUrl ?? ""]
+              .map((x) => `"${String(x).replace(/"/g, '""')}"`)
+              .join(","),
+          );
+        }
+      }
+      return new Blob([`${lines.join("\n")}\n`], { type: "text/csv" });
+    }
+    const res = await fetch(`${API_BASE_URL}/programs/${encodeURIComponent(slug)}/payouts.csv`, { headers: adminAuthHeaders(authHeader) });
+    if (!res.ok) throw new ApiError("Couldn't download the payouts CSV", res.status);
+    return res.blob();
   },
 
   // --- Admin tiers (app_admins / global_admins) ---

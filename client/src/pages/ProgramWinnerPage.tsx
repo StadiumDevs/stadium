@@ -8,6 +8,8 @@ import { SubmissionDetails } from "@/components/program/tracked/SubmissionDetail
 import { formatPrize, prizeEntries } from "@/lib/trackedDisplay";
 import { useToast } from "@/hooks/use-toast";
 import { useSocialAuth } from "@/lib/auth/useSocialAuth";
+import { hasPayablePrize } from "@/lib/payouts";
+import { PrizePayoutCard } from "@/components/program/tracked/PrizePayoutCard";
 import NotFound from "./NotFound";
 
 /**
@@ -123,6 +125,16 @@ const ProgramWinnerPage = () => {
               Paid to the point person{entry.details.anonymous ? "" : `, ${entry.submitterName}`}.
             </p>
           </section>
+
+          {hasPayablePrize(slug, entry) && (
+            <PrizePayoutCard
+              slug={program.slug}
+              submissionId={entry.id}
+              verifiedToken={social.token}
+              signedInEmail={social.email}
+              signInWithEmail={social.signInWithEmail}
+            />
+          )}
 
           {milestone && (
             <section className="panel p-4 space-y-3">
