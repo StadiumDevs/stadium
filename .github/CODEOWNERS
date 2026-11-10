@@ -5,11 +5,11 @@
 #
 # See CLAUDE.md §6 "Workflow contract" for the full rule.
 
-*                  @salansky
+*                  @sacha-l
 
 # Extra protection on agent config and CI: only a human owner can change how the
 # agent operates, what it's allowed to do, or how PRs are gated.
-/CLAUDE.md         @salansky
-/.claude/          @salansky
-/.github/          @salansky
-/docs/AGENT_GUIDE.md @salansky
+/CLAUDE.md         @sacha-l
+/.claude/          @sacha-l
+/.github/          @sacha-l
+/docs/AGENT_GUIDE.md @sacha-l
