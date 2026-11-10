@@ -1,0 +1,42 @@
+name: CI
+
+# Same checks as /pre-pr-check: server tests, client typecheck+build, client lint.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: server
+      - run: npm test
+        working-directory: server
+
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: client
+      - run: npm run build
+        working-directory: client
+      - run: npm run lint
+        working-directory: client

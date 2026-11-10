@@ -1,0 +1,110 @@
+name: Security
+
+# Per PR (and daily on develop), for client/ and server/ production deps:
+#  - "No new advisories" gate (PRs, BLOCKING): fails if the PR raises the number
+#    of high/critical advisories vs the base branch. Doesn't punish a PR for the
+#    existing backlog.
+#  - Summary: base vs PR counts and how many high/critical are fixable without a
+#    major bump (→ `npm audit fix`, or wait for the daily Deps autofix PR).
+#  - Full audit (informational until the backlog is cleared): `npm audit
+#    --audit-level=high`. Once clean, remove its `continue-on-error`.
+# Plus dependency-review: blocks PRs that ADD a dependency with a high+ advisory
+# (needs Dependency graph enabled in repo settings).
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+  schedule:
+    - cron: "0 4 * * *" # daily 04:00 UTC, before Deps autofix
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [client, server]
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: ${{ matrix.dir }}
+          install: "false"
+
+      - name: Audit summary + no-new-advisories gate
+        env:
+          DIR: ${{ matrix.dir }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+          T="$RUNNER_TEMP"
+          npm audit --omit=dev --json > "$T/head.json" || true
+          row()   { jq -r '.metadata.vulnerabilities | "\(.critical) | \(.high) | \(.moderate) | \(.low)"' "$1"; }
+          hicrit(){ jq '.metadata.vulnerabilities | .critical + .high' "$1"; }
+          fixable=$(jq '[.vulnerabilities[]
+                         | select(.severity == "high" or .severity == "critical")
+                         | select(.fixAvailable == true
+                                  or ((.fixAvailable | type) == "object" and .fixAvailable.isSemVerMajor == false))]
+                        | length' "$T/head.json")
+          head_hi=$(hicrit "$T/head.json")
+
+          {
+            echo "### \`$DIR/\` production-dependency advisories"
+            echo
+            echo "| | critical | high | moderate | low |"
+            echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          base_hi=""
+          if [ -n "$BASE_REF" ] && git show "origin/$BASE_REF:$DIR/package-lock.json" > /dev/null 2>&1; then
+            mkdir -p "$T/base"
+            git show "origin/$BASE_REF:$DIR/package.json"      > "$T/base/package.json"
+            git show "origin/$BASE_REF:$DIR/package-lock.json" > "$T/base/package-lock.json"
+            (cd "$T/base" && npm audit --omit=dev --json > "$T/base.json") || true
+            base_hi=$(hicrit "$T/base.json")
+            echo "| \`$BASE_REF\` | $(row "$T/base.json") |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          {
+            echo "| this ref | $(row "$T/head.json") |"
+            echo
+            echo "**$fixable of $head_hi high/critical are fixable without a major bump** — run \`npm audit fix\` in \`$DIR/\`, or merge the daily *Deps autofix* security PR."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$base_hi" ] && [ "$head_hi" -gt "$base_hi" ]; then
+            echo "::error title=New advisories::$DIR: this PR raises high/critical advisories from $base_hi to $head_hi. Run 'npm audit' in $DIR/ and fix or pick a non-vulnerable version."
+            echo "❌ **This PR adds $((head_hi - base_hi)) high/critical advisories.**" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          [ -n "$base_hi" ] && echo "✅ No new high/critical advisories vs \`$BASE_REF\`." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Full audit (high+, informational until backlog is cleared)
+        continue-on-error: true # TODO: remove once `npm audit --omit=dev --audit-level=high` is clean
+        run: npm audit --omit=dev --audit-level=high
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

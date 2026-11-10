@@ -284,6 +284,18 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: making the FSH event feedback a collapsible section (stadium-reviewer pass)
 - **Suggestion**: Once FINALIZE is clicked, `finalizeAfterFeedback` stays true even if the builder collapses the section and keeps drafting, so submitting the feedback later finalizes without a second click. Consider resetting it on collapse, or labelling the feedback button "SUBMIT FEEDBACK AND FINALIZE" only while it's armed (it already is), and confirming that's the intended behaviour.
 
+## [2026-11-06] `claude.yml` interpolates workflow inputs straight into `run:`
+- **Severity**: minor
+- **File(s)**: `.github/workflows/claude.yml` (steps "Fail fast if ANTHROPIC_API_KEY missing", "Determine issue number")
+- **Observed during**: adding CI security + dependency-update checks
+- **Suggestion**: `${{ github.event.inputs.issue_number }}` and `${{ secrets.* }}` are expanded inside shell scripts, which is the GitHub Actions script-injection pattern (only maintainers can trigger it today). Pass them through `env:` and reference `"$ISSUE_NUMBER"`; pin `actions/checkout`, `actions/setup-node` and `anthropics/claude-code-action` to commit SHAs like the new workflows do.
+
+## [2026-11-06] No `.nvmrc`; Node/npm version not pinned anywhere
+- **Severity**: minor
+- **File(s)**: repo root; `.github/workflows/*.yml`; `client/package.json`, `server/package.json` (no `engines`)
+- **Observed during**: adding CI security + dependency-update checks
+- **Suggestion**: The lockfiles were written by npm 11, and `npm ci` on npm 10 (Node 20/22) rejects them ("Missing: smoldot@2.0.26 from lock file"). It is version-specific even within npm 11: 11.6.2 (which wrote them) works; 11.19.1 (bundled with Node 24 on runners) rejects them, and a relock with 11.19.1 is rejected by 11.6.2. The new workflows pin `NPM_VERSION: 11.6.2`. `claude.yml` (Node 20 / npm 10) will fail at `npm ci`. Pick one npm version for the team (a `packageManager` field in package.json, or `devEngines`), relock with it, and drop the pin. Add `.nvmrc` (24) plus `engines`, check that Railway/Vercel match, and switch every workflow to `node-version-file: .nvmrc`.
+
 ## [2026-11-09] `api.getProgramStats` is defined twice
 - **Severity**: major
 - **File(s)**: `client/src/lib/api.ts:2636` (judge/admin header counts) and `client/src/lib/api.ts:3069` (public stats snapshot), callers `client/src/components/admin/ProgramStatsHeader.tsx:45`, `client/src/components/admin/ProgramResultsSummarySection.tsx:204`

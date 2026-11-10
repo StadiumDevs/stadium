@@ -1,0 +1,178 @@
+name: Deps autofix
+
+# Keeps dependencies patched by APPLYING non-breaking fixes and opening draft PRs
+# against develop (one per directory and mode). Never merges — a CODEOWNER
+# reviews (CLAUDE.md §6). Major upgrades are left to Dependabot.
+#
+#   mode      | when                  | command                          | branch
+#   security  | daily 05:00 UTC       | npm audit fix (no --force)       | chore/security-fix-<dir>
+#   general   | Mon + Thu 05:30 UTC   | npm update (minor/patch in range)| chore/deps-update-<dir>
+#
+# Security fixes are kept separate from general bumps so they stay small and fast
+# to review. Each run re-checks audit + tests/build/lint and reports in the PR body;
+# a failing PR gets the `needs-attention` label. A run with no changes opens nothing;
+# an existing PR is updated (rebased on develop) instead of duplicated.
+#
+# PRs opened with the default GITHUB_TOKEN don't trigger other workflows (CI).
+# Set a DEPS_BOT_TOKEN secret (fine-grained PAT: contents + pull-requests write)
+# to have CI run on them too.
+on:
+  schedule:
+    - cron: "0 5 * * *"     # security
+    - cron: "30 5 * * 1,4"  # general
+  workflow_dispatch:
+    inputs:
+      modes:
+        description: Which updates to run
+        type: choice
+        options: [both, security, general]
+        default: both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deps-autofix
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      modes: ${{ steps.m.outputs.modes }}
+    steps:
+      - id: m
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT: ${{ github.event.inputs.modes }}
+        run: |
+          case "$EVENT:$SCHEDULE:$INPUT" in
+            schedule:"0 5 * * *":*)    m='["security"]' ;;
+            schedule:"30 5 * * 1,4":*) m='["general"]' ;;
+            *:*:security)              m='["security"]' ;;
+            *:*:general)               m='["general"]' ;;
+            *)                         m='["security","general"]' ;;
+          esac
+          echo "modes=$m" >> "$GITHUB_OUTPUT"
+
+  autofix:
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [client, server]
+        mode: ${{ fromJSON(needs.plan.outputs.modes) }}
+    env:
+      DIR: ${{ matrix.dir }}
+      MODE: ${{ matrix.mode }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: ${{ matrix.dir }}
+          ignore-scripts: "true"
+
+      - name: Audit before
+        id: before
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/before.json" || true
+          echo "summary=$(jq -c '.metadata.vulnerabilities' "$RUNNER_TEMP/before.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Apply ${{ matrix.mode }} updates
+        run: |
+          if [ "$MODE" = security ]; then
+            npm audit fix --ignore-scripts || true
+          else
+            npm update --ignore-scripts
+          fi
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "CHANGED=false" >> "$GITHUB_ENV"
+            echo "No changes for $DIR ($MODE)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "CHANGED=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Re-run checks and write PR body
+        if: env.CHANGED == 'true'
+        id: checks
+        run: |
+          set +e
+          log="$RUNNER_TEMP/checks.log"
+          npm ci >"$log" 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            if [ "$DIR" = server ]; then
+              npm test >>"$log" 2>&1; status=$?
+              checks='npm test'
+            else
+              npm run build >>"$log" 2>&1 && npm run lint >>"$log" 2>&1; status=$?
+              checks='npm run build && npm run lint'
+            fi
+          fi
+          npm audit --omit=dev --json > "$RUNNER_TEMP/after.json"
+          npm audit --omit=dev --audit-level=high >/dev/null 2>&1; audit_status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+          # shellcheck disable=SC2016 # literal markdown backticks
+          if [ "$MODE" = security ]; then what='`npm audit fix` (no `--force`, no majors)'; else what='`npm update` (minor/patch within package.json ranges)'; fi
+          {
+            echo "Automated **$MODE** dependency update for \`$DIR/\`: $what."
+            echo
+            echo "| | Production-dep advisories |"
+            echo "|---|---|"
+            echo "| Before | \`${{ steps.before.outputs.summary }}\` |"
+            echo "| After | \`$(jq -c '.metadata.vulnerabilities' "$RUNNER_TEMP/after.json")\` |"
+            echo
+            echo "**Checks** (\`$checks\`): $([ "$status" -eq 0 ] && echo '✅ pass' || echo '❌ FAIL — needs attention, do not merge as-is')"
+            echo
+            echo "**High+ audit clean after update:** $([ $audit_status -eq 0 ] && echo yes || echo 'no — the rest needs a major bump (see Dependabot PRs)')"
+            echo
+            echo "<details><summary>Lockfile changes</summary>"
+            echo
+            echo '```diff'
+            git diff -U0 -- package-lock.json | grep -E '^[-+]\s+"version"|^[-+]\s+"node_modules/' | head -300
+            echo '```'
+            echo "</details>"
+            if [ "$status" -ne 0 ]; then
+              echo
+              echo "<details><summary>Check output (last 150 lines)</summary>"
+              echo
+              echo '```'
+              tail -150 "$log"
+              echo '```'
+              echo "</details>"
+            fi
+            echo
+            echo "Generated by \`.github/workflows/deps-autofix.yml\`. Never auto-merged — CODEOWNER review required."
+          } > "$RUNNER_TEMP/pr-body.md"
+          exit 0 # the PR is opened either way; failures are labelled
+
+      - name: Open / update draft PR
+        if: env.CHANGED == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.DEPS_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          base: develop
+          branch: ${{ matrix.mode == 'security' && 'chore/security-fix' || 'chore/deps-update' }}-${{ matrix.dir }}
+          delete-branch: true
+          draft: true
+          add-paths: |
+            ${{ matrix.dir }}/package.json
+            ${{ matrix.dir }}/package-lock.json
+          commit-message: "${{ matrix.mode == 'security' && format('fix(security-{0}): npm audit fix', matrix.dir) || format('chore(deps-{0}): non-breaking dependency updates', matrix.dir) }}"
+          title: "${{ matrix.mode == 'security' && format('fix(security-{0}): npm audit fix', matrix.dir) || format('chore(deps-{0}): non-breaking dependency updates', matrix.dir) }}"
+          body-path: ${{ runner.temp }}/pr-body.md
+          labels: |
+            ${{ matrix.mode == 'security' && 'security' || 'dependencies' }}
+            ${{ steps.checks.outputs.status != '0' && 'needs-attention' || '' }}
