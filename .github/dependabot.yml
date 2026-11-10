@@ -1,0 +1,59 @@
+# Dependabot version updates. Security updates (PRs for open advisories) are a
+# separate repo setting: Settings → Code security → Dependabot security updates.
+#
+# npm is checked DAILY so fixes land fast; minor/patch bumps are grouped to keep
+# PR volume low, and majors arrive as their own ungrouped PRs so breaking changes
+# are reviewed one at a time. Security updates (repo setting) fire immediately on
+# a new advisory, independent of this schedule.
+# PRs target `develop` and, like every PR here, need a CODEOWNER to merge.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /client
+    target-branch: develop
+    schedule:
+      interval: daily
+      time: "03:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps-client)"
+    groups:
+      polkadot:
+        patterns: ["@polkadot/*", "polkadot-api"]
+        update-types: [minor, patch]
+      radix:
+        patterns: ["@radix-ui/*"]
+        update-types: [minor, patch]
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /server
+    target-branch: develop
+    schedule:
+      interval: daily
+      time: "03:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps-server)"
+    groups:
+      polkadot:
+        patterns: ["@polkadot/*", "polkadot-api"]
+        update-types: [minor, patch]
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]

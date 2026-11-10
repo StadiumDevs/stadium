@@ -21,6 +21,7 @@ import {
 import { Loader2, Plus, Upload, X } from "lucide-react";
 import { api, type ApiProgram } from "@/lib/api";
 import { DEFAULT_PRIZE_TIERS } from "@/lib/constants";
+import { getProgramProfile } from "@/lib/programProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { ProgramAdminsSection } from "@/components/admin/ProgramAdminsSection";
 
@@ -403,13 +404,15 @@ export function ProgramFormModal({
 
           {status === "completed" && (
             <div className="sm:col-span-2 space-y-1">
-              {!galleryUrl.trim() && (
+              {/* Gallery and honorary mentions show only in the results summary of
+                  untracked programs; tracked programs (e.g. Free Society Hack) don't use them. */}
+              {!getProgramProfile(program?.slug ?? slug) && !galleryUrl.trim() && (
                 <p className="label-hw text-[10px]">
                   <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
                   ·GALLERY URL IS MISSING: add it below so the results panel can link to event photos.
                 </p>
               )}
-              {honoraryMentionRows.length === 0 && (
+              {!getProgramProfile(program?.slug ?? slug) && honoraryMentionRows.length === 0 && (
                 <p className="label-hw text-[10px]">
                   <span className="led led-sm mr-1" style={{ background: "var(--color-amber, #f59e0b)" }} aria-hidden="true" />
                   ·HONORARY MENTIONS ARE EMPTY: add them below if applicable.
