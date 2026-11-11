@@ -13,6 +13,7 @@ import programSubmissionRepository from '../repositories/program-submission.repo
 import submissionRubricScoreRepository from '../repositories/submission-rubric-score.repository.js';
 import programAdminEmailRepository from '../repositories/program-admin-email.repository.js';
 import { computeLeaderboard } from './rubric-leaderboard.service.js';
+import { publicScoresCache } from '../utils/public-data-cache.js';
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -63,9 +64,21 @@ export function publicScores({ boards, ranking, unscoredTrack = null }) {
  * Callers check that results are published first.
  */
 export async function loadPublicScores(program, tracked) {
+  // Same for every visitor: one shared copy, keyed on the publish (and its
+  // ranking) so publishing or re-ranking never serves the old scores.
+  const key = `${program.id}|${program.resultsPublishedAt ?? ''}|${JSON.stringify(program.resultsRanking ?? null)}`;
+  const hit = publicScoresCache.get(key);
+  if (hit) return hit;
+  const result = await computePublicScores(program, tracked);
+  publicScoresCache.set(key, result);
+  return result;
+}
+
+async function computePublicScores(program, tracked) {
+  // Lean reads: only the fields the scoring maths needs (no notes, no survey).
   const [all, scores, judges] = await Promise.all([
-    programSubmissionRepository.listByProgramId(program.id),
-    submissionRubricScoreRepository.listByProgram(program.id),
+    programSubmissionRepository.listForJudgingTotals(program.id),
+    submissionRubricScoreRepository.listByProgramForTotals(program.id),
     programAdminEmailRepository.listJudges(program.id),
   ]);
   const counted = all.filter((s) => isCountedEntry(s, tracked, program));

@@ -3,7 +3,10 @@ import { api, type AdminAuthArg, type ApiJudgingProgressRow } from "@/lib/api";
 import { trackById, type ProgramProfile } from "@/lib/programProfiles";
 import { cn } from "@/lib/utils";
 
-const POLL_MS = 5000;
+// Every poll re-reads the program's submissions and scores on the server, so
+// keep it modest and stop entirely while the tab is hidden. The judge's own
+// saves (refreshToken) and other tabs (storage) still refresh at once.
+const POLL_MS = 30_000;
 
 /**
  * Every judge's progress (scored / total in their tracks), visible to all
@@ -47,13 +50,21 @@ export function JudgingProgressTable({
   }, [load, getAuth, refreshToken]);
 
   useEffect(() => {
-    const poll = () => load(getPollAuth);
+    const poll = () => {
+      if (document.visibilityState === "hidden") return;
+      void load(getPollAuth);
+    };
     const id = window.setInterval(poll, POLL_MS);
     const onStorage = () => poll();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") poll();
+    };
     window.addEventListener("storage", onStorage);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearInterval(id);
       window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load, getPollAuth]);
 

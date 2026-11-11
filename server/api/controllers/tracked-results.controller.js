@@ -106,10 +106,12 @@ class TrackedResultsController {
     try {
       const ctx = await loadTracked(req, res);
       if (!ctx) return;
+      // Lean reads: this is polled by every open judging page, and only needs
+      // counts, so it skips the large details / notes columns.
       const [all, scores, judges] = await Promise.all([
         // Drafts count too while submissions are open; abandoned ones don't.
-        programSubmissionRepository.listByProgramId(ctx.program.id),
-        submissionRubricScoreRepository.listByProgram(ctx.program.id),
+        programSubmissionRepository.listForJudgingTotals(ctx.program.id),
+        submissionRubricScoreRepository.listByProgramForTotals(ctx.program.id),
         programAdminEmailRepository.listJudges(ctx.program.id),
       ]);
       const submissions = all.filter((s) => isCountedEntry(s, ctx.tracked, ctx.program));
@@ -279,17 +281,19 @@ class TrackedResultsController {
       const ctx = await loadTracked(req, res);
       if (!ctx) return;
       if (!ctx.program.resultsPublishedAt) return fail(res, 404, 'Project not found');
-      const s = await programSubmissionRepository.findById(req.params.submissionId);
+      // Page URLs carry the shortened id (first words + suffix); old full-id links still work.
+      const s = await programSubmissionRepository.findByIdOrShortId(ctx.program.id, req.params.submissionId);
       if (!s || s.programId !== ctx.program.id || !s.details || Object.keys(s.prizes || {}).length === 0) {
         return fail(res, 404, 'Project not found');
       }
+      // Feedback matching needs only id, title, repo and track: the lean read.
       const [{ bySubmission }, all] = await Promise.all([
         loadPublicScores(ctx.program, ctx.tracked),
-        programSubmissionRepository.listByProgramId(ctx.program.id, { status: 'submitted' }),
+        programSubmissionRepository.listForJudgingTotals(ctx.program.id),
       ]);
       const feedback = feedbackBySubmission(
         loadProjectFeedback(ctx.program.slug, programStatsFor(ctx.program.slug)?.projectFeedback),
-        all.filter((x) => !x.isTestEntry),
+        all.filter((x) => x.status === 'submitted' && !x.isTestEntry),
       );
       const data = toPublicSubmission(s, { published: true });
       res.status(200).json({

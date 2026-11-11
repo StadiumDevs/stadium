@@ -33,14 +33,14 @@
     "@supabase/supabase-js": "^2.93.2",
     "@talismn/siws": "^1.0.0",
     "bs58": "^6.0.0",
-    "chalk": "^5.6.0",
+    "chalk": "^6.0.1",
     "cors": "^2.8.5",
     "csv-parser": "^3.0.0",
-    "dotenv": "^17.2.1",
+    "dotenv": "^18.0.9",
     "express": "^5.1.0",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.1.0",
-    "mongoose": "^8.16.1",
+    "mongoose": "^9.12.0",
     "multer": "^2.1.1",
     "polkadot-api": "^1.13.1",
     "resend": "^6.12.3",
@@ -49,10 +49,18 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "@polkadot/keyring": "^13.5.8",
-    "@polkadot/util": "^13.5.8",
-    "@polkadot/util-crypto": "^13.5.8",
+    "@polkadot/keyring": "^14.0.3",
+    "@polkadot/util": "^14.0.3",
+    "@polkadot/util-crypto": "^14.0.3",
     "nodemon": "^3.1.10",
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "@ethersproject/providers": {
+      "ws": "^8.21.0"
+    },
+    "write-package": {
+      "deepmerge-ts": "^8.0.2"
+    }
   }
 }

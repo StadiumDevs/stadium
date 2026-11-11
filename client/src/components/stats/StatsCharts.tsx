@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { StatsProject } from "@/lib/programStats";
 import { cn } from "@/lib/utils";
+import { projectPath } from "@/lib/projectUrl";
 
 
 // Chart primitives for the stats page. Every bar and segment is a real
@@ -21,7 +22,7 @@ export function ProjectNames({ slug, projects, empty = "None" }: { slug: string;
         <li key={`${p.id}-${i}`}>
           {p.linkable || !p.id.startsWith("review:") ? (
             <Link
-              to={p.linkable ? `/programs/${slug}/projects/${p.id}` : `/programs/${slug}?project=${encodeURIComponent(p.id)}`}
+              to={p.linkable ? projectPath(slug, p.id) : `/programs/${slug}?project=${encodeURIComponent(p.id)}`}
               className="text-display underline decoration-dotted underline-offset-2 hover:decoration-solid"
               data-testid="project-link"
               data-kind={p.linkable ? "page" : "details"}

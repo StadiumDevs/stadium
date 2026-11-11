@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { clearPublicDataCaches } from '../../utils/public-data-cache.js';
 
 vi.mock('../../repositories/submission-experience-rating.repository.js', () => ({
   default: { getForSubmission: vi.fn(async () => ({})), upsertForSubmission: vi.fn(async () => []), aggregateByProgram: vi.fn(async () => ({})) },
@@ -12,7 +13,7 @@ vi.mock('../../repositories/submission-editor.repository.js', () => ({
   default: { findByProgramEmail: vi.fn(async () => null), listBySubmission: vi.fn(async () => []), add: vi.fn(), remove: vi.fn() },
 }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { findForEditor: vi.fn(async () => null), countDrafts: vi.fn(async () => 0), markFeedbackSubmitted: vi.fn(), create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), listByProgramId: vi.fn(), updateTracked: vi.fn(async (id, x) => ({ id, ...x })) },
+  default: { findForEditor: vi.fn(async () => null), countDrafts: vi.fn(async () => 0), markFeedbackSubmitted: vi.fn(), create: vi.fn(), findById: vi.fn(), findByEmail: vi.fn(), updateSubmission: vi.fn(), listByProgramId: vi.fn(), listForJudgingTotals: vi.fn(), updateTracked: vi.fn(async (id, x) => ({ id, ...x })) },
 }));
 vi.mock('../../repositories/program-signup.repository.js', () => ({ default: { existsByEmail: vi.fn() } }));
 vi.mock('../../repositories/submission-refusal.repository.js', () => ({ default: { create: vi.fn(async () => ({ id: 'ref' })) } }));
@@ -79,6 +80,9 @@ const run = async (b, token) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPublicDataCaches();
+  // The lean totals read serves the same rows as the full list in these tests.
+  submissionRepo.listForJudgingTotals.mockImplementation((...a) => submissionRepo.listByProgramId(...a));
   programService.findBySlug.mockResolvedValue(FSH);
   submissionRepo.findByEmail.mockResolvedValue(null);
   submissionRepo.create.mockImplementation(async (x) => ({ submission: { id: 'new', ...x }, duplicate: false }));
@@ -227,7 +231,7 @@ describe('GET submissions/public', () => {
       { id: 'b', submitterName: 'Sid', lumaEmail: 'sid@example.com', projectTitle: 'Memo', status: 'submitted', details },
     ]);
     const crit = (v) => ({ works: v, private: v, easy: v, needed: v, continuing: v, bonus: 0 });
-    const s1 = vi.spyOn(rubricRepo, 'listByProgram').mockResolvedValue([
+    const s1 = vi.spyOn(rubricRepo, 'listByProgramForTotals').mockResolvedValue([
       { submissionId: 'a', judgeEmail: 'j1@x.io', track: 'privacy', criteria: crit(3) },
       { submissionId: 'a', judgeEmail: 'j2@x.io', track: 'privacy', criteria: crit(2) },
     ]);
@@ -257,7 +261,7 @@ describe('GET submissions/public', () => {
     programService.findBySlug.mockResolvedValue({ ...FSH, resultsPublishedAt: '2026-11-06T10:00:00Z', resultsRanking: null });
     const rubricRepo = (await import('../../repositories/submission-rubric-score.repository.js')).default;
     const judgeRepo = (await import('../../repositories/program-admin-email.repository.js')).default;
-    const s1 = vi.spyOn(rubricRepo, 'listByProgram').mockResolvedValue([]);
+    const s1 = vi.spyOn(rubricRepo, 'listByProgramForTotals').mockResolvedValue([]);
     const s2 = vi.spyOn(judgeRepo, 'listJudges').mockResolvedValue([]);
     res = mockRes();
     await submissionController.publicSubmissions({ params: { slug: FSH.slug } }, res);

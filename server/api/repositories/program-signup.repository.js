@@ -28,6 +28,19 @@ class ProgramSignupRepository {
     return (data || []).map(transformSignup);
   }
 
+  // Public project cards: only the columns the cards are built from (no
+  // email / wallet). Same order as listByProgramId.
+  async listCardSourcesByProgramId(programId) {
+    const { data, error } = await supabase
+      .from('program_signups')
+      .select('name, raw_row')
+      .eq('program_id', programId)
+      .order('registered_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map((row) => ({ name: row.name, rawRow: row.raw_row }));
+  }
+
   async listEmailsByProgramId(programId) {
     const { data, error } = await supabase
       .from('program_signups')

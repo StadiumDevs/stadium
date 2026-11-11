@@ -39,6 +39,7 @@ import type { PrivacyReviewData } from "./privacyReview";
 import { feedbackBySubmission, type ProjectFeedbackData } from "./projectFeedback";
 import { programStatsFor } from "./programStatsConfig";
 import { EXPERIENCE_RATING_CATEGORIES } from "./experienceRatings";
+import { shortenId } from "./projectUrl";
 
 const SEEDS: Record<string, { build: () => TrackedSeed; judges: ProgramJudge[] }> = {
   "free-society-hack-2026": { build: buildFreeSocietyHackSeed, judges: FSH_JUDGES },
@@ -196,7 +197,8 @@ export const mockTracked = {
   publicWinner(slug: string, id: string, feedbackFixture: ProjectFeedbackData | null = null): ApiPublicSubmission | null {
     const state = load(slug);
     if (!state.resultsPublishedAt) return null;
-    const s = state.submissions.find((x) => x.id === id);
+    // Page URLs carry the shortened id; full ids still work.
+    const s = state.submissions.find((x) => x.id === id) ?? state.submissions.find((x) => shortenId(x.id) === id);
     if (!s || Object.keys(s.prizes).length === 0) return null;
     const scores = this.publicScores(slug).bySubmission.get(s.id);
     const fb = feedbackBySubmission(feedbackFixture, state.submissions.filter((x) => x.status !== "draft" && !x.isTestEntry)).get(s.id);

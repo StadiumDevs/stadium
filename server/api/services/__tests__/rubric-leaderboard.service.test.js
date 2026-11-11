@@ -48,3 +48,28 @@ describe('rubric leaderboard', () => {
     expect(rows.find((r) => r.name === 'C')).toMatchObject({ scored: 0, total: 2 });
   });
 });
+
+describe('lean rows (listForJudgingTotals / listByProgramForTotals) give the same totals', () => {
+  it('progress and leaderboard totals match the full rows', () => {
+    const full = [
+      { ...sub('p1'), details: { track: 'privacy', team: [{ name: 'X' }], about: 'long text' }, feedback: { a: 1 } },
+      { ...sub('both', 'both'), details: { track: 'both', about: 'long text' } },
+      { ...sub('nodetails'), details: null },
+    ];
+    // What the lean read returns: details reduced to { track } (null when no details).
+    const lean = full.map((s) => ({ id: s.id, projectTitle: s.projectTitle, submitterName: s.submitterName, prizes: {}, ecosystemPrize: false, details: { track: s.details?.track ?? null } }));
+    const scores = [
+      { ...sc('p1', 'a@x.com', P(3, 3, 3, 3, 3, 1)), notes: 'great', session: 'am', checks: { v: true } },
+      { ...sc('both', 'b@x.com', P(2, 2, 2, 2, 2, 0)), notes: 'ok' },
+    ];
+    const leanScores = scores.map(({ notes, session, checks, ...x }) => x);
+    expect(computeJudgingProgress({ submissions: lean, scores: leanScores, judges })).toEqual(
+      computeJudgingProgress({ submissions: full, scores, judges }),
+    );
+    const strip = (b) => ({ ...b, computedAt: null, rows: b.rows.map((r) => ({ ...r, judgeScores: r.judgeScores.map(({ notes, session, ...j }) => j) })) });
+    const now = new Date('2026-11-11T00:00:00Z');
+    expect(strip(computeLeaderboard({ track: 'privacy', submissions: lean, scores: leanScores, judges, now }))).toEqual(
+      strip(computeLeaderboard({ track: 'privacy', submissions: full, scores, judges, now })),
+    );
+  });
+});

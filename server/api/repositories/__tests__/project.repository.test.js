@@ -258,3 +258,51 @@ describe('ProjectRepository — program / program_id (issue #93)', () => {
     expect(updateChain.update).toHaveBeenCalledWith({ program_id: 'bitrefill-2026' });
   });
 });
+
+const { clearProjectListCache } = await import('../../utils/project-list-cache.js');
+
+describe('ProjectRepository.getAllProjects (egress)', () => {
+  const listChain = (rows) => {
+    const chain = makeChain();
+    chain.order = vi.fn(() => chain);
+    chain.range = vi.fn(() => Promise.resolve({ data: rows, error: null, count: rows.length }));
+    chain.ilike = vi.fn(() => chain);
+    return chain;
+  };
+  const row = (id, name) => ({ id, project_name: name, description: 'd', team_members: [], bounty_prizes: [], milestones: [], payments: [], program: null });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearProjectListCache();
+  });
+
+  it('selects explicit related columns, never nested * or full program rows', async () => {
+    const chain = listChain([row('a', 'A')]);
+    supabase.from.mockReturnValue(chain);
+    await repo.getAllProjects({}, 1, 10, {});
+    const cols = chain.select.mock.calls[0][0];
+    expect(cols).not.toMatch(/\(\*\)/);
+    expect(cols).toMatch(/program:programs\(id,name,slug/);
+    expect(cols).not.toMatch(/stats_snapshot|content/);
+  });
+
+  it('serves repeat identical queries from the cache; different filters are separate', async () => {
+    supabase.from.mockReturnValue(listChain([row('a', 'A')]));
+    await repo.getAllProjects({ projectName: { $regex: /alpha/i } }, 1, 10, {});
+    await repo.getAllProjects({ projectName: { $regex: /alpha/i } }, 1, 10, {});
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+    await repo.getAllProjects({ projectName: { $regex: /beta/i } }, 1, 10, {});
+    expect(supabase.from).toHaveBeenCalledTimes(2);
+  });
+
+  it('a project write clears the cached list', async () => {
+    supabase.from.mockReturnValue(listChain([row('a', 'A')]));
+    await repo.getAllProjects({}, 1, 10, {});
+    // updateProject on a missing project still counts as a write attempt.
+    supabase.from.mockReturnValue(makeChain());
+    await repo.updateProject('missing', { projectName: 'X' });
+    supabase.from.mockReturnValue(listChain([row('a', 'Renamed')]));
+    const r = await repo.getAllProjects({}, 1, 10, {});
+    expect(r.projects[0].projectName).toBe('Renamed');
+  });
+});

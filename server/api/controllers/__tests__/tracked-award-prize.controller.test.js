@@ -2,14 +2,15 @@
 // track prefix ("Zcash ecosystem prize", as saved in production) belongs to the
 // Ecosystem track (Privacy for FSH), limited to the number of copies saved.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { clearPublicDataCaches } from '../../utils/public-data-cache.js';
 import { tierBelongsToTrack, tierLimit } from '../../utils/track-prize-tiers.js';
 import { trackedProgramFor } from '../../constants/trackedPrograms.js';
 
 vi.mock('../../services/program.service.js', () => ({ default: { findBySlug: vi.fn() } }));
 vi.mock('../../repositories/program-submission.repository.js', () => ({
-  default: { findById: vi.fn(), listByProgramId: vi.fn(async () => []), updateTracked: vi.fn(async (id, x) => ({ id, ...x })) },
+  default: { findById: vi.fn(), listByProgramId: vi.fn(async () => []), listForJudgingTotals: vi.fn(), findByIdOrShortId: vi.fn(), updateTracked: vi.fn(async (id, x) => ({ id, ...x })) },
 }));
-vi.mock('../../repositories/submission-rubric-score.repository.js', () => ({ default: { listByProgram: vi.fn(async () => []) } }));
+vi.mock('../../repositories/submission-rubric-score.repository.js', () => ({ default: { listByProgram: vi.fn(async () => []), listByProgramForTotals: vi.fn() } }));
 vi.mock('../../repositories/program-admin-email.repository.js', () => ({ default: { listJudges: vi.fn(async () => []) } }));
 vi.mock('../../services/tx-check.service.js', () => ({ checkAndStore: vi.fn() }));
 vi.mock('../../auth/supabaseUser.js', () => ({ extractSupabaseToken: vi.fn(), getSupabaseUser: vi.fn() }));
@@ -54,6 +55,14 @@ const auditLog = (await import('../../services/program-audit-log.service.js')).d
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPublicDataCaches();
+  // The lean totals reads serve the same rows as the full reads in these tests.
+  submissionRepo.listForJudgingTotals.mockImplementation((...a) => submissionRepo.listByProgramId(...a));
+  submissionRepo.findByIdOrShortId.mockImplementation(async (programId, id) => {
+    const s = await submissionRepo.findById(id);
+    return s && s.programId === programId ? s : null;
+  });
+  scoreRepo.listByProgramForTotals.mockImplementation((...a) => scoreRepo.listByProgram(...a));
   programService.findBySlug.mockResolvedValue(FSH);
   submissionRepo.listByProgramId.mockResolvedValue([]);
   scoreRepo.listByProgram.mockResolvedValue(

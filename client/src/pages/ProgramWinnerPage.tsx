@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { projectPath, shortenId } from "@/lib/projectUrl";
 import { Navigation } from "@/components/Navigation";
 import { api, ApiError, USE_MOCK_DATA, type ApiProgram, type ApiPublicSubmission } from "@/lib/api";
 import { getProgramProfile, isEcosystem } from "@/lib/programProfiles";
@@ -8,6 +9,8 @@ import { SubmissionDetails } from "@/components/program/tracked/SubmissionDetail
 import { formatPrize, prizeEntries } from "@/lib/trackedDisplay";
 import { useToast } from "@/hooks/use-toast";
 import { useSocialAuth } from "@/lib/auth/useSocialAuth";
+import { hasPayablePrize } from "@/lib/payouts";
+import { PrizePayoutCard } from "@/components/program/tracked/PrizePayoutCard";
 import NotFound from "./NotFound";
 
 /**
@@ -50,6 +53,15 @@ const ProgramWinnerPage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [slug, submissionId]);
 
+  // An old full-length link: show the short URL instead (keeps ?payout=1 etc.).
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    if (!slug || !entry || !submissionId) return;
+    const short = shortenId(entry.id);
+    if (submissionId !== short) navigate(`${projectPath(slug, entry.id)}${location.search}${location.hash}`, { replace: true });
+  }, [slug, entry, submissionId, navigate, location.search, location.hash]);
+
   if (state === "missing" || !profile) return <NotFound />;
   if (state === "loading" || !entry || !program) {
     return (
@@ -66,7 +78,7 @@ const ProgramWinnerPage = () => {
   const milestone = isEcosystem(entry) ? entry.details.milestone : null;
 
   const saveBuilderEdit = async () => {
-    if (!slug || !submissionId) return;
+    if (!slug || !entry) return;
     if (deliveryLink.trim() && !/^https?:\/\//i.test(deliveryLink.trim())) {
       toast({ title: "Delivery link must start with http:// or https://", variant: "destructive" });
       return;
@@ -74,7 +86,8 @@ const ProgramWinnerPage = () => {
     try {
       await api.updateSubmissionMilestone(
         slug,
-        submissionId,
+        // The full id (the URL may carry the shortened one).
+        entry.id,
         { sentence: sentence.trim(), deliveryLink: deliveryLink.trim() || null },
         null,
         { verifiedToken: social.token },
@@ -123,6 +136,16 @@ const ProgramWinnerPage = () => {
               Paid to the point person{entry.details.anonymous ? "" : `, ${entry.submitterName}`}.
             </p>
           </section>
+
+          {hasPayablePrize(slug, entry) && (
+            <PrizePayoutCard
+              slug={program.slug}
+              submissionId={entry.id}
+              verifiedToken={social.token}
+              signedInEmail={social.email}
+              signInWithEmail={social.signInWithEmail}
+            />
+          )}
 
           {milestone && (
             <section className="panel p-4 space-y-3">

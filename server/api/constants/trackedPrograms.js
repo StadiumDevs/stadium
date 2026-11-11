@@ -28,6 +28,21 @@ export const TRACKED_PROGRAMS = {
     },
     // The Ecosystem Prize: a flag on up to two Privacy podium projects.
     ecosystem: { track: 'privacy', maxFlags: 2, label: 'Ecosystem Prize' },
+    // Prize payouts (terms: "Claiming your prize"). WebZero pays the Privacy
+    // prizes and the Ecosystem Prize in USDC; Bitrefill pays its own track.
+    // The winning point person sends the details by detailsDeadline.
+    payout: {
+      currency: 'USDC',
+      paidBy: { privacy: 'WebZero', agentic: 'Bitrefill', ecosystem: 'WebZero' },
+      // The Ecosystem Prize when flagged on a podium project (a further USD 100).
+      ecosystemAmount: 100,
+      detailsDeadline: '2026-11-19',
+      // Who is emailed when a winner sends or changes their payout details.
+      // PAYOUT_NOTIFY_EMAILS (comma-separated) overrides it.
+      notify: ['info@joinwebzero.com', 'sacha@joinwebzero.com'],
+      // USDC on Ethereum only. Other networks are defined in payout.service.js (NETWORKS) if ever needed.
+      networks: ['ethereum'],
+    },
     themes: ['1. Private payment rails', '2. The first five minutes', '3. Privacy beyond the transaction'],
     appTypes: ['web app', 'mobile app', 'SDK or library', 'CLI', 'agent', 'other'],
     // Teammates besides the point person: solo or a team of up to 4.
