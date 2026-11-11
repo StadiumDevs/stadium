@@ -15,6 +15,9 @@ this GitHub repo and deploy on every push to **`main`**. The normal flow is:
 3. **Data changes are NOT automatic.** Supabase schema migrations and any data
    backfills must be applied separately (see "Database (Supabase)" below). A
    merge does not run migrations or seed data.
+   **Apply a release's migrations BEFORE merging it to `main`** (`supabase db push`).
+   The `Migrations` CI check on PRs to `main` fails until every migration in the
+   repo is applied to production; re-run it after pushing, then merge.
 
 > The old `server/scripts/deploy-all.js` "one-command deploy" was **removed** —
 > it re-ran stale one-off data mutations and required local Railway/Vercel CLI
@@ -241,6 +244,36 @@ Production uses the **same** Supabase project as the one you link to the CLI. To
 
 3. **If you never use the CLI:**  
    You can apply schema changes by running the SQL from each migration file (or `manual_fix_schema.sql` / `fresh_project_schema.sql` as appropriate) in the Dashboard **SQL Editor**. The app and CLI both talk to the same DB; migrations just need to be applied once.
+
+#### Migrations check (CI)
+
+`.github/workflows/migrations.yml` runs on every PR to `main` and fails when a
+file in `supabase/migrations/` isn't recorded in production's
+`supabase_migrations.schema_migrations` (what `supabase db push` and
+`supabase migration repair` write). Logic: `.github/scripts/check-migrations-applied.sh`
+(test locally with `REMOTE_VERSIONS_FILE=<file of versions>`).
+
+A migration applied by hand in the SQL Editor isn't recorded, so the check still
+fails: record it with `supabase migration repair --status applied <version>`.
+
+**One-time setup:** the check connects as a read-only role that can see only the
+migration history (no app data):
+
+1. Supabase Dashboard → SQL Editor:
+   ```sql
+   create role migrations_checker with login password '<strong random password>';
+   grant usage on schema supabase_migrations to migrations_checker;
+   grant select on supabase_migrations.schema_migrations to migrations_checker;
+   ```
+2. Dashboard → Connect → **Session pooler** connection string (GitHub runners
+   need IPv4, so not the direct `db.<ref>.supabase.co` host). Replace the user
+   with `migrations_checker.<project-ref>` and the password with the one above;
+   keep `?sslmode=require`:
+   `postgresql://migrations_checker.<project-ref>:<password>@<pooler-host>:5432/postgres?sslmode=require`
+3. GitHub → repo Settings → Secrets and variables → Actions → new repository
+   secret **`SUPABASE_MIGRATIONS_DB_URL`** = that string.
+4. Optional: make `migrations applied to production` a required check on `main`
+   (Settings → Branches).
 
 ### 5. Config / env
 
