@@ -6,7 +6,7 @@ const field = "w-full bg-panel-deep border border-hairline text-display font-mon
 
 /**
  * Payout details: legal name, country of tax residence, USDC network and
- * address (typed twice), and a "double-checked" tick. Used by the winner's
+ * address (entered again to confirm; pasting is fine), and a "double-checked" tick. Used by the winner's
  * card and the admin's edit. `asAdmin` skips the repeat and the tick.
  */
 export function PayoutDetailsForm({
@@ -28,7 +28,8 @@ export function PayoutDetailsForm({
 }) {
   const [legalName, setLegalName] = useState(initial?.legalName ?? "");
   const [taxCountry, setTaxCountry] = useState(initial?.taxCountry ?? "");
-  const [network, setNetwork] = useState(initial?.network ?? "");
+  // One network (Ethereum): chosen for the winner.
+  const [network, setNetwork] = useState(initial?.network ?? (networks.length === 1 ? networks[0].id : ""));
   const [address, setAddress] = useState(initial?.address ?? "");
   const [addressConfirm, setAddressConfirm] = useState(asAdmin ? initial?.address ?? "" : "");
   const [confirmed, setConfirmed] = useState(asAdmin);
@@ -87,19 +88,19 @@ export function PayoutDetailsForm({
           autoComplete="off"
           data-testid="payout-address"
         />
-        {looksWrong && <span className="block text-[11px] text-warn">That doesn't look like a {label} address ({n?.addressHint}).</span>}
+        {looksWrong && <span className="block text-[11px] text-warn">That doesn't look like an address on {label} ({n?.addressHint}).</span>}
       </label>
       {!asAdmin && (
         <>
           <label className="block space-y-1">
-            <span className="label-hw-dim">TYPE THE ADDRESS AGAIN</span>
+            <span className="label-hw-dim">CONFIRM ADDRESS</span>
             <input
               className={field}
               value={addressConfirm}
               onChange={(e) => setAddressConfirm(e.target.value)}
-              onPaste={(e) => e.preventDefault()}
               spellCheck={false}
               autoComplete="off"
+              placeholder="Paste or type the same address"
               data-testid="payout-address-confirm"
             />
             {mismatch && <span className="block text-[11px] text-warn">The two addresses don't match.</span>}

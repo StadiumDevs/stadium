@@ -10,6 +10,8 @@ const { trackedProgramFor } = await import('../../constants/trackedPrograms.js')
 
 const tracked = trackedProgramFor('free-society-hack-2026');
 const payout = tracked.payout;
+// Every network the service knows, to test each validator (FSH itself takes Ethereum only).
+const allNetworks = { ...payout, networks: ['ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'solana', 'polkadot-asset-hub'] };
 // Test-only addresses: the zero/burn address, Solana's system program, the //Alice dev key.
 const EVM = '0x000000000000000000000000000000000000dEaD';
 const SOL = '11111111111111111111111111111111';
@@ -71,10 +73,17 @@ describe('awardsFor (production award shapes, 10 Nov 2026)', () => {
 });
 
 describe('validateDetails', () => {
-  const ok = { legalName: ' Ada Lovelace ', taxCountry: 'gb', network: 'base', address: EVM, addressConfirm: EVM, confirmed: true };
+  const ok = { legalName: ' Ada Lovelace ', taxCountry: 'gb', network: 'ethereum', address: EVM, addressConfirm: EVM, confirmed: true };
 
   it('accepts and normalises valid details', () => {
-    expect(validateDetails(ok, payout)).toEqual({ ok: true, value: { legalName: 'Ada Lovelace', taxCountry: 'GB', network: 'base', address: EVM } });
+    expect(validateDetails(ok, payout)).toEqual({ ok: true, value: { legalName: 'Ada Lovelace', taxCountry: 'GB', network: 'ethereum', address: EVM } });
+  });
+
+  it('FSH takes USDC on Ethereum only', () => {
+    expect(payout.networks).toEqual(['ethereum']);
+    const v = validateDetails({ ...ok, network: 'base' }, payout);
+    expect(v.ok).toBe(false);
+    expect(v.error).toContain('supported USDC network');
   });
 
   it.each([
@@ -82,20 +91,20 @@ describe('validateDetails', () => {
     ['polkadot-asset-hub', DOT],
     ['ethereum', EVM.toLowerCase()],
   ])('accepts a %s address', (network, address) => {
-    expect(validateDetails({ ...ok, network, address, addressConfirm: address }, payout).ok).toBe(true);
+    expect(validateDetails({ ...ok, network, address, addressConfirm: address }, allNetworks).ok).toBe(true);
   });
 
   it.each([
     ['an EVM address on Solana', { network: 'solana', address: EVM, addressConfirm: EVM }, 'Solana address'],
-    ['a short EVM address', { address: '0x1234', addressConfirm: '0x1234' }, 'Base address'],
-    ['a Solana address on Base', { address: SOL, addressConfirm: SOL }, 'Base address'],
+    ['a short EVM address', { address: '0x1234', addressConfirm: '0x1234' }, 'Ethereum address'],
+    ['a Solana address on Ethereum', { address: SOL, addressConfirm: SOL }, 'Ethereum address'],
     ['an unsupported network', { network: 'tron' }, 'supported USDC network'],
     ['mismatched confirmation', { addressConfirm: '0x000000000000000000000000000000000000beef' }, "don't match"],
     ['no confirmation tick', { confirmed: false }, 'double-checked'],
     ['no name', { legalName: '' }, 'legal name'],
     ['a bad country', { taxCountry: 'Britain' }, 'country'],
   ])('rejects %s', (_, patch, msg) => {
-    const v = validateDetails({ ...ok, ...patch }, payout);
+    const v = validateDetails({ ...ok, ...patch }, allNetworks);
     expect(v.ok).toBe(false);
     expect(v.error).toContain(msg);
   });
@@ -123,8 +132,8 @@ describe('validatePayment and explorer links', () => {
   });
 
   it('networksFor lists the program networks with labels', () => {
-    expect(networksFor(payout).map((n) => n.id)).toEqual(payout.networks);
-    expect(networksFor(payout)[1]).toMatchObject({ id: 'base', label: 'Base' });
+    expect(networksFor(payout)).toEqual([{ id: 'ethereum', label: 'Ethereum', addressHint: '0x… (42 characters)' }]);
+    expect(networksFor(allNetworks)[1]).toMatchObject({ id: 'base', label: 'Base' });
   });
 });
 

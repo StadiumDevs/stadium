@@ -139,7 +139,7 @@ const CONFIG: Record<string, PayoutConfig> = {
     paidBy: { privacy: "WebZero", agentic: "Bitrefill", ecosystem: "WebZero" },
     ecosystemAmount: 100,
     detailsDeadline: "2026-11-19",
-    networks: ["ethereum", "base", "arbitrum", "optimism", "polygon", "solana", "polkadot-asset-hub"],
+    networks: ["ethereum"],
     ecosystemTrack: "privacy",
     ecosystemLabel: "Ecosystem Prize",
     prizePrefixes: { privacy: "Privacy:", agentic: "Agentic Commerce:" },

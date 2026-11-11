@@ -37,7 +37,8 @@ export const TRACKED_PROGRAMS = {
       // The Ecosystem Prize when flagged on a podium project (a further USD 100).
       ecosystemAmount: 100,
       detailsDeadline: '2026-11-19',
-      networks: ['ethereum', 'base', 'arbitrum', 'optimism', 'polygon', 'solana', 'polkadot-asset-hub'],
+      // USDC on Ethereum only. Other networks are defined in payout.service.js (NETWORKS) if ever needed.
+      networks: ['ethereum'],
     },
     themes: ['1. Private payment rails', '2. The first five minutes', '3. Privacy beyond the transaction'],
     appTypes: ['web app', 'mobile app', 'SDK or library', 'CLI', 'agent', 'other'],

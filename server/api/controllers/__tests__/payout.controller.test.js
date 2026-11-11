@@ -57,8 +57,8 @@ const winner = (extra = {}) => ({
   paid: false,
   ...extra,
 });
-const DETAILS = { submissionId: 'w1', legalName: 'Ada L', taxCountry: 'GB', network: 'base', address: EVM };
-const BODY = { legalName: 'Ada L', taxCountry: 'GB', network: 'base', address: EVM, addressConfirm: EVM, confirmed: true };
+const DETAILS = { submissionId: 'w1', legalName: 'Ada L', taxCountry: 'GB', network: 'ethereum', address: EVM };
+const BODY = { legalName: 'Ada L', taxCountry: 'GB', network: 'ethereum', address: EVM, addressConfirm: EVM, confirmed: true };
 
 const mockRes = () => {
   const res = {};
@@ -113,7 +113,7 @@ describe('winner: own payout details', () => {
     const d = res.json.mock.calls[0][0].data;
     expect(d.awards.map((a) => a.award)).toEqual(['privacy']);
     expect(d.deadline).toBe('2026-11-19');
-    expect(d.networks.map((n) => n.id)).toContain('solana');
+    expect(d.networks.map((n) => n.id)).toEqual(['ethereum']);
     expect(d.locked).toBe(false);
   });
 
@@ -121,7 +121,7 @@ describe('winner: own payout details', () => {
     signedInAs('ada@example.com');
     const res = await call('saveMine', { body: BODY });
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(payoutRepo.upsertDetails).toHaveBeenCalledWith('w1', { legalName: 'Ada L', taxCountry: 'GB', network: 'base', address: EVM }, { by: 'ada@example.com', email: 'ada@example.com' });
+    expect(payoutRepo.upsertDetails).toHaveBeenCalledWith('w1', { legalName: 'Ada L', taxCountry: 'GB', network: 'ethereum', address: EVM }, { by: 'ada@example.com', email: 'ada@example.com' });
     const audit = auditLog.logSafe.mock.calls[0][0];
     expect(audit.action).toBe('payout.details_updated');
     expect(JSON.stringify(audit)).not.toContain(EVM);
@@ -129,14 +129,14 @@ describe('winner: own payout details', () => {
 
   it('rejects invalid details', async () => {
     signedInAs('ada@example.com');
-    const res = await call('saveMine', { body: { ...BODY, network: 'solana' } });
+    const res = await call('saveMine', { body: { ...BODY, network: 'base' } });
     expect(res.status).toHaveBeenCalledWith(400);
     expect(payoutRepo.upsertDetails).not.toHaveBeenCalled();
   });
 
   it('locks once a payment is recorded', async () => {
     signedInAs('ada@example.com');
-    payoutRepo.listPayments.mockResolvedValue([{ award: 'privacy', network: 'base', txHash: TX }]);
+    payoutRepo.listPayments.mockResolvedValue([{ award: 'privacy', network: 'ethereum', txHash: TX }]);
     const res = await call('saveMine', { body: BODY });
     expect(res.status).toHaveBeenCalledWith(409);
   });
@@ -164,12 +164,12 @@ describe('admin: platform admins only', () => {
   it('list returns winners with details and payment status', async () => {
     submissionRepo.listByProgramId.mockResolvedValue([winner(), winner({ id: 'n1', prizes: {} })]);
     payoutRepo.listDetails.mockResolvedValue([DETAILS]);
-    payoutRepo.listPayments.mockResolvedValue([{ submissionId: 'w1', award: 'privacy', network: 'base', address: EVM, txHash: TX, paidAt: 'x' }]);
+    payoutRepo.listPayments.mockResolvedValue([{ submissionId: 'w1', award: 'privacy', network: 'ethereum', address: EVM, txHash: TX, paidAt: 'x' }]);
     const res = await call('list', { user: ADMIN });
     const { rows } = res.json.mock.calls[0][0].data;
     expect(rows.map((r) => r.submissionId)).toEqual(['w1']);
     expect(rows[0].details.address).toBe(EVM);
-    expect(rows[0].awards[0].payment.txUrl).toBe(`https://basescan.org/tx/${TX}`);
+    expect(rows[0].awards[0].payment.txUrl).toBe(`https://etherscan.io/tx/${TX}`);
     expect(rows[0].paid).toBe(true);
   });
 });
@@ -186,13 +186,13 @@ describe('admin: record a payment', () => {
     const res = await call('recordPayment', { user: ADMIN, params: { award: 'privacy' }, body: { txHash: TX } });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(payoutRepo.createPayment).toHaveBeenCalledWith(
-      expect.objectContaining({ submissionId: 'w1', award: 'privacy', amount: 1300, currency: 'USDC', network: 'base', address: EVM, txHash: TX, paidBy: '5Admin' }),
+      expect.objectContaining({ submissionId: 'w1', award: 'privacy', amount: 1300, currency: 'USDC', network: 'ethereum', address: EVM, txHash: TX, paidBy: '5Admin' }),
     );
     expect(submissionRepo.setPaid).toHaveBeenCalledWith('w1', true, '5Admin');
     expect(transport.send).toHaveBeenCalledTimes(1);
     const mail = transport.send.mock.calls[0][0];
     expect(mail.to).toBe('ada@example.com');
-    expect(mail.text).toContain(`https://basescan.org/tx/${TX}`);
+    expect(mail.text).toContain(`https://etherscan.io/tx/${TX}`);
     expect(payoutRepo.markNotified).toHaveBeenCalledWith('pay1');
     expect(res.json.mock.calls[0][0].data).toMatchObject({ paid: true, emailed: true });
     expect(auditLog.logSafe.mock.calls[0][0]).toMatchObject({ action: 'payout.paid', metadata: { award: 'privacy', txHash: TX } });
