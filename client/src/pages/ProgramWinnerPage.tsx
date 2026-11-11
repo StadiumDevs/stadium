@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { projectPath, shortenId } from "@/lib/projectUrl";
 import { Navigation } from "@/components/Navigation";
+import { SiteFooter } from "@/components/SiteFooter";
 import { api, ApiError, USE_MOCK_DATA, type ApiProgram, type ApiPublicSubmission } from "@/lib/api";
 import { getProgramProfile, isEcosystem } from "@/lib/programProfiles";
 import { MilestoneProgress } from "@/components/program/tracked/MilestoneProgress";
@@ -238,6 +239,7 @@ const ProgramWinnerPage = () => {
           </section>
         </article>
       </main>
+      <SiteFooter />
     </div>
   );
 };

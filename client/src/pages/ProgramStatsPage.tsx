@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
+import { SiteFooter } from "@/components/SiteFooter";
 import { api, type ApiProgram } from "@/lib/api";
 import type { ProgramStats } from "@/lib/programStats";
 import { ProgramStatsView, UpdatedAt } from "@/components/stats/ProgramStatsView";
@@ -72,6 +73,7 @@ const ProgramStatsPage = () => {
         </header>
         <ProgramStatsView stats={data.stats} slug={program.slug} />
       </main>
+      <SiteFooter />
     </div>
   );
 };
