@@ -26,6 +26,11 @@ jobs:
           dir: server
       - run: npm test
         working-directory: server
+      # The unit tests mock db.js; this loads the real startup imports on
+      # production's Node (server/.nvmrc) so a crash on boot fails CI, not prod.
+      - name: Boot check
+        run: npm run check:boot
+        working-directory: server
 
   client:
     runs-on: ubuntu-latest

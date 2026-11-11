@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "check:boot": "node ci/boot-check.js",
     "verify:production": "node scripts/verify-production.js",
     "verify:main-deployed": "node scripts/verify-main-deployed.js",
     "verify:email": "node scripts/verify-email.js",

@@ -1,5 +1,5 @@
 name: npm setup
-description: Node 24 + pinned npm (+ optional npm ci) for client/ or server/. Run after actions/checkout.
+description: Node (the dir's .nvmrc, else 24) + pinned npm (+ optional npm ci) for client/ or server/. Run after actions/checkout.
 
 inputs:
   dir:
@@ -15,9 +15,12 @@ inputs:
 runs:
   using: composite
   steps:
+    # Node version: the directory's .nvmrc when it has one, so CI runs on what
+    # production runs (server/.nvmrc = Railway's Node); otherwise 24.
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
-        node-version: 24
+        node-version: ${{ hashFiles(format('{0}/.nvmrc', inputs.dir)) == '' && '24' || '' }}
+        node-version-file: ${{ hashFiles(format('{0}/.nvmrc', inputs.dir)) != '' && format('{0}/.nvmrc', inputs.dir) || '' }}
         cache: npm
         cache-dependency-path: ${{ inputs.dir }}/package-lock.json
 
