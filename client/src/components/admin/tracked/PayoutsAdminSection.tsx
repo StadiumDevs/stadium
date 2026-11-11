@@ -4,7 +4,6 @@ import {
   AWARD_DUE_TEXT,
   explorerUrl,
   networkLabel,
-  shortAddress,
   type PayoutAward,
   type PayoutDetailsInput,
   type PayoutRow,
@@ -31,6 +30,16 @@ const primary = `${btn} border-display bg-display text-shell`;
 const secondary = `${btn} border-hairline text-display hover:border-display`;
 
 type Recording = { row: PayoutRow; award: PayoutAward };
+
+const day = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "");
+
+/** Who confirmed the address and when: the winner (from the form) or an admin. */
+const confirmedText = (r: PayoutRow) => {
+  const d = r.details;
+  if (!d) return "";
+  const byWinner = !!d.updatedBy && d.updatedBy.toLowerCase() === r.email.toLowerCase();
+  return byWinner ? `✓ Confirmed by the winner, ${day(d.confirmedAt ?? d.updatedAt)}` : `Entered by an admin, ${day(d.updatedAt)}`;
+};
 
 /**
  * Prize payouts (platform admins): who has sent payout details, and a payment
@@ -238,8 +247,9 @@ export function PayoutsAdminSection({ programSlug, getAuth }: { programSlug: str
                           <div className="text-body">
                             {r.details.legalName} · {countryName(r.details.taxCountry)}
                           </div>
-                          <div className="font-mono text-display">
-                            {networkLabel(r.details.network)}: {shortAddress(r.details.address)}{" "}
+                          <div className="label-hw-dim normal-case">{networkLabel(r.details.network)} address</div>
+                          <div className="font-mono text-display break-all select-all" data-testid="payout-address-full">
+                            {r.details.address}{" "}
                             <button
                               type="button"
                               className="text-label-dim hover:text-display underline"
@@ -248,6 +258,9 @@ export function PayoutsAdminSection({ programSlug, getAuth }: { programSlug: str
                             >
                               copy
                             </button>
+                          </div>
+                          <div className="label-hw-dim normal-case" data-testid="payout-confirmed">
+                            {confirmedText(r)}
                           </div>
                           <button type="button" className="label-hw-dim hover:text-display underline normal-case" onClick={() => setEditing(r)}>
                             edit
