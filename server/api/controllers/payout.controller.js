@@ -26,6 +26,7 @@ import { extractSupabaseToken, getSupabaseUser } from '../auth/supabaseUser.js';
 import { getEmailTransport } from '../services/email-transport.js';
 import { renderEmail } from '../services/notification-templates/index.js';
 import auditLog from '../services/program-audit-log.service.js';
+import { shortenId } from '../utils/id.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://stadium.joinwebzero.com';
 const isPlatformAdmin = (req) => req.user?.isGlobalAdmin === true;
@@ -34,7 +35,7 @@ const actorId = (req) => req.user?.address || req.user?.email || null;
 const fail = (res, code, message, extra = {}) => res.status(code).json({ status: 'error', message, ...extra });
 
 const projectLink = (program, submissionId) =>
-  `${FRONTEND_URL}/programs/${encodeURIComponent(program.slug)}/projects/${encodeURIComponent(submissionId)}?payout=1`;
+  `${FRONTEND_URL}/programs/${encodeURIComponent(program.slug)}/projects/${encodeURIComponent(shortenId(submissionId))}?payout=1`;
 
 /** Organisers emailed when a winner sends or changes payout details. */
 export const notifyRecipients = (payout) => {

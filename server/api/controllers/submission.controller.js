@@ -13,6 +13,7 @@ import submissionEditorRepository from '../repositories/submission-editor.reposi
 import programJudgeBallotRepository from '../repositories/program-judge-ballot.repository.js';
 import { trackedProgramFor, batchFor, submissionsClosed } from '../constants/trackedPrograms.js';
 import { loadPublicScores } from '../services/public-scores.service.js';
+import { publicSubmissionsCache } from '../utils/public-data-cache.js';
 import { loadProjectFeedback, feedbackBySubmission } from '../services/project-feedback.service.js';
 import { programStatsFor } from '../constants/programStats.js';
 import { toPublicList } from '../utils/public-submission.js';
@@ -780,6 +781,11 @@ class SubmissionController {
       const program = await programService.findBySlug(req.params.slug);
       if (!program) return res.status(404).json({ status: 'error', message: 'Program not found' });
       const published = !!program.resultsPublishedAt;
+      // The same public JSON for every visitor: serve one shared copy for a
+      // short while (cleared on any submission or score write).
+      const cacheKey = `${program.id}|${program.resultsPublishedAt ?? ''}|${JSON.stringify(program.resultsRanking ?? null)}`;
+      const cachedBody = publicSubmissionsCache.get(cacheKey);
+      if (cachedBody) return res.status(200).json(cachedBody);
       // Drafts are the team's own until finalized.
       const rows = await programSubmissionRepository.listByProgramId(program.id, { status: 'submitted' });
       // Test entries (an organiser trying the form) are never public.
@@ -794,7 +800,7 @@ class SubmissionController {
         const feedback = feedbackBySubmission(loadProjectFeedback(program.slug, programStatsFor(program.slug)?.projectFeedback), rows.filter((s) => !s.isTestEntry));
         submissions = submissions.map((s) => (feedback.has(s.id) ? { ...s, feedback: feedback.get(s.id) } : s));
       }
-      res.status(200).json({
+      const body = {
         status: 'success',
         data: {
           published,
@@ -804,7 +810,9 @@ class SubmissionController {
           // Judges who scored each track (counts only), once published.
           judgesByTrack,
         },
-      });
+      };
+      publicSubmissionsCache.set(cacheKey, body);
+      res.status(200).json(body);
     } catch (error) {
       console.error('❌ Error listing public submissions:', error);
       res.status(500).json({ status: 'error', message: 'Failed to load submissions' });

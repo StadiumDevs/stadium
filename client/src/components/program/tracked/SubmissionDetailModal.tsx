@@ -7,6 +7,7 @@ import { MilestoneProgress } from "./MilestoneProgress";
 import { SubmissionDetails } from "./SubmissionDetails";
 import { EcosystemBadge } from "./SubmissionCard";
 import { formatPrize, prizeEntries } from "@/lib/trackedDisplay";
+import { projectPath } from "@/lib/projectUrl";
 
 /** Opens from a project card (or a leaderboard row): every submitted field, no page needed. */
 export function SubmissionDetailModal({
@@ -66,7 +67,7 @@ export function SubmissionDetailModal({
             <SubmissionDetails profile={profile} submission={submission} track={track} />
             {showPageLink && prizes.length > 0 && (
               <Link
-                to={`/programs/${programSlug}/projects/${submission.id}`}
+                to={projectPath(programSlug, submission.id)}
                 className="self-start font-mono text-[10px] tracking-[0.14em] border border-display bg-display text-shell hover:bg-display-dim px-4 py-2"
               >
                 OPEN PROJECT PAGE ▸

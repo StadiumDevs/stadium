@@ -78,3 +78,15 @@ describe('SubmissionRubricScoreRepository', () => {
     ).rejects.toThrow('db');
   });
 });
+
+describe('SubmissionRubricScoreRepository.listByProgramForTotals', () => {
+  it('selects only the scoring columns (no notes / session / checks)', async () => {
+    const chain = makeChain();
+    chain.eq = vi.fn(() => Promise.resolve({ data: [{ ...row, notes: undefined, session: undefined, checks: undefined }], error: null }));
+    supabase.from.mockReturnValue(chain);
+    const rows = await repo.listByProgramForTotals('p1');
+    const cols = chain.select.mock.calls[0][0];
+    expect(cols).not.toMatch(/notes|session|checks|\*/);
+    expect(rows[0]).toMatchObject({ submissionId: 's1', judgeEmail: 'judge@x.com', track: 'privacy', criteria: { works: 3, private: null } });
+  });
+});

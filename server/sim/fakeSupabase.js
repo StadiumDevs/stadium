@@ -29,6 +29,19 @@ export function createFakeSupabase(initial = {}) {
       conflict: null,
       returning: false,
       _result: null,
+      // Derived columns from `alias:col->>key` projections (JSON text extraction).
+      jsonPaths: [],
+    };
+    // Adds each `alias:col->>key` value to a copy of the row; other columns are
+    // returned whole (the fake never narrows a select).
+    const project = (row) => {
+      if (!row || state.jsonPaths.length === 0) return row;
+      const out = { ...row };
+      for (const { alias, col, key } of state.jsonPaths) {
+        const v = row[col]?.[key];
+        out[alias] = v == null ? null : typeof v === 'string' ? v : JSON.stringify(v);
+      }
+      return out;
     };
 
     const matches = (row) => state.filters.every((f) => row[f.col] === f.val);
@@ -87,12 +100,19 @@ export function createFakeSupabase(initial = {}) {
       }
       if (state.limitN != null) rows = rows.slice(0, state.limitN);
       if (state.head && state.count) return { count: rows.length, data: null, error: null };
+      rows = rows.map(project);
       if (state.count) return { count: rows.length, data: rows, error: null };
       return { data: single ? rows[0] ?? null : rows, error: null };
     };
 
     const builder = {
-      select(_cols, opts) {
+      select(cols, opts) {
+        if (typeof cols === 'string') {
+          for (const part of cols.split(',')) {
+            const m = part.trim().match(/^(\w+):(\w+)->>(\w+)$/);
+            if (m) state.jsonPaths.push({ alias: m[1], col: m[2], key: m[3] });
+          }
+        }
         if (opts) {
           state.count = opts.count === 'exact' || !!opts.count;
           state.head = !!opts.head;
