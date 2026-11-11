@@ -1,5 +1,5 @@
-# Use Node.js LTS version
-FROM node:20-alpine
+# Node 22+ is required (supabase-js needs the native WebSocket; chalk 6).
+FROM node:22-alpine
 
 # Install build dependencies for native modules. Retry on transient Alpine
 # mirror/network failures (apk exit 15) so a flaky CDN can't break a deploy.
