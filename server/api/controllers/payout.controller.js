@@ -36,6 +36,12 @@ const fail = (res, code, message, extra = {}) => res.status(code).json({ status:
 const projectLink = (program, submissionId) =>
   `${FRONTEND_URL}/programs/${encodeURIComponent(program.slug)}/projects/${encodeURIComponent(submissionId)}?payout=1`;
 
+/** Organisers emailed when a winner sends or changes payout details. */
+export const notifyRecipients = (payout) => {
+  const env = (process.env.PAYOUT_NOTIFY_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return env.length ? env : payout?.notify ?? [];
+};
+
 const awardsText = (awards) =>
   awards
     .filter((a) => a.payable && a.due !== 'forfeited')
@@ -105,6 +111,36 @@ async function syncPaid(s, tracked, actor) {
   return paid;
 }
 
+/** Best effort: tell the organisers a winner sent or changed their details. */
+async function emailDetailsReceived({ ctx, s, details, previous }) {
+  const to = notifyRecipients(ctx.tracked.payout);
+  if (!to.length) return { ok: false, reason: 'no_recipients' };
+  const transport = await getEmailTransport();
+  if (!transport) return { ok: false, reason: 'provider_not_configured' };
+  try {
+    const { subject, html, text } = renderEmail('payout_details_received', {
+      programName: ctx.program.name,
+      projectTitle: s.projectTitle,
+      submitterName: s.submitterName,
+      email: s.lumaEmail,
+      awardsText: awardsText(awardsFor(s, ctx.tracked)) || 'none owed by WebZero',
+      legalName: details.legalName,
+      taxCountry: details.taxCountry,
+      networkLabel: NETWORKS[details.network]?.label ?? details.network,
+      address: details.address,
+      updated: !!previous,
+      previousAddress: previous?.address ?? null,
+      previousNetworkLabel: previous ? NETWORKS[previous.network]?.label ?? previous.network : null,
+      adminLink: `${FRONTEND_URL}/admin/programs/${encodeURIComponent(ctx.program.slug)}`,
+    });
+    await transport.send({ from: process.env.RESEND_FROM_EMAIL, to, replyTo: s.lumaEmail, subject, html, text });
+    return { ok: true };
+  } catch (err) {
+    console.error('❌ Payout details notification failed:', err?.message || err);
+    return { ok: false, reason: 'send_failed' };
+  }
+}
+
 async function emailPaid({ program, s, award, payment }) {
   const transport = await getEmailTransport();
   if (!transport) return { ok: false, reason: 'provider_not_configured' };
@@ -169,15 +205,18 @@ class PayoutController {
       if (payments.length) return fail(res, 409, 'A payment has been sent to these details. Reply to the payout email to change them.');
       const v = validateDetails(req.body, ctx.tracked.payout);
       if (!v.ok) return fail(res, 400, v.error);
+      const previous = await payoutRepository.getDetails(s.id);
       await payoutRepository.upsertDetails(s.id, v.value, { by: email, email });
       res.status(200).json({ status: 'success', data: await winnerView(ctx, s) });
+      // After the response: a failed email never fails the save.
+      const sent = await emailDetailsReceived({ ctx, s, details: v.value, previous });
       auditLog.logSafe({
         programId: ctx.program.id,
         actor: { email },
         action: 'payout.details_updated',
         targetType: 'submission',
         targetId: s.id,
-        metadata: { by: 'winner', network: v.value.network },
+        metadata: { by: 'winner', network: v.value.network, firstTime: !previous, organisersEmailed: sent.ok },
       });
     } catch (error) {
       console.error('❌ Error saving payout details:', error);

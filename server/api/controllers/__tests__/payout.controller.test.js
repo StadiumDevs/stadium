@@ -256,3 +256,67 @@ describe('admin: email payout links', () => {
     expect((await call('requestDetails', { user: ADMIN })).status).toHaveBeenCalledWith(503);
   });
 });
+
+describe('organisers are emailed when a winner sends or changes details', () => {
+  it('first save: one email to info@ and sacha@ with the project, details and awards', async () => {
+    signedInAs('ada@example.com');
+    const res = await call('saveMine', { body: BODY });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(transport.send).toHaveBeenCalledTimes(1);
+    const mail = transport.send.mock.calls[0][0];
+    expect(mail.to).toEqual(['info@joinwebzero.com', 'sacha@joinwebzero.com']);
+    expect(mail.replyTo).toBe('ada@example.com');
+    expect(mail.subject).toBe('Payout details: Zeno (Free Society Hack)');
+    for (const s of ['Project: Zeno', 'Point person: Ada <ada@example.com>', 'Awards: Privacy: top prize, 1300 USDC', 'Legal name: Ada L', 'Country of tax residence: GB', 'Network: Ethereum', `Address: ${EVM}`, `/admin/programs/${SLUG}`]) {
+      expect(mail.text).toContain(s);
+    }
+    expect(mail.text).not.toContain('Previous address');
+    expect(auditLog.logSafe.mock.calls[0][0].metadata).toMatchObject({ firstTime: true, organisersEmailed: true });
+  });
+
+  it('an update says "updated" and shows the previous address', async () => {
+    signedInAs('ada@example.com');
+    const OLD = '0x000000000000000000000000000000000000bEEF';
+    payoutRepo.getDetails.mockResolvedValue({ ...DETAILS, network: 'ethereum', address: OLD });
+    await call('saveMine', { body: BODY });
+    const mail = transport.send.mock.calls[0][0];
+    expect(mail.subject).toBe('Payout details updated: Zeno (Free Society Hack)');
+    expect(mail.text).toContain(`Previous address: ${OLD} (Ethereum)`);
+  });
+
+  it('a failed email still saves (200)', async () => {
+    signedInAs('ada@example.com');
+    transport.send.mockRejectedValueOnce(new Error('resend down'));
+    const res = await call('saveMine', { body: BODY });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(payoutRepo.upsertDetails).toHaveBeenCalled();
+    expect(auditLog.logSafe.mock.calls[0][0].metadata.organisersEmailed).toBe(false);
+  });
+
+  it('PAYOUT_NOTIFY_EMAILS overrides the recipients', async () => {
+    signedInAs('ada@example.com');
+    process.env.PAYOUT_NOTIFY_EMAILS = 'ops@example.com, ';
+    try {
+      await call('saveMine', { body: BODY });
+    } finally {
+      delete process.env.PAYOUT_NOTIFY_EMAILS;
+    }
+    expect(transport.send.mock.calls[0][0].to).toEqual(['ops@example.com']);
+  });
+
+  it('admin edits send nothing', async () => {
+    const res = await call('saveDetails', { user: ADMIN, body: BODY });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(transport.send).not.toHaveBeenCalled();
+  });
+
+  it('the HTML is escaped', async () => {
+    signedInAs('ada@example.com');
+    submissionRepo.findById.mockResolvedValue(winner({ projectTitle: '<script>x</script>' }));
+    await call('saveMine', { body: { ...BODY, legalName: 'A <b>B</b>' } });
+    const { html } = transport.send.mock.calls[0][0];
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('A &lt;b&gt;B&lt;/b&gt;');
+  });
+});

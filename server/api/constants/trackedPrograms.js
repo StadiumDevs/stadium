@@ -37,6 +37,9 @@ export const TRACKED_PROGRAMS = {
       // The Ecosystem Prize when flagged on a podium project (a further USD 100).
       ecosystemAmount: 100,
       detailsDeadline: '2026-11-19',
+      // Who is emailed when a winner sends or changes their payout details.
+      // PAYOUT_NOTIFY_EMAILS (comma-separated) overrides it.
+      notify: ['info@joinwebzero.com', 'sacha@joinwebzero.com'],
       // USDC on Ethereum only. Other networks are defined in payout.service.js (NETWORKS) if ever needed.
       networks: ['ethereum'],
     },
