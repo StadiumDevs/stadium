@@ -49,7 +49,7 @@ class ProgramSignupService {
    * description nor any link are dropped (likely non-builder rows).
    */
   async projectCardsByProgramId(programId) {
-    const signups = await signupRepository.listByProgramId(programId);
+    const signups = await signupRepository.listCardSourcesByProgramId(programId);
     const cards = [];
     for (const s of signups) {
       const raw = s.rawRow && typeof s.rawRow === 'object' ? s.rawRow : {};

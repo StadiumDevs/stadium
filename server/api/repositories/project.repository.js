@@ -1,5 +1,22 @@
 import { supabase } from '../../db.js';
 import { generateId } from '../utils/id.js';
+import { projectListCache, clearProjectListCache } from '../utils/project-list-cache.js';
+
+// Exactly the related columns transformProject reads (no ids / project_id /
+// created_at on the nested rows, and only 8 program columns: never the large
+// programs.stats_snapshot or content). Project columns stay '*': nearly all are used.
+const PROJECT_SELECT = [
+    '*',
+    'team_members(name,wallet_address,wallet_chain,custom_url,role,twitter,github,linkedin)',
+    'bounty_prizes(name,amount,currency,hackathon_won_at_id)',
+    'milestones(description,created_at,created_by,updated_at,updated_by)',
+    'payments(milestone,amount,currency,transaction_proof,bounty_name,paid_date)',
+    'program:programs(id,name,slug,program_type,status,event_starts_at,event_ends_at,location)',
+].join(',');
+
+// Cache key for a list query. RegExp filters (projectName.$regex) stringify to
+// {} by default, so serialise them by source.
+const listKey = (...args) => JSON.stringify(args, (_k, v) => (v instanceof RegExp ? `re:${v.source}/${v.flags}` : v));
 
 // Transform Supabase row (snake_case) to API format (camelCase)
 const transformProject = (row) => {
@@ -183,14 +200,7 @@ class ProjectRepository {
         // Try to find by ID
         let { data: project, error } = await supabase
             .from('projects')
-            .select(`
-                *,
-                team_members(*),
-                bounty_prizes(*),
-                milestones(*),
-                payments(*),
-                program:programs(*)
-            `)
+            .select(PROJECT_SELECT)
             .eq('id', projectId)
             .single();
 
@@ -201,14 +211,7 @@ class ProjectRepository {
         // If not found, try by donation address
         ({ data: project, error } = await supabase
             .from('projects')
-            .select(`
-                *,
-                team_members(*),
-                bounty_prizes(*),
-                milestones(*),
-                payments(*),
-                program:programs(*)
-            `)
+            .select(PROJECT_SELECT)
             .eq('donation_address', projectId)
             .single());
 
@@ -223,14 +226,7 @@ class ProjectRepository {
                 const searchPattern = searchTerms.join('%');
                 ({ data: project, error } = await supabase
                     .from('projects')
-                    .select(`
-                        *,
-                        team_members(*),
-                        bounty_prizes(*),
-                        milestones(*),
-                        payments(*),
-                        program:programs(*)
-                    `)
+                    .select(PROJECT_SELECT)
                     .ilike('project_name', `%${searchPattern}%`)
                     .limit(1)
                     .single());
@@ -245,6 +241,14 @@ class ProjectRepository {
     }
 
     async createProject(projectData) {
+        try {
+            return await this.#createProjectImpl(projectData);
+        } finally {
+            clearProjectListCache();
+        }
+    }
+
+    async #createProjectImpl(projectData) {
         const projectId = projectData.id || generateId(projectData.projectName);
         const row = toSupabaseProject({ ...projectData, id: projectId });
 
@@ -309,6 +313,14 @@ class ProjectRepository {
     }
 
     async upsertProject(projectId, projectData) {
+        try {
+            return await this.#upsertProjectImpl(projectId, projectData);
+        } finally {
+            clearProjectListCache();
+        }
+    }
+
+    async #upsertProjectImpl(projectId, projectData) {
         const row = toSupabaseProject({ ...projectData, id: projectId });
 
         const { data: project, error } = await supabase
@@ -346,20 +358,23 @@ class ProjectRepository {
     }
 
     async getAllProjects(query, page, limit, sortOptions) {
+        // The public list is the same for every caller: serve a shared copy.
+        const key = listKey(query, page, limit, sortOptions);
+        const hit = projectListCache.get(key);
+        if (hit) return structuredClone(hit);
+        const result = await this.#loadAllProjects(query, page, limit, sortOptions);
+        projectListCache.set(key, result);
+        return structuredClone(result);
+    }
+
+    async #loadAllProjects(query, page, limit, sortOptions) {
         const pageNum = parseInt(page, 10) || 1;
         const limitNum = parseInt(limit, 10) || 10;
         const offset = (pageNum - 1) * limitNum;
 
         let supabaseQuery = supabase
             .from('projects')
-            .select(`
-                *,
-                team_members(*),
-                bounty_prizes(*),
-                milestones(*),
-                payments(*),
-                program:programs(*)
-            `, { count: 'exact' });
+            .select(PROJECT_SELECT, { count: 'exact' });
 
         // Apply filters
         if (query.projectName?.$regex) {
@@ -444,6 +459,14 @@ class ProjectRepository {
     }
 
     async updateProject(projectId, updateData) {
+        try {
+            return await this.#updateProjectImpl(projectId, updateData);
+        } finally {
+            clearProjectListCache();
+        }
+    }
+
+    async #updateProjectImpl(projectId, updateData) {
         // Check if project exists first
         const { data: existing } = await supabase
             .from('projects')
@@ -555,7 +578,7 @@ class ProjectRepository {
         // Second: fetch the projects with their joined relations.
         const { data, error } = await supabase
             .from('projects')
-            .select('*, team_members(*), bounty_prizes(*), milestones(*), payments(*), program:programs(*)')
+            .select(PROJECT_SELECT)
             .in('id', projectIds)
             .order('updated_at', { ascending: false });
         if (error) throw error;

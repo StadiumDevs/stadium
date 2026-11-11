@@ -1,6 +1,7 @@
 import { supabase } from '../../db.js';
-import { generateId } from '../utils/id.js';
+import { generateId, parseShortId } from '../utils/id.js';
 import submissionEditorRepository from './submission-editor.repository.js';
+import { clearPublicDataCaches } from '../utils/public-data-cache.js';
 
 // Luma email is the natural key within a program; store it lowercased so the
 // per-program UNIQUE constraint is case-insensitive.
@@ -74,6 +75,35 @@ class ProgramSubmissionRepository {
     return (data || []).map(transform);
   }
 
+  // Lean read for totals (judging progress, public scores, feedback matching):
+  // the fields the scoring maths, isCountedEntry and feedback matching read, with details reduced to { track }.
+  // Skips the large details / feedback / brief columns. Not for display.
+  async listForJudgingTotals(programId) {
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .select('id, program_id, project_title, submitter_name, status, is_test_entry, created_at, finalized_at, prizes, ecosystem_prize, github_url, details_track:details->>track')
+      .eq('program_id', programId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data || []).map((row) => ({
+      id: row.id,
+      programId: row.program_id,
+      projectTitle: row.project_title,
+      submitterName: row.submitter_name,
+      status: row.status ?? 'submitted',
+      isTestEntry: row.is_test_entry === true,
+      createdAt: row.created_at,
+      finalizedAt: row.finalized_at ?? null,
+      prizes: row.prizes ?? {},
+      ecosystemPrize: row.ecosystem_prize === true,
+      // Judges' feedback is matched to entries by repo, then title.
+      githubUrl: row.github_url ?? null,
+      // Only the track is carried; judgedTracksOf(null) is [] so a row without
+      // details scores nothing, as with the full read.
+      details: { track: row.details_track ?? null },
+    }));
+  }
+
   // How many entries are still drafts (organisers' view).
   async countDrafts(programId) {
     const { count, error } = await supabase
@@ -109,6 +139,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -121,6 +152,25 @@ class ProgramSubmissionRepository {
       .maybeSingle();
     if (error) throw error;
     return transform(data);
+  }
+
+  // A submission by its URL form: the full id, or the shortened one
+  // (first words + random suffix, see shortenId). Scoped to the program; a
+  // shortened id must match exactly one entry.
+  async findByIdOrShortId(programId, idOrShort) {
+    const exact = await this.findById(idOrShort);
+    if (exact) return exact.programId === programId ? exact : null;
+    const short = parseShortId(idOrShort);
+    if (!short) return null;
+    // Slug ids hold only [a-z0-9-], so no LIKE wildcards can come from the URL.
+    const { data, error } = await supabase
+      .from('program_submissions')
+      .select('*')
+      .eq('program_id', programId)
+      .like('id', `${short.prefix}-%-${short.suffix}`)
+      .limit(2);
+    if (error) throw error;
+    return data?.length === 1 ? transform(data[0]) : null;
   }
 
   async findByEmail(programId, email) {
@@ -174,6 +224,7 @@ class ProgramSubmissionRepository {
       })
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return { submission: transform(data), duplicate: false };
   }
@@ -214,6 +265,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -225,6 +277,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -242,6 +295,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -262,6 +316,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -280,6 +335,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -295,6 +351,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -320,6 +377,7 @@ class ProgramSubmissionRepository {
       .eq('id', id)
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
@@ -335,6 +393,7 @@ class ProgramSubmissionRepository {
   // Hard-delete a submission. submission_scores rows cascade (ON DELETE CASCADE).
   async delete(id) {
     const { error } = await supabase.from('program_submissions').delete().eq('id', id);
+    clearPublicDataCaches();
     if (error) throw error;
   }
 

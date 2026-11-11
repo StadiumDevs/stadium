@@ -5,6 +5,7 @@ import { isEcosystem, trackLabel, type ProgramProfile } from "@/lib/programProfi
 import { cn } from "@/lib/utils";
 import { MilestoneProgress } from "./MilestoneProgress";
 import { TxCheckBadge } from "./TxCheckBadge";
+import { projectPath } from "@/lib/projectUrl";
 
 export function EcosystemBadge({ label }: { label: string }) {
   return (
@@ -126,7 +127,7 @@ export function SubmissionCard({
         </button>
         {isWinner && (
           <Link
-            to={`/programs/${programSlug}/projects/${s.id}`}
+            to={projectPath(programSlug, s.id)}
             className="font-mono text-[10px] tracking-[0.14em] text-display hover:underline"
           >
             PROJECT PAGE ▸

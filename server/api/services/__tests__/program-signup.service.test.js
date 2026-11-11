@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../repositories/program-signup.repository.js', () => ({
-  default: { listByProgramId: vi.fn() },
+  default: { listCardSourcesByProgramId: vi.fn() },
 }));
 
 const signupRepository = (await import('../../repositories/program-signup.repository.js')).default;
@@ -13,12 +13,12 @@ describe('ProgramSignupService.projectCardsByProgramId', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns [] when there are no signups', async () => {
-    signupRepository.listByProgramId.mockResolvedValue([]);
+    signupRepository.listCardSourcesByProgramId.mockResolvedValue([]);
     expect(await signupService.projectCardsByProgramId('p1')).toEqual([]);
   });
 
   it('maps a builder-submission row to a public-safe card', async () => {
-    signupRepository.listByProgramId.mockResolvedValue([
+    signupRepository.listCardSourcesByProgramId.mockResolvedValue([
       signup(
         {
           'What did you build?': 'A zk proof-of-thought engine.',
@@ -41,7 +41,7 @@ describe('ProgramSignupService.projectCardsByProgramId', () => {
   });
 
   it('never leaks PII columns (telegram/email/contact)', async () => {
-    signupRepository.listByProgramId.mockResolvedValue([
+    signupRepository.listCardSourcesByProgramId.mockResolvedValue([
       signup(
         {
           'What did you build?': 'Thing',
@@ -58,7 +58,7 @@ describe('ProgramSignupService.projectCardsByProgramId', () => {
   });
 
   it('drops non-URL repo/doc values and rows with no project signal', async () => {
-    signupRepository.listByProgramId.mockResolvedValue([
+    signupRepository.listCardSourcesByProgramId.mockResolvedValue([
       signup({ 'GitHub repo': 'N/A', 'README link': 'tbd' }, 'NoLinks'),
       signup({ 'What did you build?': 'Real one', 'GitHub repo': 'https://github.com/a/b' }, 'Real'),
     ]);
@@ -68,7 +68,7 @@ describe('ProgramSignupService.projectCardsByProgramId', () => {
   });
 
   it('falls back to "Untitled project" when no name is available', async () => {
-    signupRepository.listByProgramId.mockResolvedValue([
+    signupRepository.listCardSourcesByProgramId.mockResolvedValue([
       signup({ 'What did you build?': 'Anon build' }, null),
     ]);
     const [card] = await signupService.projectCardsByProgramId('p1');

@@ -1,4 +1,5 @@
 import { supabase } from '../../db.js';
+import { clearPublicDataCaches } from '../utils/public-data-cache.js';
 
 const normalizeEmail = (email) =>
   typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -45,6 +46,18 @@ class SubmissionRubricScoreRepository {
     return (data || []).map(transform);
   }
 
+  // Lean read for totals (judging progress, public scores): only what the
+  // scoring maths reads. Skips notes / session / checks, which can be long and
+  // are only shown on the organiser leaderboard (use listByProgram there).
+  async listByProgramForTotals(programId) {
+    const { data, error } = await supabase
+      .from('submission_rubric_scores')
+      .select('id, submission_id, program_id, judge_email, track, criteria')
+      .eq('program_id', programId);
+    if (error) throw error;
+    return (data || []).map(transform);
+  }
+
   // Upsert one judge's (possibly partial) score for one submission and track.
   // judge_email comes from the verified session, never the request body.
   async upsert({ submissionId, programId, judgeEmail, track, criteria, notes, session, revisit, checks }) {
@@ -67,6 +80,7 @@ class SubmissionRubricScoreRepository {
       )
       .select('*')
       .single();
+    clearPublicDataCaches();
     if (error) throw error;
     return transform(data);
   }
