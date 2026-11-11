@@ -1,0 +1,35 @@
+name: Migrations
+
+# Release gate: on PRs to main, fail if any migration in supabase/migrations/
+# hasn't been applied to the production database yet. Merging to main deploys
+# the code (Railway/Vercel) but never runs migrations, so apply them first
+# (`supabase db push`), then re-run this check and merge.
+#
+# Needs the repo secret SUPABASE_MIGRATIONS_DB_URL: a connection string for a
+# READ-ONLY role that can only read supabase_migrations.schema_migrations
+# (setup in docs/PRODUCTION_DEPLOYMENT.md, "Migrations check").
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrations-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  applied:
+    name: migrations applied to production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # psql ships with the ubuntu runner image.
+      - name: Check every repo migration is applied in production
+        env:
+          SUPABASE_MIGRATIONS_DB_URL: ${{ secrets.SUPABASE_MIGRATIONS_DB_URL }}
+        run: bash .github/scripts/check-migrations-applied.sh
