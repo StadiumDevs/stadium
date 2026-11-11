@@ -6,6 +6,9 @@ import * as programAdminInvite from './program-admin-invite.js';
 import * as submissionConfirmation from './submission-confirmation.js';
 import * as submissionPendingReview from './submission-pending-review.js';
 import * as prizeAward from './prize-award.js';
+import * as payoutRequest from './payout-request.js';
+import * as payoutSent from './payout-sent.js';
+import * as payoutDetailsReceived from './payout-details-received.js';
 
 const templates = {
   application_accepted: applicationAccepted,
@@ -16,6 +19,9 @@ const templates = {
   submission_confirmation: submissionConfirmation,
   submission_pending_review: submissionPendingReview,
   prize_award: prizeAward,
+  payout_request: payoutRequest,
+  payout_sent: payoutSent,
+  payout_details_received: payoutDetailsReceived,
 };
 
 export function renderEmail(eventType, payload) {

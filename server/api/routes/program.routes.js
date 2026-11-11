@@ -5,6 +5,7 @@ import programController from '../controllers/program.controller.js';
 import submissionController from '../controllers/submission.controller.js';
 import trackedResultsController from '../controllers/tracked-results.controller.js';
 import programStatsController from '../controllers/program-stats.controller.js';
+import payoutController from '../controllers/payout.controller.js';
 import requireAdmin, {
   requireTeamMemberOrAdminByBodyProject,
   requireProgramAdmin,
@@ -316,6 +317,19 @@ router.patch(
   requireProgramAdmin('slug'),
   submissionController.setPaid,
 );
+// --- Prize payouts (tracked programs) ---
+// Winner: the point person (verified-email session, checked in the controller)
+// reads and sends their own payout details once results are published.
+router.get('/:slug/submissions/:submissionId/payout/mine', payoutController.getMine);
+router.put('/:slug/submissions/:submissionId/payout/mine', submissionLimiter, payoutController.saveMine);
+// Platform admin (the controller rejects anyone who isn't a global admin):
+// the payouts table, CSV, details, payments (tx hash as proof) and payout emails.
+router.get('/:slug/payouts', requireProgramAdmin('slug'), payoutController.list);
+router.get('/:slug/payouts.csv', requireProgramAdmin('slug'), payoutController.csv);
+router.post('/:slug/payouts/request', requireProgramAdmin('slug'), payoutController.requestDetails);
+router.put('/:slug/submissions/:submissionId/payout', requireProgramAdmin('slug'), payoutController.saveDetails);
+router.put('/:slug/submissions/:submissionId/payments/:award', requireProgramAdmin('slug'), payoutController.recordPayment);
+router.delete('/:slug/submissions/:submissionId/payments/:award', requireProgramAdmin('slug'), payoutController.deletePayment);
 // --- Winner selection + results publishing (platform/global admin only) ---
 // requireProgramAdmin lets wallet admins through; the controller then rejects
 // anyone who isn't a global admin (per-program admins cannot select winners).

@@ -27,6 +27,8 @@ import { ProgramResultsSummarySection } from "@/components/admin/ProgramResultsS
 import { ExperienceRatingsSection } from "@/components/admin/ExperienceRatingsSection";
 import { RubricJudgingSection } from "@/components/admin/tracked/RubricJudgingSection";
 import { MilestonesAdminSection } from "@/components/admin/tracked/MilestonesAdminSection";
+import { PayoutsAdminSection } from "@/components/admin/tracked/PayoutsAdminSection";
+import { hasPayouts } from "@/lib/payouts";
 import { FrictionReportSection } from "@/components/admin/tracked/FrictionReportSection";
 import { MockPlaygroundBar } from "@/components/admin/tracked/MockPlaygroundBar";
 import { StatsPublishPanel } from "@/components/admin/StatsPublishPanel";
@@ -474,6 +476,7 @@ const AdminProgramPage = () => {
                       judgeEmail={null}
                     />
                     <MilestonesAdminSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
+                    {isGlobalAdmin && hasPayouts(program.slug) && <PayoutsAdminSection programSlug={program.slug} getAuth={getAdminAuth} />}
                     <FrictionReportSection profile={profile} programSlug={program.slug} getAuth={getAdminAuth} />
                   </>
                 ) : (
