@@ -31,7 +31,7 @@
     "@grpc/proto-loader": "^0.8.1",
     "@polkadot-api/descriptors": "file:.papi/descriptors",
     "@supabase/supabase-js": "^2.93.2",
-    "@talismn/siws": "^1.0.0",
+    "@talismn/siws": "^2.1.0",
     "bs58": "^6.0.0",
     "chalk": "^6.0.1",
     "cors": "^2.8.5",
@@ -42,7 +42,7 @@
     "helmet": "^8.1.0",
     "mongoose": "^9.12.0",
     "multer": "^2.1.1",
-    "polkadot-api": "^1.13.1",
+    "polkadot-api": "^3.3.0",
     "resend": "^6.12.3",
     "tweetnacl": "^1.0.3",
     "viem": "^2.50.3",
@@ -53,7 +53,7 @@
     "@polkadot/util": "^14.0.3",
     "@polkadot/util-crypto": "^14.0.3",
     "nodemon": "^3.1.10",
-    "vitest": "^4.1.0"
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "@ethersproject/providers": {
