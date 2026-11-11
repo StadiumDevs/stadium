@@ -1,3 +1,8 @@
+# Node 22+ is required: @supabase/supabase-js >= 2.119 needs Node's native
+# WebSocket (createClient throws on Node 20) and chalk 6 needs Node 22.
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
 [phases.install]
 cmds = ["npm install"]
 
