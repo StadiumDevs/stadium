@@ -2,13 +2,15 @@
 # separate repo setting: Settings → Code security → Dependabot security updates.
 #
 # npm (client + server together) is checked once a day at the END of the day
-# (23:00 Europe/Berlin), and every bump (major, minor and patch, across both
-# apps) lands in ONE grouped PR, to keep PR volume down. Security updates fire as
-# soon as an advisory appears, independent of the schedule, and are grouped into
-# one PR as well.
+# (23:00 Europe/Berlin), and every minor and patch bump across both apps lands in
+# ONE grouped PR. Security updates fire as soon as an advisory appears,
+# independent of the schedule, and are grouped into one PR as well.
 #
-# Trade-off: a breaking major in the batch blocks the whole PR until it's fixed.
-# If one package keeps doing that, add an `ignore` entry for its majors here.
+# MAJOR versions are ignored on purpose. Majors such as React 19, Tailwind 4,
+# Vite 8 and TypeScript 7 are migrations, not drop-in bumps; bundling them
+# produced an uninstallable PR (#282). Upgrade a major deliberately, in its own
+# PR, when planned. The ignore also suppresses a security fix that only exists in
+# a new major; the CI `audit` jobs still flag those advisories.
 #
 # PRs target `develop` and, like every PR here, need a CODEOWNER to merge.
 version: 2
@@ -31,10 +33,14 @@ updates:
       all-dependencies:
         applies-to: version-updates
         patterns: ["*"]
-        update-types: [major, minor, patch]
+        update-types: [minor, patch]
       security:
         applies-to: security-updates
         patterns: ["*"]
+    ignore:
+      # Majors are upgraded by hand (see the header).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
