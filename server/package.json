@@ -31,7 +31,7 @@
     "@grpc/proto-loader": "^0.8.1",
     "@polkadot-api/descriptors": "file:.papi/descriptors",
     "@supabase/supabase-js": "^2.93.2",
-    "@talismn/siws": "^1.0.0",
+    "@talismn/siws": "^2.1.0",
     "bs58": "^6.0.0",
     "chalk": "^6.0.1",
     "cors": "^2.8.5",
