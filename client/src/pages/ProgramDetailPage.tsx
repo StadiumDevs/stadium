@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
+import { SiteFooter } from "@/components/SiteFooter";
 import { ProjectExplorer } from "@/components/ProjectExplorer";
 import { UnitCard } from "@/components/unit-card";
 import { RotateCw } from "lucide-react";
@@ -978,6 +979,7 @@ const ProgramDetailPage = () => {
           </>
         ) : null}
       </main>
+      <SiteFooter />
     </div>
   );
 };

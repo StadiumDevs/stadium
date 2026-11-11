@@ -37,6 +37,7 @@ export function SubmissionCard({
   onOpen: () => void;
 }) {
   const prizes = prizeEntries(s);
+  const scoredTracks = profile.tracks.filter((t) => s.scores?.[t.id]);
   const isWinner = prizes.length > 0;
   const hasMilestone = !!s.details.milestone && isEcosystem(s);
 
@@ -83,11 +84,10 @@ export function SubmissionCard({
 
       {s.scores && Object.keys(s.scores).length > 0 && (
         <dl className="flex flex-wrap gap-x-4 gap-y-1" data-testid="card-scores">
-          {profile.tracks
-            .filter((t) => s.scores?.[t.id])
-            .map((t) => (
+          {scoredTracks.map((t) => (
               <div key={t.id} className="flex items-baseline gap-1.5" data-testid="card-score" data-track={t.id}>
-                <dt className="label-hw-dim">{t.shortLabel}</dt>
+                {/* Two scores (a "both" entry) keep the track so they can be told apart. */}
+                <dt className="label-hw-dim">SCORE TOTAL{scoredTracks.length > 1 ? ` (${t.shortLabel})` : ""}</dt>
                 <dd className="font-mono text-display text-[13px]">
                   {s.scores![t.id]!.score} <span className="text-label-dim text-[11px]">/ {s.scores![t.id]!.max}</span>
                 </dd>

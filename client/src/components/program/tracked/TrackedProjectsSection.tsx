@@ -9,6 +9,26 @@ import { SubmissionDetailModal } from "./SubmissionDetailModal";
 
 type TrackFilter = "all" | JudgedTrack;
 
+/** Rows of "all other projects" shown at first and added per LOAD MORE. */
+const ROWS_PER_PAGE = 5;
+
+/** Grid columns at the current width (matches grid-cols-1 sm:grid-cols-2 lg:grid-cols-3). */
+function useGridColumns() {
+  const read = () =>
+    typeof window === "undefined" ? 3
+      : window.matchMedia("(min-width: 1024px)").matches ? 3
+      : window.matchMedia("(min-width: 640px)").matches ? 2
+      : 1;
+  const [cols, setCols] = useState(read);
+  useEffect(() => {
+    const queries = ["(min-width: 640px)", "(min-width: 1024px)"].map((q) => window.matchMedia(q));
+    const update = () => setCols(read());
+    queries.forEach((m) => m.addEventListener("change", update));
+    return () => queries.forEach((m) => m.removeEventListener("change", update));
+  }, []);
+  return cols;
+}
+
 /**
  * Public grid of every submitted project for a tracked program: search, track
  * filter, three columns on desktop / two on tablet / one on phone. Winners sit
@@ -30,6 +50,10 @@ export function TrackedProjectsSection({
 }) {
   const [query, setQuery] = useState("");
   const [track, setTrack] = useState<TrackFilter>("all");
+  const cols = useGridColumns();
+  // Rows of "all other projects" revealed; a new search or filter starts over.
+  const [rows, setRows] = useState(ROWS_PER_PAGE);
+  useEffect(() => setRows(ROWS_PER_PAGE), [query, track]);
   // ?project=<id> (links from the stats page charts) opens that project's details.
   const [params, setParams] = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(() => params.get("project"));
@@ -61,6 +85,7 @@ export function TrackedProjectsSection({
 
   const winners = published ? filtered.filter((s) => prizeEntries(s).length > 0) : [];
   const rest = published ? filtered.filter((s) => prizeEntries(s).length === 0) : filtered;
+  const shown = rest.slice(0, rows * cols);
   const open = submissions.find((s) => s.id === openId) ?? null;
 
   const filters: { id: TrackFilter; label: string }[] = [
@@ -147,7 +172,19 @@ export function TrackedProjectsSection({
           {rest.length > 0 && (
             <div className="space-y-2">
               {winners.length > 0 && <div className="label-hw-dim">·ALL OTHER PROJECTS</div>}
-              {grid(rest, winners.length)}
+              {grid(shown, winners.length)}
+              {shown.length < rest.length && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setRows((r) => r + ROWS_PER_PAGE)}
+                    className="font-mono text-[10px] tracking-[0.12em] border border-hairline text-display hover:bg-panel-deep px-3 py-1.5"
+                    data-testid="projects-load-more"
+                  >
+                    LOAD MORE ({rest.length - shown.length} MORE)
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

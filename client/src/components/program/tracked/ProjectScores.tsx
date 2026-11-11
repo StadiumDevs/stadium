@@ -73,7 +73,7 @@ export function ProjectScores({ profile, submission: s }: { profile: ProgramProf
           <section key={t.id} data-track={t.id}>
             <div className="label-hw text-display mb-1">·SCORES BY CATEGORY</div>
             <p className="label-hw-dim normal-case" data-testid="project-scores-summary">
-              {t.shortLabel} · {fmt(sc.score)} / {sc.max} · normalized average across all judges
+              SCORE TOTAL{tracks.length > 1 ? ` (${t.shortLabel})` : ""} · {fmt(sc.score)} / {sc.max} · normalized average across all judges
             </p>
             <ul className="mt-2 space-y-1.5" data-testid="project-score-rows">
               {sc.criteria.map((c) => {
