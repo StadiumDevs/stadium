@@ -25,6 +25,6 @@ If **any** step failed:
 - Do not proceed to opening a PR.
 - Paste the failing output for the user.
 - If the caller is `/ship-issue`, return control to the implementer with the failure — do not disable tests, skip lint, or use `--no-verify`.
-- If the failure looks environmental (missing MongoDB, missing env vars), say so explicitly rather than claiming a code bug.
+- If the failure looks environmental (missing env vars), say so explicitly rather than claiming a code bug. Server tests mock Supabase and do not require MongoDB, so a missing-Mongo error is not the normal cause of an API test failure.
 
 If all three pass, report `All checks passed. Safe to open PR.` and stop.

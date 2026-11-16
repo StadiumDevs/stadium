@@ -122,9 +122,11 @@ This document describes the complete data schema for the Blockspace Stadium appl
 - `LegacyProject` type (for backward compatibility)
 - Mapped from `ApiProject` format
 
-### Backend MongoDB Schema
+### Offline Mongoose schema (scripts only)
 
-**Current Model** (`server/models/Project.js`):
+`server/models/Project.js` is the schema for `server/scripts/` only. API data access is Supabase through `server/api/repositories/`. Do not import this model from `server/api/**`.
+
+**Script model** (`server/models/Project.js`):
 - ✅ Has: `projectName`, `description`, `teamMembers`, `hackathon`, `projectRepo`, `demoUrl`, `slidesUrl`, `techStack`, `categories`, `donationAddress`, `projectState`, `bountiesProcessed`, `bountyPrize`, `milestones`
 - ❌ Missing: `m2Status`, `finalSubmission`, `m2Agreement`, `changesRequested`, `completionDate`, `submittedDate`, `hackathon.eventStartedAt`
 - ❌ Missing from teamMembers: `role`, `twitter`, `github`, `linkedin`
@@ -155,10 +157,10 @@ This document describes the complete data schema for the Blockspace Stadium appl
 
 ## Migration Notes
 
-1. **MongoDB Collections**: Projects are stored in the `projects` collection
-2. **Database**: Currently using `test` database (default when no DB specified in connection string)
+1. **API store**: Production project data is in Supabase. Access goes through `server/api/repositories/`.
+2. **Offline Mongo**: `server/scripts/` use Mongoose against a local Mongo. That store's projects live in the `projects` collection (default database `test` when the connection string names none). No Supabase calls belong in `server/scripts/`.
 3. **ID Generation**: Project IDs are generated from `projectName` using `generateId()` utility
-4. **Timestamps**: MongoDB automatically adds `createdAt` and `updatedAt` (via `timestamps: true`)
+4. **Timestamps**: On the offline Mongo model, Mongoose adds `createdAt` and `updatedAt` (via `timestamps: true`)
 
 ## Frontend Mock Data Usage
 
@@ -169,13 +171,13 @@ This document describes the complete data schema for the Blockspace Stadium appl
 **Mock Data Flag**:
 - `USE_MOCK_DATA` in `client/src/lib/api.ts` (currently `true`)
 - When `true`, API calls return mock data instead of real backend data
-- Must be set to `false` to use real MongoDB data
+- Must be set to `false` to use the real API (Supabase)
 
 ## Required Schema Updates
 
-To fully support the frontend, the MongoDB schema needs:
+New API fields belong in Supabase (a migration plus `server/api/repositories/`), not in the Mongoose model. `server/models/Project.js` is script-only. As of this note, that offline model is missing:
 
-1. **Add M2 fields to Project schema**:
+1. **M2 fields the script model does not define**:
    - `m2Status: { type: String, enum: ['building', 'under_review', 'completed'] }`
    - `finalSubmission: { type: Object, ... }`
    - `m2Agreement: { type: Object, ... }`
@@ -183,12 +185,12 @@ To fully support the frontend, the MongoDB schema needs:
    - `completionDate: { type: Date }`
    - `submittedDate: { type: Date }`
 
-2. **Update teamMembers schema**:
-   - Add `role`, `twitter`, `github`, `linkedin` fields
+2. **teamMembers fields the script model does not define**:
+   - `role`, `twitter`, `github`, `linkedin`
 
-3. **Update hackathon schema**:
-   - Add `eventStartedAt: { type: Date }`
+3. **hackathon field the script model does not define**:
+   - `eventStartedAt: { type: Date }`
 
-4. **Ensure techStack is always an array**:
-   - Currently required, but should handle both string and array formats for backward compatibility
+4. **techStack on the script model**:
+   - Currently required, and the shape should accept both string and array formats for backward compatibility
 

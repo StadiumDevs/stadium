@@ -131,7 +131,7 @@ without this section populated.>
 - [ ] BYPASS_ADMIN_CHECK still false
 - [ ] Admin routes still use auth.middleware.js
 - [ ] No new console.log in client
-- [ ] No new Supabase imports
+- [ ] API data access goes through `server/api/repositories/` (Supabase); no Mongoose in `server/api/**`; no Supabase in `server/scripts/`
 EOF
 )"
 ```
