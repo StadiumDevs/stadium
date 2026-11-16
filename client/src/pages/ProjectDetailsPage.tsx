@@ -47,6 +47,7 @@ import { EditProjectDetailsModal } from "@/components/EditProjectDetailsModal";
 import { isAdmin as checkIsAdmin } from "@/lib/constants";
 import { addressInList } from "@/lib/addressUtils";
 import { Edit } from "lucide-react";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 /** Normalize URL for server (must start with www or http(s)://) */
 function ensureSubmissionUrl(url: string): string {
@@ -142,6 +143,7 @@ const ProjectDetailsPage = () => {
   };
 
   const [project, setProject] = useState<ApiProject | null>(null);
+  usePageMeta({ title: project?.projectName, description: project?.description });
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const { toast } = useToast();

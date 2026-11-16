@@ -34,6 +34,7 @@ import { ProgramStatsLink } from "@/components/stats/ProgramStatsLink";
 import { UpdatedAt } from "@/components/stats/ProgramStatsView";
 import { getProgramProfile } from "@/lib/programProfiles";
 import type { ApiPublicSubmissions } from "@/lib/api";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 // `timeZone`: the event's own zone (programProfiles), so a Mumbai event reads
 // in IST wherever the viewer is; otherwise the viewer's zone.
@@ -97,6 +98,7 @@ const ProgramDetailPage = () => {
   const connectedAddress = auth.account?.address ?? null;
 
   const [program, setProgram] = useState<ApiProgram | null>(null);
+  usePageMeta({ title: program?.name, description: program?.description });
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
