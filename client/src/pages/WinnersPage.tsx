@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const UnitDetailModal = lazy(() =>
   import("@/components/unit-detail-modal").then((m) => ({ default: m.UnitDetailModal })),
@@ -50,6 +51,7 @@ const WinnersPage = () => {
   const { hackathon } = useParams<{ hackathon: string }>();
   const [winners, setWinners] = useState<Unit[]>([]);
   const [programName, setProgramName] = useState<string>("");
+  usePageMeta({ title: programName ? `${programName} winners` : undefined });
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Unit | null>(null);
   const { toast } = useToast();

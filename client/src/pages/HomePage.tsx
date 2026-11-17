@@ -5,8 +5,10 @@ import { FeaturedProgramCard } from "@/components/FeaturedProgramCard";
 import { FREE_SOCIETY_HACK_SLUG } from "@/lib/programProfiles";
 import { api, type ApiProgram } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const HomePage = () => {
+  usePageMeta({ title: "WebZero hackathons & incubator programs" });
   const [allPrograms, setAllPrograms] = useState<ApiProgram[]>([]);
   const { toast } = useToast();
 

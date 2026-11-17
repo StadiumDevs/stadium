@@ -10,6 +10,7 @@ import { api, type ApiProject } from "@/lib/api";
 import { addressInList } from "@/lib/addressUtils";
 import { useWalletAuth } from "@/lib/auth/useWalletAuth";
 import { cn } from "@/lib/utils";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 type Status = "building" | "under_review" | "completed";
 
@@ -39,6 +40,10 @@ type ViewFilter = "all" | "mine";
 type StatusFilter = "all" | "building" | "review" | "graduate";
 
 const M2ProgramPage = () => {
+  usePageMeta({
+    title: "M2 Incubator",
+    description: "Projects in the WebZero M2 incubator: milestones, progress and payouts as teams keep building after the hackathon.",
+  });
   const navigate = useNavigate();
   const { toast } = useToast();
   const auth = useWalletAuth();
