@@ -48,6 +48,7 @@ code that reads them is deployed — otherwise auth and project reads error.
       `requireTeamMemberOrAdmin` enforce the domain check — a wrong value breaks
       *all* team-member actions.
 - [ ] `DISABLE_SIWS_DOMAIN_CHECK` — unset or `false` in production.
+- [ ] Server boot log has no `UNSAFE_AUTH_CONFIG` line (dev accounts in admin env/tables, domain check disabled, or `EXPECTED_DOMAIN` unset/`localhost`). Warn-only until `ENFORCE_SAFE_AUTH_CONFIG` in `server/api/services/auth-config-check.service.js` is flipped (#301).
 - [ ] `NODE_ENV=production` — disables the `dev-bypass` auth shortcut.
 - [ ] `AUTHORIZED_SIGNERS` — admin signers. Chain-tagged entries supported
       (`ethereum:0x…`, `solana:…`); bare entries are treated as Substrate.
