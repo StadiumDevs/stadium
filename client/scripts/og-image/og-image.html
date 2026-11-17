@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Source for client/public/og-image.png (1200x630 link preview). Regenerate: node scripts/og-image/render.mjs (from client/) -->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: "JetBrains Mono"; src: local("JetBrains Mono"), local("Menlo"); }
+  html, body { margin: 0; width: 1200px; height: 630px; background: #0A0A0A; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    background: radial-gradient(ellipse at 50% 42%, rgba(124, 58, 237, 0.22), transparent 60%), #0A0A0A;
+    font-family: "JetBrains Mono", Menlo, monospace; color: #E5E5E5;
+  }
+  .logo {
+    width: 760px; height: 300px;
+    background: url("../../public/stadium.png") no-repeat center 50%;
+    background-size: 760px auto;
+    /* crop to the wordmark band of the square logo */
+    background-position: center 30%;
+    mix-blend-mode: lighten;
+  }
+  .tag { font-size: 30px; letter-spacing: 0.04em; text-align: center; }
+  .sub { font-size: 22px; color: #A8A8A8; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 10px; }
+</style>
+</head>
+<body>
+  <div class="logo"></div>
+  <div class="tag">Hackathons &amp; incubator programs on Polkadot</div>
+  <div class="sub">stadium.joinwebzero.com · by WebZero</div>
+</body>
+</html>

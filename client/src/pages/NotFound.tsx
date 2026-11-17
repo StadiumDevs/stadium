@@ -1,6 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const NotFound = () => {
+  usePageMeta({ title: "Page not found" });
   const location = useLocation();
 
   return (

@@ -13,6 +13,7 @@ import { useSocialAuth } from "@/lib/auth/useSocialAuth";
 import { hasPayablePrize } from "@/lib/payouts";
 import { PrizePayoutCard } from "@/components/program/tracked/PrizePayoutCard";
 import NotFound from "./NotFound";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 /**
  * A winning project's own page (tracked programs only). Non-winners have no
@@ -24,6 +25,10 @@ const ProgramWinnerPage = () => {
   const { toast } = useToast();
   const [program, setProgram] = useState<ApiProgram | null>(null);
   const [entry, setEntry] = useState<ApiPublicSubmission | null>(null);
+  usePageMeta({
+    title: entry ? (program ? `${entry.projectTitle} · ${program.name}` : entry.projectTitle) : undefined,
+    description: entry?.projectBrief,
+  });
   const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
   const [editing, setEditing] = useState(false);
   const [sentence, setSentence] = useState("");

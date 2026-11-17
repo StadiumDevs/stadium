@@ -3,8 +3,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { api, type ApiProgram } from "@/lib/api";
 import { hasLlms, llmsPath } from "@/lib/llms/llmsPrograms";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const ProgramsPage = () => {
+  usePageMeta({
+    title: "Programs",
+    description: "Every WebZero hackathon and incubator program on Stadium: open calls, live events and past results.",
+  });
   const [programs, setPrograms] = useState<ApiProgram[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
