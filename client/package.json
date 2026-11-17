@@ -8,6 +8,7 @@
     "dev": "vite",
     "dev:harness": "VITE_USE_MOCK_DATA=true VITE_USE_TEST_WALLET=true VITE_ADMIN_ADDRESSES=5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY vite",
     "build": "tsc && vite build",
+    "check:bundle": "node scripts/check-prod-bundle.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
