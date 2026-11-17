@@ -307,3 +307,9 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/routes/program.routes.js:111` (public `getPublished`) and `:299` (`requireProgramJudge` → `submissionController.programStats`)
 - **Observed during**: privacy track tech review section (stats page), exploring e29f836
 - **Suggestion**: Express uses the first match, so the judge header-stats endpoint can no longer be reached. Give the published stats page or the judge counts a distinct path, together with the client rename above.
+
+## [2026-11-16] Public API: anonymous entries' repo URLs and small metadata leaks
+- **Severity**: minor
+- **File(s)**: `server/api/utils/public-submission.js:28-29`; `server/server.js:106` (`/api/health`); `server/api/repositories/program.repository.js:63-64`; `server/api/routes/wallet-contact.routes.js:7`
+- **Observed during**: public API exposure audit of prod (unauthenticated probes of every public GET route). No emails, payout details or secrets exposed; all auth-gated routes return 401.
+- **Suggestion**: Four optional hardening items, each with a trade-off: (1) anonymous tracked submissions hide `submitterName` but still return `githubUrl`/`videoUrl`, whose GitHub handle can de-anonymize (18 anonymous entries in free-society-hack-2026). Decide whether "anonymous" should cover these; hiding them breaks repo links and judges' feedback matching by repo. (2) `/api/health` returns the authorized-signer count, network and Resend-configured booleans; consider trimming or gating them (they serve an ops check). (3) The public program payload includes `lastGuestSyncAt`/`lastGuestSyncStatus`; they could be split into an admin-only response (`lumaEventId` must stay for the registration embed). (4) `GET /wallet-contacts/:address` is unauthenticated and reveals `email_set`/`notifications_enabled` for any wallet; gating it adds a signature prompt in `NotificationsCard`.
