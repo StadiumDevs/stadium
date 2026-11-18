@@ -48,6 +48,14 @@ node .claude/skills/stadium-tester/scripts/run-playwright.mjs \
 
 Expected: prints `{"error":"production-target-blocked", ...}` and exits with `3`. If it doesn't, the guardrail is broken — stop and report.
 
+Then run the guard test suite (production denylist, mock-mode preflight exit `4`, no writes into the repo; the preflight cases need Chromium):
+
+```bash
+node --test '.claude/skills/stadium-tester/scripts/__tests__/*.test.mjs'
+```
+
+Expected: all tests pass. CI runs the same suite in the `tester-runner` job.
+
 ### 5. Live smoke test (requires user to start dev server)
 
 Tell the user to run in another terminal:

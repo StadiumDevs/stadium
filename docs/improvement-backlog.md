@@ -336,6 +336,12 @@ The commit or PR must exist and actually fix the entry (check the code, not just
 - **Observed during**: public API exposure audit of prod (unauthenticated probes of every public GET route). No emails, payout details or secrets exposed; all auth-gated routes return 401.
 - **Suggestion**: Four optional hardening items, each with a trade-off: (1) anonymous tracked submissions hide `submitterName` but still return `githubUrl`/`videoUrl`, whose GitHub handle can de-anonymize (18 anonymous entries in free-society-hack-2026). Decide whether "anonymous" should cover these; hiding them breaks repo links and judges' feedback matching by repo. (2) `/api/health` returns the authorized-signer count, network and Resend-configured booleans; consider trimming or gating them (they serve an ops check). (3) The public program payload includes `lastGuestSyncAt`/`lastGuestSyncStatus`; they could be split into an admin-only response (`lumaEventId` must stay for the registration embed). (4) `GET /wallet-contacts/:address` is unauthenticated and reveals `email_set`/`notifications_enabled` for any wallet; gating it adds a signature prompt in `NotificationsCard`.
 
+## [2026-11-18] Tester: block production hosts inside the browser, not just the target
+- **Severity**: minor
+- **File(s)**: `.claude/skills/stadium-tester/scripts/run-playwright.mjs`, `.claude/skills/stadium-tester/scripts/guards.mjs`
+- **Observed during**: issue #304 review
+- **Suggestion**: The denylist and mock preflight check only `--target`. A local target built without mock mode and with `VITE_API_BASE_URL` pointing at production, a redirect, or an absolute `page.goto` in a spec could still reach production. Abort requests to denylisted hosts with a Playwright `context.route` (e.g. a generated fixture), and check `window.__STADIUM_API_BASE__` against the denylist for every target.
+
 ## [2026-11-18] ConfirmPaymentModal: float split and wallet-keyed amounts
 - **Severity**: minor
 - **File(s)**: `client/src/components/admin/ConfirmPaymentModal.tsx` (recipient amounts, sum check)
