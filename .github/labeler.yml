@@ -1,0 +1,18 @@
+# actions/labeler config (#312). A PR that touches the sign-in path gets
+# `needs-real-wallet-qa`; .github/workflows/real-wallet-qa.yml then requires the
+# "Real wallet QA" checklist in the PR body to be ticked. The test wallet signs
+# silently, so only a person with a real extension can check the popup.
+needs-real-wallet-qa:
+  - changed-files:
+      - any-glob-to-any-file:
+          - client/src/lib/siwsUtils.ts
+          - client/src/lib/auth/**
+          - client/src/components/auth/**
+          - client/src/components/WalletConnectionBanner.tsx
+          - client/src/lib/testWalletInjection.ts
+          - server/api/middleware/auth.middleware.js
+          - server/api/auth/**
+          - server/api/controllers/admin-session.controller.js
+          - server/api/routes/admin-session.routes.js
+          - server/api/routes/admin-tiers.routes.js
+          - server/config/polkadot-config.js
