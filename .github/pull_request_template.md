@@ -31,7 +31,7 @@ Paste the tester's full markdown report below. **Every scenario from the linked 
 - [ ] New admin routes use `server/api/middleware/auth.middleware.js`
 - [ ] No hardcoded admin/wallet addresses
 - [ ] No new `console.log/warn/error` in client production code
-- [ ] API data access goes through `server/api/repositories/` (Supabase); no Mongoose in `server/api/**`; no Supabase in `server/scripts/`
+- [ ] API data access goes through `server/api/repositories/` (Supabase); no MongoDB/Mongoose
 - [ ] New env vars added to `.env.example` (if applicable)
 
 ## Backlog items logged

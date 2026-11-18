@@ -136,7 +136,7 @@ Every FK cascades on parent delete. Nothing is rename-sensitive.
 
 These are non-negotiable and exist independent of this spec. Capturing them here because a brainstorming agent building new things is the most likely kind of agent to accidentally violate one.
 
-**The API data layer is Supabase.** Server-side Mongoose is script-only, never in the API path. When you add a new table, the repository goes in `server/api/repositories/`, not `server/models/`.
+**The data layer is Supabase.** MongoDB/Mongoose was removed (#309). When you add a new table, the repository goes in `server/api/repositories/`.
 
 **No client-side auth bypass.** A `BYPASS_ADMIN_CHECK` flag in `AdminPage.tsx` once shipped as `true`; it has since been deleted (#307). If you see anything reintroducing a way to skip the admin gate, flag it loudly.
 
