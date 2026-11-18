@@ -8,13 +8,13 @@ This file is the first thing any agent working on this repo should read. It is t
 
 Stadium is the web app for the WebZero hackathon/incubator program on Polkadot. Three components live here:
 
-- `client/` — React 18 + Vite + TypeScript + Tailwind + shadcn/ui. Talks to the server via `client/src/lib/api.ts`. Admin auth via Polkadot-JS extension + SIWS (Sign-In With Substrate).
+- `client/` — React 18 + Vite + TypeScript + Tailwind + shadcn/ui. Talks to the server via `client/src/lib/api.ts`. Sign-in: wallet signatures (SIWS for Substrate, plus Ethereum/Solana) and Supabase email sessions — see §4 "Auth model".
 - `server/` — Express 5, ESM (`"type": "module"`). Tests via Vitest.
 - `hackathonia/` — Rust ink! smart contracts (out of scope for most feature work — touch only if the issue explicitly asks for contract changes).
 
 **Data layers (important — two co-exist):**
 
-- **API runtime = Supabase.** `server/db.js` builds a Supabase client from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. `server/api/repositories/project.repository.js` is the canonical data access layer — every controller and service goes through it. New API code adds queries here.
+- **API runtime = Supabase.** `server/db.js` builds a Supabase client from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. `server/api/repositories/` is the data access layer: one repository per table or concern (`project.repository.js`, `program.repository.js`, `payout.repository.js`, …). Controllers and services go through a repository; new API code adds or extends one.
 - **Offline tooling = MongoDB via Mongoose.** `server/scripts/*.js` (seed-dev, migration, fix-bounty-amounts, list-winners-zero-paid, set-live-urls, set-m2-final-submissions, seed-m2-test-project) use Mongoose against a local Mongo for bulk imports, backfills, and reports. `server/models/Project.js` is their schema. **Not wired to any route.** Never add a Mongoose query to `server/api/**`.
 
 Deployment: server → Railway, client → Vercel.
@@ -29,7 +29,7 @@ Always run from the subdir, not the repo root.
 
 **Client (`cd client`):**
 - `npm run dev` — Vite dev server
-- `npm run build` — `tsc && vite build` (this is the typecheck; there is no separate `typecheck` script — don't invent one)
+- `npm run build` — `tsc && vite build`. **Caveat:** `client/tsconfig.json` is solution-style (`"files": []`), so plain `tsc` type-checks nothing; type errors are not caught by the build today (open in `docs/improvement-backlog.md`). Don't invent a separate `typecheck` script.
 - `npm run lint` — ESLint with `--max-warnings 0` (warnings fail)
 - No test script — do not write one in this pass
 
@@ -46,10 +46,14 @@ Always run from the subdir, not the repo root.
 
 ```
 client/src/
-  pages/           AdminPage, HomePage, M2ProgramPage, ProjectDetailsPage, WinnersPage, NotFound
-  components/      shadcn/ui + feature components
-  hooks/           use-toast.tsx, use-mobile
-  lib/             api.ts, constants.ts, siwsUtils.ts, polkadot-config.ts, addressUtils.ts, paymentUtils.ts, projectUtils.ts, utils.ts
+  pages/           AdminPage, AdminProgramPage, AppAdminsPage, HomePage, M2ProgramPage, NotFound,
+                   ProgramDetailPage, ProgramsPage, ProgramStatsPage, ProgramWinnerPage,
+                   ProjectDetailsPage, WinnersPage
+  components/      shadcn/ui + feature components (admin/, program/, auth/, stats/, …)
+  hooks/           use-toast.tsx, use-mobile.tsx, use-brightness.ts, use-page-meta.ts
+  lib/             api.ts (all API calls + mock mode), constants.ts, auth/ (wallet + email sign-in,
+                   admin session), siwsUtils.ts, testWalletInjection.ts, supabase.ts,
+                   mock*.ts + mocks/ (mock-mode fixtures), polkadot-config.ts, addressUtils.ts, …
   App.tsx          routing (react-router-dom v6)
   index.css        theme variables (dark mode only)
 
@@ -57,15 +61,20 @@ server/
   server.js        entry — imports connectToSupabase from db.js
   db.js            Supabase client construction (live API data layer)
   api/
-    routes/        *.routes.js  (currently: m2-program.routes.js)
+    routes/        admin-session, admin-tiers, m2-program, program, wallet-contact (*.routes.js)
     controllers/   *.controller.js
     services/      business logic
-    repositories/  project.repository.js — Supabase queries, single source of truth for API data access
-    middleware/    auth.middleware.js (SIWS), logging.middleware.js
+    repositories/  one per table/concern — the only place API code queries Supabase
+    middleware/    auth.middleware.js (require* gates), logging.middleware.js
+    auth/          sign-in internals: verifiers/ (substrate, ethereum, solana), sessionToken,
+                   nonceStore, authorizedSigners, normalize, supabaseUser
     utils/
     constants/
   models/          Mongoose models (script-only, NOT used by routes): Project.js, MultisigTransaction.js
   scripts/         offline data tooling (Mongo-backed; destructive — do not run)
+  config/          polkadot-config.js (network, multisig, signer list)
+  ci/              boot-check.js (CI: load every route without a database)
+  sim/             in-memory Supabase fake for journey tests
   tests/           standalone tests
   vitest.config.js
 
@@ -86,8 +95,17 @@ These have bitten us before. Do not regress them.
 - Dark mode is forced in `App.tsx`. Don't add light-mode-only styles or hex colors with `!important` in `index.css`.
 - No `console.log`/`console.warn`/`console.error` in production client code. They were stripped deliberately.
 - Server is ESM — use `import`, not `require`.
-- Every admin-protected server route must use middleware from `auth.middleware.js`: `requireAdmin` for admin-only, `requireTeamMemberOrAdmin` for team+admin. See `server/api/middleware/__tests__/verify-onchain.test.js` for the canonical test shape.
+- Every admin-protected server route must use middleware from `auth.middleware.js`: `requireAdmin` for admin-only, `requireTeamMemberOrAdmin` for team+admin. See `server/api/middleware/__tests__/auth.middleware.test.js` for the canonical test shape.
 - Client env vars must be prefixed `VITE_` or Vite will not expose them.
+
+### Auth model
+
+Every admin or team action is authorized on the server by `auth.middleware.js`. Requests carry one of:
+- **A wallet signature** (`x-siws-auth`): a signed SIWS/SIWE/Solana message, checked for signature, statement, domain (`EXPECTED_DOMAIN`), expiry and a single-use nonce.
+- **A session token** (`Authorization: Bearer …`): after one signature, `POST /api/admin/session` issues a short-lived HMAC token (`ADMIN_SESSION_SECRET`, default 15 min). Later requests use it instead of re-signing (`viaSession`, `[session-bearer]` in logs). It proves *who* signed, not that they are an admin: each `require*` middleware still checks the admin lists on every request. Irreversible actions (e.g. publishing results) still ask for a fresh signature.
+- **A Supabase email session** (`x-supabase-token`): program admins and judges invited by email; checked against `program_admin_emails` grants.
+
+So "every admin action is signed" is not literally true: most requests ride the session token or an email session.
 
 ---
 
@@ -102,20 +120,20 @@ Recipes for the common shapes. Reuse the listed utilities; do not create paralle
 4. Admin-gated? Use the existing auth pattern from `AdminPage.tsx` (Polkadot extension + SIWS, see `client/src/lib/siwsUtils.ts`).
 
 **New server endpoint:**
-1. Add a handler to `server/api/controllers/project.controller.js` (or a new controller following its pattern).
+1. Add a handler to the matching controller in `server/api/controllers/` (or a new one following the same pattern).
 2. Add the route in `server/api/routes/*.routes.js`; `server.js` mounts route files.
 3. If it mutates admin data: attach `requireAdmin` or `requireTeamMemberOrAdmin` from `auth.middleware.js`.
-4. Data access goes through `server/api/repositories/project.repository.js` (Supabase). Extend it — don't query Supabase directly from a controller, and don't reach for Mongoose.
+4. Data access goes through a repository in `server/api/repositories/` (Supabase). Extend the matching one or add a new one — don't query Supabase directly from a controller, and don't reach for Mongoose.
 5. Write a Vitest test in `server/api/**/__tests__/*.test.js` or `server/tests/`.
 
 **New admin-protected endpoint checklist:**
 - [ ] Route uses `requireAdmin` or `requireTeamMemberOrAdmin`
-- [ ] Data access through `project.repository.js` (Supabase)
+- [ ] Data access through a repository in `server/api/repositories/` (Supabase)
 - [ ] Test covers both authorized and unauthorized cases
 
 **Database schema change (columns / tables):**
 1. Add a SQL migration under `supabase/migrations/`.
-2. Update the transform function in `server/api/repositories/project.repository.js` (snake_case ↔ camelCase).
+2. Update the transform function in the matching repository under `server/api/repositories/` (snake_case ↔ camelCase).
 3. Regenerate / apply in Supabase per `docs/PRODUCTION_DEPLOYMENT.md`.
 
 ---
@@ -150,8 +168,8 @@ While working, you will notice things that are wrong or could be better but are 
 ## 8. Tooling expectations
 
 - `gh` CLI may or may not be installed locally. Slash commands check and fail with a clear message if it's missing.
-- Node: match CI; check `.nvmrc` if present.
-- **Server runtime** needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_WALLETS`, `EXPECTED_DOMAIN`, `AUTHORIZED_SIGNERS`, `NETWORK_ENV`. See `server/.env.example`.
+- Node: match CI. The server's version is in `server/.nvmrc` (Railway runs it); the client has none (CI uses Node 24).
+- **Server runtime** needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_SESSION_SECRET` (≥ 32 chars; the server won't boot without it), `ADMIN_WALLETS`, `EXPECTED_DOMAIN`, `AUTHORIZED_SIGNERS`, `NETWORK_ENV`. See `server/.env.example`.
 - **Local Mongo tooling** (only if you're running `npm run seed:dev` / `db:*` / `list:winners-zero-paid`) additionally needs `MONGO_URI` and a local `mongosh`.
 - Copy `client/.env.example` → `client/.env` and `server/.env.example` → `server/.env`. Never commit real secrets.
 

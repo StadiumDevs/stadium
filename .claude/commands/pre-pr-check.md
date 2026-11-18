@@ -12,6 +12,8 @@ Run these three commands in parallel and capture output:
 2. `cd client && npm run build` — TypeScript + Vite build (this is the typecheck)
 3. `cd client && npm run lint` — ESLint with `--max-warnings 0`
 
+Then, from the repo root: `node scripts/check-doc-drift.mjs` — fails if CLAUDE.md, the agent docs or `.claude/` name a repo path or `npm run` script that doesn't exist. Fix the doc (or mark an intentional placeholder line with `drift-ignore`).
+
 ## Output contract
 
 Report as:
@@ -19,6 +21,7 @@ Report as:
 server tests:  PASS | FAIL (<n> failed)
 client build:  PASS | FAIL
 client lint:   PASS | FAIL (<n> warnings)
+doc drift:     PASS | FAIL (<n> stale references)
 ```
 
 If **any** step failed:

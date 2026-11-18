@@ -45,3 +45,19 @@ jobs:
         working-directory: client
       - run: npm run lint
         working-directory: client
+
+  # Doc drift (#310): every repo path and `npm run` script named in CLAUDE.md,
+  # docs/AGENTIC_WORKFLOW.md, docs/AGENT_GUIDE.md and .claude/**/*.md exists.
+  # Non-blocking at first; drop continue-on-error once it has been green on develop.
+  doc-drift:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: server
+          install: "false"
+      - run: node scripts/check-doc-drift.mjs

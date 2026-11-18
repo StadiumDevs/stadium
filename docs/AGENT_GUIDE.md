@@ -12,7 +12,7 @@ Stadium has a deliberate split:
 
 1. **API runtime = Supabase.** The live HTTP API reads and writes Supabase. Entry points:
    - `server/db.js` — builds the Supabase client from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
-   - `server/api/repositories/project.repository.js` — the single canonical access layer. Controllers and services go through it. All snake_case ↔ camelCase translation happens in its `transformProject` function.
+   - `server/api/repositories/` — the data access layer, one repository per table or concern. Controllers and services go through them; each owns its snake_case ↔ camelCase transform (e.g. `transformProject` in `project.repository.js`).
    - SQL schema lives in `supabase/migrations/`.
 
 2. **Offline tooling = MongoDB via Mongoose.** Not in the request path at all. Used by `server/scripts/*.js` for bulk imports, backfills, and reports against a local Mongo. Schema: `server/models/Project.js`, `server/models/MultisigTransaction.js`.
@@ -29,7 +29,7 @@ React component
                  └─ middleware (logging, auth if admin)
                       └─ controller in server/api/controllers/project.controller.js
                            └─ service in server/api/services/*.js (business logic)
-                                └─ repository in server/api/repositories/project.repository.js
+                                └─ repository in server/api/repositories/<table>.repository.js
                                      └─ Supabase client (server/db.js)
                                           └─ Postgres (Supabase)
 ```
@@ -54,7 +54,7 @@ The repository owns all `.from('projects').select(...)` style calls. A controlle
 3. Checks the address is in `ADMIN_WALLETS` (or is a team member for routes that use `requireTeamMemberOrAdmin`).
 4. Attaches auth context to the request and calls `next()`, else returns 401/403.
 
-Canonical test: `server/api/middleware/__tests__/verify-onchain.test.js`. Match its shape for new auth-related tests.
+Canonical test: `server/api/middleware/__tests__/auth.middleware.test.js`. Match its shape for new auth-related tests.
 
 **Do not** write a parallel auth implementation. If you need a new admin-protected route, attach `requireAdmin` or `requireTeamMemberOrAdmin` and move on.
 
@@ -89,7 +89,7 @@ describe('<name>', () => {
 });
 ```
 
-Use `vi.mock()` for external deps (the Supabase client, `polkadot-api`). Prefer testing pure functions and the repository layer directly. When testing middleware, construct `req`/`res`/`next` manually per the style in `verify-onchain.test.js`.
+Use `vi.mock()` for external deps (the Supabase client, `polkadot-api`). Prefer testing pure functions and the repository layer directly. When testing middleware, construct `req`/`res`/`next` manually per the style in `auth.middleware.test.js`.
 
 Unit tests should **not** require a real Supabase connection — mock at the repository or client level.
 
@@ -129,7 +129,7 @@ Do **not** modify Railway/Vercel config from an issue unless the issue explicitl
 3. **Duplicate toast hook** — a stray `use-toast.ts` alongside `use-toast.tsx` caused Vite to pick the wrong one. Only `.tsx` exists now; do not create `.ts`.
 4. **Hardcoded hex colors with `!important`** in `index.css` broke dark mode. Use theme CSS variables.
 5. **`console.log` in production client** — all stripped. Use the toast or error boundary instead.
-6. **Controllers bypassing the repository** — any new query should land in `server/api/repositories/project.repository.js`, not inline in a controller.
+6. **Controllers bypassing the repository** — any new query should land in a repository under `server/api/repositories/`, not inline in a controller.
 7. **Client `npm test`** — there is no such script. Don't invent one and don't add it to CI expectations.
 8. **Supabase service-role key in client** — never. The service-role key is server-only. The client talks to the server, not Supabase directly.
 

@@ -36,7 +36,7 @@ You are a codebase explorer for the Stadium repo. Your job is to find things fas
 - File discovery first (Glob), then content (Grep).
 - Match by convention before guessing: routes end `.routes.js`, controllers `.controller.js`, models PascalCase `.js`.
 - Client utilities are in `client/src/lib/` — always check there before proposing a new helper exists elsewhere.
-- For SIWS / auth questions start at `server/api/middleware/auth.middleware.js` and its `__tests__/verify-onchain.test.js`.
+- For SIWS / auth questions start at `server/api/middleware/auth.middleware.js` and its `__tests__/auth.middleware.test.js`.
 
 ## Thoroughness levels
 

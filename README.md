@@ -100,7 +100,7 @@ cd client
 VITE_USE_MOCK_DATA=true npm run dev
 ```
 
-The client then serves fixtures from `client/src/lib/mockWinners.ts` (159 sanitized production projects) and simulates writes in `localStorage`. This is the same mode every Vercel preview runs in.
+The client then serves fixtures from `client/src/lib/mockWinners.ts` (a snapshot of 159 sanitized production projects; other fixtures are in `client/src/lib/mock*.ts`) and simulates writes in `localStorage`. This is the same mode every Vercel preview runs in.
 
 ### 5. (Optional) Mongo-backed scripts
 
