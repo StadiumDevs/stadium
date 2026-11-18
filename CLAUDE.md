@@ -36,6 +36,7 @@ Always run from the subdir, not the repo root.
 **Server (`cd server`):**
 - `npm run dev` — nodemon
 - `npm test` — `vitest run`
+- `npm run lint` — ESLint enforcing the data-access rule (only `server/api/repositories/` imports `db.js` / `@supabase/supabase-js`; no `mongoose`). See `server/eslint.config.js` for the short allowlist.
 - `npm start` — `node server.js`
 - `npm run seed:dogfooding`, `npm run bootstrap:app-admin` — write to the Supabase project in `server/.env` (run only when asked)
 - `npm run verify:production`, `npm run verify:main-deployed` — operational (read-only prod health checks). Deploys are automatic: merging to `main` triggers Railway (server) + Vercel (client) via their GitHub integrations.
