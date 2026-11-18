@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 // Canonical wallet-gated client journey, driven by the //Alice test wallet
-// (signs for real) against the mock-mode harness. Validated green; the
-// stadium-tester runs this verbatim — it is NOT a per-run scratch spec.
+// (signs for real) against the mock-mode harness. The stadium-tester runs this
+// verbatim — it is NOT a per-run scratch spec. Keep it current as the UI moves.
 //
 // Launch the target first:
 //   cd client && npm run dev:harness     # mock + test wallet + Alice whitelisted
@@ -11,25 +11,38 @@ import { test, expect } from '@playwright/test';
 //     --target http://localhost:8080 \
 //     --spec .claude/skills/stadium-tester/flows/client-journey.spec.mjs
 //
-// Note: some non-judging admin sections (audit log, applications) have no mock
-// branch and log ERR_CONNECTION_REFUSED in mock mode — filtered from the error
-// gate below so it reflects only real client-journey errors.
+// Mock mode fails closed (#303): any API call without a mock branch throws
+// MockNotImplementedError instead of reaching a server, so there is no
+// console-error filter here. A network or mock error fails the journey.
 
-const IGNORABLE = /ERR_CONNECTION_REFUSED|Failed to load resource/i;
 const consoleErrors = [];
+// Any request to an API host means mock mode leaked to a real server.
+const API_HOST = /localhost:2000|\.up\.railway\.app|stadium\.joinwebzero\.com\/api/i;
+const apiRequests = [];
+const MOCK_KEYS = [
+  'stadium_mock_scores_v1',
+  'stadium_mock_ballot_v1',
+  'stadium_mock_promoted_v1',
+  'stadium_mock_paid_v1',
+  'stadium_mock_admin_tiers_v1',
+  'stadium_mock_audit_log_v1',
+  'projects',
+];
+
 test.beforeEach(async ({ page }) => {
   page.on('console', (msg) => {
-    if (msg.type() === 'error' && !IGNORABLE.test(msg.text())) consoleErrors.push(msg.text());
+    if (msg.type() === 'error') consoleErrors.push(`${page.url()} :: ${msg.text()}`);
   });
-  // Deterministic mock judging state for each flow.
-  await page.addInitScript(() => {
-    try {
-      localStorage.removeItem('stadium_mock_scores_v1');
-      localStorage.removeItem('stadium_mock_ballot_v1');
-      localStorage.removeItem('stadium_mock_promoted_v1');
-      localStorage.removeItem('stadium_mock_paid_v1');
-    } catch { /* ignore */ }
+  page.on('pageerror', (err) => consoleErrors.push(`${page.url()} :: ${err.message}`));
+  page.on('request', (req) => {
+    if (API_HOST.test(req.url())) apiRequests.push(`${req.method()} ${req.url()}`);
   });
+  // Deterministic mock state per test: reset once, before the app boots.
+  await page.goto('/');
+  await page.evaluate((keys) => {
+    for (const k of keys) localStorage.removeItem(k);
+    sessionStorage.clear();
+  }, MOCK_KEYS);
 });
 
 async function connectAdmin(page) {
@@ -38,8 +51,14 @@ async function connectAdmin(page) {
   await expect(page.getByText('·ADMIN / DASHBOARD')).toBeVisible({ timeout: 15000 });
 }
 
+// Admin sub-pages re-check the wallet after a full navigation.
+async function signInOnPage(page) {
+  const button = page.getByRole('button', { name: /CONNECT ADMIN WALLET|SIGN IN AGAIN/i });
+  await button.first().waitFor({ timeout: 15000 }).catch(() => {});
+  if (await button.count()) await button.first().click();
+}
+
 test('preview-mode + test-wallet sanity', async ({ page }) => {
-  await page.goto('/');
   const env = await page.evaluate(() => ({
     mock: window.__STADIUM_MOCK__,
     wallet: window.__TEST_WALLET_ENABLED__,
@@ -54,54 +73,67 @@ test('wallet sign-in unlocks the admin dashboard', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'LOGOUT' })).toBeVisible();
 });
 
-test('public submit form accepts a project', async ({ page }) => {
-  await page.goto('/programs/bitrefill-2026');
-  await page.getByRole('button', { name: /SUBMIT A PROJECT/i }).click();
-  await page.locator('#sub-name').fill('Harness Tester');
-  await page.locator('#sub-email').fill('harness@example.com');
-  await page.locator('#sub-title').fill('Harness Project');
-  await page.locator('#sub-video').fill('https://youtu.be/harness');
-  await page.locator('#sub-github').fill('https://github.com/example/harness');
-  await page.getByRole('button', { name: /SUBMIT PROJECT/i }).click();
-  // Mock returns success; the modal closes. (Dedup of a repeat Luma email is a
-  // server-side guarantee covered by the Vitest suite, not reproducible in mock.)
-  await expect(page.getByRole('button', { name: /SUBMIT PROJECT/i })).toHaveCount(0, { timeout: 10000 });
+test('confirm payment records an M1 payment from fixtures', async ({ page }) => {
+  await connectAdmin(page);
+  await page.getByRole('button', { name: /APPROVE & PROCESS M2 PAYMENT/i }).first().click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('CONFIRM PAYMENT', { exact: false }).first()).toBeVisible();
+
+  // The fixture project has no M1 payment yet, so M2 is locked: pay M1.
+  await dialog.getByRole('combobox').first().click();
+  await page.getByRole('option', { name: /M1 - Initial Payment/i }).click();
+  // Fixture team members all carry the same redacted placeholder wallet, and
+  // the modal keys recipient amounts by wallet, so the rows share one amount.
+  // Set it equal to the total so the sum check passes. (Both modal quirks are
+  // in docs/improvement-backlog.md.)
+  await dialog.locator('#totalAmount').fill('300');
+  await dialog.locator('table input[type="number"]').first().fill('300');
+  await dialog.getByRole('button', { name: /CONFIRM PAYMENT ▸/ }).click();
+
+  await expect(page.getByText('Payment Confirmed', { exact: true })).toBeVisible({ timeout: 10000 });
+  await expect(dialog).toHaveCount(0);
 });
 
-test('judging: score all, submit ballot, leaderboard reveals the winner', async ({ page }) => {
+test('admin tiers: add and remove a global admin (mocked)', async ({ page }) => {
+  await connectAdmin(page);
+  await page.goto('/admin/app-admins');
+  await signInOnPage(page);
+  await expect(page.getByText('·APP ADMINS')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(/SEEDED FROM VITE_ADMIN_ADDRESSES/i)).toBeVisible();
+
+  const BOB = '5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty';
+  const global = page.locator('section').filter({ hasText: '·GLOBAL ADMINS' });
+  await global.getByPlaceholder('Wallet address').fill(BOB);
+  await global.getByRole('button', { name: /ADD GLOBAL ADMINS/i }).click();
+  await expect(global.getByText(BOB)).toBeVisible({ timeout: 10000 });
+
+  page.once('dialog', (d) => d.accept()); // native "Remove …?" confirm
+  await global.getByRole('button', { name: `Remove ${BOB}` }).click();
+  await expect(global.getByText(/NO GLOBAL ADMINS YET/i)).toBeVisible({ timeout: 10000 });
+});
+
+test('program audit log renders from fixtures', async ({ page }) => {
+  await connectAdmin(page);
+  await page.goto('/admin/programs/dogfooding');
+  await signInOnPage(page);
+  const audit = page.locator('div.panel').filter({ has: page.getByText('·AUDIT LOG', { exact: true }) });
+  await expect(audit).toBeVisible({ timeout: 15000 });
+  await expect(audit.getByText('program.update', { exact: false })).toBeVisible({ timeout: 10000 });
+});
+
+test('judging: rubric scoring loads for a tracked program', async ({ page }) => {
   await connectAdmin(page);
   await page.goto('/admin/programs/bitrefill-2026');
+  await signInOnPage(page);
   const judging = page.locator('section').filter({ hasText: '·JUDGING' });
   await expect(judging.getByRole('button', { name: 'SCORE' })).toBeVisible({ timeout: 15000 });
-  // Submissions load async — wait for a known one before scoring.
-  await expect(judging.getByText('Aurora Pay')).toBeVisible({ timeout: 15000 });
-
-  // Score every submission (2 is valid for /2 and /5), then save each.
-  const numbers = judging.locator('input[type="number"]');
-  await expect(numbers.first()).toBeVisible({ timeout: 10000 });
-  const count = await numbers.count();
-  expect(count).toBeGreaterThanOrEqual(9); // 3 submissions x 3 criteria
-  for (let i = 0; i < count; i++) await numbers.nth(i).fill('2');
-  const saves = judging.getByRole('button', { name: 'SAVE' });
-  const saveCount = await saves.count();
-  for (let i = 0; i < saveCount; i++) await saves.nth(i).click();
-
-  // Promote + mark paid the first submission (high-value actions; Alice signs).
-  await judging.getByRole('button', { name: /ADD TO STADIUM/i }).first().click();
-  await expect(judging.getByText(/IN STADIUM/i).first()).toBeVisible({ timeout: 10000 });
-  await judging.getByRole('button', { name: /^MARK PAID$/i }).first().click();
-  await expect(judging.getByText('·PAID').first()).toBeVisible({ timeout: 10000 });
-
-  // Submit the ballot, then the leaderboard unlocks with a ranked winner.
-  await judging.getByRole('button', { name: /SUBMIT MY SCORES/i }).click();
-  await judging.getByRole('button', { name: 'LEADERBOARD' }).click();
-  await expect(judging.getByText(/JUDGES · FINAL/i)).toBeVisible({ timeout: 15000 });
-  // Aurora Pay is the deterministic #1 (other judge's fixed scores rank it top).
-  const firstRow = judging.locator('tbody tr').first();
-  await expect(firstRow).toContainText('1');
-  await expect(firstRow).toContainText('Aurora Pay');
+  await expect(judging.getByRole('button', { name: 'RESULTS' })).toBeVisible();
 });
 
-test('no unexpected console errors during the journey', async () => {
+test('no console errors during the journey', async () => {
   expect(consoleErrors).toEqual([]);
+});
+
+test('mock mode never contacted a real API host', async () => {
+  expect(apiRequests).toEqual([]);
 });

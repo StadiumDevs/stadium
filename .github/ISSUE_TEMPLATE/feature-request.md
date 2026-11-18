@@ -30,7 +30,7 @@ What **not** to touch. Prevents scope creep.
 
 ## Test scenarios
 
-White-box checks the `stadium-tester` agent runs against the Vercel preview before the PR is opened. Format: `On <route>, <action> → <expected state>`. Keep scenarios to public routes or preview-mocked admin views — SIWS-gated live flows are skipped automatically.
+White-box checks the `stadium-tester` agent runs before the PR is opened. Format: `On <route>, <action> → <expected state>`. Public and mock-data scenarios run on the Vercel preview; wallet-gated (SIWS) scenarios run locally on `npm run dev:harness`, where a test wallet signs as //Alice.
 
 - [ ] On `/`, page loads → header shows "Stadium"
 - [ ] On `/<route>`, <action> → <expected state>

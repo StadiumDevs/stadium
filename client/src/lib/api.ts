@@ -56,6 +56,24 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Thrown in mock mode when a call has no mock branch and would otherwise make
+ * a real network request (#303). Mock mode fails closed: a preview or
+ * dev:harness session only ever touches fixtures. Add a mock branch to the
+ * method instead of catching this.
+ */
+export class MockNotImplementedError extends ApiError {
+  constructor(what: string) {
+    super(`Mock mode: no mock for ${what}`, 501, "mock_not_implemented");
+    this.name = "MockNotImplementedError";
+  }
+}
+
+/** Fail closed: never let a mock-mode session reach a real API host. */
+const assertRealApiAllowed = (what: string) => {
+  if (USE_MOCK_DATA) throw new MockNotImplementedError(what);
+};
+
 const mapStatusToMessage = (status: number) => {
   switch (status) {
     case 400:
@@ -95,6 +113,7 @@ export const adminAuthHeaders = (a: AdminAuthArg): Record<string, string> => {
 };
 
 const request = async (endpoint: string, options: RequestInit = {}) => {
+  assertRealApiAllowed(`${options.method || "GET"} ${endpoint}`);
   const url = `${API_BASE_URL}${endpoint}`;
   if (typeof window !== "undefined" && import.meta.env.DEV) {
     console.debug("[api]", url.slice(0, 80) + (url.length > 80 ? "…" : ""));
@@ -115,6 +134,13 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
       const body = await response.json();
       if (body && typeof body.message === "string" && body.message.trim()) {
         message = body.error ? `${body.message}: ${body.error}` : body.message;
+      } else if (
+        response.status < 500 &&
+        body && typeof body.error === "string" && body.error.trim()
+      ) {
+        // Some handlers (e.g. confirm-payment) only send `error` on a 4xx.
+        // 5xx keeps the generic status message.
+        message = body.error;
       }
       // Machine-readable reason (e.g. not_checked_in, verify_to_update).
       if (body && typeof body.code === "string") code = body.code;
@@ -1804,6 +1830,7 @@ export const api = {
       });
       return { status: "success", data: { url } };
     }
+    assertRealApiAllowed("POST /programs/:slug/cover-image");
     const form = new FormData();
     form.append("file", file);
     const response = await fetch(
@@ -3413,6 +3440,7 @@ export const api = {
       }
       return new Blob([`${lines.join("\n")}\n`], { type: "text/csv" });
     }
+    assertRealApiAllowed("GET /programs/:slug/payouts.csv");
     const res = await fetch(`${API_BASE_URL}/programs/${encodeURIComponent(slug)}/payouts.csv`, { headers: adminAuthHeaders(authHeader) });
     if (!res.ok) throw new ApiError("Couldn't download the payouts CSV", res.status);
     return res.blob();
@@ -3427,12 +3455,20 @@ export const api = {
   getMyAdminTier: async (
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: { isAppAdmin: boolean; chain: string; address: string } }> => {
+    if (USE_MOCK_DATA) {
+      const { mockAdminTiers } = await import("./mocks/mockAdminTiers");
+      return { status: "success", data: { isAppAdmin: mockAdminTiers.isAppAdmin(), chain: "substrate", address: "mock" } };
+    }
     return request(`/admin/me/tier`, { headers: adminAuthHeaders(authHeader) });
   },
 
   listAppAdmins: async (
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiAdminTierEntry[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockAdminTiers } = await import("./mocks/mockAdminTiers");
+      return { status: "success", data: mockAdminTiers.list("app") };
+    }
     return request(`/admin/app-admins`, { headers: adminAuthHeaders(authHeader) });
   },
 
@@ -3440,6 +3476,10 @@ export const api = {
     payload: Pick<ApiAdminTierEntry, "walletChain" | "wallet" | "label">,
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiAdminTierEntry }> => {
+    if (USE_MOCK_DATA) {
+      const { mockAdminTiers } = await import("./mocks/mockAdminTiers");
+      return { status: "success", data: mockAdminTiers.add("app", payload) };
+    }
     return request(`/admin/app-admins`, {
       method: "POST",
       headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
@@ -3452,6 +3492,11 @@ export const api = {
     walletChain: ApiAdminTierEntry["walletChain"],
     authHeader: AdminAuthArg,
   ): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      const { mockAdminTiers } = await import("./mocks/mockAdminTiers");
+      mockAdminTiers.remove("app", wallet, walletChain);
+      return;
+    }
     await request(
       `/admin/app-admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
       { method: "DELETE", headers: adminAuthHeaders(authHeader) },
@@ -3461,6 +3506,10 @@ export const api = {
   listGlobalAdmins: async (
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiAdminTierEntry[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockAdminTiers } = await import("./mocks/mockAdminTiers");
+      return { status: "success", data: mockAdminTiers.list("global") };
+    }
     return request(`/admin/global-admins`, { headers: adminAuthHeaders(authHeader) });
   },
 
@@ -3468,6 +3517,10 @@ export const api = {
     payload: Pick<ApiAdminTierEntry, "walletChain" | "wallet" | "label">,
     authHeader: AdminAuthArg,
   ): Promise<{ status: string; data: ApiAdminTierEntry }> => {
+    if (USE_MOCK_DATA) {
+      const { mockAdminTiers } = await import("./mocks/mockAdminTiers");
+      return { status: "success", data: mockAdminTiers.add("global", payload) };
+    }
     return request(`/admin/global-admins`, {
       method: "POST",
       headers: { ...adminAuthHeaders(authHeader), "Content-Type": "application/json" },
@@ -3480,6 +3533,11 @@ export const api = {
     walletChain: ApiAdminTierEntry["walletChain"],
     authHeader: AdminAuthArg,
   ): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      const { mockAdminTiers } = await import("./mocks/mockAdminTiers");
+      mockAdminTiers.remove("global", wallet, walletChain);
+      return;
+    }
     await request(
       `/admin/global-admins/${encodeURIComponent(wallet)}?chain=${encodeURIComponent(walletChain)}`,
       { method: "DELETE", headers: adminAuthHeaders(authHeader) },
@@ -3511,6 +3569,7 @@ export const api = {
     if (USE_MOCK_DATA) {
       return new Blob(["source,when,name,email\n"], { type: "text/csv" });
     }
+    assertRealApiAllowed("GET /programs/:slug/inbox.csv");
     const url = `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/inbox.csv`;
     const response = await fetch(url, { headers: adminAuthHeaders(authHeader) });
     if (!response.ok) {
@@ -3536,6 +3595,7 @@ export const api = {
     if (USE_MOCK_DATA) {
       return new Blob(["submittedAt,submitterName,lumaEmail,projectTitle\n"], { type: "text/csv" });
     }
+    assertRealApiAllowed("GET /programs/:slug/submissions.csv");
     const url = `${API_BASE_URL}/programs/${encodeURIComponent(slug)}/submissions.csv`;
     const response = await fetch(url, { headers: adminAuthHeaders(authHeader) });
     if (!response.ok) {
@@ -3560,6 +3620,10 @@ export const api = {
     authHeader: AdminAuthArg,
     options: { limit?: number } = {},
   ): Promise<{ status: string; data: ApiAuditLogEntry[] }> => {
+    if (USE_MOCK_DATA) {
+      const { mockAuditLog } = await import("./mocks/mockAdminTiers");
+      return { status: "success", data: mockAuditLog.list(slug, options.limit) };
+    }
     const qs = options.limit ? `?limit=${encodeURIComponent(String(options.limit))}` : "";
     return request(`/programs/${encodeURIComponent(slug)}/audit-log${qs}`, {
       headers: adminAuthHeaders(authHeader),

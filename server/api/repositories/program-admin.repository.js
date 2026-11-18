@@ -22,6 +22,16 @@ class ProgramAdminRepository {
     return (data || []).map(transform);
   }
 
+  // Every program's admins (wallet columns only) — for the production
+  // dev-account startup check (#301).
+  async listAll() {
+    const { data, error } = await supabase
+      .from('program_admins')
+      .select('program_id, wallet_chain, wallet');
+    if (error) throw error;
+    return (data || []).map(transform);
+  }
+
   async add(programId, walletChain, walletAddress) {
     const normalized = normalizeAddress(walletChain, walletAddress);
     if (!normalized) return null;
