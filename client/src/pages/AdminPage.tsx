@@ -110,23 +110,18 @@ const AdminPage = () => {
     if (!selectedProject) return;
     try {
       const authHeaders = await auth.getAdminBearerHeaders();
-      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      const responseText = await response.text();
-      if (!response.ok) {
-        let errorMessage = "Failed to confirm M1 payout";
-        try {
-          const errData = JSON.parse(responseText);
-          errorMessage = errData.error || errData.message || errorMessage;
-        } catch {
-          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
+      // The M1 modal reports the batch total as `totalAmount`; the API records
+      // one M1 payment of that amount (#303).
+      await api.confirmPayment(
+        selectedProject.id,
+        {
+          milestone: "M1",
+          amount: data.totalAmount,
+          currency: data.currency,
+          transactionProof: data.transactionProof,
+        },
+        authHeaders,
+      );
       toast({
         title: "M1 Payout Confirmed",
         description: `Payment distributed to ${data.recipients.length} team members`,
@@ -147,23 +142,17 @@ const AdminPage = () => {
     if (!selectedProject) return;
     try {
       const authHeaders = await auth.getAdminBearerHeaders();
-      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      const responseText = await response.text();
-      if (!response.ok) {
-        let errorMessage = "Failed to confirm payment";
-        try {
-          const errData = JSON.parse(responseText);
-          errorMessage = errData.error || errData.message || errorMessage;
-        } catch {
-          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
+      // The modal reports the batch total as `totalAmount`; the API takes `amount`.
+      await api.confirmPayment(
+        selectedProject.id,
+        {
+          milestone: data.milestone,
+          amount: data.totalAmount,
+          currency: data.currency,
+          transactionProof: data.transactionProof,
+        },
+        authHeaders,
+      );
       toast({
         title: "Payment Confirmed",
         description: `${data.milestone} payment recorded successfully`,

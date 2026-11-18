@@ -313,3 +313,21 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/utils/public-submission.js:28-29`; `server/server.js:106` (`/api/health`); `server/api/repositories/program.repository.js:63-64`; `server/api/routes/wallet-contact.routes.js:7`
 - **Observed during**: public API exposure audit of prod (unauthenticated probes of every public GET route). No emails, payout details or secrets exposed; all auth-gated routes return 401.
 - **Suggestion**: Four optional hardening items, each with a trade-off: (1) anonymous tracked submissions hide `submitterName` but still return `githubUrl`/`videoUrl`, whose GitHub handle can de-anonymize (18 anonymous entries in free-society-hack-2026). Decide whether "anonymous" should cover these; hiding them breaks repo links and judges' feedback matching by repo. (2) `/api/health` returns the authorized-signer count, network and Resend-configured booleans; consider trimming or gating them (they serve an ops check). (3) The public program payload includes `lastGuestSyncAt`/`lastGuestSyncStatus`; they could be split into an admin-only response (`lumaEventId` must stay for the registration embed). (4) `GET /wallet-contacts/:address` is unauthenticated and reveals `email_set`/`notifications_enabled` for any wallet; gating it adds a signature prompt in `NotificationsCard`.
+
+## [2026-11-18] ConfirmPaymentModal: float split and wallet-keyed amounts
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/ConfirmPaymentModal.tsx` (recipient amounts, sum check)
+- **Observed during**: issue #303 (canonical journey)
+- **Suggestion**: The default split of 2000 across 3 members renders as `666,68000000000001` and the sum check then rejects it, so CONFIRM stays disabled until amounts are edited. Amounts are also keyed by wallet address, so members sharing a wallet (every mock fixture uses the same redacted placeholder) collapse into one row amount. Round the split to cents and key amounts by member index.
+
+## [2026-11-18] Mock fixtures have no program open for submissions
+- **Severity**: minor
+- **File(s)**: `client/src/lib/mockPrograms.ts`, `.claude/skills/stadium-tester/flows/client-journey.spec.mjs`
+- **Observed during**: issue #303
+- **Suggestion**: Every tracked hackathon fixture is `completed`, so the public SUBMIT A PROJECT flow can't be exercised in mock mode and was dropped from the canonical journey. Add an open tracked-program fixture (or let RESET PLAYGROUND reopen one) and restore the submit step.
+
+## [2026-11-18] Dead api.webzeroApprove / api.requestChanges
+- **Severity**: nit
+- **File(s)**: `client/src/lib/api.ts` (`webzeroApprove`, `requestChanges`)
+- **Observed during**: issue #303
+- **Suggestion**: Neither has a caller in `client/src`. Delete them (and their mock branches) unless an upcoming admin flow needs them.
