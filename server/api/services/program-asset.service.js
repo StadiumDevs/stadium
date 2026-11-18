@@ -1,9 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { supabase } from '../../db.js';
-
-// Public Supabase Storage bucket holding admin-uploaded program imagery (cover
-// banners, etc.). Created by the migration that adds it to storage.buckets.
-const BUCKET = 'program-assets';
+import programAssetRepository from '../repositories/program-asset.repository.js';
 
 // Image types we accept for a cover upload, mapped to a file extension. Anything
 // else is rejected by the controller before we ever touch storage.
@@ -32,12 +28,7 @@ class ProgramAssetService {
   async uploadCover({ programId, buffer, contentType }) {
     const ext = EXT_BY_MIME[contentType] || 'png';
     const path = `${programId}/cover-${randomUUID()}.${ext}`;
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, buffer, { contentType, upsert: false });
-    if (error) throw error;
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-    return data.publicUrl;
+    return programAssetRepository.uploadPublic(path, buffer, contentType);
   }
 }
 

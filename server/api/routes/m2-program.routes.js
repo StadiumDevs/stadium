@@ -51,9 +51,4 @@ router.post('/:projectId/confirm-payment', requireAdmin, projectController.confi
 // --- Test payment (admin only) ---
 router.post('/test-payment', requireAdmin, projectController.testPayment);
 
-// --- Development-only test payment (no auth) ---
-if (process.env.NODE_ENV === 'development') {
-  router.post('/dev-test-payment', projectController.testPayment);
-}
-
 export default router;

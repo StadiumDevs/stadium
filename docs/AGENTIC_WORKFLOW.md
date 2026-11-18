@@ -159,9 +159,9 @@ It does **not** catch:
 
 Your eyes on the preview are still load-bearing for visual/UX judgment. The tester just keeps you from regressing the functional part while you're judging the visual.
 
-### 4. SIWS / wallet flows are skipped automatically
+### 4. SIWS / wallet flows run locally on `dev:harness`
 
-Scenarios requiring a Polkadot wallet signature (admin auth, confirm payment, approve M2, request changes) return `SKIPPED (needs-auth-harness)`. The tester refuses to fabricate signatures. For those flows, verify manually on the preview and note in the PR body which scenarios were skipped.
+Scenarios requiring a Polkadot wallet signature (admin sign-in, posting updates, judging, program admin) run against local `cd client && npm run dev:harness`, where a test wallet signs as //Alice with real signatures. The harness never loads in a build, so on a Vercel preview those scenarios return `SKIPPED (needs-auth-harness)`. `/ship-issue` runs them on `dev:harness` before opening the PR, and the tester report says where each scenario ran. The test wallet signs silently, so the real wallet popup still needs a manual check when the sign-in flow changes.
 
 ### Failure screenshots
 

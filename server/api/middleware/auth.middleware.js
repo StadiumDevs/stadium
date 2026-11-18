@@ -236,19 +236,6 @@ export async function resolveAuthIdentity(req, { checkDomain }) {
 
   const authHeader = req.headers['x-siws-auth'];
 
-  // DEV MODE BYPASS — preserved so existing local dev workflows keep working.
-  if (process.env.NODE_ENV !== 'production' && authHeader === 'dev-bypass') {
-    log(chalk.yellow('⚠️  DEV MODE: Bypassing SIWS authentication'));
-    return {
-      ok: true,
-      chain: 'substrate',
-      parsed: { address: ADMIN_WALLETS[0] || 'dev-admin', statement: '[dev-bypass]' },
-      normalizedAddress: ADMIN_WALLETS[0] || 'dev-admin',
-      viaSession: false,
-      devBypass: true,
-    };
-  }
-
   if (!authHeader) {
     return {
       ok: false,
@@ -271,11 +258,6 @@ export const requireAdmin = async (req, res, next) => {
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
   }
-  if (auth.devBypass) {
-    req.adminAddress = auth.parsed.address;
-    return next();
-  }
-
   const signerAddress = auth.parsed.address;
   if (!(await isAdminWallet(auth.chain, signerAddress))) {
     logError(`Authorization failed: ${signerAddress} is not an admin (app/global/env)`);
@@ -306,10 +288,6 @@ export const requireAppAdmin = async (req, res, next) => {
   const auth = await resolveAuthIdentity(req, { checkDomain: true });
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
-  }
-  if (auth.devBypass) {
-    req.user = { address: auth.parsed.address, chain: 'substrate', tier: 'app' };
-    return next();
   }
   const signerAddress = auth.parsed.address;
   const ok = await appAdminRepository.isAppAdmin(auth.chain, signerAddress);
@@ -344,11 +322,6 @@ export const requireTeamMemberOrAdmin = async (req, res, next) => {
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
   }
-  if (auth.devBypass) {
-    req.auth = { address: auth.parsed.address, isAdmin: true };
-    return next();
-  }
-
   const signerAddress = auth.parsed.address;
 
   // Any admin tier (app/global/env) is always allowed.
@@ -414,11 +387,6 @@ export const requireOwnWallet = async (req, res, next) => {
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
   }
-  if (auth.devBypass) {
-    req.user = { address: req.params.address, chain: 'substrate' };
-    return next();
-  }
-
   // The signer's chain governs how the target route param is interpreted.
   const targetNormalized = normalizeAddress(auth.chain, req.params.address);
   if (!targetNormalized) {
@@ -500,11 +468,6 @@ export const requireProgramAdmin = (slugParam = 'slug') => async (req, res, next
   if (!auth.ok) {
     return res.status(auth.status).json(auth.body);
   }
-  if (auth.devBypass) {
-    req.user = { address: auth.parsed.address, programSlug: slug, isGlobalAdmin: true };
-    return next();
-  }
-
   const signerAddress = auth.parsed.address;
 
   // Any admin tier (app/global/env) always passes.
