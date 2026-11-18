@@ -76,13 +76,9 @@ Decide target URL:
 - Preferred: the Vercel preview URL for the current branch (after push). Must have `window.__STADIUM_MOCK__ === true`.
 - Fallback: local dev (`http://localhost:8080`) started with `cd client && VITE_USE_MOCK_DATA=true npm run dev` so the mock dataset is in use.
 
-Invoke the `stadium-tester` Skill:
+Run the `stadium-tester` **subagent** (it follows `.claude/skills/stadium-tester/SKILL.md` behind a hook that stops it editing the repo), passing the target URL and the scenarios markdown verbatim. A user can also run the same procedure inline with `/stadium-tester <target-url> "<scenarios>"`.
 
-```
-/stadium-tester <target-url> "<scenarios markdown verbatim>"
-```
-
-Interpret the Skill's output:
+Interpret the tester's output:
 - **All PASS** — continue to step 7.
 - **Any FAIL** — return to the `stadium-implementer` with the failing scenarios + the tester's root-cause hints. Re-run `/pre-pr-check` and `stadium-tester` after the fix. **Do not open the PR with failing UI verifications. No exceptions.**
 - **SKIPPED (needs-auth-harness)** — OK to proceed, but the PR body must list every skipped scenario and note that manual verification is required for SIWS-gated flows.

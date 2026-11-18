@@ -2,7 +2,7 @@
 name: stadium-tester
 description: Verify a Stadium feature or fix by driving a real headless Chromium against the Vercel preview or local dev server. Use during /ship-issue's verify step, or any time you need to walk a UI through the test scenarios listed on a GitHub issue. Reads scenarios in the form "On <route>, <action> → <expected state>" and produces a pass/fail markdown report.
 argument-hint: <target-url> <scenarios-markdown>
-allowed-tools: Read Grep Glob Bash(node *) Bash(npx playwright *) Bash(cat *) Bash(mktemp *) Bash(rm *)
+allowed-tools: Read Grep Glob Bash(node .claude/skills/stadium-tester/scripts/run-playwright.mjs *) Bash(npx --no-install playwright --version) Bash(cat *) Bash(mktemp *)
 ---
 
 You verify Stadium UI behavior in a real browser. You do not write code into the repo, you do not open PRs. Your output is a pass/fail report tied to each scenario passed in.

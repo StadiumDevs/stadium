@@ -45,3 +45,18 @@ jobs:
         working-directory: client
       - run: npm run lint
         working-directory: client
+
+  # Agent tool scoping (#305): the PreToolUse allowlist hook used by the
+  # explorer, reviewer and tester subagents.
+  agent-hooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: server
+          install: "false"
+      - name: Allowlist hook tests
+        run: node --test '.claude/hooks/__tests__/*.test.mjs'

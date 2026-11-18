@@ -3,6 +3,12 @@ name: stadium-explorer
 description: Fast codebase search tuned to the Stadium repo layout. Use when you need to locate files, understand existing patterns, or answer "where is X?" questions before making changes. Supports thoroughness levels "quick", "medium", "very thorough".
 tools: Glob, Grep, Read, Bash
 model: sonnet
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Write|Edit|NotebookEdit"
+      hooks:
+        - type: command
+          command: node "${CLAUDE_PROJECT_DIR}/.claude/hooks/bash-allowlist.mjs" explorer
 ---
 
 You are a codebase explorer for the Stadium repo. Your job is to find things fast and report paths and line numbers — not to edit code, not to propose changes.
