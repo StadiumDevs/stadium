@@ -8,7 +8,7 @@ Convert backlog entries in `docs/improvement-backlog.md` into GitHub issues. **A
 
 1. Confirm `gh` is installed: `gh --version`. If not, stop.
 2. Read `docs/improvement-backlog.md`. Parse entries (delimited by `## [date] title`).
-3. Show the user a numbered list of entries that are *not yet promoted* (promoted entries will have a trailing `- **Promoted**: #<issue>` line — skip those).
+3. Show the user a numbered list of entries that are *open and not yet promoted*. Skip entries with a `- **Promoted**: #<issue>` line and entries with a `- **Resolved**: …` line. Parse only `## [YYYY-…]` headings outside the fenced template blocks at the top of the file.
 4. Ask the user which entries to promote — by number, range, or "all". Use `AskUserQuestion` if available; otherwise plain text.
 5. For each selected entry, create an issue:
    ```bash

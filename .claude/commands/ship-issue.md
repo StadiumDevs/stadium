@@ -51,6 +51,8 @@ Delegate to the `stadium-implementer` subagent with the approved plan. It will:
 
 Run the `stadium-reviewer` subagent against the diff. Address any **Blockers** before continuing. Record **Backlog** items via `/log-improvement`.
 
+Then check `docs/improvement-backlog.md` for open entries (no `- **Resolved**` line) that this change fixes. For each one, verified in the code, append `- **Resolved**: #<this PR> — <one-line note>` (use the PR number once it exists, step 8) and list it under "Backlog items resolved" in the PR body.
+
 ## 6. Pre-PR check
 
 Run `/pre-pr-check`. It executes:
