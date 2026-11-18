@@ -314,6 +314,23 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: public API exposure audit of prod (unauthenticated probes of every public GET route). No emails, payout details or secrets exposed; all auth-gated routes return 401.
 - **Suggestion**: Four optional hardening items, each with a trade-off: (1) anonymous tracked submissions hide `submitterName` but still return `githubUrl`/`videoUrl`, whose GitHub handle can de-anonymize (18 anonymous entries in free-society-hack-2026). Decide whether "anonymous" should cover these; hiding them breaks repo links and judges' feedback matching by repo. (2) `/api/health` returns the authorized-signer count, network and Resend-configured booleans; consider trimming or gating them (they serve an ops check). (3) The public program payload includes `lastGuestSyncAt`/`lastGuestSyncStatus`; they could be split into an admin-only response (`lumaEventId` must stay for the registration embed). (4) `GET /wallet-contacts/:address` is unauthenticated and reveals `email_set`/`notifications_enabled` for any wallet; gating it adds a signature prompt in `NotificationsCard`.
 
+## [2026-11-18] TEST PAYMENT modal signatories don't match the multisig it targets
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/TestPaymentModal.tsx:42-46`, `client/src/lib/polkadot-config.ts:21`
+- **Observed during**: issue #302
+- **Suggestion**: The modal builds multisig calls from //Alice, //Bob, //Charlie (2-of-3), which derive `5DjYJStmdZ2rcqXbXGX7TW85JsrW6uG4y9MUcLq2BoPMpRA7`, but it displays and approves against `TESTNET_MULTISIG` `5CSxUh77…`. It also logs heavily with `console.log`. Now dev-only (#302); either fix the signatory source or delete the tool.
+
+## [2026-11-18] Dev-account list is duplicated between client and server
+- **Severity**: nit
+- **File(s)**: `client/scripts/check-prod-bundle.mjs`, `server/api/auth/authConfigSafety.js` (#301)
+- **Observed during**: issue #302
+- **Suggestion**: Both hold the same //Alice … //Ferdie addresses. Once #301 is merged, move the list to one JSON file read by both (and by the server test that re-derives it from the seed).
+
+## [2026-11-18] Run the prod-bundle check on Vercel's own build
+- **Severity**: minor
+- **File(s)**: `client/scripts/check-prod-bundle.mjs`, `client/package.json`, `client/vercel.json`
+- **Observed during**: issue #302 review
+- **Suggestion**: `npm run check:bundle` only scans CI's env-less build, so a dev address injected via Vercel's `VITE_ADMIN_ADDRESSES` would not be caught. Running it as part of Vercel's production build command would block such a deploy.
 ## [2026-11-18] Malformed SIWS headers return 400, not 401
 - **Severity**: nit
 - **File(s)**: `server/api/auth/parsePayload.js:28-42`, `server/api/middleware/auth.middleware.js` (`authenticateRequest`)
