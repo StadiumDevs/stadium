@@ -31,7 +31,7 @@ What happens instead. Include error messages, screenshots, console output if rel
 
 ## Test scenarios
 
-White-box checks the `stadium-tester` agent runs against the Vercel preview before the PR is opened. Describe the *fixed* behavior as verifiable steps. Format: `On <route>, <action> → <expected state>`.
+White-box checks the `stadium-tester` agent runs before the PR is opened (Vercel preview; wallet-gated steps run locally on `npm run dev:harness`). Describe the *fixed* behavior as verifiable steps. Format: `On <route>, <action> → <expected state>`.
 
 - [ ] On `/<route>`, reproduce the bug's precondition → UI shows fixed state (not the broken one)
 - [ ] ...

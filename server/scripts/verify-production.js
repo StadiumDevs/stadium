@@ -163,7 +163,7 @@ async function main() {
       console.log('  • Verify Supabase project is not paused');
     }
     if (errors.some(e => e.name.includes('Symbiosis'))) {
-      console.log('  • Run: npm run db:mongo-then-supabase:full (to load Symbiosis)');
+      console.log('  • Symbiosis data is missing from Supabase: restore it from a backup (the old Mongo import scripts were removed in #309)');
     }
     if (errors.some(e => e.name.includes('CORS'))) {
       console.log('  • Redeploy Railway server (CORS config)');

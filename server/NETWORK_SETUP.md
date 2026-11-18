@@ -19,7 +19,8 @@ AUTHORIZED_SIGNERS=5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF,5Di7WRCjywLj
 ADMIN_WALLETS=
 
 # Other configuration
-MONGO_URI=mongodb://localhost:27017/stadium
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 EXPECTED_DOMAIN=localhost
 PORT=3000
 NODE_ENV=development
@@ -34,7 +35,8 @@ Create or update `server/.env`:
 ```bash
 NETWORK_ENV=testnet
 AUTHORIZED_SIGNERS=5GE6ptWSLAgSgoDzBDsFgZi1cauUCmEpEgtddyphkL5GGQcF,5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9,133BE1QFPWH3WhryCyV4jd8zHx6p8ZsmgbbPC1oH6WyKJSy7
-MONGO_URI=mongodb://localhost:27017/stadium
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 EXPECTED_DOMAIN=localhost
 ```
 
@@ -43,7 +45,8 @@ EXPECTED_DOMAIN=localhost
 ```bash
 NETWORK_ENV=mainnet
 AUTHORIZED_SIGNERS=<production-authorized-addresses>
-MONGO_URI=<production-mongodb-uri>
+SUPABASE_URL=<production-supabase-url>
+SUPABASE_SERVICE_ROLE_KEY=<production-service-role-key>
 EXPECTED_DOMAIN=<production-domain>
 ```
 

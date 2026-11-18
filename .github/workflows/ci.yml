@@ -1,6 +1,6 @@
 name: CI
 
-# Same checks as /pre-pr-check: server tests, client typecheck+build, client lint.
+# Same checks as /pre-pr-check: server tests + boot check + lint, client typecheck+build, client lint.
 on:
   pull_request:
     branches: [develop, main]
@@ -31,6 +31,10 @@ jobs:
       - name: Boot check
         run: npm run check:boot
         working-directory: server
+      # Data-access rule (#308): only api/repositories/ touches Supabase.
+      - name: Lint
+        run: npm run lint
+        working-directory: server
 
   client:
     runs-on: ubuntu-latest
@@ -42,6 +46,9 @@ jobs:
         with:
           dir: client
       - run: npm run build
+        working-directory: client
+      - name: Production bundle has no dev keys or test-wallet harness
+        run: npm run check:bundle
         working-directory: client
       - run: npm run lint
         working-directory: client
@@ -60,3 +67,20 @@ jobs:
           install: "false"
       - name: Allowlist hook tests
         run: node --test '.claude/hooks/__tests__/*.test.mjs'
+
+  # stadium-tester runner guards (#304): production denylist, mock-mode
+  # preflight, no writes into the repo. Needs Chromium for the preflight cases.
+  tester-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: client
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+        working-directory: client
+      - name: Runner guard tests
+        run: node --test '.claude/skills/stadium-tester/scripts/__tests__/*.test.mjs'

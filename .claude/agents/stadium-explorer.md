@@ -31,7 +31,6 @@ You are a codebase explorer for the Stadium repo. Your job is to find things fas
 - `api/repositories/` — data access
 - `api/middleware/` — `auth.middleware.js` (SIWS), `logging.middleware.js`
 - `api/middleware/__tests__/` — canonical test location
-- `models/` — Mongoose models (`Project.js`, `MultisigTransaction.js`); script-only. API data access is `api/repositories/` on Supabase.
 - `tests/` — standalone tests
 - `scripts/` — operational (destructive; do not run)
 

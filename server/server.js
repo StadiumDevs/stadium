@@ -2,7 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import connectToSupabase, { supabase } from "./db.js";
+import connectToSupabase from "./db.js";
+import healthRepository from "./api/repositories/health.repository.js";
 import m2ProgramRoutes from './api/routes/m2-program.routes.js';
 import programRoutes from './api/routes/program.routes.js';
 import walletContactRoutes from './api/routes/wallet-contact.routes.js';
@@ -10,6 +11,7 @@ import adminSessionRoutes from './api/routes/admin-session.routes.js';
 import adminTiersRoutes from './api/routes/admin-tiers.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
 import { assertSessionSecret } from './api/auth/sessionToken.js';
+import { runStartupAuthConfigCheck } from './api/services/auth-config-check.service.js';
 import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
 const app = express();
@@ -124,7 +126,7 @@ app.get("/api/health", (req, res) => {
 // Health check that verifies Railway → Supabase (GET /api/health/db)
 app.get("/api/health/db", async (req, res) => {
     try {
-        const { count, error } = await supabase.from('projects').select('*', { count: 'exact', head: true });
+        const { count, error } = await healthRepository.countProjects();
         if (error) {
             return res.status(503).json({ status: 'error', message: 'Supabase query failed', error: error.message });
         }
@@ -147,6 +149,9 @@ const startServer = async () => {
         // than at the first admin sign-in.
         assertSessionSecret();
         await connectToSupabase();
+        // Production must not trust well-known dev accounts or skip SIWS domain
+        // binding (#301). Warn-only until ENFORCE_SAFE_AUTH_CONFIG is flipped.
+        await runStartupAuthConfigCheck();
         app.listen(PORT, () => {
             console.log(`✅ Server is running on port ${PORT}`);
         });
