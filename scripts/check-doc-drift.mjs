@@ -59,6 +59,7 @@ for (const doc of DOCS) {
       }
       if (/\s/.test(t) || isPlaceholder(t)) continue;
       if (/(^|\/)\.env$/.test(t)) continue; // local, gitignored (copied from .env.example)
+      if (/(^|\/)node_modules(\/|$)/.test(t)) continue; // created by npm install, absent from a fresh checkout
       const looksLikePath = TOP_DIRS.some((d) => t.startsWith(d)) || ROOT_FILES.has(t);
       if (looksLikePath && !pathExists(t)) problems.push(`${doc}:${i + 1}  path not found: ${t}`);
     }
