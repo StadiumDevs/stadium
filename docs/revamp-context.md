@@ -138,7 +138,7 @@ These are non-negotiable and exist independent of this spec. Capturing them here
 
 **The data layer is Supabase.** MongoDB/Mongoose was removed (#309). When you add a new table, the repository goes in `server/api/repositories/`.
 
-**`BYPASS_ADMIN_CHECK` must stay `false`.** There is real production history of this being set to `true` and shipping as a full auth bypass. If you ever see this flag being touched during implementation work, flag it loudly.
+**No client-side auth bypass.** A `BYPASS_ADMIN_CHECK` flag in `AdminPage.tsx` once shipped as `true`; it has since been deleted (#307). If you see anything reintroducing a way to skip the admin gate, flag it loudly.
 
 **Admin wallets come from env vars. Always.** No hardcoded addresses anywhere in the codebase.
 

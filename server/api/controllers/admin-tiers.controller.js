@@ -1,5 +1,6 @@
 import appAdminRepository from '../repositories/app-admin.repository.js';
 import globalAdminRepository from '../repositories/global-admin.repository.js';
+import { devAccountName, isProductionRuntime } from '../auth/authConfigSafety.js';
 
 const VALID_CHAINS = ['substrate', 'ethereum', 'solana'];
 
@@ -38,6 +39,14 @@ function addFor(tier) {
       }
       if (label !== undefined && label !== null && (typeof label !== 'string' || label.length > 100)) {
         return res.status(422).json({ status: 'error', message: 'label must be ≤ 100 chars' });
+      }
+      const devName = isProductionRuntime() ? devAccountName(walletChain, wallet) : null;
+      if (devName) {
+        console.error(`❌ Refused to add dev account ${devName} as ${tier} admin in production`);
+        return res.status(400).json({
+          status: 'error',
+          message: 'Well-known dev accounts cannot be admins in production',
+        });
       }
       const addedBy = req.user
         ? `${req.user.chain || 'unknown'}:${req.user.address}`

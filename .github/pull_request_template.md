@@ -19,7 +19,7 @@ Closes #
 
 ## UI verification (stadium-tester) — required
 
-Paste the tester's full markdown report below. **Every scenario from the linked issue's `## Test scenarios` section must appear here with a PASS or a documented SKIPPED (needs-auth-harness) outcome. A PR without this section filled in is not eligible for merge.**
+Paste the tester's full markdown report below. **Every scenario from the linked issue's `## Test scenarios` section must appear here with a PASS or a documented SKIPPED outcome, and say where it ran (`dev:harness`, preview or local dev). Wallet-gated scenarios must run on local `dev:harness`, not be skipped. A PR without this section filled in is not eligible for merge.**
 
 <!-- Paste stadium-tester report (table of scenario / result / notes) -->
 
@@ -28,7 +28,6 @@ Paste the tester's full markdown report below. **Every scenario from the linked 
 
 ## Invariants verified
 
-- [ ] `BYPASS_ADMIN_CHECK` still `false` in `AdminPage.tsx`
 - [ ] New admin routes use `server/api/middleware/auth.middleware.js`
 - [ ] No hardcoded admin/wallet addresses
 - [ ] No new `console.log/warn/error` in client production code

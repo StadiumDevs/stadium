@@ -48,7 +48,7 @@ code that reads them is deployed — otherwise auth and project reads error.
       `requireTeamMemberOrAdmin` enforce the domain check — a wrong value breaks
       *all* team-member actions.
 - [ ] `DISABLE_SIWS_DOMAIN_CHECK` — unset or `false` in production.
-- [ ] `NODE_ENV=production` — disables the `dev-bypass` auth shortcut.
+- [ ] `NODE_ENV=production` — restricts CORS to the production origins (no localhost dev origins) and keeps error details out of API responses.
 - [ ] `AUTHORIZED_SIGNERS` — admin signers. Chain-tagged entries supported
       (`ethereum:0x…`, `solana:…`); bare entries are treated as Substrate.
 - [ ] `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_WALLETS`,
@@ -66,7 +66,6 @@ code that reads them is deployed — otherwise auth and project reads error.
 - [ ] Promote `develop` → production branch per your pipeline (server → Railway,
       client → Vercel). Migrations (Step 1) must already be applied.
 - [ ] Confirm the client build is **not** in mock mode and points at the real API.
-- [ ] `BYPASS_ADMIN_CHECK` in `AdminPage.tsx` is `false` (repo invariant).
 
 ## Step 4 — Interactive verification (real wallets, production)
 

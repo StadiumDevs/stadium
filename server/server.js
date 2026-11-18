@@ -11,6 +11,7 @@ import adminSessionRoutes from './api/routes/admin-session.routes.js';
 import adminTiersRoutes from './api/routes/admin-tiers.routes.js';
 import requestLogger from './api/middleware/logging.middleware.js';
 import { assertSessionSecret } from './api/auth/sessionToken.js';
+import { runStartupAuthConfigCheck } from './api/services/auth-config-check.service.js';
 import { getAuthorizedAddresses, NETWORK_CONFIG } from './config/polkadot-config.js';
 
 const app = express();
@@ -148,6 +149,9 @@ const startServer = async () => {
         // than at the first admin sign-in.
         assertSessionSecret();
         await connectToSupabase();
+        // Production must not trust well-known dev accounts or skip SIWS domain
+        // binding (#301). Warn-only until ENFORCE_SAFE_AUTH_CONFIG is flipped.
+        await runStartupAuthConfigCheck();
         app.listen(PORT, () => {
             console.log(`✅ Server is running on port ${PORT}`);
         });
