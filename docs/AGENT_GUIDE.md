@@ -125,7 +125,7 @@ Do **not** modify Railway/Vercel config from an issue unless the issue explicitl
 ## Common pitfalls (learned the hard way)
 
 1. **Writing Mongoose queries in `server/api/**`.** The API is Supabase. `server/models/Project.js` exists only for scripts. If you are tempted to import it from a controller or service, you're on the wrong layer.
-2. **`BYPASS_ADMIN_CHECK = true`** shipped once in `AdminPage.tsx`. Full auth bypass. Always `false`.
+2. **A client-side `BYPASS_ADMIN_CHECK = true`** once shipped in `AdminPage.tsx` and skipped the admin UI gate. The flag was deleted (#307); don't reintroduce a client-side auth bypass. Server middleware is the real gate.
 3. **Duplicate toast hook** — a stray `use-toast.ts` alongside `use-toast.tsx` caused Vite to pick the wrong one. Only `.tsx` exists now; do not create `.ts`.
 4. **Hardcoded hex colors with `!important`** in `index.css` broke dark mode. Use theme CSS variables.
 5. **`console.log` in production client** — all stripped. Use the toast or error boundary instead.

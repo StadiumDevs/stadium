@@ -23,8 +23,6 @@ const formatAddress = (address = "") => `${address.slice(0, 6)}...${address.slic
 type SortKey = "eventStartedAt" | "projectName" | "newest";
 
 const AdminPage = () => {
-  const BYPASS_ADMIN_CHECK = false;
-
   const auth = useWalletAuth();
   const [errorData, setErrorData] = useState<{
     message: string;
@@ -33,7 +31,7 @@ const AdminPage = () => {
     isProduction: boolean;
   } | null>(null);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(BYPASS_ADMIN_CHECK);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<any>(null);
@@ -62,20 +60,13 @@ const AdminPage = () => {
   };
 
   useEffect(() => {
-    if (BYPASS_ADMIN_CHECK) loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (BYPASS_ADMIN_CHECK) return;
     if (auth.account && isAdmin(auth.account.address, auth.account.chain)) {
       setIsAuthenticated(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.account]);
 
   useEffect(() => {
-    if (isAuthenticated && !BYPASS_ADMIN_CHECK) loadData();
+    if (isAuthenticated) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
@@ -497,7 +488,7 @@ const AdminPage = () => {
           <WinnersTable
             projects={projects}
             onRefresh={loadData}
-            connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0]?.address : auth.account?.address}
+            connectedAddress={auth.account?.address}
             signAdminAction={auth.getAdminBearerHeaders}
           />
         </section>

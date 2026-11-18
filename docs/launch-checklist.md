@@ -66,7 +66,6 @@ code that reads them is deployed — otherwise auth and project reads error.
 - [ ] Promote `develop` → production branch per your pipeline (server → Railway,
       client → Vercel). Migrations (Step 1) must already be applied.
 - [ ] Confirm the client build is **not** in mock mode and points at the real API.
-- [ ] `BYPASS_ADMIN_CHECK` in `AdminPage.tsx` is `false` (repo invariant).
 
 ## Step 4 — Interactive verification (real wallets, production)
 
