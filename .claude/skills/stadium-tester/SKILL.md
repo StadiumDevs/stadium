@@ -18,8 +18,9 @@ If either is missing, stop and ask. Do not invent scenarios.
 
 ## Hard rules (never violated)
 
-- **Never run against production.** Refuse if the target matches `stadium.joinwebzero.com` or `stadium-production-*.up.railway.app`. The runner script enforces this too — exit code `3` means it tripped that guard.
-- **Mock-mode required on remote targets.** On any non-`localhost` URL, the first test must assert `window.__STADIUM_MOCK__ === true`. If false, fail the entire run with a `mock-mode-not-enabled` reason and stop.
+- **Never run against production.** The runner refuses any target whose hostname is in `config/denylist.json` (the production site, the production Vercel alias, the production Railway API; `STADIUM_PROD_API_HOST` adds the API host) and exits `3`. It matches the parsed hostname, not the raw URL.
+- **Mock-mode required on remote targets.** For any target that isn't `localhost` / `127.0.0.1` / `[::1]`, the runner loads the page once before the spec and exits `4` (`mock-mode-not-enabled`) unless `window.__STADIUM_MOCK__ === true` (`5` if the page can't be loaded). Report either as a failed run and stop.
+- **The runner never writes into the repo.** It copies the spec into a fresh temp dir and writes the config, JSON report and screenshots there; the stdout summary gives `runDir`, `reporterPath` and `screenshotsDir`. Only the spec file is copied, so a spec must be self-contained (no relative imports).
 - **SIWS-gated flows need the test-wallet harness.** A scenario whose action requires a Polkadot wallet signature only runs when the target URL was built with `VITE_USE_TEST_WALLET=true` (see below). If that flag isn't active, mark the scenario `SKIPPED (needs-auth-harness)` and continue. Don't hand-roll a wallet mock.
 - **No destructive admin actions even in mock mode.** `confirmPayment`, `markAllAsPaid`, etc. are SKIPPED until we have an explicit safe path.
 - **No code outside `/tmp`.** Per-run spec files go in `/tmp`, never under `client/` or anywhere else in the repo.
@@ -115,7 +116,7 @@ node .claude/skills/stadium-tester/scripts/run-playwright.mjs \
   --spec /tmp/stadium-tester-<short-id>.spec.mjs
 ```
 
-Capture stdout (JSON summary) and read the JSON reporter file at `<spec>.json` for per-test results.
+Capture stdout (JSON summary) and read the JSON report at its `reporterPath` for per-test results. Failure screenshots are under `screenshotsDir`.
 
 ### 5. Output
 
@@ -141,13 +142,13 @@ Nothing else. No speculation beyond a one-line root-cause hint per FAIL.
 
 ### 6. Cleanup
 
-`rm -f /tmp/stadium-tester-<id>.spec.mjs /tmp/stadium-tester-<id>.spec.mjs.json /tmp/stadium-tester-<id>.config.mjs`. Keep failure screenshots if Playwright wrote them — point at them in your report.
+`rm -f /tmp/stadium-tester-<id>.spec.mjs`. After reading the report, `rm -rf <runDir>` if every test passed; if any failed, keep it and point at the screenshots in your report.
 
 ## Stopping rules
 
 - Bail if the target URL is unreachable after 30 s (Playwright timeout fires → runner exit ≠ 0 → report it as `infrastructure-error`).
 - Bail if `setup.sh` fails to install Chromium — tell the user to run it manually and check Node version.
-- Bail if the runner exits with code 3 (production target blocked).
+- Bail if the runner exits with code 3 (production target blocked), 4 (mock mode off on a remote target) or 5 (remote target unreachable during the preflight).
 - Bail if zero scenarios are runnable after parsing — tell the caller the issue needs UI-testable scenarios added.
 
 ## What you do not do

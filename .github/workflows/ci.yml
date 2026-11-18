@@ -45,3 +45,20 @@ jobs:
         working-directory: client
       - run: npm run lint
         working-directory: client
+
+  # stadium-tester runner guards (#304): production denylist, mock-mode
+  # preflight, no writes into the repo. Needs Chromium for the preflight cases.
+  tester-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: client
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+        working-directory: client
+      - name: Runner guard tests
+        run: node --test '.claude/skills/stadium-tester/scripts/__tests__/*.test.mjs'
