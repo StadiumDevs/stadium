@@ -1,6 +1,6 @@
 name: CI
 
-# Same checks as /pre-pr-check: server tests, client typecheck+build, client lint.
+# Same checks as /pre-pr-check: server tests + boot check + lint, client typecheck+build, client lint.
 on:
   pull_request:
     branches: [develop, main]
@@ -31,6 +31,10 @@ jobs:
       - name: Boot check
         run: npm run check:boot
         working-directory: server
+      # Data-access rule (#308): only api/repositories/ touches Supabase.
+      - name: Lint
+        run: npm run lint
+        working-directory: server
 
   client:
     runs-on: ubuntu-latest
@@ -42,6 +46,9 @@ jobs:
         with:
           dir: client
       - run: npm run build
+        working-directory: client
+      - name: Production bundle has no dev keys or test-wallet harness
+        run: npm run check:bundle
         working-directory: client
       - run: npm run lint
         working-directory: client

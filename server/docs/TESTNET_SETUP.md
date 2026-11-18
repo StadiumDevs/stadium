@@ -4,7 +4,7 @@ This guide walks you through setting up and testing the multisig payment functio
 
 ## Prerequisites
 
-- MongoDB running locally
+- A Supabase dev project with `supabase/migrations/` applied (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` in `.env`)
 - Node.js installed
 - Access to one of the authorized signer accounts
 
@@ -25,8 +25,9 @@ The system uses a 2-of-3 multisig on Asset Hub Paseo:
 Your `.env` file should have these settings:
 
 ```bash
-# MongoDB
-MONGO_URI=mongodb://localhost:27017/blockspace-stadium
+# Supabase (dev project)
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 
 # Admin Configuration
 ADMIN_WALLETS=5Di7WRCjywLjV53hVjdBekPo2mLtyZAxQYenvW1vKfMNCyo9
@@ -224,9 +225,6 @@ npm run generate:multisig
 
 # Test blockchain connection
 npm run test:transaction
-
-# Reset database and seed test data
-npm run db:reset
 ```
 
 ## Support

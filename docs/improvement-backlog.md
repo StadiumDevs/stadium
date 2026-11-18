@@ -20,6 +20,16 @@ Use `/log-improvement <short description>` or append manually with this template
 
 Do **not** manually edit `- **Promoted**` lines.
 
+## How entries are resolved
+
+When a change on `develop` fixes an entry, append one line to it:
+
+```
+- **Resolved**: <commit sha or #PR> — <one-line note>
+```
+
+The commit or PR must exist and actually fix the entry (check the code, not just the commit message). `/ship-issue` marks entries its PR resolves; `/promote-backlog` skips resolved entries. An entry is **open** until it has a Resolved line, even if it was promoted.
+
 ---
 
 <!-- entries start below this line -->
@@ -35,6 +45,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/middleware/auth.middleware.js` (`requireTeamMemberOrAdmin`)
 - **Observed during**: PR #73 review — fixing Blocker 1 (domain check added to `requireOwnWallet`)
 - **Suggestion**: `requireAdmin` and `requireOwnWallet` both gate on `DISABLE_SIWS_DOMAIN_CHECK`/`EXPECTED_DOMAIN` immediately after statement validation; `requireTeamMemberOrAdmin` skips this check entirely. Add the same domain-check block in a dedicated hardening pass.
+- **Resolved**: 0ab5702 — `requireTeamMemberOrAdmin` calls `resolveAuthIdentity(req, { checkDomain: true })`
 
 ## [2026-04-15] Migrate slash commands to Skills
 - **Severity**: nit
@@ -53,6 +64,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `.claude/skills/stadium-tester/SKILL.md`, `client/src/lib/siwsUtils.ts`, `server/api/middleware/auth.middleware.js`
 - **Observed during**: building the `stadium-tester` skill
 - **Suggestion**: `stadium-tester` currently skips SIWS-gated live flows because there's no way to sign a SIWS message programmatically from a headless browser. Options: (a) mount a test wallet via a Playwright extension harness, (b) add a preview-only signed-request bypass keyed to an ephemeral secret, (c) stub the SIWS verification in preview-mode server. None are trivial — pick one when SIWS coverage becomes load-bearing.
+- **Resolved**: fce5d0f — `client/src/lib/testWalletInjection.ts` + `npm run dev:harness`
 
 ## [2026-04-14] Admin confirm-payment bypasses the api wrapper
 - **Severity**: minor
@@ -65,6 +77,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `client/src/pages/AdminPage.tsx`, `client/src/pages/HomePage.tsx`, `client/src/pages/ProjectDetailsPage.tsx`, `client/tailwind.config.ts`
 - **Observed during**: repo cleanup pass (running `npm run lint` as part of verification)
 - **Suggestion**: `npm run lint` fails pre-existing — mostly `@typescript-eslint/no-explicit-any`, a few `no-useless-escape` in a regex, and a `require()` in tailwind config. `CLAUDE.md` §6 says lint must pass for PRs, but baseline is broken. Clean these in a dedicated PR before the first `/ship-issue` run touches one of those files (otherwise `/pre-pr-check` will block work that didn't cause the errors).
+- **Resolved**: ad79805 — `cd client && npm run lint` passes with `--max-warnings 0`
 
 ## [2026-04-14] Flatten the Supabase↔Mongo dual data layer
 - **Severity**: minor
@@ -137,6 +150,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/controllers/project.controller.js:75`, `server/api/controllers/project.controller.js:188`
 - **Observed during**: issue #70 (revamp-P2-04 notify trigger wiring) — reviewer flagged
 - **Suggestion**: two pre-existing `console.log` calls (a debug payload preview in `updateProject`, and an M2-agreement confirmation log) predate Phase 2 and were left untouched. Server code elsewhere uses the `logger` utility (`server/api/utils/logger.js`). Convert these to `logger.debug`/`logger.info` (or remove the debug preview) in a dedicated cleanup pass — out of scope for #70's minimal diff.
+- **Resolved**: 104d3c8 — no `console.log` left in `server/api/controllers/project.controller.js`
 
 ## [2026-05-18] TeamPaymentSection keys team-member rows by wallet address
 - **Severity**: minor
@@ -150,6 +164,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: security audit after #121 (substrate verifier P0)
 - **Suggestion**: `POST /api/admin/session` does SIWS signature verification (~50–200ms per call) and is unauthenticated. A burst of a few hundred req/sec could noticeably load the server. Add `express-rate-limit` with tight per-IP limits on `/api/admin/session` (e.g. 10/min) and a looser app-wide default (e.g. 200/min/IP). No new env vars needed.
 - **Promoted**: #127
+- **Resolved**: 0175d38 — `sessionLimiter` on `/api/admin/session` in `server/server.js`
 
 ## [2026-05-21] Add `helmet` security headers middleware
 - **Severity**: nit
@@ -157,6 +172,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: security audit after #121
 - **Suggestion**: server doesn't set `X-Frame-Options`, `X-Content-Type-Options`, or CSP. Railway terminates TLS and may set some at the edge, but defense-in-depth at the app layer is cheap. Drop `app.use(helmet())` after the CORS middleware. No CSP customisation needed since the server only serves JSON, not HTML.
 - **Promoted**: #128
+- **Resolved**: 0175d38 — `app.use(helmet(...))` in `server/server.js`
 
 ## [2026-05-21] `ADMIN_SESSION_SECRET` validation is lazy (first-call), not at startup
 - **Severity**: nit
@@ -164,6 +180,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: security audit after #121
 - **Suggestion**: `getSecret()` throws on the first `issueSessionToken`/`verifySessionToken` call if the env var is missing or under 32 chars. The server still boots successfully with a misconfigured secret, and the first admin to try logging in sees a 500. Move the check into `server.js` startup so misconfiguration fails fast and visibly in the deploy logs.
 - **Promoted**: #129
+- **Resolved**: 932eb92 — `assertSessionSecret()` runs in `startServer()`
 
 ## [2026-05-21] `requireAdmin` and `requireTeamMemberOrAdmin` don't capture `req.user.chain`
 - **Severity**: nit
@@ -171,6 +188,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: security audit after #121
 - **Suggestion**: `requireProgramAdmin` and `requireAppAdmin` both stamp `chain` onto `req.user`. The other two middlewares don't. Downstream `auditLog.logSafe({ actor: { chain: req.user?.chain, … } })` calls then record `actor_chain = null` for any admin or team-member action — a forensics gap, not a security flaw. Add `chain: auth.chain` to both `req.user` assignments.
 - **Promoted**: #130
+- **Resolved**: 932eb92 — both set `chain: auth.chain` on `req.user`
 
 ## [2026-05-21] Audit-log coverage gaps on payment / payout actions
 - **Severity**: minor
@@ -192,6 +210,7 @@ Do **not** manually edit `- **Promoted**` lines.
 - **Observed during**: investigating #117's bad merge that broke prod for ~10 min
 - **Suggestion**: vitest currently tests handlers, repositories, and verifiers in isolation. None of the 243+ tests imports `server.js` end-to-end, so a route mounting an undefined controller method passes CI but crashes Railway at boot. Add a 1-test file that does `await import('../server.js')` with a 2s timeout, asserts the server starts listening, then closes. Would have caught #117 before merge.
 - **Promoted**: #133
+- **Resolved**: 65379bb — `server/ci/boot-check.js`, run by CI (`npm run check:boot`)
 
 ## [2026-05-21] CSV import body parsers might need formula-injection defense on read path too
 - **Severity**: nit
@@ -295,18 +314,21 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: repo root; `.github/workflows/*.yml`; `client/package.json`, `server/package.json` (no `engines`)
 - **Observed during**: adding CI security + dependency-update checks
 - **Suggestion**: The lockfiles were written by npm 11, and `npm ci` on npm 10 (Node 20/22) rejects them ("Missing: smoldot@2.0.26 from lock file"). It is version-specific even within npm 11: 11.6.2 (which wrote them) works; 11.19.1 (bundled with Node 24 on runners) rejects them, and a relock with 11.19.1 is rejected by 11.6.2. The new workflows pin `NPM_VERSION: 11.6.2`. `claude.yml` (Node 20 / npm 10) will fail at `npm ci`. Pick one npm version for the team (a `packageManager` field in package.json, or `devEngines`), relock with it, and drop the pin. Add `.nvmrc` (24) plus `engines`, check that Railway/Vercel match, and switch every workflow to `node-version-file: .nvmrc`.
+- **Resolved**: 65379bb — `server/.nvmrc` + `engines`; CI reads it and pins npm
 
 ## [2026-11-09] `api.getProgramStats` is defined twice
 - **Severity**: major
 - **File(s)**: `client/src/lib/api.ts:2636` (judge/admin header counts) and `client/src/lib/api.ts:3069` (public stats snapshot), callers `client/src/components/admin/ProgramStatsHeader.tsx:45`, `client/src/components/admin/ProgramResultsSummarySection.tsx:204`
 - **Observed during**: privacy track tech review section (stats page), exploring e29f836
 - **Suggestion**: The later key in the `api` object literal wins, so the admin header and results summary now call the public snapshot endpoint instead of the header counts. Rename one (e.g. `getPublishedProgramStats`) and update its callers.
+- **Resolved**: d9ca3ce — one `getProgramStats` in `client/src/lib/api.ts`
 
 ## [2026-11-09] Two routes for `GET /programs/:slug/stats`
 - **Severity**: major
 - **File(s)**: `server/api/routes/program.routes.js:111` (public `getPublished`) and `:299` (`requireProgramJudge` → `submissionController.programStats`)
 - **Observed during**: privacy track tech review section (stats page), exploring e29f836
 - **Suggestion**: Express uses the first match, so the judge header-stats endpoint can no longer be reached. Give the published stats page or the judge counts a distinct path, together with the client rename above.
+- **Resolved**: d9ca3ce — judge counts moved to `/stats/summary`; `program-routes-unique.test.js` guards it
 
 ## [2026-11-16] Public API: anonymous entries' repo URLs and small metadata leaks
 - **Severity**: minor
@@ -319,3 +341,56 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `.claude/skills/stadium-tester/scripts/run-playwright.mjs`, `.claude/skills/stadium-tester/scripts/guards.mjs`
 - **Observed during**: issue #304 review
 - **Suggestion**: The denylist and mock preflight check only `--target`. A local target built without mock mode and with `VITE_API_BASE_URL` pointing at production, a redirect, or an absolute `page.goto` in a spec could still reach production. Abort requests to denylisted hosts with a Playwright `context.route` (e.g. a generated fixture), and check `window.__STADIUM_API_BASE__` against the denylist for every target.
+
+## [2026-11-18] ConfirmPaymentModal: float split and wallet-keyed amounts
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/ConfirmPaymentModal.tsx` (recipient amounts, sum check)
+- **Observed during**: issue #303 (canonical journey)
+- **Suggestion**: The default split of 2000 across 3 members renders as `666,68000000000001` and the sum check then rejects it, so CONFIRM stays disabled until amounts are edited. Amounts are also keyed by wallet address, so members sharing a wallet (every mock fixture uses the same redacted placeholder) collapse into one row amount. Round the split to cents and key amounts by member index.
+
+## [2026-11-18] Mock fixtures have no program open for submissions
+- **Severity**: minor
+- **File(s)**: `client/src/lib/mockPrograms.ts`, `.claude/skills/stadium-tester/flows/client-journey.spec.mjs`
+- **Observed during**: issue #303
+- **Suggestion**: Every tracked hackathon fixture is `completed`, so the public SUBMIT A PROJECT flow can't be exercised in mock mode and was dropped from the canonical journey. Add an open tracked-program fixture (or let RESET PLAYGROUND reopen one) and restore the submit step.
+
+## [2026-11-18] Dead api.webzeroApprove / api.requestChanges
+- **Severity**: nit
+- **File(s)**: `client/src/lib/api.ts` (`webzeroApprove`, `requestChanges`)
+- **Observed during**: issue #303
+- **Suggestion**: Neither has a caller in `client/src`. Delete them (and their mock branches) unless an upcoming admin flow needs them.
+
+## [2026-11-18] TEST PAYMENT modal signatories don't match the multisig it targets
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/TestPaymentModal.tsx:42-46`, `client/src/lib/polkadot-config.ts:21`
+- **Observed during**: issue #302
+- **Suggestion**: The modal builds multisig calls from //Alice, //Bob, //Charlie (2-of-3), which derive `5DjYJStmdZ2rcqXbXGX7TW85JsrW6uG4y9MUcLq2BoPMpRA7`, but it displays and approves against `TESTNET_MULTISIG` `5CSxUh77…`. It also logs heavily with `console.log`. Now dev-only (#302); either fix the signatory source or delete the tool.
+
+## [2026-11-18] Dev-account list is duplicated between client and server
+- **Severity**: nit
+- **File(s)**: `client/scripts/check-prod-bundle.mjs`, `server/api/auth/authConfigSafety.js` (#301)
+- **Observed during**: issue #302
+- **Suggestion**: Both hold the same //Alice … //Ferdie addresses. Once #301 is merged, move the list to one JSON file read by both (and by the server test that re-derives it from the seed).
+
+## [2026-11-18] Run the prod-bundle check on Vercel's own build
+- **Severity**: minor
+- **File(s)**: `client/scripts/check-prod-bundle.mjs`, `client/package.json`, `client/vercel.json`
+- **Observed during**: issue #302 review
+- **Suggestion**: `npm run check:bundle` only scans CI's env-less build, so a dev address injected via Vercel's `VITE_ADMIN_ADDRESSES` would not be caught. Running it as part of Vercel's production build command would block such a deploy.
+## [2026-11-18] Malformed SIWS headers return 400, not 401
+- **Severity**: nit
+- **File(s)**: `server/api/auth/parsePayload.js:28-42`, `server/api/middleware/auth.middleware.js` (`authenticateRequest`)
+- **Observed during**: issue #313 (removing dev-bypass)
+- **Suggestion**: An unparseable `x-siws-auth` header (including the removed `dev-bypass` value) gets 400 while a missing header gets 401. Decide whether credential failures should consistently be 401 and align the tests and the issue templates' expected statuses.
+
+## [2026-11-18] SIWS 403 responses echo internal error text
+- **Severity**: minor
+- **File(s)**: `server/api/middleware/auth.middleware.js` (`authenticateRequest`, signature-verification failure branches)
+- **Observed during**: issue #313 review
+- **Suggestion**: The 403 bodies include `error: e.message` / `result.error` from the verifier. Consider returning a generic message and logging the detail server-side, consistent with "keep error details out of API responses".
+
+## [2026-11-18] Flaky vitest EnvironmentTeardownError in server tests
+- **Severity**: minor
+- **File(s)**: `server/api/controllers/__tests__/program-application.test.js` (reported by vitest), `server/vitest.config.js`
+- **Observed during**: issue #313 pre-PR check (also reproduced on baseline `develop`)
+- **Suggestion**: `npm test` intermittently reports "Errors 1: EnvironmentTeardownError: Closing rpc while onUserConsoleLog was pending" with all tests passing. Likely a console log firing after a test resolves; await or silence it so the run is reliably clean.

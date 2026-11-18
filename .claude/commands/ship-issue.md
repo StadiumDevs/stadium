@@ -51,6 +51,8 @@ Delegate to the `stadium-implementer` subagent with the approved plan. It will:
 
 Run the `stadium-reviewer` subagent against the diff. Address any **Blockers** before continuing. Record **Backlog** items via `/log-improvement`.
 
+Then check `docs/improvement-backlog.md` for open entries (no `- **Resolved**` line) that this change fixes. For each one, verified in the code, append `- **Resolved**: #<this PR> — <one-line note>` (use the PR number once it exists, step 8) and list it under "Backlog items resolved" in the PR body.
+
 ## 6. Pre-PR check
 
 Run `/pre-pr-check`. It executes:
@@ -73,8 +75,9 @@ Preflight the tester:
 - Run `bash .claude/skills/stadium-tester/setup.sh` if `client/node_modules/@playwright/test` doesn't exist. The script is idempotent — safe to run every time.
 
 Decide target URL:
-- Preferred: the Vercel preview URL for the current branch (after push). Must have `window.__STADIUM_MOCK__ === true`.
-- Fallback: local dev (`http://localhost:8080`) started with `cd client && VITE_USE_MOCK_DATA=true npm run dev` so the mock dataset is in use.
+- **Wallet-gated (SIWS) scenarios:** local `http://localhost:8080` started with `cd client && npm run dev:harness` (mock data + test wallet + Alice as admin). The test wallet never loads in a build, so these cannot run on a Vercel preview.
+- **Other scenarios:** the Vercel preview URL for the current branch (after push), which must have `window.__STADIUM_MOCK__ === true`, or the same local `dev:harness` server.
+- The tester report must say where each scenario ran.
 
 Invoke the `stadium-tester` Skill:
 
@@ -85,7 +88,7 @@ Invoke the `stadium-tester` Skill:
 Interpret the Skill's output:
 - **All PASS** — continue to step 7.
 - **Any FAIL** — return to the `stadium-implementer` with the failing scenarios + the tester's root-cause hints. Re-run `/pre-pr-check` and `stadium-tester` after the fix. **Do not open the PR with failing UI verifications. No exceptions.**
-- **SKIPPED (needs-auth-harness)** — OK to proceed, but the PR body must list every skipped scenario and note that manual verification is required for SIWS-gated flows.
+- **SKIPPED (needs-auth-harness)** — not acceptable for a wallet-gated scenario: re-run it on local `dev:harness`. Only a scenario that genuinely needs a real wallet popup (e.g. the signing UX itself) may stay skipped, listed in the PR body for manual verification.
 
 Paste the tester's full markdown report into the PR body under `## UI verification` (step 8).
 
@@ -128,10 +131,9 @@ without this section populated.>
 - <list or "none">
 
 ## Invariants verified
-- [ ] BYPASS_ADMIN_CHECK still false
 - [ ] Admin routes still use auth.middleware.js
 - [ ] No new console.log in client
-- [ ] API data access goes through `server/api/repositories/` (Supabase); no Mongoose in `server/api/**`; no Supabase in `server/scripts/`
+- [ ] API data access goes through `server/api/repositories/` (Supabase); no MongoDB/Mongoose
 EOF
 )"
 ```

@@ -1,0 +1,51 @@
+name: Real wallet QA
+
+# PRs that touch the sign-in path need a manual check with a real wallet
+# extension (#312): the test wallet signs silently, so CI can't see the popup.
+# Labels the PR `needs-real-wallet-qa` and fails until the "Real wallet QA"
+# checklist in the PR body is fully ticked.
+#
+# pull_request_target so the label can be written on PRs from forks too. The
+# job never checks out or runs PR code: it only reads the changed-file list
+# (labeler) and the PR body.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: real-wallet-qa-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  real-wallet-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - id: label
+        uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          sync-labels: true
+
+      - name: Require the Real wallet QA checklist
+        if: contains(steps.label.outputs.all-labels, 'needs-real-wallet-qa')
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          section=$(printf '%s\n' "$PR_BODY" | awk '
+            /^##[[:space:]]+Real wallet QA/ { on = 1; next }
+            on && /^##[[:space:]]/ { on = 0 }
+            on { print }')
+          total=$(printf '%s\n' "$section" | grep -cE '^[[:space:]]*- \[[ xX]\]' || true)
+          open=$(printf '%s\n' "$section" | grep -cE '^[[:space:]]*- \[ \]' || true)
+          if [ "$total" -eq 0 ]; then
+            echo "::error::This PR touches the sign-in path. Add the '## Real wallet QA' checklist from the PR template and tick it after testing with a real wallet."
+            exit 1
+          fi
+          if [ "$open" -gt 0 ]; then
+            echo "::error::Real wallet QA: $open of $total items still unticked."
+            exit 1
+          fi
+          echo "Real wallet QA checklist complete ($total/$total)."
