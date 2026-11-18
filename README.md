@@ -45,7 +45,7 @@ Issues use templates with a mandatory `## Test scenarios` section — the `stadi
 - Node.js ≥ 20
 - `gh` CLI (`brew install gh` + `gh auth login`) — required by the agentic workflow
 - A Supabase project (URL + service-role key) — or read-only access to the shared dev project
-- Docker (only if you plan to run the Mongo-backed utility scripts in `server/scripts/`)
+- Docker (optional: `docker compose up --build` runs the API server from `server/.env`)
 
 ### 1. Clone and install
 
@@ -102,18 +102,9 @@ VITE_USE_MOCK_DATA=true npm run dev
 
 The client then serves fixtures from `client/src/lib/mockWinners.ts` (a snapshot of 159 sanitized production projects; other fixtures are in `client/src/lib/mock*.ts`) and simulates writes in `localStorage`. This is the same mode every Vercel preview runs in.
 
-### 5. (Optional) Mongo-backed scripts
+### 5. Data for local server work
 
-A handful of utility scripts in `server/scripts/` (seed-dev, migration, fix-bounty-amounts, list-winners-zero-paid, etc.) use MongoDB via Mongoose as an offline staging layer — **not** for the API. If you need them:
-
-```bash
-docker compose up mongodb -d     # start Mongo on :27017
-# Set MONGO_URI in server/.env
-cd server
-npm run seed:dev                 # example — also: db:migrate, db:reset, list:winners-zero-paid
-```
-
-Mongo is **not** required to run the API. If you're doing normal feature work, skip this.
+There is no local database: the server always talks to the Supabase project in `server/.env`. For UI work, use mock mode (step 4). For server work, point `server/.env` at a Supabase **dev** project and apply `supabase/migrations/` to it (see `docs/PRODUCTION_DEPLOYMENT.md`). The scripts in `server/scripts/` write to whichever project `server/.env` names, so check it before running one.
 
 ---
 
@@ -134,11 +125,9 @@ Mongo is **not** required to run the API. If you're doing normal feature work, s
 | `npm run dev` | Nodemon on `:2000` |
 | `npm start` | Production start |
 | `npm test` | Vitest |
-| `npm run seed:dev` | Destructive: reset local Mongo + seed fixture projects |
-| `npm run db:migrate` | Import historical projects into local Mongo |
-| `npm run list:winners-zero-paid` | Report on winners with zero confirmed payments |
+| `npm run check:boot` | Load every route module without a database (CI boot check) |
 
-See `server/package.json` for the full list. Anything under `db:*` / `seed:*` hits the **local Mongo staging DB**, not the live Supabase DB.
+See `server/package.json` for the full list. `seed:*` and `bootstrap:*` scripts write to the Supabase project in `server/.env`.
 
 ---
 
@@ -155,7 +144,6 @@ See `server/package.json` for the full list. Anything under `db:*` / `seed:*` hi
 | `NETWORK_ENV` | yes | `testnet` or `mainnet` |
 | `AUTHORIZED_SIGNERS` | yes (admin flows) | Multisig signer list |
 | `NODE_ENV` | yes | `development` / `production` |
-| `MONGO_URI` | no | Only needed for `server/scripts/*.js` utility tools |
 
 ### Client (`client/.env`)
 

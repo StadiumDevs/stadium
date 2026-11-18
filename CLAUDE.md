@@ -12,10 +12,10 @@ Stadium is the web app for the WebZero hackathon/incubator program on Polkadot. 
 - `server/` — Express 5, ESM (`"type": "module"`). Tests via Vitest.
 - `hackathonia/` — Rust ink! smart contracts (out of scope for most feature work — touch only if the issue explicitly asks for contract changes).
 
-**Data layers (important — two co-exist):**
+**Data layer: Supabase only.**
 
 - **API runtime = Supabase.** `server/db.js` builds a Supabase client from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. `server/api/repositories/` is the data access layer: one repository per table or concern (`project.repository.js`, `program.repository.js`, `payout.repository.js`, …). Controllers and services go through a repository; new API code adds or extends one.
-- **Offline tooling = MongoDB via Mongoose.** `server/scripts/*.js` (seed-dev, migration, fix-bounty-amounts, list-winners-zero-paid, set-live-urls, set-m2-final-submissions, seed-m2-test-project) use Mongoose against a local Mongo for bulk imports, backfills, and reports. `server/models/Project.js` is their schema. **Not wired to any route.** Never add a Mongoose query to `server/api/**`.
+- **Offline tooling** in `server/scripts/` uses the same Supabase project (from `server/.env`, which may be production). MongoDB and Mongoose were removed in #309; there is no local database.
 
 Deployment: server → Railway, client → Vercel.
 
@@ -36,8 +36,9 @@ Always run from the subdir, not the repo root.
 **Server (`cd server`):**
 - `npm run dev` — nodemon
 - `npm test` — `vitest run`
+- `npm run lint` — ESLint enforcing the data-access rule (only `server/api/repositories/` imports `db.js` / `@supabase/supabase-js`; no `mongoose`). See `server/eslint.config.js` for the short allowlist.
 - `npm start` — `node server.js`
-- `npm run seed:dev`, `npm run db:migrate`, `npm run db:reset` — local Mongo tooling (destructive; run only when asked)
+- `npm run seed:dogfooding`, `npm run bootstrap:app-admin` — write to the Supabase project in `server/.env` (run only when asked)
 - `npm run verify:production`, `npm run verify:main-deployed` — operational (read-only prod health checks). Deploys are automatic: merging to `main` triggers Railway (server) + Vercel (client) via their GitHub integrations.
 
 ---
@@ -70,8 +71,7 @@ server/
                    nonceStore, authorizedSigners, normalize, supabaseUser
     utils/
     constants/
-  models/          Mongoose models (script-only, NOT used by routes): Project.js, MultisigTransaction.js
-  scripts/         offline data tooling (Mongo-backed; destructive — do not run)
+  scripts/         offline tooling against the Supabase project in server/.env (do not run unless asked)
   config/          polkadot-config.js (network, multisig, signer list)
   ci/              boot-check.js (CI: load every route without a database)
   sim/             in-memory Supabase fake for journey tests
@@ -87,10 +87,8 @@ supabase/          SQL migrations for the live Supabase DB
 
 These have bitten us before. Do not regress them.
 
-- `BYPASS_ADMIN_CHECK` in `client/src/pages/AdminPage.tsx` **must stay `false`**. Was `true` once and shipped — it's a full auth bypass.
 - Admin wallet list comes from env (`VITE_ADMIN_ADDRESSES` on client, `ADMIN_WALLETS` on server). Never hardcode addresses.
-- **Never add Mongoose queries to `server/api/**`.** The API is Supabase. If you find yourself reaching for `server/models/Project.js` outside `server/scripts/`, stop — you're on the wrong layer.
-- **Never add Supabase calls to `server/scripts/`** the other way either. Scripts are Mongo-backed; keep them that way.
+- **No MongoDB/Mongoose.** It was removed in #309; don't reintroduce it. All data lives in Supabase.
 - Toast hook path: `@/hooks/use-toast` resolves to `use-toast.tsx`, not `.ts` (Vite resolution quirk). There used to be a duplicate `.ts` — do not reintroduce it.
 - Dark mode is forced in `App.tsx`. Don't add light-mode-only styles or hex colors with `!important` in `index.css`.
 - No `console.log`/`console.warn`/`console.error` in production client code. They were stripped deliberately.
@@ -123,7 +121,7 @@ Recipes for the common shapes. Reuse the listed utilities; do not create paralle
 1. Add a handler to the matching controller in `server/api/controllers/` (or a new one following the same pattern).
 2. Add the route in `server/api/routes/*.routes.js`; `server.js` mounts route files.
 3. If it mutates admin data: attach `requireAdmin` or `requireTeamMemberOrAdmin` from `auth.middleware.js`.
-4. Data access goes through a repository in `server/api/repositories/` (Supabase). Extend the matching one or add a new one — don't query Supabase directly from a controller, and don't reach for Mongoose.
+4. Data access goes through a repository in `server/api/repositories/` (Supabase). Extend the matching one or add a new one — don't query Supabase directly from a controller.
 5. Write a Vitest test in `server/api/**/__tests__/*.test.js` or `server/tests/`.
 
 **New admin-protected endpoint checklist:**
@@ -170,7 +168,6 @@ While working, you will notice things that are wrong or could be better but are 
 - `gh` CLI may or may not be installed locally. Slash commands check and fail with a clear message if it's missing.
 - Node: match CI. The server's version is in `server/.nvmrc` (Railway runs it); the client has none (CI uses Node 24).
 - **Server runtime** needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_SESSION_SECRET` (≥ 32 chars; the server won't boot without it), `ADMIN_WALLETS`, `EXPECTED_DOMAIN`, `AUTHORIZED_SIGNERS`, `NETWORK_ENV`. See `server/.env.example`.
-- **Local Mongo tooling** (only if you're running `npm run seed:dev` / `db:*` / `list:winners-zero-paid`) additionally needs `MONGO_URI` and a local `mongosh`.
 - Copy `client/.env.example` → `client/.env` and `server/.env.example` → `server/.env`. Never commit real secrets.
 
 ### Vercel preview deployments
@@ -188,6 +185,9 @@ Subagents (`.claude/agents/`):
 - `stadium-explorer` — codebase search tuned to this layout
 - `stadium-implementer` — writes the code per the approved plan
 - `stadium-reviewer` — pre-PR check against repo invariants
+- `stadium-tester` — runs the stadium-tester procedure for `/ship-issue`'s verify step
+
+`stadium-reviewer`, `stadium-explorer` and `stadium-tester` run behind a `PreToolUse` hook (`.claude/hooks/bash-allowlist.mjs`, declared in each agent's frontmatter) that only allows read-only commands; the tester may also run its runner and write under the system temp dir. See `docs/AGENTIC_WORKFLOW.md` → "Agent permissions".
 
 Skills (`.claude/skills/`):
 

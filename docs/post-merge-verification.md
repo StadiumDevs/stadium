@@ -32,10 +32,9 @@ If any of these fail, stop and report — integration regression.
    ```
 2. Start the client in mock mode + SIWS test-wallet harness + Alice as an admin:
    ```
-   cd client && VITE_USE_MOCK_DATA=true VITE_USE_TEST_WALLET=true \
-     VITE_ADMIN_ADDRESSES=5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY \
-     npm run dev
+   cd client && npm run dev:harness
    ```
+   (`dev:harness` sets `VITE_USE_MOCK_DATA=true`, `VITE_USE_TEST_WALLET=true` and Alice in `VITE_ADMIN_ADDRESSES`.)
    Serves on `http://localhost:8080`; no backend server required.
 3. Run the tester once per batch:
    ```

@@ -6,7 +6,7 @@
  * rejected. Rows expire with the owning message, so the table self-prunes.
  */
 
-import { supabase } from '../../db.js';
+import nonceRepository from '../repositories/nonce.repository.js';
 
 // Fraction of consume calls that also sweep expired rows.
 const CLEANUP_PROBABILITY = 0.05;
@@ -25,9 +25,7 @@ export async function consumeNonce(nonce, expiresAt) {
     return { ok: false, reason: 'missing-nonce' };
   }
 
-  const { error } = await supabase
-    .from('auth_nonces')
-    .insert({ nonce, expires_at: new Date(expiresAt).toISOString() });
+  const { error } = await nonceRepository.insert(nonce, new Date(expiresAt).toISOString());
 
   if (error) {
     // 23505 = unique_violation — the nonce has already been used.
@@ -39,7 +37,7 @@ export async function consumeNonce(nonce, expiresAt) {
 
   if (Math.random() < CLEANUP_PROBABILITY) {
     try {
-      await supabase.from('auth_nonces').delete().lt('expires_at', new Date().toISOString());
+      await nonceRepository.deleteExpired(new Date().toISOString());
     } catch {
       // Best-effort cleanup — never fail a request over it.
     }

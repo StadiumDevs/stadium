@@ -159,9 +159,9 @@ It does **not** catch:
 
 Your eyes on the preview are still load-bearing for visual/UX judgment. The tester just keeps you from regressing the functional part while you're judging the visual.
 
-### 4. SIWS / wallet flows are skipped automatically
+### 4. SIWS / wallet flows run locally on `dev:harness`
 
-Scenarios requiring a Polkadot wallet signature (admin auth, confirm payment, approve M2, request changes) return `SKIPPED (needs-auth-harness)`. The tester refuses to fabricate signatures. For those flows, verify manually on the preview and note in the PR body which scenarios were skipped.
+Scenarios requiring a Polkadot wallet signature (admin sign-in, posting updates, judging, program admin) run against local `cd client && npm run dev:harness`, where a test wallet signs as //Alice with real signatures. The harness never loads in a build, so on a Vercel preview those scenarios return `SKIPPED (needs-auth-harness)`. `/ship-issue` runs them on `dev:harness` before opening the PR, and the tester report says where each scenario ran. The test wallet signs silently, so the real wallet popup still needs a manual check when the sign-in flow changes.
 
 ### Failure screenshots
 
@@ -178,7 +178,8 @@ Full list lives in `CLAUDE.md §9`. Quick reference:
 | Subagent | `stadium-explorer` | Codebase search tuned to this layout |
 | Subagent | `stadium-implementer` | Writes code per the approved plan |
 | Subagent | `stadium-reviewer` | Pre-PR invariant check |
-| Skill | `stadium-tester` | Drives headless Chromium, runs scenarios |
+| Subagent | `stadium-tester` | Runs the tester procedure for `/ship-issue` (can't edit the repo) |
+| Skill | `stadium-tester` | Drives headless Chromium, runs scenarios (procedure + runner) |
 | Command | `/ship-issue <n>` | End-to-end flow for one issue |
 | Command | `/triage-issue <n>` | Plan only, posted as issue comment |
 | Command | `/address-review <pr>` | Process PR review comments |
@@ -186,6 +187,24 @@ Full list lives in `CLAUDE.md §9`. Quick reference:
 | Command | `/promote-backlog` | Convert backlog entries to GitHub issues |
 | Command | `/pre-pr-check` | Run server tests + client build + lint |
 | Command | `/verify-tester` | Health check for the tester Skill |
+
+### Agent permissions
+
+The read-only agents are limited by code, not just by instructions. Each declares a `PreToolUse` hook in its frontmatter that runs `.claude/hooks/bash-allowlist.mjs` with its role. The hook only runs while that subagent is active, and blocks (exit 2) anything not on its list:
+
+| Agent | Bash | Write / Edit |
+|---|---|---|
+| `stadium-explorer`, `stadium-reviewer` | Read-only: `git diff/log/show/status/blame/…`, `grep`/`rg`/`cat`/`ls`/`sed -n`/`find` (no `-delete`/`-exec`), `gh issue view` / `gh pr view/diff`, and `npm test`, `npm run lint/build/check:boot/check:bundle`. No output redirection to files, no command substitution, no `sed -i`. | Blocked |
+| `stadium-tester` | The tester runner and its tests, `npx playwright --version/install`, `setup.sh`, read commands, `mktemp`, `curl` GET, `rm` only under the system temp dir. | Only under the system temp dir |
+| `stadium-implementer` | Unrestricted (it writes code) | Allowed |
+
+Tested in `.claude/hooks/__tests__/bash-allowlist.test.mjs` (run in CI): every command `/pre-pr-check`, the reviewer checklist and the tester procedure use must pass, and a list of write attempts must be blocked.
+
+Limits, stated plainly:
+- It is a guard against mistakes, not a sandbox. Allowlisted commands such as `npm test` run repo-defined scripts.
+- Subagent frontmatter hooks need a trusted workspace; in an untrusted folder (or some headless runs) Claude Code skips them.
+- The `/stadium-tester` skill invoked inline runs in the main agent's context, not behind the hook (skill hooks would stay active for the whole session). `/ship-issue` uses the `stadium-tester` subagent for that reason.
+- `.github/workflows/claude.yml` runs `/ship-issue` in CI; whether these hooks apply there is unverified (see the improvement backlog).
 
 ---
 

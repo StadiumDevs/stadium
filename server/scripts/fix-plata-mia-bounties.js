@@ -26,10 +26,10 @@
  * ---
  *
  * Convention note:
- * CLAUDE.md §4 says `server/scripts/` is Mongo-only; Supabase data fixes should
- * not live here. Precedent for Supabase-touching scripts already exists
- * (`deploy-all.js` still present, `fix-bounty-amounts-supabase.js` was here
- * before cleanup — see issue #28). Placed here for consistency with that
+ * Scripts in `server/scripts/` use Supabase (MongoDB was removed in #309).
+ * Historical note: this was once an exception to a "scripts are Mongo-only"
+ * rule (`fix-bounty-amounts-supabase.js` was here before cleanup — see issue
+ * #28). Placed here for consistency with that
  * precedent; a backlog entry tracks reconciling the convention.
  */
 

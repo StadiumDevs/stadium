@@ -11,7 +11,12 @@
  *     --chain substrate \
  *     --address 5GrwvaEF... \
  *     [--label "Sacha"] \
- *     [--dry-run]
+ *     [--dry-run] \
+ *     [--allow-dev-accounts]
+ *
+ * Well-known dev accounts (//Alice … //Ferdie, whose keys are public) are
+ * refused — both as --address and when seeding from AUTHORIZED_SIGNERS — unless
+ * --allow-dev-accounts is passed, which is only for a LOCAL database (#301).
  *
  * Env required (from server/.env):
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -26,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { normalizeAddress } from '../api/auth/normalize.js';
 import { parseAuthorizedSigners } from '../api/auth/authorizedSigners.js';
+import { devAccountName } from '../api/auth/authConfigSafety.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '..', '.env') });
@@ -45,6 +51,7 @@ const flag = (name) => {
   return i >= 0 ? args[i + 1] : null;
 };
 const dryRun = args.includes('--dry-run');
+const allowDevAccounts = args.includes('--allow-dev-accounts');
 const chain = (flag('chain') || '').toLowerCase();
 const address = flag('address');
 const label = flag('label');
@@ -61,6 +68,14 @@ if (!address) {
 const normalized = normalizeAddress(chain, address);
 if (!normalized) {
   console.error(`Invalid ${chain} address: ${address}`);
+  process.exit(2);
+}
+const devName = devAccountName(chain, normalized);
+if (devName && !allowDevAccounts) {
+  console.error(
+    `Refusing to make dev account ${devName} an app admin: its private key is public. ` +
+      'Pass --allow-dev-accounts only for a local database.',
+  );
   process.exit(2);
 }
 
@@ -109,6 +124,11 @@ async function main() {
   console.log(`Found ${envSigners.length} signer(s) in AUTHORIZED_SIGNERS env.`);
 
   for (const signer of envSigners) {
+    const signerDevName = devAccountName(signer.chain, signer.normalized);
+    if (signerDevName && !allowDevAccounts) {
+      console.log(`  Skipped dev account ${signerDevName} (pass --allow-dev-accounts for a local database)`);
+      continue;
+    }
     const row = {
       wallet_chain: signer.chain,
       wallet: signer.normalized,
