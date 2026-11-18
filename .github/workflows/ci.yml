@@ -43,5 +43,8 @@ jobs:
           dir: client
       - run: npm run build
         working-directory: client
+      - name: Production bundle has no dev keys or test-wallet harness
+        run: npm run check:bundle
+        working-directory: client
       - run: npm run lint
         working-directory: client
