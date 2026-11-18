@@ -24,7 +24,7 @@ If any precondition fails, stop. Do not improvise.
 - Toast hook imports resolve to `.tsx`, not `.ts`.
 - Dark-mode-only in `index.css` — no light-mode overrides, no `!important` hex colors.
 - Server is ESM — `import`, not `require`.
-- New API queries go through `server/api/repositories/` (Supabase). No Mongoose under `server/api/**`. No Supabase calls under `server/scripts/`.
+- New API queries go through `server/api/repositories/` (Supabase). No MongoDB/Mongoose anywhere (removed in #309).
 - Client has no test script; don't create one in passing.
 
 ## Reuse, don't duplicate
@@ -35,7 +35,6 @@ Before writing a new helper, check:
 - `client/src/lib/siwsUtils.ts`, `addressUtils.ts`, `paymentUtils.ts`, `projectUtils.ts`, `utils.ts`
 - `server/api/middleware/auth.middleware.js` — SIWS auth
 - `server/api/utils/`, `server/api/services/`, `server/api/repositories/`
-- `server/models/Project.js` — Mongoose schema for offline scripts only; do not import from `server/api/**`
 
 If an existing utility covers 80% of what you need, extend it — don't write a parallel one.
 

@@ -15,9 +15,7 @@ Stadium has a deliberate split:
    - `server/api/repositories/project.repository.js` — the single canonical access layer. Controllers and services go through it. All snake_case ↔ camelCase translation happens in its `transformProject` function.
    - SQL schema lives in `supabase/migrations/`.
 
-2. **Offline tooling = MongoDB via Mongoose.** Not in the request path at all. Used by `server/scripts/*.js` for bulk imports, backfills, and reports against a local Mongo. Schema: `server/models/Project.js`, `server/models/MultisigTransaction.js`.
-
-These don't talk to each other at runtime. If you catch yourself reaching across layers (Mongoose in `server/api/`, or Supabase in `server/scripts/`), stop and re-check which layer you should be in.
+2. **Offline tooling** in `server/scripts/` talks to the same Supabase project, from `server/.env` (which may be production). MongoDB, Mongoose and `server/models/` were removed in #309.
 
 ### Client → Server → Supabase data flow
 
@@ -108,7 +106,6 @@ Client verification is `npm run build` (tsc + Vite) and `npm run lint`. Both mus
 - Entry: `server.js` via `npm start`.
 - `railway.json`, `nixpacks.toml`, `Dockerfile` live at `server/`.
 - Runtime env vars in Railway dashboard: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_WALLETS`, `EXPECTED_DOMAIN`, `NODE_ENV`, `NETWORK_ENV`, `AUTHORIZED_SIGNERS`, `CORS_ORIGIN`.
-- `MONGO_URI` is **not** a production runtime requirement — it's only needed if someone is running `server/scripts/*.js` locally.
 - Never commit real values. Update `server/.env.example` when adding a new required var.
 
 ### Client → Vercel
@@ -124,7 +121,7 @@ Do **not** modify Railway/Vercel config from an issue unless the issue explicitl
 
 ## Common pitfalls (learned the hard way)
 
-1. **Writing Mongoose queries in `server/api/**`.** The API is Supabase. `server/models/Project.js` exists only for scripts. If you are tempted to import it from a controller or service, you're on the wrong layer.
+1. **Reaching for MongoDB/Mongoose.** It was removed in #309. All data is in Supabase; API data access goes through `server/api/repositories/`.
 2. **`BYPASS_ADMIN_CHECK = true`** shipped once in `AdminPage.tsx`. Full auth bypass. Always `false`.
 3. **Duplicate toast hook** — a stray `use-toast.ts` alongside `use-toast.tsx` caused Vite to pick the wrong one. Only `.tsx` exists now; do not create `.ts`.
 4. **Hardcoded hex colors with `!important`** in `index.css` broke dark mode. Use theme CSS variables.

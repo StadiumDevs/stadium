@@ -38,9 +38,7 @@
  * ---
  *
  * Convention note:
- * CLAUDE.md §4 says `server/scripts/` is Mongo-only; Supabase-touching scripts
- * here are a known exception with existing precedent (`deploy-all.js`,
- * `fix-plata-mia-bounties.js`). Tracked as a backlog item.
+ * Scripts in `server/scripts/` use Supabase (MongoDB was removed in #309).
  */
 
 import { createClient } from '@supabase/supabase-js';
