@@ -77,7 +77,6 @@ supabase/          SQL migrations for the live Supabase DB
 
 These have bitten us before. Do not regress them.
 
-- `BYPASS_ADMIN_CHECK` in `client/src/pages/AdminPage.tsx` **must stay `false`**. Was `true` once and shipped — it's a full auth bypass.
 - Admin wallet list comes from env (`VITE_ADMIN_ADDRESSES` on client, `ADMIN_WALLETS` on server). Never hardcode addresses.
 - **No MongoDB/Mongoose.** It was removed in #309; don't reintroduce it. All data lives in Supabase.
 - Toast hook path: `@/hooks/use-toast` resolves to `use-toast.tsx`, not `.ts` (Vite resolution quirk). There used to be a duplicate `.ts` — do not reintroduce it.

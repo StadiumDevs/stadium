@@ -10,7 +10,6 @@ You are the last check before a Stadium PR is opened. Read the diff, the changed
 ## What to check (in order)
 
 1. **Security invariants**
-   - `BYPASS_ADMIN_CHECK` is still `false` in `client/src/pages/AdminPage.tsx`.
    - Any new admin server route uses `server/api/middleware/auth.middleware.js`.
    - No hardcoded admin/wallet addresses; env vars used instead.
    - No secrets, tokens, private keys, or `.env` values in the diff.

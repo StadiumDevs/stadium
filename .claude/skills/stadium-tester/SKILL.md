@@ -20,17 +20,18 @@ If either is missing, stop and ask. Do not invent scenarios.
 
 - **Never run against production.** Refuse if the target matches `stadium.joinwebzero.com` or `stadium-production-*.up.railway.app`. The runner script enforces this too — exit code `3` means it tripped that guard.
 - **Mock-mode required on remote targets.** On any non-`localhost` URL, the first test must assert `window.__STADIUM_MOCK__ === true`. If false, fail the entire run with a `mock-mode-not-enabled` reason and stop.
-- **SIWS-gated flows need the test-wallet harness.** A scenario whose action requires a Polkadot wallet signature only runs when the target URL was built with `VITE_USE_TEST_WALLET=true` (see below). If that flag isn't active, mark the scenario `SKIPPED (needs-auth-harness)` and continue. Don't hand-roll a wallet mock.
-- **No destructive admin actions even in mock mode.** `confirmPayment`, `markAllAsPaid`, etc. are SKIPPED until we have an explicit safe path.
+- **SIWS-gated flows run on local `dev:harness` only.** The test wallet can only load under the Vite dev server (`npm run dev:harness`); every Vite build, including Vercel previews, has `import.meta.env.PROD === true`, so the harness never loads there. Run wallet scenarios against `http://localhost:8080` started with `dev:harness`. On any other target, mark them `SKIPPED (needs-auth-harness)`. Don't hand-roll a wallet mock.
+- **Report where each scenario ran.** Every row's Notes column starts with `ran on: dev:harness`, `ran on: preview` or `ran on: local dev`.
+- **Mock mode fails closed.** In mock mode every `api.*` call is served from fixtures; a call without a mock branch throws `MockNotImplementedError` instead of reaching a server. Admin payment flows (`confirmPayment`, mark paid) are therefore safe to run in mock mode and are part of the canonical journey. A `MockNotImplementedError` in the console is a missing mock: report it as FAIL, don't filter it.
 - **No code outside `/tmp`.** Per-run spec files go in `/tmp`, never under `client/` or anywhere else in the repo.
 
 ## Test-wallet mode
 
-To exercise SIWS-gated scenarios (post update, edit funding signal, apply to program, create/edit program, review application, update team), the target build must have `VITE_USE_TEST_WALLET=true` set. That flag turns on `client/src/lib/testWalletInjection.ts`, which registers a synthetic `window.injectedWeb3['polkadot-js']` backed by the real //Alice sr25519 keypair. Signatures produced by Alice verify normally through `@polkadot/util-crypto.signatureVerify` — no server-side bypass.
+To exercise SIWS-gated scenarios (post update, edit funding signal, apply to program, create/edit program, review application, update team), the target must be the Vite dev server started with `VITE_USE_TEST_WALLET=true` (`npm run dev:harness` sets it). That flag turns on `client/src/lib/testWalletInjection.ts`, which registers a synthetic `window.injectedWeb3['polkadot-js']` backed by the real //Alice sr25519 keypair. Signatures produced by Alice verify normally through `@polkadot/util-crypto.signatureVerify` — no server-side bypass.
 
-The flag is double-gated: even when set, the injection no-ops in production builds (`import.meta.env.PROD`). Enable it only for local dev (`VITE_USE_TEST_WALLET=true npm run dev`) and Vercel **Preview** envs — never in Production, and never add Alice's address to the server's `ADMIN_WALLETS` / `AUTHORIZED_SIGNERS` on prod (the mnemonic is public).
+The flag is double-gated: even when set, the injection no-ops in any built bundle (`import.meta.env.PROD`), which includes Vercel previews. It only loads under the Vite dev server, i.e. `npm run dev:harness` locally. `client/scripts/check-prod-bundle.mjs` (`npm run check:bundle`, run on CI's client build and in `/pre-pr-check`) fails if the harness or any dev account is in that build. Never add Alice's address to the server's `ADMIN_WALLETS` / `AUTHORIZED_SIGNERS` or to `VITE_ADMIN_ADDRESSES` on prod (the mnemonic is public); #301 adds a server boot check that flags it.
 
-Alice is seeded as a team member of `plata-mia-15ac43` in `client/src/lib/mockWinners.ts`. For admin-gated scenarios, the Preview deployment's `VITE_ADMIN_ADDRESSES` must include Alice's SS58-42 address (`5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY`). Production must not.
+Alice is seeded as a team member of `plata-mia-15ac43` in `client/src/lib/mockWinners.ts`. `dev:harness` sets `VITE_ADMIN_ADDRESSES` to Alice's SS58-42 address (`5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY`) for admin-gated scenarios.
 
 The runner (`scripts/run-playwright.mjs`) forwards `VITE_USE_TEST_WALLET` from the invoking shell into the Playwright spawn env; pass it through when running the tester locally if the dev server was started without it.
 
@@ -48,13 +49,13 @@ VITE_USE_TEST_WALLET=true node .claude/skills/stadium-tester/scripts/run-playwri
   --spec .claude/skills/stadium-tester/flows/client-journey.spec.mjs
 ```
 
-`flows/client-journey.spec.mjs` is the **canonical, validated** wallet-gated suite (sign in → public submit → score every submission → submit ballot → leaderboard reveals the winner → promote → mark paid). It is committed and run verbatim — not a per-run scratch spec. Keep it current as the client journey changes.
+`flows/client-journey.spec.mjs` is the **canonical, validated** wallet-gated suite (sign in → confirm a payment → add/remove a global admin → program audit log → judging loads), with no console-error filter and an assertion that no request reached an API host. It is committed and run verbatim — not a per-run scratch spec. Keep it current as the client journey changes.
 
 **Limitation (set expectations):** the test wallet auto-signs silently, so this suite proves flows *functionally complete*; it can NOT verify the signing UX (routine = no popup vs important = fresh popup). That distinction needs a one-time manual pass with a real wallet.
 
-Connect detail: on `/admin`, click **CONNECT ADMIN WALLET** (Polkadot is the default chain) — with the harness, Alice is injected and authorized immediately; no separate sign-in step is needed. Some non-judging admin sections (audit log, applications) have no mock branch and log `ERR_CONNECTION_REFUSED` in mock mode — filter those from the console-error gate (the canonical spec already does).
+Connect detail: on `/admin`, click **CONNECT ADMIN WALLET** (Polkadot is the default chain) — with the harness, Alice is injected and authorized immediately. Admin sub-pages (`/admin/programs/<slug>`, `/admin/app-admins`) show **SIGN IN AGAIN** after a full navigation; click it. Do not filter console errors: every API call has a mock branch.
 
-**Still skipped even with the harness**: admin approval / payment flows (`webzeroApprove`, `requestChanges`, `confirmPayment`) have no mock-mode branch in `client/src/lib/api.ts` — they always hit the real API. Those remain `SKIPPED (needs-mock-coverage)` until mocks are added.
+**Not covered by fixtures:** no mock program is currently open for submissions, so the public submit form can't be exercised end to end in mock mode.
 
 ## Procedure
 
@@ -78,9 +79,8 @@ For each `- [ ] …` bullet in `$1`, extract:
 If a bullet doesn't fit that shape, treat the whole bullet as a free-form scenario and infer.
 
 Decide per scenario:
-- **runnable** — UI-only, no wallet, no mutation
-- **skipped-auth** — requires SIWS / wallet signature
-- **skipped-destructive** — payment confirm / mass-mark-paid
+- **runnable** — anything served by mock mode, including mutations (payment confirm, mark paid): mock mode only writes fixtures
+- **runnable with the harness** — requires a SIWS / wallet signature; runs on local `dev:harness`, otherwise `SKIPPED (needs-auth-harness)`
 
 ### 3. Generate the spec
 
@@ -130,7 +130,7 @@ Single markdown block — exactly this shape:
 |---|----------|--------|-------|
 | 1 | <scenario text>            | PASS                          | observed: <short> |
 | 2 | <scenario text>            | FAIL                          | expected <x>, saw <y>; screenshot: <path> |
-| 3 | <scenario text>            | SKIPPED (needs-auth-harness)  | requires real wallet signature |
+| 3 | <scenario text>            | SKIPPED (needs-auth-harness)  | ran on: preview; wallet scenarios need local dev:harness |
 
 **Preview mode**: window.__STADIUM_MOCK__ = <true | false | undefined>
 **Console errors during run**: <count> (first 3: <list>)

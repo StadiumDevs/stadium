@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Loader2, LogOut, Wallet, CheckCircle, Plus } from "lucide-react";
@@ -15,16 +15,23 @@ import { WinnersTable } from "@/components/admin/WinnersTable";
 import { ProgramsTable } from "@/components/admin/ProgramsTable";
 import { ConfirmPaymentModal } from "@/components/admin/ConfirmPaymentModal";
 import { ConfirmM1PayoutModal } from "@/components/admin/ConfirmM1PayoutModal";
-import { TestPaymentModal } from "@/components/admin/TestPaymentModal";
 import { CreateProjectModal } from "@/components/admin/CreateProjectModal";
+
+// TEST PAYMENT is a Paseo-testnet multisig tool that hard-codes the //Alice,
+// //Bob, //Charlie dev signatories. It is dev-only (#302): in a production
+// build `import.meta.env.DEV` is false, so this dynamic import is dead code and
+// the modal, its dev keys and its @polkadot/api import never reach the bundle.
+const TestPaymentModal = import.meta.env.DEV
+  ? lazy(() =>
+      import("@/components/admin/TestPaymentModal").then((m) => ({ default: m.TestPaymentModal })),
+    )
+  : null;
 
 const formatAddress = (address = "") => `${address.slice(0, 6)}...${address.slice(-4)}`;
 
 type SortKey = "eventStartedAt" | "projectName" | "newest";
 
 const AdminPage = () => {
-  const BYPASS_ADMIN_CHECK = false;
-
   const auth = useWalletAuth();
   const [errorData, setErrorData] = useState<{
     message: string;
@@ -33,7 +40,7 @@ const AdminPage = () => {
     isProduction: boolean;
   } | null>(null);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(BYPASS_ADMIN_CHECK);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<any>(null);
@@ -62,20 +69,13 @@ const AdminPage = () => {
   };
 
   useEffect(() => {
-    if (BYPASS_ADMIN_CHECK) loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (BYPASS_ADMIN_CHECK) return;
     if (auth.account && isAdmin(auth.account.address, auth.account.chain)) {
       setIsAuthenticated(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.account]);
 
   useEffect(() => {
-    if (isAuthenticated && !BYPASS_ADMIN_CHECK) loadData();
+    if (isAuthenticated) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
@@ -110,23 +110,18 @@ const AdminPage = () => {
     if (!selectedProject) return;
     try {
       const authHeaders = await auth.getAdminBearerHeaders();
-      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      const responseText = await response.text();
-      if (!response.ok) {
-        let errorMessage = "Failed to confirm M1 payout";
-        try {
-          const errData = JSON.parse(responseText);
-          errorMessage = errData.error || errData.message || errorMessage;
-        } catch {
-          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
+      // The M1 modal reports the batch total as `totalAmount`; the API records
+      // one M1 payment of that amount (#303).
+      await api.confirmPayment(
+        selectedProject.id,
+        {
+          milestone: "M1",
+          amount: data.totalAmount,
+          currency: data.currency,
+          transactionProof: data.transactionProof,
+        },
+        authHeaders,
+      );
       toast({
         title: "M1 Payout Confirmed",
         description: `Payment distributed to ${data.recipients.length} team members`,
@@ -147,23 +142,17 @@ const AdminPage = () => {
     if (!selectedProject) return;
     try {
       const authHeaders = await auth.getAdminBearerHeaders();
-      const response = await fetch(`/api/m2-program/${selectedProject.id}/confirm-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      const responseText = await response.text();
-      if (!response.ok) {
-        let errorMessage = "Failed to confirm payment";
-        try {
-          const errData = JSON.parse(responseText);
-          errorMessage = errData.error || errData.message || errorMessage;
-        } catch {
-          errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
+      // The modal reports the batch total as `totalAmount`; the API takes `amount`.
+      await api.confirmPayment(
+        selectedProject.id,
+        {
+          milestone: data.milestone,
+          amount: data.totalAmount,
+          currency: data.currency,
+          transactionProof: data.transactionProof,
+        },
+        authHeaders,
+      );
       toast({
         title: "Payment Confirmed",
         description: `${data.milestone} payment recorded successfully`,
@@ -375,7 +364,9 @@ const AdminPage = () => {
             >
               ADMIN TIERS ▸
             </Link>
-            <RackBtn onClick={() => setShowTestPaymentModal(true)}>TEST PAYMENT</RackBtn>
+            {TestPaymentModal && (
+              <RackBtn onClick={() => setShowTestPaymentModal(true)}>TEST PAYMENT</RackBtn>
+            )}
             <div className="lcd px-3 py-1.5 label-hw text-display">
               {(auth.account?.label || "ADMIN").toUpperCase()} · {formatAddress(auth.account?.address || "")}
             </div>
@@ -497,7 +488,7 @@ const AdminPage = () => {
           <WinnersTable
             projects={projects}
             onRefresh={loadData}
-            connectedAddress={BYPASS_ADMIN_CHECK ? ADMIN_ADDRESSES[0]?.address : auth.account?.address}
+            connectedAddress={auth.account?.address}
             signAdminAction={auth.getAdminBearerHeaders}
           />
         </section>
@@ -548,7 +539,11 @@ const AdminPage = () => {
           onConfirm={handleConfirmPayment}
         />
       )}
-      <TestPaymentModal open={showTestPaymentModal} onOpenChange={setShowTestPaymentModal} />
+      {TestPaymentModal && (
+        <Suspense fallback={null}>
+          <TestPaymentModal open={showTestPaymentModal} onOpenChange={setShowTestPaymentModal} />
+        </Suspense>
+      )}
       <CreateProjectModal
         open={showCreateProjectModal}
         onOpenChange={setShowCreateProjectModal}

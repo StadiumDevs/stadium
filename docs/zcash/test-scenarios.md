@@ -1,7 +1,7 @@
 # Free Society Hack: playground test scenarios
 
-Run against the mock playground: `cd client && npm run dev:harness`, then `http://localhost:8080`
-(or a Vercel preview built with `VITE_USE_MOCK_DATA=true` + `VITE_USE_TEST_WALLET=true` + Alice in `VITE_ADMIN_ADDRESSES`).
+Run against the mock playground: `cd client && npm run dev:harness`, then `http://localhost:8080`.
+Wallet-gated scenarios need this local server: the test wallet never loads in a build, so a Vercel preview can only run the non-wallet ones.
 Start from a fresh seed: admin page → RESET PLAYGROUND (or clear site data).
 
 ## Test scenarios
