@@ -84,3 +84,59 @@ jobs:
         working-directory: client
       - name: Runner guard tests
         run: node --test '.claude/skills/stadium-tester/scripts/__tests__/*.test.mjs'
+
+  # Canonical wallet-gated browser journey (#306): sign in with the //Alice test
+  # wallet, confirm a payment, admin tiers, audit log, judging. Runs against
+  # `npm run dev:harness` (mock data, so no backend). Not a required check yet:
+  # make it required after ~10 consecutive green runs.
+  journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/npm-setup
+        with:
+          dir: client
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+        working-directory: client
+      - name: Start dev:harness
+        run: |
+          nohup npm run dev:harness > "$RUNNER_TEMP/harness.log" 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:8080/ && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/harness.log"
+          exit 1
+        working-directory: client
+      - name: Run the canonical journey
+        env:
+          VITE_USE_TEST_WALLET: "true"
+        run: |
+          node .claude/skills/stadium-tester/scripts/run-playwright.mjs \
+            --target http://localhost:8080 \
+            --spec "$GITHUB_WORKSPACE/.claude/skills/stadium-tester/flows/client-journey.spec.mjs" \
+            | tee "$RUNNER_TEMP/journey-summary.json"
+      - name: Collect failure artifacts
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/journey-artifacts"
+          cp "$RUNNER_TEMP/harness.log" "$RUNNER_TEMP/journey-artifacts/" 2>/dev/null || true
+          cp -r client/test-results "$RUNNER_TEMP/journey-artifacts/" 2>/dev/null || true
+          dir=$(jq -r '.runDir // empty' "$RUNNER_TEMP/journey-summary.json" 2>/dev/null || true)
+          [ -n "$dir" ] && cp -r "$dir" "$RUNNER_TEMP/journey-artifacts/run" 2>/dev/null || true
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: journey-failure
+          path: ${{ runner.temp }}/journey-artifacts
+          retention-days: 7

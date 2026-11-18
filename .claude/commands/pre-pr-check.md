@@ -8,7 +8,7 @@ Run the verification suite that must pass before a PR is opened. Report each ste
 
 Run these four commands in parallel and capture output:
 
-1. `cd server && npm test` — Vitest server tests
+1. `cd server && npm test && npm run check:boot` — Vitest server tests, then load every route module without a database (same as CI's boot check)
 2. `cd server && npm run lint` — ESLint data-access rule: only `server/api/repositories/` may touch Supabase; no `mongoose`
 3. `cd client && npm run build && npm run check:bundle` — TypeScript + Vite build (this is the typecheck), then fail if dev accounts or the test-wallet harness reached the production bundle
 4. `cd client && npm run lint` — ESLint with `--max-warnings 0`
@@ -18,6 +18,7 @@ Run these four commands in parallel and capture output:
 Report as:
 ```
 server tests:  PASS | FAIL (<n> failed)
+server boot:   PASS | FAIL
 server lint:   PASS | FAIL (<n> errors)
 client build:  PASS | FAIL
 client bundle: PASS | FAIL (<hits>)
