@@ -1,6 +1,6 @@
 name: CI
 
-# Same checks as /pre-pr-check: server tests, client typecheck+build, client lint.
+# Same checks as /pre-pr-check: server tests + boot check + lint, client typecheck+build, client lint.
 on:
   pull_request:
     branches: [develop, main]
@@ -30,6 +30,10 @@ jobs:
       # production's Node (server/.nvmrc) so a crash on boot fails CI, not prod.
       - name: Boot check
         run: npm run check:boot
+        working-directory: server
+      # Data-access rule (#308): only api/repositories/ touches Supabase.
+      - name: Lint
+        run: npm run lint
         working-directory: server
 
   client:

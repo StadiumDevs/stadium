@@ -2,7 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import connectToSupabase, { supabase } from "./db.js";
+import connectToSupabase from "./db.js";
+import healthRepository from "./api/repositories/health.repository.js";
 import m2ProgramRoutes from './api/routes/m2-program.routes.js';
 import programRoutes from './api/routes/program.routes.js';
 import walletContactRoutes from './api/routes/wallet-contact.routes.js';
@@ -125,7 +126,7 @@ app.get("/api/health", (req, res) => {
 // Health check that verifies Railway → Supabase (GET /api/health/db)
 app.get("/api/health/db", async (req, res) => {
     try {
-        const { count, error } = await supabase.from('projects').select('*', { count: 'exact', head: true });
+        const { count, error } = await healthRepository.countProjects();
         if (error) {
             return res.status(503).json({ status: 'error', message: 'Supabase query failed', error: error.message });
         }
