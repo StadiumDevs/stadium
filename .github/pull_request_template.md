@@ -35,6 +35,19 @@ Paste the tester's full markdown report below. **Every scenario from the linked 
 - [ ] API data access goes through `server/api/repositories/` (Supabase); no Mongoose in `server/api/**`; no Supabase in `server/scripts/`
 - [ ] New env vars added to `.env.example` (if applicable)
 
+## Real wallet QA
+
+<!-- Required only when CI labels this PR `needs-real-wallet-qa` (it touches the
+sign-in path: siwsUtils, client/src/lib/auth, auth middleware, server/api/auth,
+admin session/tier routes). The test wallet signs silently, so a person must
+check the real extension popup. Tick each item after doing it; the
+"Real wallet QA" check stays red until all are ticked. Otherwise delete this section. -->
+
+- [ ] Signed in with a real wallet extension (Polkadot.js / Talisman / SubWallet)
+- [ ] The signing popup shows the expected message text (statement, domain, address)
+- [ ] Rejected the signature once: the app shows a clear error and stays usable
+- [ ] Signed in again successfully after the rejection
+
 ## Backlog items logged
 
 <!-- List items added to docs/improvement-backlog.md, or "none" -->
