@@ -331,3 +331,20 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `client/scripts/check-prod-bundle.mjs`, `client/package.json`, `client/vercel.json`
 - **Observed during**: issue #302 review
 - **Suggestion**: `npm run check:bundle` only scans CI's env-less build, so a dev address injected via Vercel's `VITE_ADMIN_ADDRESSES` would not be caught. Running it as part of Vercel's production build command would block such a deploy.
+## [2026-11-18] Malformed SIWS headers return 400, not 401
+- **Severity**: nit
+- **File(s)**: `server/api/auth/parsePayload.js:28-42`, `server/api/middleware/auth.middleware.js` (`authenticateRequest`)
+- **Observed during**: issue #313 (removing dev-bypass)
+- **Suggestion**: An unparseable `x-siws-auth` header (including the removed `dev-bypass` value) gets 400 while a missing header gets 401. Decide whether credential failures should consistently be 401 and align the tests and the issue templates' expected statuses.
+
+## [2026-11-18] SIWS 403 responses echo internal error text
+- **Severity**: minor
+- **File(s)**: `server/api/middleware/auth.middleware.js` (`authenticateRequest`, signature-verification failure branches)
+- **Observed during**: issue #313 review
+- **Suggestion**: The 403 bodies include `error: e.message` / `result.error` from the verifier. Consider returning a generic message and logging the detail server-side, consistent with "keep error details out of API responses".
+
+## [2026-11-18] Flaky vitest EnvironmentTeardownError in server tests
+- **Severity**: minor
+- **File(s)**: `server/api/controllers/__tests__/program-application.test.js` (reported by vitest), `server/vitest.config.js`
+- **Observed during**: issue #313 pre-PR check (also reproduced on baseline `develop`)
+- **Suggestion**: `npm test` intermittently reports "Errors 1: EnvironmentTeardownError: Closing rpc while onUserConsoleLog was pending" with all tests passing. Likely a console log firing after a test resolves; await or silence it so the run is reliably clean.
