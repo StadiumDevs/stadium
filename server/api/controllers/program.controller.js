@@ -18,6 +18,7 @@ import { validateApplicationFields } from '../utils/application-fields.validator
 import { validateProgram, validateSponsor } from '../utils/validation.js';
 import { randomUUID } from 'node:crypto';
 import logger from '../utils/logger.js';
+import { devAccountName, isProductionRuntime } from '../auth/authConfigSafety.js';
 
 const VALID_CHAINS = ['substrate', 'ethereum', 'solana'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -403,6 +404,14 @@ class ProgramController {
         return res.status(422).json({
           status: 'error',
           message: `walletChain must be one of: ${VALID_CHAINS.join(', ')}`,
+        });
+      }
+      const devName = isProductionRuntime() ? devAccountName(walletChain, wallet) : null;
+      if (devName) {
+        logger.error(`Refused to add dev account ${devName} as program admin in production`);
+        return res.status(400).json({
+          status: 'error',
+          message: 'Well-known dev accounts cannot be admins in production',
         });
       }
       const program = await programService.findBySlug(slug);

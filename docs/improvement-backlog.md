@@ -313,3 +313,56 @@ Do **not** manually edit `- **Promoted**` lines.
 - **File(s)**: `server/api/utils/public-submission.js:28-29`; `server/server.js:106` (`/api/health`); `server/api/repositories/program.repository.js:63-64`; `server/api/routes/wallet-contact.routes.js:7`
 - **Observed during**: public API exposure audit of prod (unauthenticated probes of every public GET route). No emails, payout details or secrets exposed; all auth-gated routes return 401.
 - **Suggestion**: Four optional hardening items, each with a trade-off: (1) anonymous tracked submissions hide `submitterName` but still return `githubUrl`/`videoUrl`, whose GitHub handle can de-anonymize (18 anonymous entries in free-society-hack-2026). Decide whether "anonymous" should cover these; hiding them breaks repo links and judges' feedback matching by repo. (2) `/api/health` returns the authorized-signer count, network and Resend-configured booleans; consider trimming or gating them (they serve an ops check). (3) The public program payload includes `lastGuestSyncAt`/`lastGuestSyncStatus`; they could be split into an admin-only response (`lumaEventId` must stay for the registration embed). (4) `GET /wallet-contacts/:address` is unauthenticated and reveals `email_set`/`notifications_enabled` for any wallet; gating it adds a signature prompt in `NotificationsCard`.
+
+## [2026-11-18] ConfirmPaymentModal: float split and wallet-keyed amounts
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/ConfirmPaymentModal.tsx` (recipient amounts, sum check)
+- **Observed during**: issue #303 (canonical journey)
+- **Suggestion**: The default split of 2000 across 3 members renders as `666,68000000000001` and the sum check then rejects it, so CONFIRM stays disabled until amounts are edited. Amounts are also keyed by wallet address, so members sharing a wallet (every mock fixture uses the same redacted placeholder) collapse into one row amount. Round the split to cents and key amounts by member index.
+
+## [2026-11-18] Mock fixtures have no program open for submissions
+- **Severity**: minor
+- **File(s)**: `client/src/lib/mockPrograms.ts`, `.claude/skills/stadium-tester/flows/client-journey.spec.mjs`
+- **Observed during**: issue #303
+- **Suggestion**: Every tracked hackathon fixture is `completed`, so the public SUBMIT A PROJECT flow can't be exercised in mock mode and was dropped from the canonical journey. Add an open tracked-program fixture (or let RESET PLAYGROUND reopen one) and restore the submit step.
+
+## [2026-11-18] Dead api.webzeroApprove / api.requestChanges
+- **Severity**: nit
+- **File(s)**: `client/src/lib/api.ts` (`webzeroApprove`, `requestChanges`)
+- **Observed during**: issue #303
+- **Suggestion**: Neither has a caller in `client/src`. Delete them (and their mock branches) unless an upcoming admin flow needs them.
+
+## [2026-11-18] TEST PAYMENT modal signatories don't match the multisig it targets
+- **Severity**: minor
+- **File(s)**: `client/src/components/admin/TestPaymentModal.tsx:42-46`, `client/src/lib/polkadot-config.ts:21`
+- **Observed during**: issue #302
+- **Suggestion**: The modal builds multisig calls from //Alice, //Bob, //Charlie (2-of-3), which derive `5DjYJStmdZ2rcqXbXGX7TW85JsrW6uG4y9MUcLq2BoPMpRA7`, but it displays and approves against `TESTNET_MULTISIG` `5CSxUh77…`. It also logs heavily with `console.log`. Now dev-only (#302); either fix the signatory source or delete the tool.
+
+## [2026-11-18] Dev-account list is duplicated between client and server
+- **Severity**: nit
+- **File(s)**: `client/scripts/check-prod-bundle.mjs`, `server/api/auth/authConfigSafety.js` (#301)
+- **Observed during**: issue #302
+- **Suggestion**: Both hold the same //Alice … //Ferdie addresses. Once #301 is merged, move the list to one JSON file read by both (and by the server test that re-derives it from the seed).
+
+## [2026-11-18] Run the prod-bundle check on Vercel's own build
+- **Severity**: minor
+- **File(s)**: `client/scripts/check-prod-bundle.mjs`, `client/package.json`, `client/vercel.json`
+- **Observed during**: issue #302 review
+- **Suggestion**: `npm run check:bundle` only scans CI's env-less build, so a dev address injected via Vercel's `VITE_ADMIN_ADDRESSES` would not be caught. Running it as part of Vercel's production build command would block such a deploy.
+## [2026-11-18] Malformed SIWS headers return 400, not 401
+- **Severity**: nit
+- **File(s)**: `server/api/auth/parsePayload.js:28-42`, `server/api/middleware/auth.middleware.js` (`authenticateRequest`)
+- **Observed during**: issue #313 (removing dev-bypass)
+- **Suggestion**: An unparseable `x-siws-auth` header (including the removed `dev-bypass` value) gets 400 while a missing header gets 401. Decide whether credential failures should consistently be 401 and align the tests and the issue templates' expected statuses.
+
+## [2026-11-18] SIWS 403 responses echo internal error text
+- **Severity**: minor
+- **File(s)**: `server/api/middleware/auth.middleware.js` (`authenticateRequest`, signature-verification failure branches)
+- **Observed during**: issue #313 review
+- **Suggestion**: The 403 bodies include `error: e.message` / `result.error` from the verifier. Consider returning a generic message and logging the detail server-side, consistent with "keep error details out of API responses".
+
+## [2026-11-18] Flaky vitest EnvironmentTeardownError in server tests
+- **Severity**: minor
+- **File(s)**: `server/api/controllers/__tests__/program-application.test.js` (reported by vitest), `server/vitest.config.js`
+- **Observed during**: issue #313 pre-PR check (also reproduced on baseline `develop`)
+- **Suggestion**: `npm test` intermittently reports "Errors 1: EnvironmentTeardownError: Closing rpc while onUserConsoleLog was pending" with all tests passing. Likely a console log firing after a test resolves; await or silence it so the run is reliably clean.

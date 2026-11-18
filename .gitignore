@@ -121,10 +121,8 @@ Cargo.lock
 docker-compose.override.yml
 *.dockerfile.swp
 
-# MongoDB data (if running locally without Docker)
+# Local data dirs
 data/
-mongo-data/
-mongodb-data/
 
 # Supabase CLI cache
 supabase/.temp/
