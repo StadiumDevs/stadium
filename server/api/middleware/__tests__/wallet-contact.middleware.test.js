@@ -122,15 +122,16 @@ describe('requireOwnWallet', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('calls next() and sets req.user with dev-bypass in non-production', async () => {
+  it('rejects the removed dev-bypass header in non-production (#313)', async () => {
     const req = makeReq({ headers: { 'x-siws-auth': 'dev-bypass' }, params: { address: '5Alice' } });
     const res = makeRes();
     const next = vi.fn();
 
     await requireOwnWallet(req, res, next);
 
-    expect(next).toHaveBeenCalled();
-    expect(req.user).toEqual({ address: '5Alice', chain: 'substrate' });
+    expect(res.statusCode).toBe(400);
+    expect(next).not.toHaveBeenCalled();
+    expect(req.user).toBeUndefined();
   });
 
   it('returns 400 for invalid base64', async () => {
