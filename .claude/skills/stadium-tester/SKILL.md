@@ -34,7 +34,7 @@ The flag is double-gated: even when set, the injection no-ops in any built bundl
 
 Alice is seeded as a team member of `plata-mia-15ac43` in `client/src/lib/mockWinners.ts`. `dev:harness` sets `VITE_ADMIN_ADDRESSES` to Alice's SS58-42 address (`5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY`) for admin-gated scenarios.
 
-The runner (`scripts/run-playwright.mjs`) forwards `VITE_USE_TEST_WALLET` from the invoking shell into the Playwright spawn env; pass it through when running the tester locally if the dev server was started without it.
+The runner (`.claude/skills/stadium-tester/scripts/run-playwright.mjs`) forwards `VITE_USE_TEST_WALLET` from the invoking shell into the Playwright spawn env; pass it through when running the tester locally if the dev server was started without it.
 
 A runnable SIWS-gated scenario can assert `window.__TEST_WALLET_ENABLED__ === true` in a preflight check and fall back to `SKIPPED (needs-auth-harness)` if the flag isn't live on the target.
 
@@ -153,7 +153,7 @@ Nothing else. No speculation beyond a one-line root-cause hint per FAIL.
 
 ## What you do not do
 
-- Write tests into `client/tests/` or anywhere persistent.
+- Write tests into `client/tests/` or anywhere persistent. <!-- drift-ignore: intentionally nonexistent -->
 - Modify `package.json`.
 - Mock SIWS or fabricate wallet signatures.
 - Run against production.

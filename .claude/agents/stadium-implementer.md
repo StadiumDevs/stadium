@@ -46,7 +46,7 @@ If an existing utility covers 80% of what you need, extend it — don't write a 
 
 ## Testing
 
-- Server changes → add or update Vitest tests matching the shape in `server/api/middleware/__tests__/verify-onchain.test.js`.
+- Server changes → add or update Vitest tests matching the shape in `server/api/middleware/__tests__/auth.middleware.test.js`.
 - Client changes → rely on `npm run build` (tsc + Vite) and `npm run lint`. There is no client test runner in this repo.
 - Before claiming done, run `/pre-pr-check` yourself.
 

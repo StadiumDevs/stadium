@@ -139,7 +139,7 @@ Each bullet becomes one Playwright `test()` block. Vague bullets produce vague (
 
 ### 2. The preview runs on mock data
 
-Vercel Preview has `VITE_USE_MOCK_DATA=true`. Reads come from `client/src/lib/mockWinners.ts` (159 sanitized prod projects, regenerated periodically). Writes simulate to `localStorage` and in-memory.
+Vercel Preview has `VITE_USE_MOCK_DATA=true`. Reads come from `client/src/lib/mockWinners.ts` (a one-off snapshot of 159 sanitized production projects, hand-edited since; other fixtures live in `client/src/lib/mock*.ts` and `client/src/lib/mocks/`). Writes simulate to `localStorage` and in-memory.
 
 If your feature needs a field that isn't in the fixture, either:
 - Extend `mockWinners.ts` as part of the PR (preferred — adds regression coverage), or

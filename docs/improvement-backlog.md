@@ -336,6 +336,12 @@ The commit or PR must exist and actually fix the entry (check the code, not just
 - **Observed during**: public API exposure audit of prod (unauthenticated probes of every public GET route). No emails, payout details or secrets exposed; all auth-gated routes return 401.
 - **Suggestion**: Four optional hardening items, each with a trade-off: (1) anonymous tracked submissions hide `submitterName` but still return `githubUrl`/`videoUrl`, whose GitHub handle can de-anonymize (18 anonymous entries in free-society-hack-2026). Decide whether "anonymous" should cover these; hiding them breaks repo links and judges' feedback matching by repo. (2) `/api/health` returns the authorized-signer count, network and Resend-configured booleans; consider trimming or gating them (they serve an ops check). (3) The public program payload includes `lastGuestSyncAt`/`lastGuestSyncStatus`; they could be split into an admin-only response (`lumaEventId` must stay for the registration embed). (4) `GET /wallet-contacts/:address` is unauthenticated and reveals `email_set`/`notifications_enabled` for any wallet; gating it adds a signature prompt in `NotificationsCard`.
 
+## [2026-11-18] Server tests make real network calls and flake CI
+- **Severity**: major
+- **File(s)**: `server/api/controllers/__tests__/program-application.test.js` (audit-log path), `server/api/services/program-audit-log.service.js`
+- **Observed during**: issue #306 (CI run on PR #324)
+- **Suggestion**: The audit-log write isn't mocked in these tests, so it calls the placeholder Supabase URL (ECONNREFUSED) and logs after the test finishes. vitest then reports `EnvironmentTeardownError: Closing rpc while "onUserConsoleLog" was pending` and exits non-zero although every test passes. It failed CI's `server` job on #324 while the same code passed on #317. Mock the audit-log service (or `db.js`) in those tests, and consider failing any test that opens a real socket. Fix before making `server` or `journey` required checks.
+
 ## [2026-11-18] Harden .github/workflows/claude.yml (agent in CI)
 - **Severity**: minor
 - **File(s)**: `.github/workflows/claude.yml`

@@ -32,7 +32,7 @@ You are the last check before a Stadium PR is opened. Read the diff, the changed
    - Controllers wired to routes; routes registered in `server.js`.
    - New API persistence belongs in a Supabase repository.
    - New env vars added to `.env.example` (both `client/.env.example` and/or `server/.env.example` as applicable).
-   - Tests exist for new server behavior; they match `server/api/middleware/__tests__/verify-onchain.test.js` style.
+   - Tests exist for new server behavior; they match `server/api/middleware/__tests__/auth.middleware.test.js` style.
 
 4. **Build health**
    - `cd server && npm test` passes.
