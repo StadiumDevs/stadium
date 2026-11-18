@@ -167,6 +167,9 @@ Subagents (`.claude/agents/`):
 - `stadium-explorer` — codebase search tuned to this layout
 - `stadium-implementer` — writes the code per the approved plan
 - `stadium-reviewer` — pre-PR check against repo invariants
+- `stadium-tester` — runs the stadium-tester procedure for `/ship-issue`'s verify step
+
+`stadium-reviewer`, `stadium-explorer` and `stadium-tester` run behind a `PreToolUse` hook (`.claude/hooks/bash-allowlist.mjs`, declared in each agent's frontmatter) that only allows read-only commands; the tester may also run its runner and write under the system temp dir. See `docs/AGENTIC_WORKFLOW.md` → "Agent permissions".
 
 Skills (`.claude/skills/`):
 

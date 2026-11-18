@@ -336,6 +336,12 @@ The commit or PR must exist and actually fix the entry (check the code, not just
 - **Observed during**: public API exposure audit of prod (unauthenticated probes of every public GET route). No emails, payout details or secrets exposed; all auth-gated routes return 401.
 - **Suggestion**: Four optional hardening items, each with a trade-off: (1) anonymous tracked submissions hide `submitterName` but still return `githubUrl`/`videoUrl`, whose GitHub handle can de-anonymize (18 anonymous entries in free-society-hack-2026). Decide whether "anonymous" should cover these; hiding them breaks repo links and judges' feedback matching by repo. (2) `/api/health` returns the authorized-signer count, network and Resend-configured booleans; consider trimming or gating them (they serve an ops check). (3) The public program payload includes `lastGuestSyncAt`/`lastGuestSyncStatus`; they could be split into an admin-only response (`lumaEventId` must stay for the registration embed). (4) `GET /wallet-contacts/:address` is unauthenticated and reveals `email_set`/`notifications_enabled` for any wallet; gating it adds a signature prompt in `NotificationsCard`.
 
+## [2026-11-18] Harden .github/workflows/claude.yml (agent in CI)
+- **Severity**: minor
+- **File(s)**: `.github/workflows/claude.yml`
+- **Observed during**: issue #305
+- **Suggestion**: The workflow runs `/ship-issue` via `anthropics/claude-code-action` with no tool restrictions, unpinned `@v7` actions and Node 20 (other workflows pin SHAs and use `.nvmrc`). Pin the actions, pass a `settings` input with `permissions.deny` for the hard limits, and verify with a real run whether subagent frontmatter hooks fire under the action (they need a trusted workspace).
+
 ## [2026-11-18] Tester: block production hosts inside the browser, not just the target
 - **Severity**: minor
 - **File(s)**: `.claude/skills/stadium-tester/scripts/run-playwright.mjs`, `.claude/skills/stadium-tester/scripts/guards.mjs`

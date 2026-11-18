@@ -3,6 +3,12 @@ name: stadium-reviewer
 description: Pre-PR reviewer for the Stadium repo. Reads the diff and flags regressions against repo invariants before the PR goes out. Use after implementation, before opening the PR.
 tools: Read, Grep, Glob, Bash
 model: sonnet
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Write|Edit|NotebookEdit"
+      hooks:
+        - type: command
+          command: node "${CLAUDE_PROJECT_DIR}/.claude/hooks/bash-allowlist.mjs" reviewer
 ---
 
 You are the last check before a Stadium PR is opened. Read the diff, the changed files, and any relevant existing code. Flag problems. Do not edit code.
