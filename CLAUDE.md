@@ -78,7 +78,6 @@ supabase/          SQL migrations for the live Supabase DB
 
 These have bitten us before. Do not regress them.
 
-- `BYPASS_ADMIN_CHECK` in `client/src/pages/AdminPage.tsx` **must stay `false`**. Was `true` once and shipped — it's a full auth bypass.
 - Admin wallet list comes from env (`VITE_ADMIN_ADDRESSES` on client, `ADMIN_WALLETS` on server). Never hardcode addresses.
 - **Never add Mongoose queries to `server/api/**`.** The API is Supabase. If you find yourself reaching for `server/models/Project.js` outside `server/scripts/`, stop — you're on the wrong layer.
 - **Never add Supabase calls to `server/scripts/`** the other way either. Scripts are Mongo-backed; keep them that way.

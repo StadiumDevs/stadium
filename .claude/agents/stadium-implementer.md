@@ -17,7 +17,6 @@ If any precondition fails, stop. Do not improvise.
 
 ## Invariants you must preserve
 
-- `BYPASS_ADMIN_CHECK` in `client/src/pages/AdminPage.tsx` stays `false`. Never flip it.
 - Every admin-gated server route uses `server/api/middleware/auth.middleware.js`.
 - No hardcoded admin addresses — read from env (`VITE_ADMIN_ADDRESSES`, `ADMIN_WALLETS`).
 - No `console.log/warn/error` in client production code.

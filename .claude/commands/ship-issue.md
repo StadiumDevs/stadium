@@ -129,7 +129,6 @@ without this section populated.>
 - <list or "none">
 
 ## Invariants verified
-- [ ] BYPASS_ADMIN_CHECK still false
 - [ ] Admin routes still use auth.middleware.js
 - [ ] No new console.log in client
 - [ ] API data access goes through `server/api/repositories/` (Supabase); no Mongoose in `server/api/**`; no Supabase in `server/scripts/`

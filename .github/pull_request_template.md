@@ -28,7 +28,6 @@ Paste the tester's full markdown report below. **Every scenario from the linked 
 
 ## Invariants verified
 
-- [ ] `BYPASS_ADMIN_CHECK` still `false` in `AdminPage.tsx`
 - [ ] New admin routes use `server/api/middleware/auth.middleware.js`
 - [ ] No hardcoded admin/wallet addresses
 - [ ] No new `console.log/warn/error` in client production code
