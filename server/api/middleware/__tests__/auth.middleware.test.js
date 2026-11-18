@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 
 // Mock dependencies before importing the module under test
 vi.mock('@talismn/siws', () => ({
@@ -97,7 +97,17 @@ import projectService from '../../services/project.service.js';
 import { consumeNonce } from '../../auth/nonceStore.js';
 
 // Import middleware under test
-const { requireAdmin, requireTeamMemberOrAdmin, requireProgramAdmin } = await import('../auth.middleware.js');
+const {
+  requireAdmin,
+  requireAppAdmin,
+  requireTeamMemberOrAdmin,
+  requireOwnWallet,
+  requireProgramAdmin,
+  requireProgramViewer,
+  requireProgramJudge,
+  requireTeamMemberOrAdminByBodyProject,
+  resolveAuthIdentity,
+} = await import('../auth.middleware.js');
 const programRepository = (await import('../../repositories/program.repository.js')).default;
 const programAdminRepository = (await import('../../repositories/program-admin.repository.js')).default;
 
@@ -154,15 +164,16 @@ describe('requireAdmin', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('calls next() with dev-bypass in non-production', async () => {
+  it('rejects the removed dev-bypass header in non-production (#313)', async () => {
     const req = makeReq({ headers: { 'x-siws-auth': 'dev-bypass' } });
     const res = makeRes();
     const next = vi.fn();
 
     await requireAdmin(req, res, next);
 
-    expect(next).toHaveBeenCalled();
-    expect(req.adminAddress).toBe('5FakeAdmin1');
+    expect(res.statusCode).toBe(400);
+    expect(next).not.toHaveBeenCalled();
+    expect(req.adminAddress).toBeUndefined();
   });
 
   it('returns 400 for invalid base64', async () => {
@@ -342,7 +353,7 @@ describe('requireTeamMemberOrAdmin', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('calls next() with dev-bypass in non-production', async () => {
+  it('rejects the removed dev-bypass header in non-production (#313)', async () => {
     const req = makeReq({
       params: { projectId: 'proj-1' },
       headers: { 'x-siws-auth': 'dev-bypass' },
@@ -352,8 +363,9 @@ describe('requireTeamMemberOrAdmin', () => {
 
     await requireTeamMemberOrAdmin(req, res, next);
 
-    expect(next).toHaveBeenCalled();
-    expect(req.auth).toEqual({ address: '5FakeAdmin1', isAdmin: true });
+    expect(res.statusCode).toBe(400);
+    expect(next).not.toHaveBeenCalled();
+    expect(req.auth).toBeUndefined();
   });
 
   it('calls next() when signer is an authorized admin', async () => {
@@ -494,7 +506,7 @@ describe('requireProgramAdmin', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('bypasses auth in non-production with dev-bypass header', async () => {
+  it('rejects the removed dev-bypass header in non-production (#313)', async () => {
     const req = makeReq({
       params: { slug: 'bitrefill-2026' },
       headers: { 'x-siws-auth': 'dev-bypass' },
@@ -504,9 +516,9 @@ describe('requireProgramAdmin', () => {
 
     await requireProgramAdmin('slug')(req, res, next);
 
-    expect(next).toHaveBeenCalled();
-    expect(req.user.isGlobalAdmin).toBe(true);
-    expect(req.user.programSlug).toBe('bitrefill-2026');
+    expect(res.statusCode).toBe(400);
+    expect(next).not.toHaveBeenCalled();
+    expect(req.user).toBeUndefined();
   });
 
   it('allows global authorized signers without checking program_admins', async () => {
@@ -617,4 +629,74 @@ describe('requireProgramAdmin', () => {
     expect(res.statusCode).toBe(404);
     expect(next).not.toHaveBeenCalled();
   });
+});
+
+// ─── dev-bypass removed (#313) ───────────────────────────────
+// The `x-siws-auth: dev-bypass` shortcut used to authenticate as an admin
+// whenever NODE_ENV !== 'production'. It is gone: in every NODE_ENV the header
+// is just a malformed SIWS payload, so no middleware may call next() and no
+// identity may be attached to the request.
+
+describe('dev-bypass header is rejected in every NODE_ENV (#313)', () => {
+  const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+  const ENVS = [undefined, 'development', 'test', 'production'];
+  const MIDDLEWARES = [
+    ['requireAdmin', () => requireAdmin],
+    ['requireAppAdmin', () => requireAppAdmin],
+    ['requireTeamMemberOrAdmin', () => requireTeamMemberOrAdmin],
+    ['requireTeamMemberOrAdminByBodyProject', () => requireTeamMemberOrAdminByBodyProject],
+    ['requireOwnWallet', () => requireOwnWallet],
+    ['requireProgramAdmin', () => requireProgramAdmin('slug')],
+    ['requireProgramViewer', () => requireProgramViewer('slug')],
+    ['requireProgramJudge', () => requireProgramJudge('slug')],
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.DISABLE_SIWS_DOMAIN_CHECK = 'true';
+    programRepository.findBySlug.mockResolvedValue({ id: 'prog-1', slug: 'bitrefill-2026' });
+  });
+
+  afterAll(() => {
+    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+  });
+
+  for (const env of ENVS) {
+    describe(`NODE_ENV=${env ?? '(unset)'}`, () => {
+      beforeEach(() => {
+        if (env === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = env;
+      });
+
+      for (const [name, get] of MIDDLEWARES) {
+        it(`${name} does not authenticate`, async () => {
+          const req = makeReq({
+            headers: { 'x-siws-auth': 'dev-bypass' },
+            params: { slug: 'bitrefill-2026', projectId: 'proj-1', address: '5Alice' },
+            body: { projectId: 'proj-1' },
+          });
+          const res = makeRes();
+          const next = vi.fn();
+
+          await get()(req, res, next);
+
+          expect(next).not.toHaveBeenCalled();
+          expect(res.statusCode).toBeGreaterThanOrEqual(400);
+          expect(res.statusCode).toBeLessThan(500);
+          expect(req.user).toBeUndefined();
+          expect(req.auth).toBeUndefined();
+          expect(req.adminAddress).toBeUndefined();
+        });
+      }
+
+      it('resolveAuthIdentity (used directly by GET /api/admin/me/tier) does not authenticate', async () => {
+        const auth = await resolveAuthIdentity(
+          makeReq({ headers: { 'x-siws-auth': 'dev-bypass' } }),
+          { checkDomain: true },
+        );
+        expect(auth.ok).toBe(false);
+        expect(auth.status).toBe(400);
+      });
+    });
+  }
 });

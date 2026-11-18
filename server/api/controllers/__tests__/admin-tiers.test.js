@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../../repositories/app-admin.repository.js', () => ({
   default: {
@@ -131,5 +131,37 @@ describe('admin-tiers.controller — global admins', () => {
     expect(appRepo.count).not.toHaveBeenCalled();
     expect(globalRepo.remove).toHaveBeenCalled();
     expect(r.status).toHaveBeenCalledWith(204);
+  });
+});
+
+describe('admin-tiers.controller — dev accounts in production (#301)', () => {
+  const ALICE = '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY';
+  const BOB_POLKADOT = '14E5nqKAp3oAJcmzgZhUD2RcptBeUBScxKHgJKU4HPNcKVf3';
+  const ORIGINAL = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = ORIGINAL;
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    appRepo.add.mockImplementation((p) => Promise.resolve({ ...p }));
+    globalRepo.add.mockImplementation((p) => Promise.resolve({ ...p }));
+  });
+
+  it.each([
+    ['app', 'addAppAdmin', () => appRepo, ALICE],
+    ['global', 'addGlobalAdmin', () => globalRepo, BOB_POLKADOT],
+  ])('rejects a dev account as %s admin with 400 in production', async (_tier, fn, repo, wallet) => {
+    process.env.NODE_ENV = 'production';
+    const r = res();
+    await ctrl[fn]({ ...REQUESTING_ADMIN, body: { walletChain: 'substrate', wallet } }, r);
+    expect(r.status).toHaveBeenCalledWith(400);
+    expect(repo().add).not.toHaveBeenCalled();
+  });
+
+  it('still allows dev accounts outside production (local harness)', async () => {
+    process.env.NODE_ENV = 'development';
+    const r = res();
+    await ctrl.addGlobalAdmin({ ...REQUESTING_ADMIN, body: { walletChain: 'substrate', wallet: ALICE } }, r);
+    expect(r.status).toHaveBeenCalledWith(201);
   });
 });

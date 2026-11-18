@@ -1,0 +1,10 @@
+{
+  "$comment": "Production hosts the stadium-tester must never drive (#304). Matched against the parsed hostname of --target: an exact host also blocks its subdomains; patterns are anchored regexes. STADIUM_PROD_API_HOST (env) adds the production API host.",
+  "hosts": [
+    "stadium.joinwebzero.com",
+    "stadium-nu.vercel.app"
+  ],
+  "hostPatterns": [
+    "^stadium-production-[a-z0-9]+\\.up\\.railway\\.app$"
+  ]
+}
